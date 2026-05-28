@@ -38,6 +38,16 @@
 		777777777777777777777777 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 139742736e6d4f7889df30a6 /* SnapshotTesting */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		2E3D29777300EC14B10D95BE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 16EEAF57BAFC2A41CAB7C99A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C9F45524962D088FBA96DA08;
+			remoteInfo = GradeDraft;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		D9730C12B890D116AC692E1F /* GradeDraft.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GradeDraft.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GradeDraftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -236,7 +246,7 @@
 				4C1C9CA0B2757DBC822D263B /* Resources */,
 			);
 			buildRules = ( );
-			dependencies = ( );
+			dependencies = ( 9D32D393BF0F2714F54E714F /* PBXTargetDependency */, );
 			name = GradeDraftTests;
 			packageProductDependencies = (
 				139742736e6d4f7889df30a6 /* SnapshotTesting */,
@@ -313,6 +323,14 @@
 				83fb1a487f92415bb6a08568 /* GradeDraftSnapshotTests.swift in Sources */,
 			); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		9D32D393BF0F2714F54E714F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C9F45524962D088FBA96DA08 /* GradeDraft */;
+			targetProxy = 2E3D29777300EC14B10D95BE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		159c835c21734a81a06da1ea /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
