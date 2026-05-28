@@ -30,6 +30,7 @@ enum LocalOnlyGradingValidator {
 enum GradeDraftValidator {
     static let missingEvidenceMarker = "No supporting evidence found."
 
+    // swiftlint:disable:next cyclomatic_complexity
     static func normalizeAndValidate(_ draft: GradeDraftResult, input: GradingInput) throws -> GradeDraftResult {
         guard !draft.criteria.isEmpty else {
             throw GradeDraftError.invalidModelGrade("At least one rubric criterion is required.")

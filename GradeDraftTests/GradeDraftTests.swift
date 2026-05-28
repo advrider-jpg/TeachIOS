@@ -728,7 +728,7 @@ final class GradeDraftTests: XCTestCase {
             "one-click grade",
             "One-click Grade",
             "Guaranteed Score",
-            "guaranteed score",
+            "guaranteed score"
         ]
 
         // Check all built-in template names and instructions
@@ -745,7 +745,7 @@ final class GradeDraftTests: XCTestCase {
         let errorMessages = [
             GradeDraftError.missingRubric.localizedDescription,
             GradeDraftError.missingStudentText.localizedDescription,
-            GradeDraftError.ocrReviewRequired.localizedDescription,
+            GradeDraftError.ocrReviewRequired.localizedDescription
         ]
         for msg in errorMessages {
             for term in prohibitedTerms {

@@ -119,61 +119,61 @@ struct AssignmentRecord: Identifiable, Equatable {
 
 extension AssignmentRecord: Codable {
     init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(UUID.self, forKey: .id)
-        title = try c.decode(String.self, forKey: .title)
-        prompt = try c.decodeIfPresent(String.self, forKey: .prompt)
-        subject = try c.decode(String.self, forKey: .subject)
-        gradeLevel = try c.decode(String.self, forKey: .gradeLevel)
-        assessmentPurpose = try c.decode(AssessmentPurpose.self, forKey: .assessmentPurpose)
-        curriculumReference = (try? c.decodeIfPresent(String.self, forKey: .curriculumReference)) ?? ""
-        className = try c.decode(String.self, forKey: .className)
-        studentDisplayName = try c.decode(String.self, forKey: .studentDisplayName)
-        assignmentType = try c.decode(AssignmentType.self, forKey: .assignmentType)
-        rubricText = try c.decode(String.self, forKey: .rubricText)
-        customInstructions = try c.decode(String.self, forKey: .customInstructions)
-        answerKeyText = try c.decode(String.self, forKey: .answerKeyText)
-        exemplarText = try c.decode(String.self, forKey: .exemplarText)
-        reviewedStudentText = try c.decode(String.self, forKey: .reviewedStudentText)
-        sourceInputs = (try? c.decode([SourceInputRef].self, forKey: .sourceInputs)) ?? []
-        ocrDocument = try c.decodeIfPresent(OCRDocument.self, forKey: .ocrDocument)
-        ocrReviewStatus = try c.decode(OCRReviewStatus.self, forKey: .ocrReviewStatus)
-        ocrReviewedAt = try c.decodeIfPresent(Date.self, forKey: .ocrReviewedAt)
-        latestDraft = try c.decodeIfPresent(GradeDraftResult.self, forKey: .latestDraft)
-        finalReview = try c.decodeIfPresent(FinalGradeReview.self, forKey: .finalReview)
-        exportRecords = (try? c.decode([ExportRecord].self, forKey: .exportRecords)) ?? []
-        auditEvents = (try? c.decode([AuditEvent].self, forKey: .auditEvents)) ?? []
-        createdAt = try c.decode(Date.self, forKey: .createdAt)
-        updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        prompt = try container.decodeIfPresent(String.self, forKey: .prompt)
+        subject = try container.decode(String.self, forKey: .subject)
+        gradeLevel = try container.decode(String.self, forKey: .gradeLevel)
+        assessmentPurpose = try container.decode(AssessmentPurpose.self, forKey: .assessmentPurpose)
+        curriculumReference = (try? container.decodeIfPresent(String.self, forKey: .curriculumReference)) ?? ""
+        className = try container.decode(String.self, forKey: .className)
+        studentDisplayName = try container.decode(String.self, forKey: .studentDisplayName)
+        assignmentType = try container.decode(AssignmentType.self, forKey: .assignmentType)
+        rubricText = try container.decode(String.self, forKey: .rubricText)
+        customInstructions = try container.decode(String.self, forKey: .customInstructions)
+        answerKeyText = try container.decode(String.self, forKey: .answerKeyText)
+        exemplarText = try container.decode(String.self, forKey: .exemplarText)
+        reviewedStudentText = try container.decode(String.self, forKey: .reviewedStudentText)
+        sourceInputs = (try? container.decode([SourceInputRef].self, forKey: .sourceInputs)) ?? []
+        ocrDocument = try container.decodeIfPresent(OCRDocument.self, forKey: .ocrDocument)
+        ocrReviewStatus = try container.decode(OCRReviewStatus.self, forKey: .ocrReviewStatus)
+        ocrReviewedAt = try container.decodeIfPresent(Date.self, forKey: .ocrReviewedAt)
+        latestDraft = try container.decodeIfPresent(GradeDraftResult.self, forKey: .latestDraft)
+        finalReview = try container.decodeIfPresent(FinalGradeReview.self, forKey: .finalReview)
+        exportRecords = (try? container.decode([ExportRecord].self, forKey: .exportRecords)) ?? []
+        auditEvents = (try? container.decode([AuditEvent].self, forKey: .auditEvents)) ?? []
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 
     func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(id, forKey: .id)
-        try c.encode(title, forKey: .title)
-        try c.encodeIfPresent(prompt, forKey: .prompt)
-        try c.encode(subject, forKey: .subject)
-        try c.encode(gradeLevel, forKey: .gradeLevel)
-        try c.encode(assessmentPurpose, forKey: .assessmentPurpose)
-        try c.encode(curriculumReference, forKey: .curriculumReference)
-        try c.encode(className, forKey: .className)
-        try c.encode(studentDisplayName, forKey: .studentDisplayName)
-        try c.encode(assignmentType, forKey: .assignmentType)
-        try c.encode(rubricText, forKey: .rubricText)
-        try c.encode(customInstructions, forKey: .customInstructions)
-        try c.encode(answerKeyText, forKey: .answerKeyText)
-        try c.encode(exemplarText, forKey: .exemplarText)
-        try c.encode(reviewedStudentText, forKey: .reviewedStudentText)
-        try c.encode(sourceInputs, forKey: .sourceInputs)
-        try c.encodeIfPresent(ocrDocument, forKey: .ocrDocument)
-        try c.encode(ocrReviewStatus, forKey: .ocrReviewStatus)
-        try c.encodeIfPresent(ocrReviewedAt, forKey: .ocrReviewedAt)
-        try c.encodeIfPresent(latestDraft, forKey: .latestDraft)
-        try c.encodeIfPresent(finalReview, forKey: .finalReview)
-        try c.encode(exportRecords, forKey: .exportRecords)
-        try c.encode(auditEvents, forKey: .auditEvents)
-        try c.encode(createdAt, forKey: .createdAt)
-        try c.encode(updatedAt, forKey: .updatedAt)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encodeIfPresent(prompt, forKey: .prompt)
+        try container.encode(subject, forKey: .subject)
+        try container.encode(gradeLevel, forKey: .gradeLevel)
+        try container.encode(assessmentPurpose, forKey: .assessmentPurpose)
+        try container.encode(curriculumReference, forKey: .curriculumReference)
+        try container.encode(className, forKey: .className)
+        try container.encode(studentDisplayName, forKey: .studentDisplayName)
+        try container.encode(assignmentType, forKey: .assignmentType)
+        try container.encode(rubricText, forKey: .rubricText)
+        try container.encode(customInstructions, forKey: .customInstructions)
+        try container.encode(answerKeyText, forKey: .answerKeyText)
+        try container.encode(exemplarText, forKey: .exemplarText)
+        try container.encode(reviewedStudentText, forKey: .reviewedStudentText)
+        try container.encode(sourceInputs, forKey: .sourceInputs)
+        try container.encodeIfPresent(ocrDocument, forKey: .ocrDocument)
+        try container.encode(ocrReviewStatus, forKey: .ocrReviewStatus)
+        try container.encodeIfPresent(ocrReviewedAt, forKey: .ocrReviewedAt)
+        try container.encodeIfPresent(latestDraft, forKey: .latestDraft)
+        try container.encodeIfPresent(finalReview, forKey: .finalReview)
+        try container.encode(exportRecords, forKey: .exportRecords)
+        try container.encode(auditEvents, forKey: .auditEvents)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
     }
 
     var assignmentInputReady: Bool {
@@ -602,6 +602,7 @@ struct OCRQualitySummary: Codable, Equatable {
     }
 }
 
+// swiftlint:disable identifier_name
 struct NormalizedRect: Codable, Equatable {
     var x: CGFloat
     var y: CGFloat
@@ -610,6 +611,7 @@ struct NormalizedRect: Codable, Equatable {
 
     static let zero = NormalizedRect(x: 0, y: 0, width: 0, height: 0)
 }
+// swiftlint:enable identifier_name
 
 // MARK: - Rubric records
 

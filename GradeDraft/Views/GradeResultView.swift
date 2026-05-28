@@ -374,7 +374,7 @@ private struct FinalCriterionEditor: View {
                         Button("Add") {
                             let trimmed = newEvidenceText.trimmingCharacters(in: .whitespacesAndNewlines)
                             if !trimmed.isEmpty {
-                                criterion.evidence = criterion.evidence + [trimmed]
+                                criterion.evidence += [trimmed]
                                 newEvidenceText = ""
                                 showingEvidenceEntry = false
                             }
