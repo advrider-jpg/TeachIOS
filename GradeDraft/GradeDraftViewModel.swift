@@ -15,22 +15,37 @@ final class GradeDraftViewModel: ObservableObject {
     private let gradingService: GradingServicing & CapabilityChecking
     private let store: AssignmentStoring
     private let fileManager: FileManager
+    @Published private(set) var persistenceMode: String
 
     init(
         assignments: [AssignmentRecord] = [],
         ocrService: OCRServicing = VisionOCRService(),
         gradingService: GradingServicing & CapabilityChecking = FoundationModelGradingService(),
-        store: AssignmentStoring = LocalJSONStore(),
+        store: AssignmentStoring? = nil,
         fileManager: FileManager = .default
     ) {
         self.ocrService = ocrService
         self.gradingService = gradingService
-        self.store = store
+        let resolvedStore: AssignmentStoring
+        let resolvedMode: String
+        if let store {
+            resolvedStore = store
+            resolvedMode = "Injected store"
+        } else if let dbStore = try? GRDBAssignmentStore(fileManager: fileManager) {
+            resolvedStore = dbStore
+            resolvedMode = "GRDB-backed local storage"
+        } else {
+            resolvedStore = LocalJSONStore(fileManager: fileManager)
+            resolvedMode = "JSON file-backed storage (GRDB unavailable)"
+        }
+
+        self.store = resolvedStore
+        self.persistenceMode = resolvedMode
         self.fileManager = fileManager
 
         if assignments.isEmpty {
             do {
-                let loaded = try store.loadAssignments()
+                let loaded = try resolvedStore.loadAssignments()
                 self.assignments = loaded.isEmpty ? [AssignmentRecord()] : loaded
             } catch {
                 self.assignments = [AssignmentRecord()]
@@ -74,7 +89,7 @@ final class GradeDraftViewModel: ObservableObject {
         if case .unavailable(let message) = localAIStatus {
             issues.append(message)
         }
-        if assignment.rubricText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !assignment.hasGradingStandard {
             issues.append("Add a rubric, answer key, or grading standard.")
         }
         if assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -89,7 +104,70 @@ final class GradeDraftViewModel: ObservableObject {
         if assignment.finalReviewIsStale {
             issues.append("The final review is stale because the text, rubric, or instructions changed.")
         }
+        if assignment.finalReview?.status != .approved, let blockMessage = finalReviewApprovalBlockMessage {
+            issues.append(blockMessage)
+        }
+
+        if !canExportStudentReport {
+            issues.append("Student-facing export is blocked until the teacher approves the final grade.")
+        }
         return issues
+    }
+
+    var canExportStudentReport: Bool {
+        guard let finalReview = assignment.finalReview else {
+            return false
+        }
+        if finalReview.status != .approved {
+            return false
+        }
+        return !assignment.finalReviewIsStale
+    }
+
+    var canApproveFinalReview: Bool {
+        guard let finalReview = assignment.finalReview else {
+            return false
+        }
+        guard finalReview.criteria.isEmpty == false else {
+            return false
+        }
+        if assignment.finalReviewIsStale {
+            return false
+        }
+        if !finalReview.allCriteriaApproved {
+            return false
+        }
+        if finalReview.criteria.contains(where: { criterion in
+            criterion.finalPoints < 0 || criterion.finalPoints > criterion.maxPoints
+        }) {
+            return false
+        }
+        return true
+    }
+
+    private var finalReviewApprovalBlockMessage: String? {
+        guard let finalReview = assignment.finalReview else {
+            return "Create a final review before final approval."
+        }
+        if finalReview.criteria.isEmpty {
+            return "Add at least one criterion before approval."
+        }
+        if assignment.finalReviewIsStale {
+            return "Refresh final review because grading inputs changed since this review was created."
+        }
+        if !finalReview.allCriteriaApproved {
+            return "Approve all final-review criteria before finalizing."
+        }
+        if finalReview.criteria.contains(where: { criterion in
+            criterion.finalPoints < 0 || criterion.finalPoints > criterion.maxPoints
+        }) {
+            return "Correct out-of-range criterion scores before finalizing."
+        }
+        return nil
+    }
+
+    var persistenceSummary: String {
+        "Persistence: \(persistenceMode)"
     }
 
     var canDraftGrade: Bool {
@@ -120,6 +198,7 @@ final class GradeDraftViewModel: ObservableObject {
         if let template {
             newRecord.title = template.name
             newRecord.assignmentType = template.assignmentType
+            newRecord.assessmentPurpose = template.assessmentPurpose
             newRecord.rubricText = template.rubricText
             newRecord.customInstructions = template.customInstructions
         }
@@ -179,6 +258,7 @@ final class GradeDraftViewModel: ObservableObject {
     func applyTemplate(_ template: RubricTemplate) {
         updateAssignment { assignment in
             assignment.assignmentType = template.assignmentType
+            assignment.assessmentPurpose = template.assessmentPurpose
             assignment.rubricText = template.rubricText
             assignment.customInstructions = template.customInstructions
             assignment.latestDraft = nil
@@ -316,6 +396,10 @@ final class GradeDraftViewModel: ObservableObject {
 
     func approveFinalReview() {
         guard var review = assignment.finalReview else { return }
+        guard canApproveFinalReview else {
+            errorMessage = finalReviewApprovalBlockMessage ?? "This final review is not ready for final approval."
+            return
+        }
         review.criteria = review.criteria.map { criterion in
             var criterion = criterion
             criterion.teacherApproved = true
@@ -342,6 +426,11 @@ final class GradeDraftViewModel: ObservableObject {
     }
 
     func exportStudentReport() {
+        guard canExportStudentReport else {
+            errorMessage = "Student-facing export is blocked until the teacher approves the final grade."
+            return
+        }
+
         do {
             let markdown = MarkdownReportBuilder.studentMarkdown(for: assignment)
             exportURL = try MarkdownReportBuilder.writeTemporaryStudentReport(for: assignment)
@@ -360,6 +449,24 @@ final class GradeDraftViewModel: ObservableObject {
             exportKind = .teacherAuditMarkdown
             recordExport(kind: .teacherAuditMarkdown, markdown: markdown, includesPrivateNotes: true)
             statusMessage = "Teacher audit Markdown report is ready to share. Treat it as sensitive."
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func exportCSVGradebook() {
+        do {
+            let csv = CSVExportService.exportedCSV(from: [assignment])
+            let safeTitle = assignment.title
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "[^A-Za-z0-9_-]+", with: "-", options: .regularExpression)
+            let fileName = "GradeDraft-CSV-\(safeTitle.isEmpty ? assignment.id.uuidString : safeTitle).csv"
+            let destination = fileManager.temporaryDirectory.appendingPathComponent(fileName)
+            try csv.write(to: destination, atomically: true, encoding: .utf8)
+            exportURL = destination
+            exportKind = .csvGradebook
+            recordExport(kind: .csvGradebook, markdown: csv, includesPrivateNotes: false)
+            statusMessage = "CSV grade summary is ready to share."
         } catch {
             errorMessage = error.localizedDescription
         }

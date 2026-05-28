@@ -146,6 +146,12 @@ struct FinalGradeReviewView: View {
                     .font(.subheadline.bold())
             }
 
+            if !canApproveCurrentReview {
+                Label("Approve each criterion to enable final grade approval.", systemImage: "person.crop.circle.badge.exclamationmark")
+                    .foregroundStyle(.orange)
+                    .font(.caption)
+            }
+
             ForEach($workingReview.criteria) { $criterion in
                 FinalCriterionEditor(criterion: $criterion)
             }
@@ -192,7 +198,7 @@ struct FinalGradeReviewView: View {
                     onApprove()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(workingReview.criteria.isEmpty)
+                .disabled(!canApproveCurrentReview)
             }
         }
         .padding()
@@ -222,6 +228,10 @@ struct FinalGradeReviewView: View {
         case .inProgress:
             return .secondary
         }
+    }
+
+    private var canApproveCurrentReview: Bool {
+        !workingReview.criteria.isEmpty && workingReview.allCriteriaApproved && workingReview.criteria.allSatisfy { $0.finalPoints >= 0 && $0.finalPoints <= $0.maxPoints }
     }
 }
 

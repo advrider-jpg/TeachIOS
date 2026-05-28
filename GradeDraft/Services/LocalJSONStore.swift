@@ -164,11 +164,11 @@ enum MarkdownReportBuilder {
     }
 
     static func writeTemporaryStudentReport(for assignment: AssignmentRecord) throws -> URL {
-        try writeTemporaryReport(for: assignment, kind: .studentMarkdown, markdown: studentMarkdown(for: assignment))
+        try writeTemporaryReport(for: assignment, kind: .studentMarkdown, content: studentMarkdown(for: assignment))
     }
 
     static func writeTemporaryTeacherAuditReport(for assignment: AssignmentRecord) throws -> URL {
-        try writeTemporaryReport(for: assignment, kind: .teacherAuditMarkdown, markdown: teacherAuditMarkdown(for: assignment))
+        try writeTemporaryReport(for: assignment, kind: .teacherAuditMarkdown, content: teacherAuditMarkdown(for: assignment))
     }
 
     private static func reportHeader(title: String, assignment: AssignmentRecord) -> String {
@@ -221,15 +221,30 @@ enum MarkdownReportBuilder {
         }
     }
 
-    private static func writeTemporaryReport(for assignment: AssignmentRecord, kind: ExportKind, markdown: String) throws -> URL {
+    private static func writeTemporaryReport(for assignment: AssignmentRecord, kind: ExportKind, content: String) throws -> URL {
         let safeTitle = assignment.title
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "[^A-Za-z0-9_-]+", with: "-", options: .regularExpression)
-        let suffix = kind == .studentMarkdown ? "Student" : "TeacherAudit"
-        let filename = "GradeDraft-\(suffix)-\(safeTitle.isEmpty ? assignment.id.uuidString : safeTitle).md"
+        let suffix: String
+        let filenameExtension: String
+        switch kind {
+        case .studentMarkdown:
+            suffix = "Student"
+            filenameExtension = "md"
+        case .teacherAuditMarkdown:
+            suffix = "TeacherAudit"
+            filenameExtension = "md"
+        case .csvGradebook:
+            suffix = "CSV"
+            filenameExtension = "csv"
+        case .backupJSON:
+            suffix = "Backup"
+            filenameExtension = "json"
+        }
+        let filename = "GradeDraft-\(suffix)-\(safeTitle.isEmpty ? assignment.id.uuidString : safeTitle).\(filenameExtension)"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         do {
-            try markdown.write(to: url, atomically: true, encoding: .utf8)
+            try content.write(to: url, atomically: true, encoding: .utf8)
             return url
         } catch {
             throw GradeDraftError.exportFailed(error.localizedDescription)
