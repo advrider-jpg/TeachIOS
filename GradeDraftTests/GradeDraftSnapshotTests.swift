@@ -32,9 +32,9 @@ final class GradeDraftCapabilityBannerTests: XCTestCase {
     }
 
     func testUnavailableStatusNotEqualToAvailable() {
-        let a = LocalAIStatus.available
-        let b = LocalAIStatus.unavailable("not available")
-        XCTAssertNotEqual(a, b)
+        let availableStatus = LocalAIStatus.available
+        let unavailableStatus = LocalAIStatus.unavailable("not available")
+        XCTAssertNotEqual(availableStatus, unavailableStatus)
     }
 
     func testAvailableStatusSelfEquality() {
