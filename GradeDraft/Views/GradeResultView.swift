@@ -91,7 +91,7 @@ private struct CriterionDraftCard: View {
                     Text("Evidence")
                         .font(.caption.bold())
                     ForEach(criterion.evidence, id: \.self) { evidence in
-                        Text("“\(evidence)”")
+                        Text("\u{201C}\(evidence)\u{201D}")
                             .font(.caption)
                             .textSelection(.enabled)
                     }
@@ -289,26 +289,26 @@ private struct FinalCriterionEditor: View {
     @Binding var criterion: FinalCriterionScore
     var onDelete: (() -> Void)?
 
-    @State private var newEvidenceText = “”
+    @State private var newEvidenceText = ""
     @State private var showingEvidenceEntry = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                TextField(“Criterion name”, text: $criterion.criterion)
+                TextField("Criterion name", text: $criterion.criterion)
                     .font(.headline)
                     .textFieldStyle(.roundedBorder)
                 Spacer()
                 if criterion.proposedPoints > 0 || criterion.maxPoints > 0 {
-                    Text(“Proposed \(GradeTotals.formatted(criterion.proposedPoints)) / \(GradeTotals.formatted(criterion.maxPoints))”)
+                    Text("Proposed \(GradeTotals.formatted(criterion.proposedPoints)) / \(GradeTotals.formatted(criterion.maxPoints))")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
             }
 
             HStack {
-                Text(“Final points”)
-                TextField(“Points”, value: $criterion.finalPoints, format: .number)
+                Text("Final points")
+                TextField("Points", value: $criterion.finalPoints, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 100)
                     .onChange(of: criterion.finalPoints) { _, newValue in
@@ -318,28 +318,28 @@ private struct FinalCriterionEditor: View {
                             criterion.finalPoints = max(0, newValue)
                         }
                     }
-                Text(“/”)
+                Text("/")
                     .foregroundStyle(.secondary)
-                TextField(“Max”, value: $criterion.maxPoints, format: .number)
+                TextField("Max", value: $criterion.maxPoints, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 80)
                     .onChange(of: criterion.maxPoints) { _, newValue in
                         criterion.maxPoints = max(0, newValue)
                     }
                 Spacer()
-                Toggle(“Approved”, isOn: $criterion.teacherApproved)
+                Toggle("Approved", isOn: $criterion.teacherApproved)
                     .toggleStyle(.switch)
                     .labelsHidden()
-                Text(“Approved”)
+                Text("Approved")
                     .font(.caption)
             }
 
-            TextField(“Rating (optional, e.g. Proficient)”, text: $criterion.rating, axis: .vertical)
+            TextField("Rating (optional, e.g. Proficient)", text: $criterion.rating, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .font(.subheadline)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(“Explanation”)
+                Text("Explanation")
                     .font(.caption.bold())
                 TextEditor(text: $criterion.explanation)
                     .frame(minHeight: 60)
@@ -349,17 +349,17 @@ private struct FinalCriterionEditor: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text(“Evidence”)
+                    Text("Evidence")
                         .font(.caption.bold())
                     Spacer()
                     Button {
                         showingEvidenceEntry.toggle()
                     } label: {
-                        Label(“Add evidence”, systemImage: “plus.circle”)
+                        Label("Add evidence", systemImage: "plus.circle")
                             .font(.caption)
                     }
                     if !criterion.evidence.isEmpty {
-                        Button(“Clear evidence”) {
+                        Button("Clear evidence") {
                             criterion.evidence = []
                         }
                         .font(.caption)
@@ -368,14 +368,14 @@ private struct FinalCriterionEditor: View {
                 }
                 if showingEvidenceEntry {
                     HStack {
-                        TextField(“Paste an evidence quote from the student text”, text: $newEvidenceText)
+                        TextField("Paste an evidence quote from the student text", text: $newEvidenceText)
                             .textFieldStyle(.roundedBorder)
                             .font(.caption)
-                        Button(“Add”) {
+                        Button("Add") {
                             let trimmed = newEvidenceText.trimmingCharacters(in: .whitespacesAndNewlines)
                             if !trimmed.isEmpty {
                                 criterion.evidence = criterion.evidence + [trimmed]
-                                newEvidenceText = “”
+                                newEvidenceText = ""
                                 showingEvidenceEntry = false
                             }
                         }
@@ -384,7 +384,7 @@ private struct FinalCriterionEditor: View {
                 }
                 ForEach(Array(criterion.evidence.enumerated()), id: \.offset) { index, evidence in
                     HStack(alignment: .top) {
-                        Text(“”\(evidence)””)
+                        Text("\u{201C}\(evidence)\u{201D}")
                             .font(.caption)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -393,20 +393,20 @@ private struct FinalCriterionEditor: View {
                             updated.remove(at: index)
                             criterion.evidence = updated
                         } label: {
-                            Image(systemName: “xmark.circle”)
+                            Image(systemName: "xmark.circle")
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
                     }
                 }
                 if criterion.evidence.isEmpty && !showingEvidenceEntry {
-                    Text(“No evidence cited. Add a quote from the reviewed student text.”)
+                    Text("No evidence cited. Add a quote from the reviewed student text.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            TextField(“Teacher rationale or private note for this criterion”, text: $criterion.teacherRationale, axis: .vertical)
+            TextField("Teacher rationale or private note for this criterion", text: $criterion.teacherRationale, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .font(.caption)
 
@@ -414,7 +414,7 @@ private struct FinalCriterionEditor: View {
                 Button(role: .destructive) {
                     onDelete()
                 } label: {
-                    Label(“Delete Criterion”, systemImage: “trash”)
+                    Label("Delete Criterion", systemImage: "trash")
                         .font(.caption)
                 }
             }
