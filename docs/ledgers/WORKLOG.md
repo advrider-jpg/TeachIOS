@@ -1,5 +1,19 @@
 # Worklog
 
+## 2026-05-28 — Validation repair pass
+
+- Files changed:
+  - `GradeDraftTests/GradeDraftTests.swift` — removed nil-coalescing from non-optional `localizedDescription` values.
+  - `.github/workflows/swift.yml` — added explicit `python3 scripts/no_network_scan.py` after `repo_health.py`.
+- Validation status:
+  - `python3 scripts/repo_health.py` — passed.
+  - `python3 scripts/no_network_scan.py` — passed.
+  - `xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft` — blocked; `xcodebuild` unavailable in this environment.
+  - `swiftlint lint --config .swiftlint.yml` — blocked; `swiftlint` unavailable in this environment.
+  - `xcrun simctl list devices available` / simulator selection — blocked; `xcrun` unavailable in this environment.
+- Package.resolved:
+  - `GradeDraft.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` was not generated in this environment.
+
 ## 2026-05-28 — GradeDraft hardening pass
 
 - Files changed:

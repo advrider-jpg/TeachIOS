@@ -743,9 +743,9 @@ final class GradeDraftTests: XCTestCase {
 
         // Check error messages
         let errorMessages = [
-            GradeDraftError.missingRubric.localizedDescription ?? "",
-            GradeDraftError.missingStudentText.localizedDescription ?? "",
-            GradeDraftError.ocrReviewRequired.localizedDescription ?? "",
+            GradeDraftError.missingRubric.localizedDescription,
+            GradeDraftError.missingStudentText.localizedDescription,
+            GradeDraftError.ocrReviewRequired.localizedDescription,
         ]
         for msg in errorMessages {
             for term in prohibitedTerms {
