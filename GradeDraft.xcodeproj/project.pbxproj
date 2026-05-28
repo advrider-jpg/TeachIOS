@@ -1,0 +1,391 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		87C11B82C1B3493DEB9EF36F /* GradeDraftApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2235988D2937F275CA4EA14B /* GradeDraftApp.swift */; };
+		1A2F1E13B4A601B308F525EE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CBAC66372CFBDF2A09FD7CE /* ContentView.swift */; };
+		5228B779E078711C4ADE8832 /* GradeDraftViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D671A939D9C358A3A671EFC /* GradeDraftViewModel.swift */; };
+		98C89CBBC31867AF0C9BF5BE /* GradeDraftModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA58224F166E200203BADA /* GradeDraftModels.swift */; };
+		E9EF92B5433A17AD97549061 /* OCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A94B846A0C77767D20D29EA /* OCRService.swift */; };
+		FEE33A184259891884610082 /* GradingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4149F0A80F5AEF370D2C6F /* GradingService.swift */; };
+		38EF17C83955F218F2C36DF9 /* FoundationModelGradingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C970390A677003FF366361E2 /* FoundationModelGradingService.swift */; };
+		BCC3F811BD918D685A21A9DC /* GradeTotals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34C1D9BF4FFCFEB34EEF7264 /* GradeTotals.swift */; };
+		D0893F41B415EF5F02392764 /* LocalJSONStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080B27BFE3EC6B6E76453A55 /* LocalJSONStore.swift */; };
+		EFE9E48E698998BB5031EAD6 /* PromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0EC5399AB1F0376FFFF1554 /* PromptBuilder.swift */; };
+		EDAE34C4F70B0071371919BC /* DocumentScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6080EE48D7210889E1CAAE50 /* DocumentScannerView.swift */; };
+		B82A21CD79BD6729921D0455 /* LocalCapabilityBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBD34CEB9D5E52DA3FF63AA0 /* LocalCapabilityBanner.swift */; };
+		00409CECD33DC980764B6B8E /* GradeResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D02E558438747A9D730FC8 /* GradeResultView.swift */; };
+		7B431331244B2236C5880029 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3B0978977513E1648ADF1B8F /* PrivacyInfo.xcprivacy */; };
+		E92F15694F5C9C14E9C64B87 /* GradeDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7540F0CD4B719C0E75EBE09 /* GradeDraftTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		D9730C12B890D116AC692E1F /* GradeDraft.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GradeDraft.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GradeDraftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2235988D2937F275CA4EA14B /* GradeDraftApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftApp.swift; sourceTree = "<group>"; };
+		8CBAC66372CFBDF2A09FD7CE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		4D671A939D9C358A3A671EFC /* GradeDraftViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftViewModel.swift; sourceTree = "<group>"; };
+		BEAA58224F166E200203BADA /* GradeDraftModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftModels.swift; sourceTree = "<group>"; };
+		9A94B846A0C77767D20D29EA /* OCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRService.swift; sourceTree = "<group>"; };
+		FB4149F0A80F5AEF370D2C6F /* GradingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradingService.swift; sourceTree = "<group>"; };
+		C970390A677003FF366361E2 /* FoundationModelGradingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelGradingService.swift; sourceTree = "<group>"; };
+		34C1D9BF4FFCFEB34EEF7264 /* GradeTotals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeTotals.swift; sourceTree = "<group>"; };
+		080B27BFE3EC6B6E76453A55 /* LocalJSONStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalJSONStore.swift; sourceTree = "<group>"; };
+		A0EC5399AB1F0376FFFF1554 /* PromptBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptBuilder.swift; sourceTree = "<group>"; };
+		6080EE48D7210889E1CAAE50 /* DocumentScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentScannerView.swift; sourceTree = "<group>"; };
+		FBD34CEB9D5E52DA3FF63AA0 /* LocalCapabilityBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCapabilityBanner.swift; sourceTree = "<group>"; };
+		93D02E558438747A9D730FC8 /* GradeResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeResultView.swift; sourceTree = "<group>"; };
+		3B0978977513E1648ADF1B8F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		E7540F0CD4B719C0E75EBE09 /* GradeDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		61D85E48ABD4C58BF0072A49 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
+		9BD897F0A7DC24ECB53342F3 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		3C9D7F1ECE6B1C2C05B9A223 = {
+			isa = PBXGroup;
+			children = (
+				FDBDEEC77EA1DB023A30F615 /* GradeDraft */,
+				D672293B1BCDE5BD8B87F945 /* GradeDraftTests */,
+				5ADE8A4128725EB9150C196B /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		FDBDEEC77EA1DB023A30F615 /* GradeDraft */ = {
+			isa = PBXGroup;
+			children = (
+				2235988D2937F275CA4EA14B /* GradeDraftApp.swift */,
+				8CBAC66372CFBDF2A09FD7CE /* ContentView.swift */,
+				4D671A939D9C358A3A671EFC /* GradeDraftViewModel.swift */,
+				BF657CFE8769AAE6C0570C29 /* Models */,
+				6EE67047A4B2648DDBB08231 /* Services */,
+				58492F208780FA5EF3807E8F /* Views */,
+				A024F06580C79B7582C3806A /* Resources */,
+			);
+			path = GradeDraft;
+			sourceTree = "<group>";
+		};
+		BF657CFE8769AAE6C0570C29 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				BEAA58224F166E200203BADA /* GradeDraftModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		6EE67047A4B2648DDBB08231 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				9A94B846A0C77767D20D29EA /* OCRService.swift */,
+				FB4149F0A80F5AEF370D2C6F /* GradingService.swift */,
+				C970390A677003FF366361E2 /* FoundationModelGradingService.swift */,
+				34C1D9BF4FFCFEB34EEF7264 /* GradeTotals.swift */,
+				080B27BFE3EC6B6E76453A55 /* LocalJSONStore.swift */,
+				A0EC5399AB1F0376FFFF1554 /* PromptBuilder.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		58492F208780FA5EF3807E8F /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				6080EE48D7210889E1CAAE50 /* DocumentScannerView.swift */,
+				FBD34CEB9D5E52DA3FF63AA0 /* LocalCapabilityBanner.swift */,
+				93D02E558438747A9D730FC8 /* GradeResultView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A024F06580C79B7582C3806A /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				3B0978977513E1648ADF1B8F /* PrivacyInfo.xcprivacy */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		D672293B1BCDE5BD8B87F945 /* GradeDraftTests */ = {
+			isa = PBXGroup;
+			children = (
+				E7540F0CD4B719C0E75EBE09 /* GradeDraftTests.swift */,
+			);
+			path = GradeDraftTests;
+			sourceTree = "<group>";
+		};
+		5ADE8A4128725EB9150C196B /* Products */ = {isa = PBXGroup; children = ( D9730C12B890D116AC692E1F /* GradeDraft.app */, AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */, ); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C9F45524962D088FBA96DA08 /* GradeDraft */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7D5CC26B5D8184F60C162E3E /* Build configuration list for PBXNativeTarget "GradeDraft" */;
+			buildPhases = (
+				AD7F4DA0D2B5600DAD6CC1D4 /* Sources */,
+				61D85E48ABD4C58BF0072A49 /* Frameworks */,
+				1D1DCE0D308435F6082AAF5E /* Resources */,
+			);
+			buildRules = ( );
+			dependencies = ( );
+			name = GradeDraft;
+			productReference = D9730C12B890D116AC692E1F /* GradeDraft.app */;
+			productType = "com.apple.product-type.application";
+		};
+		385F6D1BD8E774F956FF142E /* GradeDraftTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 97A2EC73EC7ED3717951F45B /* Build configuration list for PBXNativeTarget "GradeDraftTests" */;
+			buildPhases = (
+				C2C867FEB507DB914C2126B0 /* Sources */,
+				9BD897F0A7DC24ECB53342F3 /* Frameworks */,
+				4C1C9CA0B2757DBC822D263B /* Resources */,
+			);
+			buildRules = ( );
+			dependencies = ( );
+			name = GradeDraftTests;
+			productReference = AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		16EEAF57BAFC2A41CAB7C99A /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					C9F45524962D088FBA96DA08 = { CreatedOnToolsVersion = 26.0; };
+					385F6D1BD8E774F956FF142E = { CreatedOnToolsVersion = 26.0; TestTargetID = C9F45524962D088FBA96DA08; };
+				};
+			};
+			buildConfigurationList = 4098280B01B3EBC6C4399C36 /* Build configuration list for PBXProject "GradeDraft" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = ( en, Base, );
+			mainGroup = 3C9D7F1ECE6B1C2C05B9A223;
+			productRefGroup = 5ADE8A4128725EB9150C196B /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = ( C9F45524962D088FBA96DA08 /* GradeDraft */, 385F6D1BD8E774F956FF142E /* GradeDraftTests */, );
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1D1DCE0D308435F6082AAF5E /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( 7B431331244B2236C5880029 /* PrivacyInfo.xcprivacy in Resources */, ); runOnlyForDeploymentPostprocessing = 0; }};
+		4C1C9CA0B2757DBC822D263B /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AD7F4DA0D2B5600DAD6CC1D4 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
+				87C11B82C1B3493DEB9EF36F /* GradeDraftApp.swift in Sources */,
+				1A2F1E13B4A601B308F525EE /* ContentView.swift in Sources */,
+				5228B779E078711C4ADE8832 /* GradeDraftViewModel.swift in Sources */,
+				98C89CBBC31867AF0C9BF5BE /* GradeDraftModels.swift in Sources */,
+				E9EF92B5433A17AD97549061 /* OCRService.swift in Sources */,
+				FEE33A184259891884610082 /* GradingService.swift in Sources */,
+				38EF17C83955F218F2C36DF9 /* FoundationModelGradingService.swift in Sources */,
+				BCC3F811BD918D685A21A9DC /* GradeTotals.swift in Sources */,
+				D0893F41B415EF5F02392764 /* LocalJSONStore.swift in Sources */,
+				EFE9E48E698998BB5031EAD6 /* PromptBuilder.swift in Sources */,
+				EDAE34C4F70B0071371919BC /* DocumentScannerView.swift in Sources */,
+				B82A21CD79BD6729921D0455 /* LocalCapabilityBanner.swift in Sources */,
+				00409CECD33DC980764B6B8E /* GradeResultView.swift in Sources */,
+			); runOnlyForDeploymentPostprocessing = 0; };
+		C2C867FEB507DB914C2126B0 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
+				E92F15694F5C9C14E9C64B87 /* GradeDraftTests.swift in Sources */,
+			); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		44F8FE9E42EE10FA95BF5EC7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		4716E1B4F36A39044E1BE345 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		AA42A96571B68018722E06D1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = GradeDraft/Resources/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.gradedraft;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D1EF6BA381CF098EC2C15B86 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = GradeDraft/Resources/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.gradedraft;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		7E49AA4734F9B1DA6D85775C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.gradedraft.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GradeDraft.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GradeDraft";
+			};
+			name = Debug;
+		};
+		71A699ED4E27E90F54E3EFE9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.gradedraft.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GradeDraft.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GradeDraft";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4098280B01B3EBC6C4399C36 /* Build configuration list for PBXProject "GradeDraft" */ = {isa = XCConfigurationList; buildConfigurations = ( 44F8FE9E42EE10FA95BF5EC7 /* Debug */, 4716E1B4F36A39044E1BE345 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		7D5CC26B5D8184F60C162E3E /* Build configuration list for PBXNativeTarget "GradeDraft" */ = {isa = XCConfigurationList; buildConfigurations = ( AA42A96571B68018722E06D1 /* Debug */, D1EF6BA381CF098EC2C15B86 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		97A2EC73EC7ED3717951F45B /* Build configuration list for PBXNativeTarget "GradeDraftTests" */ = {isa = XCConfigurationList; buildConfigurations = ( 7E49AA4734F9B1DA6D85775C /* Debug */, 71A699ED4E27E90F54E3EFE9 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = 16EEAF57BAFC2A41CAB7C99A /* Project object */;
+}
