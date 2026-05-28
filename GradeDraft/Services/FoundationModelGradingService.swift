@@ -40,7 +40,7 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking 
             let response = try await session.respond(to: PromptBuilder.gradingPrompt(input: input))
             let raw = response.content
             let parsed = try ModelGradeDraftResponse.parse(rawModelResponse: raw)
-            return try GradeDraftValidator.normalizeAndValidate(parsed)
+            return try GradeDraftValidator.normalizeAndValidate(parsed, input: input)
         } else {
             throw GradeDraftError.localModelUnavailable("Foundation Models requires a newer operating system.")
         }
@@ -108,11 +108,13 @@ private struct ModelGradeDraftResponse: Decodable {
             let decoded = try JSONDecoder().decode(ModelGradeDraftResponse.self, from: data)
             let criteria = decoded.criteria.map {
                 CriterionScore(
+                    criterionID: $0.criterionID,
                     criterion: $0.criterion,
                     rating: $0.rating,
                     proposedPoints: $0.proposedPoints,
                     maxPoints: $0.maxPoints,
                     evidence: $0.evidence,
+                    evidenceSourceRefs: $0.evidenceSourceRefs,
                     explanation: $0.explanation,
                     teacherReviewRequired: $0.teacherReviewRequired
                 )
@@ -136,15 +138,20 @@ private struct ModelGradeDraftResponse: Decodable {
 }
 
 private struct ModelCriterionScore: Decodable {
+    var criterionID: String?
     var criterion: String
     var rating: String
     var proposedPoints: Double
     var maxPoints: Double
     var evidence: [String]
+    var evidenceSourceRefs: [String]
     var explanation: String
     var teacherReviewRequired: Bool
 
     enum CodingKeys: String, CodingKey {
+        case criterionID
+        case criterionId
+        case criterionIDSnake = "criterion_id"
         case criterion
         case rating
         case proposedPoints
@@ -152,6 +159,8 @@ private struct ModelCriterionScore: Decodable {
         case maxPoints
         case maxPointsSnake = "max_points"
         case evidence
+        case evidenceSourceRefs
+        case evidenceSourceRefsSnake = "evidence_source_refs"
         case explanation
         case teacherReviewRequired
         case teacherReviewRequiredSnake = "teacher_review_required"
@@ -159,11 +168,13 @@ private struct ModelCriterionScore: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        criterionID = try container.decodeFlexibleOptionalString(forKeys: [.criterionID, .criterionId, .criterionIDSnake])
         criterion = try container.decodeFlexibleString(forKeys: [.criterion], defaultValue: "")
         rating = try container.decodeFlexibleString(forKeys: [.rating], defaultValue: "")
         proposedPoints = try container.decodeFlexibleDouble(forKeys: [.proposedPoints, .proposedPointsSnake], defaultValue: 0)
         maxPoints = try container.decodeFlexibleDouble(forKeys: [.maxPoints, .maxPointsSnake], defaultValue: 0)
         evidence = try container.decodeFlexibleStringArray(forKeys: [.evidence], defaultValue: [])
+        evidenceSourceRefs = try container.decodeFlexibleStringArray(forKeys: [.evidenceSourceRefs, .evidenceSourceRefsSnake], defaultValue: [])
         explanation = try container.decodeFlexibleString(forKeys: [.explanation], defaultValue: "")
         teacherReviewRequired = try container.decodeFlexibleBool(forKeys: [.teacherReviewRequired, .teacherReviewRequiredSnake], defaultValue: true)
     }
@@ -175,8 +186,20 @@ private extension KeyedDecodingContainer {
             if let value = try? decode(String.self, forKey: key) {
                 return value
             }
+            if let value = try? decode(Int.self, forKey: key) {
+                return String(value)
+            }
+            if let value = try? decode(Double.self, forKey: key) {
+                return String(value)
+            }
         }
         return defaultValue
+    }
+
+    func decodeFlexibleOptionalString(forKeys keys: [Key]) throws -> String? {
+        let value = try decodeFlexibleString(forKeys: keys, defaultValue: "")
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     func decodeFlexibleStringArray(forKeys keys: [Key], defaultValue: [String]) throws -> [String] {

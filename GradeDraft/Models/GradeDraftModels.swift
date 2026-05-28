@@ -1,18 +1,49 @@
 import CoreGraphics
 import Foundation
 
+// MARK: - Stable local fingerprints
+
+/// A deterministic local fingerprint used to detect stale grading packets and source changes.
+/// This is intentionally not represented as encryption or authentication. It is an app-state
+/// fingerprint for offline recordkeeping, not a security boundary.
+enum StableFingerprint {
+    static func fingerprint(_ components: [String]) -> String {
+        fingerprint(Data(components.joined(separator: "\u{001F}").utf8))
+    }
+
+    static func fingerprint(_ data: Data) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in data {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "fnv1a64-%016llx", hash)
+    }
+}
+
+// MARK: - Assignment and classroom records
+
 struct AssignmentRecord: Identifiable, Codable, Equatable {
     var id: UUID
     var title: String
     var subject: String
     var gradeLevel: String
+    var className: String
+    var studentDisplayName: String
     var assignmentType: AssignmentType
     var rubricText: String
     var customInstructions: String
+    var answerKeyText: String
+    var exemplarText: String
     var reviewedStudentText: String
+    var sourceInputs: [SourceInputRef]
     var ocrDocument: OCRDocument?
+    var ocrReviewStatus: OCRReviewStatus
+    var ocrReviewedAt: Date?
     var latestDraft: GradeDraftResult?
     var finalReview: FinalGradeReview?
+    var exportRecords: [ExportRecord]
+    var auditEvents: [AuditEvent]
     var createdAt: Date
     var updatedAt: Date
 
@@ -21,13 +52,22 @@ struct AssignmentRecord: Identifiable, Codable, Equatable {
         title: String = "New Assignment",
         subject: String = "",
         gradeLevel: String = "",
+        className: String = "",
+        studentDisplayName: String = "",
         assignmentType: AssignmentType = .shortAnswer,
         rubricText: String = "",
         customInstructions: String = "",
+        answerKeyText: String = "",
+        exemplarText: String = "",
         reviewedStudentText: String = "",
+        sourceInputs: [SourceInputRef] = [],
         ocrDocument: OCRDocument? = nil,
+        ocrReviewStatus: OCRReviewStatus = .notNeeded,
+        ocrReviewedAt: Date? = nil,
         latestDraft: GradeDraftResult? = nil,
         finalReview: FinalGradeReview? = nil,
+        exportRecords: [ExportRecord] = [],
+        auditEvents: [AuditEvent] = [],
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -35,13 +75,22 @@ struct AssignmentRecord: Identifiable, Codable, Equatable {
         self.title = title
         self.subject = subject
         self.gradeLevel = gradeLevel
+        self.className = className
+        self.studentDisplayName = studentDisplayName
         self.assignmentType = assignmentType
         self.rubricText = rubricText
         self.customInstructions = customInstructions
+        self.answerKeyText = answerKeyText
+        self.exemplarText = exemplarText
         self.reviewedStudentText = reviewedStudentText
+        self.sourceInputs = sourceInputs
         self.ocrDocument = ocrDocument
+        self.ocrReviewStatus = ocrReviewStatus
+        self.ocrReviewedAt = ocrReviewedAt
         self.latestDraft = latestDraft
         self.finalReview = finalReview
+        self.exportRecords = exportRecords
+        self.auditEvents = auditEvents
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -50,18 +99,81 @@ struct AssignmentRecord: Identifiable, Codable, Equatable {
         gradingInput.isReadyForGrading
     }
 
+    var parsedRubric: ParsedRubric {
+        RubricParser.parse(rubricText)
+    }
+
+    var gradingPacketFingerprint: String {
+        StableFingerprint.fingerprint([
+            title,
+            subject,
+            gradeLevel,
+            assignmentType.rawValue,
+            rubricText,
+            customInstructions,
+            answerKeyText,
+            exemplarText,
+            reviewedStudentText,
+            ocrReviewStatus.rawValue,
+            sourceInputs.map { $0.contentDigest ?? $0.id.uuidString }.joined(separator: "|")
+        ])
+    }
+
+    var latestDraftIsStale: Bool {
+        guard let latestDraft else { return false }
+        return latestDraft.packetFingerprint != gradingPacketFingerprint
+    }
+
+    var finalReviewIsStale: Bool {
+        guard let finalReview else { return false }
+        return finalReview.packetFingerprint != gradingPacketFingerprint
+    }
+
+    var requiresOCRReviewBeforeGrading: Bool {
+        ocrReviewStatus == .needsReview || ocrReviewStatus == .blocked
+    }
+
     var gradingInput: GradingInput {
         GradingInput(
+            assignmentID: id,
             assignmentTitle: title,
             subject: subject,
             gradeLevel: gradeLevel,
+            className: className,
+            studentDisplayName: studentDisplayName,
             assignmentType: assignmentType,
             rubricText: rubricText,
+            parsedRubric: parsedRubric,
             customInstructions: customInstructions,
+            answerKeyText: answerKeyText,
+            exemplarText: exemplarText,
             reviewedStudentText: reviewedStudentText,
-            ocrQualitySummary: ocrDocument?.qualitySummary ?? OCRQualitySummary()
+            ocrQualitySummary: ocrDocument?.qualitySummary ?? OCRQualitySummary(),
+            ocrReviewStatus: ocrReviewStatus,
+            sourceInputCount: sourceInputs.count,
+            packetFingerprint: gradingPacketFingerprint
         )
     }
+
+    mutating func appendAuditEvent(_ eventType: AuditEventType, detail: String) {
+        auditEvents.append(AuditEvent(eventType: eventType, detail: detail))
+    }
+}
+
+struct StudentRecord: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var displayName: String
+    var className: String
+    var localIdentifier: String
+    var isActive: Bool = true
+}
+
+struct ClassGroupRecord: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var name: String
+    var schoolYear: String
+    var term: String
+    var isArchived: Bool = false
 }
 
 enum AssignmentType: String, CaseIterable, Codable, Identifiable {
@@ -89,19 +201,137 @@ enum AssignmentType: String, CaseIterable, Codable, Identifiable {
     }
 }
 
-struct OCRDocument: Codable, Equatable {
-    var pages: [OCRPage]
+// MARK: - Source input and OCR records
+
+enum SourceType: String, CaseIterable, Codable, Identifiable {
+    case pastedText
+    case scan
+    case photo
+    case pdf
+    case handwrittenWork
+    case visualArtifact
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .pastedText:
+            return "Pasted text"
+        case .scan:
+            return "Document scan"
+        case .photo:
+            return "Imported photo"
+        case .pdf:
+            return "PDF"
+        case .handwrittenWork:
+            return "Handwritten work"
+        case .visualArtifact:
+            return "Visual artifact"
+        }
+    }
+}
+
+struct SourceInputRef: Identifiable, Codable, Equatable {
+    var id: UUID
+    var sourceType: SourceType
+    var pageIndex: Int?
+    var localRelativePath: String?
+    var contentDigest: String?
+    var digestAlgorithm: String?
+    var imageWidth: Double?
+    var imageHeight: Double?
+    var teacherIncludedInExport: Bool
     var createdAt: Date
 
-    init(pages: [OCRPage], createdAt: Date = Date()) {
+    init(
+        id: UUID = UUID(),
+        sourceType: SourceType,
+        pageIndex: Int? = nil,
+        localRelativePath: String? = nil,
+        contentDigest: String? = nil,
+        digestAlgorithm: String? = nil,
+        imageWidth: Double? = nil,
+        imageHeight: Double? = nil,
+        teacherIncludedInExport: Bool = false,
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.sourceType = sourceType
+        self.pageIndex = pageIndex
+        self.localRelativePath = localRelativePath
+        self.contentDigest = contentDigest
+        self.digestAlgorithm = digestAlgorithm
+        self.imageWidth = imageWidth
+        self.imageHeight = imageHeight
+        self.teacherIncludedInExport = teacherIncludedInExport
+        self.createdAt = createdAt
+    }
+}
+
+enum OCRReviewStatus: String, CaseIterable, Codable, Identifiable {
+    case notNeeded
+    case needsReview
+    case reviewed
+    case blocked
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .notNeeded:
+            return "No OCR review needed"
+        case .needsReview:
+            return "Needs OCR review"
+        case .reviewed:
+            return "OCR reviewed"
+        case .blocked:
+            return "OCR blocked"
+        }
+    }
+
+    var blocksGrading: Bool {
+        self == .needsReview || self == .blocked
+    }
+}
+
+struct OCRDocument: Identifiable, Codable, Equatable {
+    var id: UUID
+    var engine: String
+    var engineVersion: String
+    var pages: [OCRPage]
+    var createdAt: Date
+    var reviewStatus: OCRReviewStatus
+    var reviewedAt: Date?
+
+    init(
+        id: UUID = UUID(),
+        engine: String = "Apple Vision",
+        engineVersion: String = "system",
+        pages: [OCRPage],
+        createdAt: Date = Date(),
+        reviewStatus: OCRReviewStatus = .needsReview,
+        reviewedAt: Date? = nil
+    ) {
+        self.id = id
+        self.engine = engine
+        self.engineVersion = engineVersion
         self.pages = pages
         self.createdAt = createdAt
+        self.reviewStatus = reviewStatus
+        self.reviewedAt = reviewedAt
+    }
+
+    var rawCombinedText: String {
+        pages
+            .sorted { $0.pageIndex < $1.pageIndex }
+            .map { $0.lines.map(\.rawText).joined(separator: "\n") }
+            .joined(separator: "\n\n")
     }
 
     var combinedText: String {
         pages
             .sorted { $0.pageIndex < $1.pageIndex }
-            .map { $0.lines.map(\.text).joined(separator: "\n") }
+            .map { $0.lines.map(\.reviewedText).joined(separator: "\n") }
             .joined(separator: "\n\n")
     }
 
@@ -113,18 +343,49 @@ struct OCRDocument: Codable, Equatable {
         allLines.contains { $0.confidence < OCRQualitySummary.lowConfidenceThreshold }
     }
 
+    var hasUnconfirmedLines: Bool {
+        allLines.contains { !$0.teacherConfirmed }
+    }
+
     var qualitySummary: OCRQualitySummary {
         OCRQualitySummary(lines: allLines)
     }
+
+    func markingAllLinesConfirmed(reviewedAt: Date = Date()) -> OCRDocument {
+        var copy = self
+        copy.reviewStatus = .reviewed
+        copy.reviewedAt = reviewedAt
+        copy.pages = copy.pages.map { page in
+            var page = page
+            page.lines = page.lines.map { line in
+                var line = line
+                line.teacherConfirmed = true
+                return line
+            }
+            return page
+        }
+        return copy
+    }
 }
 
-struct OCRPage: Codable, Equatable {
+struct OCRPage: Identifiable, Codable, Equatable {
+    var id: UUID
+    var sourceInputID: UUID?
     var pageIndex: Int
     var imageWidth: Double?
     var imageHeight: Double?
     var lines: [OCRLine]
 
-    init(pageIndex: Int, imageWidth: Double? = nil, imageHeight: Double? = nil, lines: [OCRLine]) {
+    init(
+        id: UUID = UUID(),
+        sourceInputID: UUID? = nil,
+        pageIndex: Int,
+        imageWidth: Double? = nil,
+        imageHeight: Double? = nil,
+        lines: [OCRLine]
+    ) {
+        self.id = id
+        self.sourceInputID = sourceInputID
         self.pageIndex = pageIndex
         self.imageWidth = imageWidth
         self.imageHeight = imageHeight
@@ -134,15 +395,39 @@ struct OCRPage: Codable, Equatable {
 
 struct OCRLine: Identifiable, Codable, Equatable {
     var id: UUID
-    var text: String
+    var rawText: String
+    var correctedText: String?
     var confidence: Float
     var boundingBox: NormalizedRect
+    var teacherConfirmed: Bool
 
-    init(id: UUID = UUID(), text: String, confidence: Float, boundingBox: NormalizedRect) {
+    init(
+        id: UUID = UUID(),
+        text: String,
+        confidence: Float,
+        boundingBox: NormalizedRect,
+        correctedText: String? = nil,
+        teacherConfirmed: Bool = false
+    ) {
         self.id = id
-        self.text = text
+        self.rawText = text
+        self.correctedText = correctedText
         self.confidence = confidence
         self.boundingBox = boundingBox
+        self.teacherConfirmed = teacherConfirmed
+    }
+
+    var text: String {
+        reviewedText
+    }
+
+    var reviewedText: String {
+        let corrected = correctedText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return corrected?.isEmpty == false ? corrected! : rawText
+    }
+
+    var needsReview: Bool {
+        confidence < OCRQualitySummary.lowConfidenceThreshold || !teacherConfirmed
     }
 }
 
@@ -151,17 +436,20 @@ struct OCRQualitySummary: Codable, Equatable {
 
     var lineCount: Int
     var lowConfidenceLineCount: Int
+    var unconfirmedLineCount: Int
     var averageConfidence: Float
     var minimumConfidence: Float?
 
     init(
         lineCount: Int = 0,
         lowConfidenceLineCount: Int = 0,
+        unconfirmedLineCount: Int = 0,
         averageConfidence: Float = 0,
         minimumConfidence: Float? = nil
     ) {
         self.lineCount = lineCount
         self.lowConfidenceLineCount = lowConfidenceLineCount
+        self.unconfirmedLineCount = unconfirmedLineCount
         self.averageConfidence = averageConfidence
         self.minimumConfidence = minimumConfidence
     }
@@ -169,6 +457,7 @@ struct OCRQualitySummary: Codable, Equatable {
     init(lines: [OCRLine]) {
         lineCount = lines.count
         lowConfidenceLineCount = lines.filter { $0.confidence < Self.lowConfidenceThreshold }.count
+        unconfirmedLineCount = lines.filter { !$0.teacherConfirmed }.count
         if lines.isEmpty {
             averageConfidence = 0
             minimumConfidence = nil
@@ -179,7 +468,7 @@ struct OCRQualitySummary: Codable, Equatable {
     }
 
     var requiresTeacherOCRReview: Bool {
-        lowConfidenceLineCount > 0
+        lowConfidenceLineCount > 0 || unconfirmedLineCount > 0
     }
 
     var displaySummary: String {
@@ -187,10 +476,10 @@ struct OCRQualitySummary: Codable, Equatable {
             return "No OCR text has been captured."
         }
         let average = Int((averageConfidence * 100).rounded())
-        if lowConfidenceLineCount == 0 {
-            return "OCR captured \(lineCount) text line(s) with average confidence \(average)%."
+        if lowConfidenceLineCount == 0 && unconfirmedLineCount == 0 {
+            return "OCR captured \(lineCount) confirmed text line(s) with average confidence \(average)%."
         }
-        return "OCR captured \(lineCount) text line(s); \(lowConfidenceLineCount) need review. Average confidence \(average)%."
+        return "OCR captured \(lineCount) text line(s); \(lowConfidenceLineCount) low-confidence and \(unconfirmedLineCount) unconfirmed. Average confidence \(average)%."
     }
 }
 
@@ -203,25 +492,127 @@ struct NormalizedRect: Codable, Equatable {
     static let zero = NormalizedRect(x: 0, y: 0, width: 0, height: 0)
 }
 
+// MARK: - Rubric records
+
+struct ParsedRubric: Codable, Equatable {
+    var criteria: [RubricCriterion]
+    var issues: [String]
+
+    var isStructured: Bool {
+        !criteria.isEmpty
+    }
+}
+
+struct RubricCriterion: Identifiable, Codable, Equatable {
+    var id: String
+    var title: String
+    var maxPoints: Double
+    var descriptor: String
+    var sortOrder: Int
+}
+
+struct RubricLevel: Identifiable, Codable, Equatable {
+    var id: String
+    var label: String
+    var points: Double
+    var descriptor: String
+    var sortOrder: Int
+}
+
+enum RubricParser {
+    static func parse(_ text: String) -> ParsedRubric {
+        let lines = text.components(separatedBy: .newlines)
+        var criteria: [RubricCriterion] = []
+        var issues: [String] = []
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            guard !trimmed.hasPrefix("-") && !trimmed.hasPrefix("*") else { continue }
+            guard let maxPoints = maxPoints(in: trimmed) else { continue }
+
+            let title: String
+            if let colon = trimmed.firstIndex(of: ":") {
+                title = String(trimmed[..<colon]).trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                title = trimmed.replacingOccurrences(of: #"\b\d+(?:\.\d+)?\s*(?:points?|pts?)\b"#, with: "", options: [.regularExpression, .caseInsensitive])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            guard !title.isEmpty else { continue }
+            let order = criteria.count
+            let id = "criterion-\(order + 1)-\(StableFingerprint.fingerprint([title, String(maxPoints)]).suffix(8))"
+            criteria.append(
+                RubricCriterion(
+                    id: id,
+                    title: title,
+                    maxPoints: maxPoints,
+                    descriptor: trimmed,
+                    sortOrder: order
+                )
+            )
+        }
+
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            issues.append("Rubric text is empty.")
+        } else if criteria.isEmpty {
+            issues.append("No explicit point-bearing criteria were detected. The model may still use the raw rubric text, but teacher review is required.")
+        }
+
+        return ParsedRubric(criteria: criteria, issues: issues)
+    }
+
+    private static func maxPoints(in line: String) -> Double? {
+        let pattern = #"(?i)(?:0\s*[-–]\s*)?(\d+(?:\.\d+)?)\s*(?:points?|pts?)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(line.startIndex..<line.endIndex, in: line)
+        guard let match = regex.firstMatch(in: line, range: range), match.numberOfRanges > 1,
+              let valueRange = Range(match.range(at: 1), in: line) else {
+            return nil
+        }
+        return Double(line[valueRange])
+    }
+}
+
+// MARK: - Grading records
+
 struct GradingInput: Codable, Equatable {
+    var assignmentID: UUID
     var assignmentTitle: String
     var subject: String
     var gradeLevel: String
+    var className: String
+    var studentDisplayName: String
     var assignmentType: AssignmentType
     var rubricText: String
+    var parsedRubric: ParsedRubric
     var customInstructions: String
+    var answerKeyText: String
+    var exemplarText: String
     var reviewedStudentText: String
     var ocrQualitySummary: OCRQualitySummary
+    var ocrReviewStatus: OCRReviewStatus
+    var sourceInputCount: Int
+    var packetFingerprint: String
 
     var isReadyForGrading: Bool {
         !rubricText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !ocrReviewStatus.blocksGrading
     }
+}
+
+enum DraftStatus: String, Codable, Equatable {
+    case generated
+    case stale
+    case teacherReviewRequired
 }
 
 struct GradeDraftResult: Identifiable, Codable, Equatable {
     var id: UUID
     var generatedAt: Date
+    var packetFingerprint: String
+    var status: DraftStatus
     var studentResponseSummary: String
     var criteria: [CriterionScore]
     var totalScore: Double
@@ -235,6 +626,8 @@ struct GradeDraftResult: Identifiable, Codable, Equatable {
     init(
         id: UUID = UUID(),
         generatedAt: Date = Date(),
+        packetFingerprint: String = "",
+        status: DraftStatus = .teacherReviewRequired,
         studentResponseSummary: String,
         criteria: [CriterionScore],
         totalScore: Double,
@@ -247,6 +640,8 @@ struct GradeDraftResult: Identifiable, Codable, Equatable {
     ) {
         self.id = id
         self.generatedAt = generatedAt
+        self.packetFingerprint = packetFingerprint
+        self.status = status
         self.studentResponseSummary = studentResponseSummary
         self.criteria = criteria
         self.totalScore = totalScore
@@ -261,39 +656,54 @@ struct GradeDraftResult: Identifiable, Codable, Equatable {
 
 struct CriterionScore: Identifiable, Codable, Equatable {
     var id: UUID
+    var criterionID: String?
     var criterion: String
     var rating: String
     var proposedPoints: Double
     var maxPoints: Double
     var evidence: [String]
+    var evidenceSourceRefs: [String]
     var explanation: String
     var teacherReviewRequired: Bool
 
     init(
         id: UUID = UUID(),
+        criterionID: String? = nil,
         criterion: String,
         rating: String,
         proposedPoints: Double,
         maxPoints: Double,
         evidence: [String],
+        evidenceSourceRefs: [String] = [],
         explanation: String,
         teacherReviewRequired: Bool
     ) {
         self.id = id
+        self.criterionID = criterionID
         self.criterion = criterion
         self.rating = rating
         self.proposedPoints = proposedPoints
         self.maxPoints = maxPoints
         self.evidence = evidence
+        self.evidenceSourceRefs = evidenceSourceRefs
         self.explanation = explanation
         self.teacherReviewRequired = teacherReviewRequired
     }
 }
 
+enum FinalReviewStatus: String, Codable, Equatable {
+    case inProgress
+    case approved
+    case stale
+}
+
 struct FinalGradeReview: Identifiable, Codable, Equatable {
     var id: UUID
-    var finalizedAt: Date
-    var criteria: [CriterionScore]
+    var createdAt: Date
+    var finalizedAt: Date?
+    var packetFingerprint: String
+    var status: FinalReviewStatus
+    var criteria: [FinalCriterionScore]
     var totalScore: Double
     var maxScore: Double
     var studentFeedback: String
@@ -302,8 +712,11 @@ struct FinalGradeReview: Identifiable, Codable, Equatable {
 
     init(
         id: UUID = UUID(),
-        finalizedAt: Date = Date(),
-        criteria: [CriterionScore],
+        createdAt: Date = Date(),
+        finalizedAt: Date? = nil,
+        packetFingerprint: String = "",
+        status: FinalReviewStatus = .inProgress,
+        criteria: [FinalCriterionScore],
         totalScore: Double,
         maxScore: Double,
         studentFeedback: String,
@@ -311,7 +724,10 @@ struct FinalGradeReview: Identifiable, Codable, Equatable {
         teacherEdited: Bool
     ) {
         self.id = id
+        self.createdAt = createdAt
         self.finalizedAt = finalizedAt
+        self.packetFingerprint = packetFingerprint
+        self.status = status
         self.criteria = criteria
         self.totalScore = totalScore
         self.maxScore = maxScore
@@ -319,7 +735,128 @@ struct FinalGradeReview: Identifiable, Codable, Equatable {
         self.privateTeacherNotes = privateTeacherNotes
         self.teacherEdited = teacherEdited
     }
+
+    var allCriteriaApproved: Bool {
+        !criteria.isEmpty && criteria.allSatisfy(\.teacherApproved)
+    }
 }
+
+struct FinalCriterionScore: Identifiable, Codable, Equatable {
+    var id: UUID
+    var criterionID: String?
+    var criterion: String
+    var rating: String
+    var proposedPoints: Double
+    var finalPoints: Double
+    var maxPoints: Double
+    var evidence: [String]
+    var explanation: String
+    var teacherApproved: Bool
+    var teacherRationale: String
+
+    init(
+        id: UUID = UUID(),
+        criterionID: String? = nil,
+        criterion: String,
+        rating: String,
+        proposedPoints: Double,
+        finalPoints: Double,
+        maxPoints: Double,
+        evidence: [String],
+        explanation: String,
+        teacherApproved: Bool = false,
+        teacherRationale: String = ""
+    ) {
+        self.id = id
+        self.criterionID = criterionID
+        self.criterion = criterion
+        self.rating = rating
+        self.proposedPoints = proposedPoints
+        self.finalPoints = finalPoints
+        self.maxPoints = maxPoints
+        self.evidence = evidence
+        self.explanation = explanation
+        self.teacherApproved = teacherApproved
+        self.teacherRationale = teacherRationale
+    }
+
+    init(from draft: CriterionScore) {
+        self.init(
+            criterionID: draft.criterionID,
+            criterion: draft.criterion,
+            rating: draft.rating,
+            proposedPoints: draft.proposedPoints,
+            finalPoints: draft.proposedPoints,
+            maxPoints: draft.maxPoints,
+            evidence: draft.evidence,
+            explanation: draft.explanation,
+            teacherApproved: false,
+            teacherRationale: draft.teacherReviewRequired ? "Review required by draft." : ""
+        )
+    }
+}
+
+// MARK: - Export and audit
+
+enum ExportKind: String, Codable, Equatable, Identifiable {
+    case studentMarkdown
+    case teacherAuditMarkdown
+    case backupJSON
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .studentMarkdown:
+            return "Student Markdown report"
+        case .teacherAuditMarkdown:
+            return "Teacher audit Markdown report"
+        case .backupJSON:
+            return "Local JSON backup"
+        }
+    }
+}
+
+struct ExportRecord: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var exportKind: ExportKind
+    var createdAt: Date = Date()
+    var contentFingerprint: String
+    var includesPrivateTeacherNotes: Bool
+    var includesOriginalSources: Bool
+}
+
+enum AuditEventType: String, Codable, Equatable {
+    case assignmentCreated
+    case sourceCaptured
+    case ocrCompleted
+    case ocrReviewed
+    case inputChanged
+    case draftGenerated
+    case draftMarkedStale
+    case finalReviewStarted
+    case finalApproved
+    case exportPrepared
+    case persistenceSaved
+}
+
+struct AuditEvent: Identifiable, Codable, Equatable {
+    var id: UUID
+    var timestamp: Date
+    var eventType: AuditEventType
+    var actor: String
+    var detail: String
+
+    init(id: UUID = UUID(), timestamp: Date = Date(), eventType: AuditEventType, actor: String = "teacher-or-local-system", detail: String) {
+        self.id = id
+        self.timestamp = timestamp
+        self.eventType = eventType
+        self.actor = actor
+        self.detail = detail
+    }
+}
+
+// MARK: - Templates and errors
 
 struct RubricTemplate: Identifiable, Codable, Equatable {
     var id: String
@@ -423,6 +960,7 @@ enum RubricTemplates {
 enum GradeDraftError: LocalizedError, Equatable {
     case missingRubric
     case missingStudentText
+    case ocrReviewRequired
     case localModelUnavailable(String)
     case malformedModelResponse(String)
     case invalidModelGrade(String)
@@ -436,6 +974,8 @@ enum GradeDraftError: LocalizedError, Equatable {
             return "Add a rubric, answer key, or grading criteria before drafting a grade."
         case .missingStudentText:
             return "Add or review the student text before drafting a grade."
+        case .ocrReviewRequired:
+            return "Review and confirm OCR text before drafting a grade."
         case .localModelUnavailable(let message):
             return message
         case .malformedModelResponse(let message):
