@@ -281,7 +281,7 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		1D1DCE0D308435F6082AAF5E /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( 7B431331244B2236C5880029 /* PrivacyInfo.xcprivacy in Resources */, ); runOnlyForDeploymentPostprocessing = 0; }};
+		1D1DCE0D308435F6082AAF5E /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( 7B431331244B2236C5880029 /* PrivacyInfo.xcprivacy in Resources */, ); runOnlyForDeploymentPostprocessing = 0; };
 		4C1C9CA0B2757DBC822D263B /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
