@@ -19,6 +19,9 @@ REQUIRED_FILES = [
     "GradeDraft/Resources/PrivacyInfo.xcprivacy",
     "GradeDraftTests/GradeDraftTests.swift",
     "docs/OFFLINE_CAPABILITY.md",
+    "docs/CORE_RULES.md",
+    "docs/DATA_MODEL_V3.md",
+    "docs/V3_IMPLEMENTATION_NOTES.md",
 ]
 
 

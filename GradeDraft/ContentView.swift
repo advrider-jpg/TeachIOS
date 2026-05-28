@@ -15,6 +15,7 @@ struct ContentView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     LocalCapabilityBanner(status: viewModel.localAIStatus, message: viewModel.statusMessage)
+                    readinessSection
                     assignmentSection
                     captureSection
                     ocrReviewSection
@@ -23,7 +24,7 @@ struct ContentView: View {
                     exportSection
                 }
                 .padding()
-                .frame(maxWidth: 980, alignment: .leading)
+                .frame(maxWidth: 1040, alignment: .leading)
             }
             .navigationTitle(viewModel.assignment.title)
             .toolbar {
@@ -86,6 +87,23 @@ struct ContentView: View {
         }
     }
 
+    private var readinessSection: some View {
+        CardSection(title: "Readiness", systemImage: "checkmark.shield") {
+            if viewModel.readinessIssues.isEmpty {
+                Label("Ready for local draft grading.", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(viewModel.readinessIssues, id: \.self) { issue in
+                        Label(issue, systemImage: "exclamationmark.triangle")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+        }
+    }
+
     private var assignmentSection: some View {
         CardSection(title: "Assignment", systemImage: "tray.full") {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 12) {
@@ -93,6 +111,18 @@ struct ContentView: View {
                     Text("Title")
                         .foregroundStyle(.secondary)
                     TextField("Assignment title", text: assignmentBinding(\.title))
+                        .textFieldStyle(.roundedBorder)
+                }
+                GridRow {
+                    Text("Student")
+                        .foregroundStyle(.secondary)
+                    TextField("Student name or local identifier", text: assignmentBinding(\.studentDisplayName))
+                        .textFieldStyle(.roundedBorder)
+                }
+                GridRow {
+                    Text("Class")
+                        .foregroundStyle(.secondary)
+                    TextField("Class or section", text: assignmentBinding(\.className))
                         .textFieldStyle(.roundedBorder)
                 }
                 GridRow {
@@ -123,7 +153,7 @@ struct ContentView: View {
 
     private var captureSection: some View {
         CardSection(title: "Student work", systemImage: "doc.text.viewfinder") {
-            Text("Scan printed student work, import a photo, or paste text directly. The reviewed text below is the only content sent to the local grading model.")
+            Text("Scan printed student work, import a photo, or paste text directly. OCR text must be marked reviewed before local grading.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -146,22 +176,28 @@ struct ContentView: View {
                     Task {
                         if let data = try? await newItem.loadTransferable(type: Data.self),
                            let image = UIImage(data: data) {
-                            await viewModel.applyScannedImages([image])
+                            await viewModel.applyPhotoImages([image])
+                        } else {
+                            viewModel.errorMessage = "The selected photo could not be imported."
                         }
                         selectedPhoto = nil
                     }
                 }
 
-                Button("Clear OCR") {
+                Button("Clear Source") {
                     viewModel.updateAssignment { assignment in
                         assignment.ocrDocument = nil
+                        assignment.ocrReviewStatus = .notNeeded
+                        assignment.ocrReviewedAt = nil
+                        assignment.sourceInputs = []
                         assignment.reviewedStudentText = ""
                         assignment.latestDraft = nil
                         assignment.finalReview = nil
+                        assignment.appendAuditEvent(.inputChanged, detail: "Teacher cleared source input and OCR text.")
                     }
                 }
                 .buttonStyle(.bordered)
-                .disabled(viewModel.assignment.reviewedStudentText.isEmpty)
+                .disabled(viewModel.assignment.reviewedStudentText.isEmpty && viewModel.assignment.sourceInputs.isEmpty)
             }
 
             if !VNDocumentCameraViewController.isSupported {
@@ -169,20 +205,37 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
+
+            if !viewModel.assignment.sourceInputs.isEmpty {
+                DisclosureGroup("Stored local source references") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(viewModel.assignment.sourceInputs) { source in
+                            Text("\(source.sourceType.displayName) · page \(source.pageIndex.map { String($0 + 1) } ?? "n/a") · \(source.contentDigest ?? "no digest")")
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                        }
+                    }
+                    .padding(.top, 6)
+                }
+            }
         }
     }
 
     private var ocrReviewSection: some View {
         CardSection(title: "Reviewed student text", systemImage: "text.quote") {
-            HStack {
-                Text(viewModel.qualitySummary.displaySummary)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.qualitySummary.displaySummary)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text("OCR review status: \(viewModel.assignment.ocrReviewStatus.displayName)")
+                        .font(.caption)
+                        .foregroundStyle(viewModel.assignment.ocrReviewStatus.blocksGrading ? .orange : .secondary)
+                }
                 Spacer()
-                if viewModel.hasLowConfidenceOCR {
-                    Label("Review OCR", systemImage: "exclamationmark.triangle")
-                        .font(.caption.bold())
-                        .foregroundStyle(.orange)
+                if viewModel.assignment.ocrReviewStatus.blocksGrading {
+                    Button("Mark OCR Reviewed") { viewModel.markOCRReviewed() }
+                        .buttonStyle(.borderedProminent)
                 }
             }
 
@@ -204,19 +257,29 @@ struct ContentView: View {
                     }
                 }
 
+            Button("Treat Current Text as Pasted / Teacher Reviewed") {
+                viewModel.applyPastedStudentText(viewModel.assignment.reviewedStudentText)
+            }
+            .buttonStyle(.bordered)
+            .disabled(viewModel.assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
             if let ocrDocument = viewModel.assignment.ocrDocument, !ocrDocument.pages.isEmpty {
-                DisclosureGroup("OCR evidence and confidence") {
+                DisclosureGroup("OCR evidence, confidence, and review state") {
                     VStack(alignment: .leading, spacing: 12) {
-                        ForEach(ocrDocument.pages, id: \.pageIndex) { page in
+                        ForEach(ocrDocument.pages) { page in
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Page \(page.pageIndex + 1)")
                                     .font(.headline)
                                 ForEach(page.lines) { line in
                                     HStack(alignment: .firstTextBaseline) {
-                                        Text(line.text)
+                                        Text(line.reviewedText)
                                             .font(.caption)
                                             .textSelection(.enabled)
                                         Spacer()
+                                        if line.teacherConfirmed {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundStyle(.green)
+                                        }
                                         Text("\(Int(line.confidence * 100))%")
                                             .font(.caption.monospacedDigit())
                                             .foregroundStyle(line.confidence < OCRQualitySummary.lowConfidenceThreshold ? .orange : .secondary)
@@ -232,7 +295,7 @@ struct ContentView: View {
     }
 
     private var rubricSection: some View {
-        CardSection(title: "Rubric and instructions", systemImage: "list.bullet.clipboard") {
+        CardSection(title: "Rubric, answer key, and instructions", systemImage: "list.bullet.clipboard") {
             HStack(alignment: .top, spacing: 12) {
                 Picker("Template", selection: $selectedTemplateID) {
                     ForEach(RubricTemplates.builtIn) { template in
@@ -248,6 +311,25 @@ struct ContentView: View {
                 .buttonStyle(.bordered)
             }
 
+            if !viewModel.assignment.parsedRubric.criteria.isEmpty {
+                DisclosureGroup("Detected structured criteria") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(viewModel.assignment.parsedRubric.criteria) { criterion in
+                            Text("\(criterion.id): \(criterion.title) — \(GradeTotals.formatted(criterion.maxPoints)) pts")
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                        }
+                    }
+                    .padding(.top, 6)
+                }
+            } else if !viewModel.assignment.rubricText.isEmpty {
+                Label("No structured point-bearing criteria detected. Drafts will require teacher review.", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            Text("Rubric / grading criteria")
+                .font(.headline)
             TextEditor(text: assignmentBinding(\.rubricText))
                 .frame(minHeight: 180)
                 .padding(8)
@@ -266,8 +348,10 @@ struct ContentView: View {
                     }
                 }
 
+            Text("Custom teacher instructions")
+                .font(.headline)
             TextEditor(text: assignmentBinding(\.customInstructions))
-                .frame(minHeight: 110)
+                .frame(minHeight: 100)
                 .padding(8)
                 .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
@@ -283,6 +367,20 @@ struct ContentView: View {
                             .allowsHitTesting(false)
                     }
                 }
+
+            Text("Answer key")
+                .font(.headline)
+            TextEditor(text: assignmentBinding(\.answerKeyText))
+                .frame(minHeight: 80)
+                .padding(8)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            Text("Exemplar response")
+                .font(.headline)
+            TextEditor(text: assignmentBinding(\.exemplarText))
+                .frame(minHeight: 80)
+                .padding(8)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 
@@ -301,9 +399,9 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!viewModel.canDraftGrade)
 
-                Button("Finalize Draft") { viewModel.finalizeLatestDraft() }
+                Button("Start Final Review") { viewModel.startFinalReviewFromLatestDraft() }
                     .buttonStyle(.bordered)
-                    .disabled(viewModel.assignment.latestDraft == nil)
+                    .disabled(viewModel.assignment.latestDraft == nil || viewModel.assignment.latestDraftIsStale)
             }
 
             Text("The generated grade is a draft for teacher review. The app calculates totals from criterion scores instead of trusting model-written totals.")
@@ -311,16 +409,19 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
 
             if let finalReview = viewModel.assignment.finalReview {
-                FinalGradeReviewView(review: finalReview) { updated in
-                    viewModel.updateFinalReview(updated)
-                }
+                FinalGradeReviewView(
+                    review: finalReview,
+                    isStale: viewModel.assignment.finalReviewIsStale,
+                    onChange: { updated in viewModel.updateFinalReview(updated) },
+                    onApprove: { viewModel.approveFinalReview() }
+                )
                 .id(finalReview.id)
             } else if let result = viewModel.assignment.latestDraft {
-                GradeResultView(result: result)
+                GradeResultView(result: result, isStale: viewModel.assignment.latestDraftIsStale)
             } else {
                 EmptyStateView(
                     title: "No draft yet",
-                    message: "Add reviewed student text and a rubric, then generate a local draft grade."
+                    message: "Add reviewed student text and a rubric, confirm OCR if needed, then generate a local draft grade."
                 )
             }
         }
@@ -328,17 +429,21 @@ struct ContentView: View {
 
     private var exportSection: some View {
         CardSection(title: "Local export", systemImage: "square.and.arrow.up") {
-            Text("Export creates a local Markdown report from saved app state. Sharing is explicit and teacher-controlled.")
+            Text("Exports are generated locally. Student reports exclude private teacher notes. Teacher audit reports may contain sensitive student data, OCR state, and private notes.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             HStack {
-                Button("Prepare Report") { viewModel.exportCurrentAssignmentReport() }
+                Button("Prepare Student Report") { viewModel.exportStudentReport() }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.assignment.finalReview == nil && viewModel.assignment.latestDraft == nil)
+
+                Button("Prepare Teacher Audit") { viewModel.exportTeacherAuditReport() }
                     .buttonStyle(.bordered)
 
                 if let exportURL = viewModel.exportURL {
                     ShareLink(item: exportURL) {
-                        Label("Share Report", systemImage: "square.and.arrow.up")
+                        Label("Share \(viewModel.exportKind?.displayName ?? "Report")", systemImage: "square.and.arrow.up")
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -361,8 +466,6 @@ struct ContentView: View {
             set: { newValue in
                 viewModel.updateAssignment { assignment in
                     assignment[keyPath: keyPath] = newValue
-                    assignment.latestDraft = nil
-                    assignment.finalReview = nil
                 }
             }
         )
@@ -370,10 +473,16 @@ struct ContentView: View {
 
     private func listSubtitle(for assignment: AssignmentRecord) -> String {
         let state: String
-        if assignment.finalReview != nil {
-            state = "Finalized"
+        if assignment.finalReview?.status == .approved {
+            state = "Final approved"
+        } else if assignment.finalReview != nil {
+            state = "Final review"
+        } else if assignment.latestDraftIsStale {
+            state = "Draft stale"
         } else if assignment.latestDraft != nil {
             state = "Drafted"
+        } else if assignment.ocrReviewStatus.blocksGrading {
+            state = "Needs OCR review"
         } else if !assignment.reviewedStudentText.isEmpty {
             state = "Text ready"
         } else {

@@ -1,41 +1,45 @@
-# GradeDraft v2
+# GradeDraft v3
 
 GradeDraft is a local-first iOS/iPadOS starter repo for a teacher-controlled, text-only grading assistant.
 
-It supports the intended first product lane:
+The core lane is:
 
 ```text
-scan or import student text work -> local OCR -> teacher-reviewed text -> local rubric draft -> teacher final review -> local export
+scan/import/paste student work -> local OCR where needed -> explicit teacher OCR review -> local rubric draft -> criterion-level teacher final review -> local export
 ```
 
-The repo is deliberately scoped to text work. Posters, physical models, diagrams, symbolic math, and visual-artifact grading are deferred.
+The repo is deliberately scoped to text work. Handwriting, posters, physical models, diagrams, symbolic math, LMS sync, and visual-artifact grading are deferred unless and until they can be implemented without fake readiness.
 
-## What changed in v2
+## What changed in v3
 
-v2 turns the first starter into a more complete product scaffold:
+v3 hardens the v2 scaffold around truth-state and auditability:
 
-- Assignment history with create, duplicate, delete, and local JSON persistence.
-- Built-in rubric templates for short answers, paragraph responses, essays, and lab write-ups.
-- Assignment type metadata for grading context.
-- OCR quality summaries, low-confidence warnings, and OCR evidence display.
-- Strict grading prompt contract with a single JSON schema.
-- More tolerant model-output parsing for camelCase and snake_case fields.
-- Grade-draft normalization: deterministic totals, score clamping, missing-evidence review flags, and compliance notes.
-- Teacher finalization state separate from the model draft.
-- Local Markdown report export through explicit teacher sharing.
-- Expanded tests for totals, validation, OCR quality, JSON extraction, report generation, and draft guardrails.
-- Expanded offline/security docs and scripts.
+- Adds source-input records with local file references and deterministic content digests.
+- Persists scanned/imported source images under Application Support instead of only retaining OCR text.
+- Adds explicit OCR review states: `notNeeded`, `needsReview`, `reviewed`, and `blocked`.
+- Blocks draft grading until OCR has been marked reviewed when a scan/photo source was used.
+- Adds corrected/confirmed OCR-line fields and per-line teacher confirmation flags.
+- Adds student/class metadata fields without introducing cloud accounts or sync.
+- Adds answer-key and exemplar fields to the grading packet.
+- Adds a simple structured rubric parser that assigns stable criterion IDs for point-bearing rubric lines.
+- Adds packet fingerprints so drafts and final reviews become stale when text, rubric, answer key, exemplar, instructions, OCR status, or source references change.
+- Adds `FinalCriterionScore` so teacher final points are separate from model-proposed points.
+- Adds final-review status: `inProgress`, `approved`, and `stale`.
+- Splits export into student-facing Markdown and teacher-audit Markdown.
+- Ensures student exports exclude private teacher notes.
+- Adds audit events and export records to the local assignment state.
+- Expands tests for OCR gating, rubric parsing, structured-criterion completeness, final-score totals, and private-note export separation.
 
 ## Product promise
 
 GradeDraft is not an autonomous grader. It is a teacher-controlled assistant:
 
-1. The teacher supplies the rubric, answer key, and custom grading instructions.
-2. The app extracts text locally with Apple Vision.
-3. The teacher reviews and edits the extracted text.
+1. The teacher supplies the rubric, answer key, exemplar, and custom grading instructions.
+2. The app extracts text locally with Apple Vision when images are used.
+3. The teacher reviews and confirms OCR text before grading.
 4. The app proposes rubric scores and feedback using Apple’s on-device language model when available.
-5. The teacher approves or edits the final grade.
-6. The app preserves draft and final states separately.
+5. The teacher edits or approves each criterion before treating the grade as final.
+6. The app preserves source input, OCR output, reviewed text, model proposal, final review, exports, and audit events as separate local records.
 
 GradeDraft does **not** upload student work, rubrics, prompts, draft grades, or final grades to a server.
 
@@ -43,8 +47,8 @@ GradeDraft does **not** upload student work, rubrics, prompts, draft grades, or 
 
 - OCR: Vision / VisionKit.
 - Local grading draft: Foundation Models, when available on supported devices.
-- Storage: local JSON in Application Support.
-- Export: explicit teacher-controlled local Markdown report.
+- Storage: local JSON in Application Support for the scaffold; SQLite/SwiftData is a later production hardening pass.
+- Export: explicit teacher-controlled local Markdown reports.
 - Minimum deployment target in this scaffold: iOS 17.0.
 - Foundation Models code is guarded with `canImport(FoundationModels)` and iOS availability checks.
 
@@ -67,6 +71,7 @@ Run the guardrail before committing:
 
 ```bash
 python3 scripts/no_network_scan.py
+python3 scripts/repo_health.py
 ```
 
 ## Open in Xcode
@@ -76,48 +81,41 @@ python3 scripts/no_network_scan.py
 3. For actual local AI grading, use a compatible physical device with Apple Intelligence enabled and the on-device model ready.
 4. Build and run.
 
-The repo cannot be compiled in this environment because Xcode and the iOS SDK are not available here.
+This package was source-checked in a non-Xcode environment, but it was not compiled against Apple’s iOS SDK here.
 
 ## First user flow
 
 1. Create or select an assignment.
-2. Apply a rubric template or paste a rubric.
-3. Scan/import student work or paste text directly.
-4. Review OCR and correct the reviewed student text.
-5. Tap **Draft Grade**.
-6. Review criterion scores, evidence, explanations, flags, and feedback.
-7. Tap **Finalize Draft**.
-8. Export a local Markdown report only if the teacher chooses to share it.
+2. Add student/class metadata if useful.
+3. Apply a rubric template or paste a rubric.
+4. Optionally add custom instructions, an answer key, and an exemplar.
+5. Scan/import student work or paste text directly.
+6. If OCR was used, review the extracted text and tap **Mark OCR Reviewed**.
+7. Tap **Draft Grade**.
+8. Review criterion scores, evidence, explanations, flags, and feedback.
+9. Tap **Start Final Review**.
+10. Edit final criterion points and feedback as needed.
+11. Tap **Approve Final Grade**.
+12. Export a student report or teacher audit report.
 
 ## Repository layout
 
 ```text
-.github/workflows/            GitHub Actions CI for the Xcode project
-GradeDraft.xcodeproj/          Shared Xcode project and scheme
-GradeDraft/                    SwiftUI app source
-  Models/                      Assignment, OCR, rubric, draft, and review models
-  Services/                    OCR, grading, totals, persistence, and prompt services
-  Views/                       Reusable SwiftUI views
-  Resources/                   App privacy and property-list resources
-GradeDraftTests/               Unit tests for grading, parsing, export, and guardrails
-docs/                          Curated project documentation
-docs/source-materials/         Original uploaded briefs, plans, and research artifacts
-scripts/                       Repository guardrails and health checks
+GradeDraft/
+  GradeDraft.xcodeproj/
+  GradeDraft/
+    GradeDraftApp.swift
+    ContentView.swift
+    GradeDraftViewModel.swift
+    Models/
+    Services/
+    Views/
+    Resources/
+  GradeDraftTests/
+  docs/
+  scripts/
 ```
-
-Keep the repository root limited to buildable project files, top-level documentation, CI configuration, scripts, and Git metadata. Put new planning or research uploads in `docs/source-materials/`.
-
-## Development checks
-
-Before opening a pull request, run:
-
-```bash
-python3 scripts/repo_health.py
-python3 scripts/no_network_scan.py
-```
-
-Use Xcode to run the shared `GradeDraft` scheme tests. GitHub Actions also runs the health check and `xcodebuild test` on macOS.
 
 ## Next implementation pass
 
-Recommended next steps are listed in `docs/V2_IMPLEMENTATION_NOTES.md`. The highest-value next pass is criterion-level editing in the final review screen, followed by PDF export and UI tests.
+The highest-value next pass is replacing local JSON persistence with a real SQLite/SwiftData repository layer and migration plan, followed by side-by-side source-image OCR review, PDF export, and UI tests.

@@ -1,40 +1,28 @@
-# Codex next-pass prompt
+# Codex Next-Pass Prompt
 
-/goal Continue GradeDraft v2 as a local-only iOS teacher grading assistant. Do not redesign the product. Preserve the zero-online posture: no backend, no `URLSession`, no cloud OCR, no cloud grading, no analytics/telemetry SDK, no account login, no remote sync. If Foundation Models is unavailable, fail closed and show local AI unavailable. Do not add a cloud fallback.
+/goal Harden GradeDraft v3 into a more production-like single-submission MVP. Do not expand into handwriting, posters, LMS sync, cloud services, or visual artifact grading. Preserve the local-only posture and the strict separation between source input, OCR output, reviewed text, model draft, teacher final review, exports, and audit events.
 
-Source of truth: use the local repo files only.
+Required work:
 
-Required next pass:
-
-1. Implement criterion-level editing in `FinalGradeReviewView`.
-   - Editable score per criterion.
-   - Editable rating.
-   - Editable explanation.
-   - Editable evidence lines.
-   - Deterministic totals recalculated after every edit.
-   - Set `teacherEdited = true` on every final-review edit.
-   - Do not let the model control final arithmetic.
-
-2. Add local PDF export.
-   - Render from local app state only.
-   - Preserve draft/final distinction.
-   - Include assignment metadata, final score if available, feedback, criteria, evidence, reviewed student text, and rubric.
-   - Do not use server-side rendering.
-
-3. Add focused tests.
-   - Final review edit recalculates totals.
-   - Export prefers final review over draft.
-   - No evidence still forces teacher review.
-   - No-network guardrail still passes.
-
-4. Validate in Xcode.
-   - Fix any Swift compile errors.
-   - Validate the installed Foundation Models SDK call shape.
-   - Keep every SDK adjustment local-only.
+1. Open the repo locally in Xcode 26+ and fix any compile errors caused by the exact installed Apple SDK, especially Foundation Models API names.
+2. Do not add any cloud AI fallback, backend URL, analytics SDK, remote OCR, account login, or telemetry.
+3. Replace the JSON persistence scaffold with either SQLite or SwiftData, but only if migrations and tests are included. Otherwise leave JSON intact and focus on UI/test hardening.
+4. Add a side-by-side OCR review screen showing source image thumbnails, OCR line confidence, and reviewed text.
+5. Add per-line OCR correction and teacher confirmation. Low-confidence/unconfirmed OCR must block grading.
+6. Preserve local source image references and verify source files exist after scan/photo import.
+7. Add evidence quote source references where possible. Do not fake bounding-box linkage if it is not implemented.
+8. Keep final criterion points separate from proposed points. App-calculated totals must use final points for final review.
+9. Student export must not include private teacher notes. Teacher audit export may include private notes and must be labeled sensitive.
+10. Add UI tests for pasted-text flow, OCR-review blocking, staleness, final approval, and export separation.
 
 Acceptance criteria:
 
-- `python3 scripts/no_network_scan.py` passes.
-- Unit tests pass in Xcode.
-- App can create an assignment, apply a template, paste student text, attempt local grade drafting, finalize, edit final review, and export locally.
-- Unsupported devices/simulators show local AI unavailable with no cloud fallback.
+- App builds in Xcode.
+- Unit tests pass.
+- No-network guardrail passes.
+- Draft Grade is disabled when local AI is unavailable, rubric is missing, student text is missing, or OCR review is required.
+- Final review can edit criterion points independently of proposed points.
+- Editing text/rubric/instructions marks draft/final state stale.
+- Student export excludes private notes.
+- Teacher audit export includes audit state.
+- No fake/demo grading behavior is introduced.

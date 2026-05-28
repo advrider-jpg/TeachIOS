@@ -7,6 +7,8 @@ enum GradeTotals {
         return GradeDraftResult(
             id: result.id,
             generatedAt: result.generatedAt,
+            packetFingerprint: result.packetFingerprint,
+            status: result.status,
             studentResponseSummary: result.studentResponseSummary,
             criteria: result.criteria,
             totalScore: total,
@@ -22,9 +24,12 @@ enum GradeTotals {
     static func applyingDeterministicTotals(to review: FinalGradeReview) -> FinalGradeReview {
         FinalGradeReview(
             id: review.id,
+            createdAt: review.createdAt,
             finalizedAt: review.finalizedAt,
+            packetFingerprint: review.packetFingerprint,
+            status: review.status,
             criteria: review.criteria,
-            totalScore: review.criteria.reduce(0) { $0 + max(0, $1.proposedPoints) },
+            totalScore: review.criteria.reduce(0) { $0 + max(0, $1.finalPoints) },
             maxScore: review.criteria.reduce(0) { $0 + max(0, $1.maxPoints) },
             studentFeedback: review.studentFeedback,
             privateTeacherNotes: review.privateTeacherNotes,
