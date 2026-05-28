@@ -8,6 +8,11 @@ struct ContentView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedTemplateID: String = RubricTemplates.builtIn.first?.id ?? ""
 
+    // Export warning state
+    @State private var showingStudentReportWarning = false
+    @State private var showingTeacherAuditWarning = false
+    @State private var showingCSVWarning = false
+
     var body: some View {
         NavigationSplitView {
             assignmentList
@@ -50,6 +55,45 @@ struct ContentView: View {
                 Button("OK", role: .cancel) { viewModel.errorMessage = nil }
             } message: {
                 Text(viewModel.errorMessage ?? "Unknown error")
+            }
+            // Student report export warning
+            .confirmationDialog(
+                "Review student-facing report",
+                isPresented: $showingStudentReportWarning,
+                titleVisibility: .visible
+            ) {
+                Button("Export Student Report") {
+                    viewModel.exportStudentReport()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This report is intended for student or family review. Confirm that it includes only the feedback, scores, and evidence you want the student or family to see.\n\nTeacher-only notes and internal review flags are excluded by default.")
+            }
+            // Teacher audit export warning
+            .confirmationDialog(
+                "Export teacher-only grading record?",
+                isPresented: $showingTeacherAuditWarning,
+                titleVisibility: .visible
+            ) {
+                Button("Export Teacher Record") {
+                    viewModel.exportTeacherAuditReport()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This file may include internal grading notes, draft scores, rubric reasoning, OCR uncertainty flags, and teacher annotations. It is not intended for students or families unless reviewed and redacted.")
+            }
+            // CSV export warning
+            .confirmationDialog(
+                "Export spreadsheet data?",
+                isPresented: $showingCSVWarning,
+                titleVisibility: .visible
+            ) {
+                Button("Export CSV") {
+                    viewModel.exportCSVGradebook()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This CSV may include student names, scores, grades, rubric labels, and comments. Use only approved school storage and transfer methods.\n\nGradeDraft neutralizes spreadsheet formula-injection risks before export. Review free-text fields before sharing.")
             }
         }
     }
@@ -94,7 +138,7 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
 
             if viewModel.readinessIssues.isEmpty {
-                Label("Ready for local draft grading.", systemImage: "checkmark.circle.fill")
+                Label("Ready for local draft feedback.", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
             } else {
                 VStack(alignment: .leading, spacing: 6) {
@@ -115,6 +159,12 @@ struct ContentView: View {
                     Text("Title")
                         .foregroundStyle(.secondary)
                     TextField("Assignment title", text: assignmentBinding(\.title))
+                        .textFieldStyle(.roundedBorder)
+                }
+                GridRow {
+                    Text("Prompt")
+                        .foregroundStyle(.secondary)
+                    TextField("Assignment question or prompt (optional)", text: promptBinding)
                         .textFieldStyle(.roundedBorder)
                 }
                 GridRow {
@@ -397,18 +447,18 @@ struct ContentView: View {
                     if viewModel.isWorking {
                         ProgressView()
                     } else {
-                        Label("Draft Grade", systemImage: "checklist")
+                        Label("Draft Feedback Suggestion", systemImage: "checklist")
                     }
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!viewModel.canDraftGrade)
 
-                Button("Start Final Review") { viewModel.startFinalReviewFromLatestDraft() }
+                Button("Start Teacher Final Review") { viewModel.startFinalReviewFromLatestDraft() }
                     .buttonStyle(.bordered)
                     .disabled(viewModel.assignment.latestDraft == nil || viewModel.assignment.latestDraftIsStale)
             }
 
-            Text("The generated grade is a draft for teacher review. The app calculates totals from criterion scores instead of trusting model-written totals.")
+            Text("The generated suggestion is a draft for teacher review. The app calculates totals from criterion scores instead of trusting model-written totals.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -425,7 +475,7 @@ struct ContentView: View {
             } else {
                 EmptyStateView(
                     title: "No draft yet",
-                    message: "Add reviewed student text and a rubric, confirm OCR if needed, then generate a local draft grade."
+                    message: "Add reviewed student text and a rubric, confirm OCR if needed, then generate a local draft feedback suggestion."
                 )
             }
         }
@@ -433,21 +483,27 @@ struct ContentView: View {
 
     private var exportSection: some View {
         CardSection(title: "Local export", systemImage: "square.and.arrow.up") {
-            Text("Exports are generated locally. Student reports exclude private teacher notes. Teacher audit reports may contain sensitive student data, OCR state, and private notes.")
+            Text("Exports are generated locally. Student reports exclude private teacher notes by default. Teacher audit reports may contain sensitive student data, OCR state, and private notes.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             HStack {
-                Button("Prepare Student Report") { viewModel.exportStudentReport() }
-                    .buttonStyle(.bordered)
-                    .disabled(!viewModel.canExportStudentReport)
+                Button("Preview Student Report") {
+                    showingStudentReportWarning = true
+                }
+                .buttonStyle(.bordered)
+                .disabled(!viewModel.canExportStudentReport)
 
-                Button("Prepare Teacher Audit") { viewModel.exportTeacherAuditReport() }
-                    .buttonStyle(.bordered)
+                Button("Export Teacher Audit Report") {
+                    showingTeacherAuditWarning = true
+                }
+                .buttonStyle(.bordered)
 
-                Button("Prepare CSV Gradebook") { viewModel.exportCSVGradebook() }
-                    .buttonStyle(.bordered)
-                    .disabled(viewModel.assignment.finalReview == nil && viewModel.assignment.latestDraft == nil)
+                Button("Export CSV") {
+                    showingCSVWarning = true
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.assignment.finalReview == nil && viewModel.assignment.latestDraft == nil)
 
                 if let exportURL = viewModel.exportURL {
                     ShareLink(item: exportURL) {
@@ -474,6 +530,18 @@ struct ContentView: View {
             set: { newValue in
                 viewModel.updateAssignment { assignment in
                     assignment[keyPath: keyPath] = newValue
+                }
+            }
+        )
+    }
+
+    /// Binding for the optional `prompt` field, presenting nil as an empty string.
+    private var promptBinding: Binding<String> {
+        Binding(
+            get: { viewModel.assignment.prompt ?? "" },
+            set: { newValue in
+                viewModel.updateAssignment { assignment in
+                    assignment.prompt = newValue.isEmpty ? nil : newValue
                 }
             }
         )

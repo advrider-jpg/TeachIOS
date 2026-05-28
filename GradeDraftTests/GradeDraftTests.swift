@@ -449,6 +449,41 @@ final class GradeDraftTests: XCTestCase {
         XCTAssertEqual(afterDelete[0].id, assignmentB.id)
     }
 
+    func testGRDBInjectedRootIsRespectedAndNotDefaultDirectory() throws {
+        let injectedRoot = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftInjected-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: injectedRoot) }
+        try FileManager.default.createDirectory(at: injectedRoot, withIntermediateDirectories: true)
+
+        let store = try GRDBAssignmentStore(applicationSupportURL: injectedRoot)
+        let supportDir = try store.applicationSupportDirectory()
+
+        // The support directory must be inside the injected root, not the default App Support path
+        XCTAssertTrue(supportDir.path.hasPrefix(injectedRoot.path),
+                      "Expected support dir \(supportDir.path) to be under injected root \(injectedRoot.path)")
+
+        let defaultAppSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        if let defaultPath = defaultAppSupport?.appendingPathComponent("GradeDraft").path {
+            XCTAssertNotEqual(supportDir.path, defaultPath,
+                              "Injected root should produce a different path than the default App Support path")
+        }
+    }
+
+    func testGRDBBootstrapIsIdempotent() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftBootstrap-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let store1 = try GRDBAssignmentStore(applicationSupportURL: root)
+        let store2 = try GRDBAssignmentStore(applicationSupportURL: root)
+
+        // Both bootstraps should succeed; loading on an already-migrated DB should not throw
+        let assignments = [AssignmentRecord(title: "Idempotent test")]
+        try store1.saveAssignments(assignments)
+        let loaded = try store2.loadAssignments()
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded[0].title, "Idempotent test")
+    }
+
     func testGradeDraftValidatorClampsOutOfRangeScoresAndRequiresEvidence() throws {
         let input = sampleInput(rubric: "Evidence: 0-4 points")
         let criterionID = input.parsedRubric.criteria[0].id
@@ -543,11 +578,206 @@ final class GradeDraftTests: XCTestCase {
         XCTAssertTrue(audit.contains("Sensitive private note"))
     }
 
+    // MARK: - Content-source consistency tests
+
+    func testBuiltInRubricTemplateIDsInSourceOrder() {
+        let expectedIDs = [
+            "short-answer-4pt",
+            "paragraph-response-8pt",
+            "essay-20pt",
+            "lab-writeup-16pt",
+            "reading-comprehension-10pt",
+            "science-explanation-12pt",
+            "hass-source-response-12pt",
+            "formative-exit-ticket-8pt",
+            "reflection-response-12pt"
+        ]
+        let actualIDs = RubricTemplates.builtIn.map(\.id)
+        XCTAssertEqual(actualIDs, expectedIDs,
+                       "Built-in template IDs must match source-of-truth Section 6 in order")
+    }
+
+    func testBuiltInRubricTemplateMaxPointTotals() {
+        let expectedTotals: [String: Double] = [
+            "short-answer-4pt": 4,
+            "paragraph-response-8pt": 8,
+            "essay-20pt": 20,
+            "lab-writeup-16pt": 16,
+            "reading-comprehension-10pt": 10,
+            "science-explanation-12pt": 12,
+            "hass-source-response-12pt": 12,
+            "formative-exit-ticket-8pt": 8,
+            "reflection-response-12pt": 12
+        ]
+
+        for template in RubricTemplates.builtIn {
+            guard let expected = expectedTotals[template.id] else {
+                XCTFail("Unexpected template ID: \(template.id)")
+                continue
+            }
+            let parsed = RubricParser.parse(template.rubricText)
+            let total = parsed.criteria.map(\.maxPoints).reduce(0, +)
+            XCTAssertEqual(total, expected,
+                           "Template \(template.id) should total \(expected) pts but got \(total)")
+        }
+    }
+
+    func testBuiltInTemplateInstructionsIncludeEvidenceSafeguards() {
+        let evidenceKeywords = ["evidence", "cite", "teacher review", "teacher review required"]
+        for template in RubricTemplates.builtIn {
+            let instructions = template.customInstructions.lowercased()
+            let hasEvidenceGuard = evidenceKeywords.contains { instructions.contains($0) }
+            XCTAssertTrue(hasEvidenceGuard,
+                          "Template \(template.id) instructions must reference evidence or teacher review. Got: \(template.customInstructions)")
+        }
+    }
+
+    func testPromptBuilderContainsSafetyRules() {
+        let input = sampleInput()
+        let prompt = PromptBuilder.gradingPrompt(input: input)
+
+        XCTAssertTrue(prompt.contains("teacher"), "Prompt must reference teacher review role")
+        XCTAssertTrue(prompt.contains("No supporting evidence found."), "Prompt must specify evidence marker")
+        XCTAssertTrue(prompt.contains("infer"), "Prompt must prohibit inference of student traits")
+        XCTAssertTrue(prompt.contains("totalScore") || prompt.contains("totals"),
+                      "Prompt must instruct app to calculate totals, not trust model")
+        XCTAssertTrue(prompt.contains("cloud") || prompt.contains("cloud model"),
+                      "Prompt must state no cloud fallback")
+        XCTAssertFalse(prompt.contains("auto-grade") || prompt.contains("Auto-grade"),
+                       "Prompt must not use prohibited 'auto-grade' language")
+    }
+
+    func testPromptBuilderUsesPromptFieldNotTitle() {
+        var input = sampleInput()
+        input.assignmentTitle = "My Assignment Title"
+        input.prompt = "What is the role of evidence in a historical argument?"
+
+        let result = PromptBuilder.gradingPrompt(input: input)
+        XCTAssertTrue(result.contains("What is the role of evidence"),
+                      "PromptBuilder should use the prompt field when supplied")
+        // Title appears under "Title:", prompt under "Prompt:"
+        XCTAssertTrue(result.contains("- Title: My Assignment Title"))
+        XCTAssertTrue(result.contains("- Prompt: What is the role of evidence"))
+    }
+
+    func testPromptBuilderShowsNotSuppliedWhenPromptEmpty() {
+        var input = sampleInput()
+        input.prompt = ""
+        let result = PromptBuilder.gradingPrompt(input: input)
+        XCTAssertTrue(result.contains("Not supplied."),
+                      "PromptBuilder should show 'Not supplied.' when prompt is empty")
+    }
+
+    func testChangingPromptChangesPacketFingerprint() {
+        var record = AssignmentRecord(
+            title: "Test",
+            rubricText: "Claim: 0-4 points",
+            reviewedStudentText: "Student work"
+        )
+        let fingerprintWithoutPrompt = record.gradingPacketFingerprint
+
+        record.prompt = "What causes photosynthesis?"
+        let fingerprintWithPrompt = record.gradingPacketFingerprint
+
+        XCTAssertNotEqual(fingerprintWithoutPrompt, fingerprintWithPrompt,
+                          "Adding a prompt should change the grading packet fingerprint")
+    }
+
+    func testPromptPersistsInGRDBRoundTrip() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftPrompt-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let store = try GRDBAssignmentStore(applicationSupportURL: root)
+        var record = AssignmentRecord(title: "Prompt persistence test")
+        record.prompt = "Describe the water cycle."
+
+        try store.saveAssignments([record])
+        let loaded = try store.loadAssignments()
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded[0].prompt, "Describe the water cycle.")
+    }
+
+    func testOldRecordWithoutPromptDecodesSuccessfully() throws {
+        // Encode a record, strip the prompt key, then decode — simulating data
+        // saved before the prompt field was added.
+        let original = AssignmentRecord(title: "Legacy Assignment")
+        let encoder = JSONEncoder()
+        let jsonData = try encoder.encode(original)
+        var jsonObject = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
+        )
+        jsonObject.removeValue(forKey: "prompt")
+        let legacyData = try JSONSerialization.data(withJSONObject: jsonObject)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(AssignmentRecord.self, from: legacyData)
+        XCTAssertNil(decoded.prompt, "prompt should be nil when absent in stored JSON")
+        XCTAssertEqual(decoded.title, "Legacy Assignment")
+    }
+
+    func testNoProhibitedLabelsInVisibleCopy() {
+        let prohibitedTerms = [
+            "auto-grade",
+            "Auto-grade",
+            "AutoGrade",
+            "Accept AI grade",
+            "Accept AI Grade",
+            "AI final grade",
+            "AI Final Grade",
+            "one-click grade",
+            "One-click Grade",
+            "Guaranteed Score",
+            "guaranteed score",
+        ]
+
+        // Check all built-in template names and instructions
+        for template in RubricTemplates.builtIn {
+            for term in prohibitedTerms {
+                XCTAssertFalse(template.name.contains(term),
+                               "Template name '\(template.name)' must not contain '\(term)'")
+                XCTAssertFalse(template.customInstructions.contains(term),
+                               "Template \(template.id) instructions must not contain '\(term)'")
+            }
+        }
+
+        // Check error messages
+        let errorMessages = [
+            GradeDraftError.missingRubric.localizedDescription ?? "",
+            GradeDraftError.missingStudentText.localizedDescription ?? "",
+            GradeDraftError.ocrReviewRequired.localizedDescription ?? "",
+        ]
+        for msg in errorMessages {
+            for term in prohibitedTerms {
+                XCTAssertFalse(msg.contains(term),
+                               "Error message '\(msg)' must not contain '\(term)'")
+            }
+        }
+    }
+
+    func testLocalAIUnavailableMessageContainsNoCloudFallback() {
+        let service = UnavailableLocalGradingService()
+        if case .unavailable(let message) = service.localAIStatus {
+            XCTAssertTrue(message.lowercased().contains("cloud") || message.lowercased().contains("not"),
+                          "Unavailable message should clarify no cloud fallback: \(message)")
+            let prohibitedPhrases = ["will upload", "try again later with cloud", "cloud backup grading"]
+            for phrase in prohibitedPhrases {
+                XCTAssertFalse(message.lowercased().contains(phrase),
+                               "Unavailable message must not imply cloud fallback: '\(phrase)' found in: \(message)")
+            }
+        } else {
+            XCTFail("UnavailableLocalGradingService must report unavailable status")
+        }
+    }
+
+    // MARK: - Private helpers
+
     private func sampleInput(rubric: String = "Claim: 0-4 points") -> GradingInput {
         let parsed = RubricParser.parse(rubric)
         return GradingInput(
             assignmentID: UUID(),
             assignmentTitle: "Essay",
+            prompt: "",
             subject: "ELA",
             gradeLevel: "6",
             className: "6A",
@@ -558,12 +788,14 @@ final class GradeDraftTests: XCTestCase {
             customInstructions: "",
             answerKeyText: "",
             exemplarText: "",
+            assessmentPurpose: .summative,
+            curriculumReference: "",
             reviewedStudentText: "Student response",
             ocrQualitySummary: OCRQualitySummary(),
             ocrReviewStatus: .notNeeded,
             sourceInputCount: 1,
-            hasGradingStandard: !rubric.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            packetFingerprint: "packet-1"
+            packetFingerprint: "packet-1",
+            hasGradingStandard: !rubric.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         )
     }
 }

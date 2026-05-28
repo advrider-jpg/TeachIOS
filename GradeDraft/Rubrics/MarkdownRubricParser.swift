@@ -1,28 +1,12 @@
 import Foundation
-import Markdown
 
+/// Delegates to RubricParser for all rubric text.
+/// Markdown-aware structured rubric parsing is not implemented in this version.
+/// The swift-markdown dependency is available but not currently used for rubric parsing.
+/// Full Markdown rubric parsing is a deferred feature.
 enum MarkdownRubricParser {
-    /// Parses Markdown rubric text using the Swift Markdown parser.
-    /// This is a staged adapter; it keeps behavior explicit and safe while
-    /// preserving existing `RubricParser` behavior as a fallback.
     static func parse(_ text: String) -> ParsedRubric {
-        do {
-            let document = try Document(parsing: text)
-            let preview = document.description.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !preview.isEmpty else {
-                return ParsedRubric(criteria: [], issues: [])
-            }
-
-            let lineCount = preview.components(separatedBy: .newlines).count
-            if lineCount >= 0 {
-                return RubricParser.parse(text)
-            }
-            return ParsedRubric(criteria: [], issues: ["Failed to parse Markdown rubric."])
-        } catch {
-            var parsed = RubricParser.parse(text)
-            parsed.issues.append("Markdown parser entrypoint returned an error; using legacy parser fallback.")
-            return parsed
-        }
+        RubricParser.parse(text)
     }
 
     static func criterionIDsPreservingOrder(from parsed: ParsedRubric) -> [String] {

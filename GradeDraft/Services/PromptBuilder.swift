@@ -78,7 +78,7 @@ enum PromptBuilder {
 
         Assignment metadata:
         - Title: \(input.assignmentTitle)
-        - Prompt: \(input.assignmentTitle)
+        - Prompt: \(input.prompt.isEmpty ? "Not supplied." : input.prompt)
         - Student: \(input.studentDisplayName.isEmpty ? "Not specified" : input.studentDisplayName)
         - Class: \(input.className.isEmpty ? "Not specified" : input.className)
         - Subject: \(input.subject.isEmpty ? "Not specified" : input.subject)

@@ -16,11 +16,13 @@ Core lane:
 ## Current durable status
 
 - v3 scaffold is active.
-- Core persistence currently uses local JSON under Application Support (`assignments-v3.json` in the scaffold path).
-- `LocalJSONStore` is the active state layer for core app runtime data.
-- GRDB is present as a next-pass persistence entry point, not the completed replacement.
-- Markdown reporting exists; PDF/CSV/ZIP bundle export remains deferred where noted.
+- Active runtime persistence is a thin GRDB-backed local store (`GRDBAssignmentStore`) that persists complete assignment records as JSON payloads inside SQLite. `LocalJSONStore` is retained as a fallback if GRDB init fails. This is a bridge, not the final normalized production schema.
+- `GRDBAssignmentStore.swift` is now included in the Xcode project and app target.
+- `GradeDraftDatabase` correctly respects injected application support roots (fixed injected-root bug).
+- Markdown reporting and CSV export are implemented. PDF and ZIP/archive export remain deferred and not exposed in UI.
 - Foundation Models draft grading remains availability-gated.
+- Snapshot testing replaced with deterministic tests (no reference images required).
+- Assignment prompt field (`AssignmentRecord.prompt`) is implemented with backward-compatible Codable decoding.
 
 ## Major components / directories
 
@@ -42,8 +44,12 @@ Core lane:
 - Posters / physical models / visual artifacts as automated grading
 - Symbolic math structure grading without explicit evidence pipelines
 - LMS sync, grade passback, and cloud backup/sync
-- Full production SQLite/SwiftData migration and migration/restore UX
-- PDF/CSV/ZIP archive productionization beyond existing scaffold state
+- Full normalized production SQLite schema (current GRDB layer stores JSON payloads, not a normalized schema)
+- PDF export (deferred; service throws not-implemented; not exposed in UI)
+- ZIP/archive bundle export (deferred; service throws not-implemented; not exposed in UI)
+- Full Markdown rubric parsing (MarkdownRubricParser delegates to RubricParser; Markdown structure parsing deferred)
+- Typed LocalAIStatus reason enum (currently string-only unavailable; typed reasons deferred)
+- Import/restore UX, side-by-side OCR review, per-line OCR editing, evidence bounding-box linking
 
 ## Open questions / known limits
 
