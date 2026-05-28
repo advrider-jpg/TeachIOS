@@ -1,6 +1,21 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 import VisionKit
+
+// MARK: - Share sheet bridge
+
+private struct ActivityViewController: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - ContentView
 
 struct ContentView: View {
     @StateObject private var viewModel = GradeDraftViewModel()
@@ -12,6 +27,13 @@ struct ContentView: View {
     @State private var showingStudentReportWarning = false
     @State private var showingTeacherAuditWarning = false
     @State private var showingCSVWarning = false
+
+    // OCR confirmation dialog
+    @State private var showingOCRReviewConfirm = false
+
+    // Share sheet warning
+    @State private var showingShareSheetWarning = false
+    @State private var readyToShareFile = false
 
     var body: some View {
         NavigationSplitView {
@@ -27,6 +49,7 @@ struct ContentView: View {
                     rubricSection
                     gradingSection
                     exportSection
+                    aboutSection
                 }
                 .padding()
                 .frame(maxWidth: 1040, alignment: .leading)
@@ -48,6 +71,11 @@ struct ContentView: View {
                     viewModel.errorMessage = error.localizedDescription
                 }
             }
+            .sheet(isPresented: $readyToShareFile) {
+                if let url = viewModel.exportURL {
+                    ActivityViewController(items: [url])
+                }
+            }
             .alert("GradeDraft", isPresented: Binding(
                 get: { viewModel.errorMessage != nil },
                 set: { if !$0 { viewModel.errorMessage = nil } }
@@ -55,6 +83,19 @@ struct ContentView: View {
                 Button("OK", role: .cancel) { viewModel.errorMessage = nil }
             } message: {
                 Text(viewModel.errorMessage ?? "Unknown error")
+            }
+            // OCR review confirmation
+            .confirmationDialog(
+                "Mark OCR reviewed?",
+                isPresented: $showingOCRReviewConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Mark Reviewed") {
+                    viewModel.markOCRReviewed()
+                }
+                Button("Keep Reviewing", role: .cancel) {}
+            } message: {
+                Text("Only continue if the text shown here accurately reflects the student work you want GradeDraft to use. The app will draft feedback from this reviewed text, not from the original image.")
             }
             // Student report export warning
             .confirmationDialog(
@@ -94,6 +135,19 @@ struct ContentView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("This CSV may include student names, scores, grades, rubric labels, and comments. Use only approved school storage and transfer methods.\n\nGradeDraft neutralizes spreadsheet formula-injection risks before export. Review free-text fields before sharing.")
+            }
+            // Share sheet warning (Section 18.9)
+            .confirmationDialog(
+                "Share outside the app?",
+                isPresented: $showingShareSheetWarning,
+                titleVisibility: .visible
+            ) {
+                Button("Open Share Sheet") {
+                    readyToShareFile = true
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You are about to send a file or text to another app. GradeDraft cannot control how that destination app stores, syncs, forwards, or protects the information.")
             }
         }
     }
@@ -288,7 +342,7 @@ struct ContentView: View {
                 }
                 Spacer()
                 if viewModel.assignment.ocrReviewStatus.blocksGrading {
-                    Button("Mark OCR Reviewed") { viewModel.markOCRReviewed() }
+                    Button("Mark OCR Reviewed") { showingOCRReviewConfirm = true }
                         .buttonStyle(.borderedProminent)
                 }
             }
@@ -440,6 +494,7 @@ struct ContentView: View {
 
     private var gradingSection: some View {
         CardSection(title: "Draft and finalize", systemImage: "checklist.checked") {
+            // AI draft path
             HStack(spacing: 12) {
                 Button {
                     Task { await viewModel.draftGrade() }
@@ -458,6 +513,29 @@ struct ContentView: View {
                     .disabled(viewModel.assignment.latestDraft == nil || viewModel.assignment.latestDraftIsStale)
             }
 
+            // Manual grading path — available regardless of AI status
+            Button("Start Manual Final Review") {
+                viewModel.startManualFinalReview()
+            }
+            .buttonStyle(.bordered)
+            .disabled(!viewModel.canStartManualFinalReview)
+
+            if !viewModel.canStartManualFinalReview {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(viewModel.manualGradingReadinessIssues, id: \.self) { issue in
+                        Label(issue, systemImage: "exclamationmark.circle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            if case .unavailable = viewModel.localAIStatus {
+                Label("Local AI grading is unavailable. GradeDraft will not send this student work to a cloud model as a fallback. Manual grading is available above.", systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Text("The generated suggestion is a draft for teacher review. The app calculates totals from criterion scores instead of trusting model-written totals.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -467,15 +545,17 @@ struct ContentView: View {
                     review: finalReview,
                     isStale: viewModel.assignment.finalReviewIsStale,
                     onChange: { updated in viewModel.updateFinalReview(updated) },
-                    onApprove: { viewModel.approveFinalReview() }
+                    onApprove: { viewModel.approveFinalReview() },
+                    onAddCriterion: { viewModel.addCriterionToFinalReview() },
+                    onDeleteCriterion: { id in viewModel.deleteCriterionFromFinalReview(id: id) }
                 )
                 .id(finalReview.id)
             } else if let result = viewModel.assignment.latestDraft {
                 GradeResultView(result: result, isStale: viewModel.assignment.latestDraftIsStale)
             } else {
                 EmptyStateView(
-                    title: "No draft yet",
-                    message: "Add reviewed student text and a rubric, confirm OCR if needed, then generate a local draft feedback suggestion."
+                    title: "No final review yet",
+                    message: "No teacher-final review yet. Start final review from a draft or grade manually."
                 )
             }
         }
@@ -487,8 +567,14 @@ struct ContentView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            HStack {
-                Button("Preview Student Report") {
+            if !viewModel.canExportStudentReport {
+                Label("Student-facing export is blocked until the teacher approves the final grade.", systemImage: "lock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 12) {
+                Button("Export Student Report") {
                     showingStudentReportWarning = true
                 }
                 .buttonStyle(.bordered)
@@ -503,14 +589,48 @@ struct ContentView: View {
                     showingCSVWarning = true
                 }
                 .buttonStyle(.bordered)
-                .disabled(viewModel.assignment.finalReview == nil && viewModel.assignment.latestDraft == nil)
 
-                if let exportURL = viewModel.exportURL {
-                    ShareLink(item: exportURL) {
+                if viewModel.exportURL != nil {
+                    Button {
+                        showingShareSheetWarning = true
+                    } label: {
                         Label("Share \(viewModel.exportKind?.displayName ?? "Report")", systemImage: "square.and.arrow.up")
                     }
                     .buttonStyle(.borderedProminent)
                 }
+            }
+
+            Text("PDF and ZIP archive exports are not available in this version.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var aboutSection: some View {
+        CardSection(title: "About / Local Privacy", systemImage: "lock.shield") {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("GradeDraft stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The developer does not receive, upload, or access this information in the core app workflow.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("No cloud OCR in core workflow.", systemImage: "checkmark.circle")
+                    Label("No cloud AI grading in core workflow.", systemImage: "checkmark.circle")
+                    Label("No usage-tracking or telemetry SDK in this repo.", systemImage: "checkmark.circle")
+                    Label("No account or login required.", systemImage: "checkmark.circle")
+                    Label("Local AI may be unavailable on some devices.", systemImage: "info.circle")
+                    Label("Exports may contain sensitive student information.", systemImage: "exclamationmark.triangle")
+                    Label("Teacher finalizes all grades.", systemImage: "person.badge.checkmark")
+                }
+                .font(.subheadline)
+
+                Text("Deferred (not supported in this version): PDF export, ZIP/archive export, side-by-side OCR review, evidence bounding-box linking, handwriting grading, visual artifact grading, math notation grading, LMS sync, cloud backup, accounts, and subscriptions.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("Local records may include student identifiers, scanned work, pasted text, OCR text, rubrics, answer keys, exemplars, draft scores, final scores, feedback, private teacher notes, export records, and audit events. These records stay on this device unless you export or share them.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

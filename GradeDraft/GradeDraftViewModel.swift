@@ -176,6 +176,27 @@ final class GradeDraftViewModel: ObservableObject {
         return false
     }
 
+    var canStartManualFinalReview: Bool {
+        !assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        assignment.hasGradingStandard &&
+        !assignment.requiresOCRReviewBeforeGrading
+    }
+
+    /// Readiness issues that block manual grading (no AI required).
+    var manualGradingReadinessIssues: [String] {
+        var issues: [String] = []
+        if !assignment.hasGradingStandard {
+            issues.append("Add a rubric, answer key, exemplar, or grading criteria before drafting feedback.")
+        }
+        if assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            issues.append("Add or review the student text before drafting feedback.")
+        }
+        if assignment.ocrReviewStatus.blocksGrading {
+            issues.append("Review and confirm OCR text before drafting feedback.")
+        }
+        return issues
+    }
+
     func refreshCapabilityStatus() {
         switch gradingService.localAIStatus {
         case .available:
@@ -224,6 +245,7 @@ final class GradeDraftViewModel: ObservableObject {
 
     func deleteCurrentAssignment() {
         guard let selectedAssignmentID else { return }
+        let assignmentToDelete = assignments.first { $0.id == selectedAssignmentID }
         assignments.removeAll { $0.id == selectedAssignmentID }
         if assignments.isEmpty {
             assignments = [AssignmentRecord()]
@@ -232,6 +254,17 @@ final class GradeDraftViewModel: ObservableObject {
         do {
             try store.deleteAssignment(id: selectedAssignmentID)
             try store.saveAssignments(assignments)
+            // Delete source image files for this assignment if present.
+            if let appDir = try? store.applicationSupportDirectory(),
+               let toDelete = assignmentToDelete,
+               !toDelete.sourceInputs.isEmpty {
+                let sourceDir = appDir
+                    .appendingPathComponent("Sources", isDirectory: true)
+                    .appendingPathComponent(selectedAssignmentID.uuidString, isDirectory: true)
+                if fileManager.fileExists(atPath: sourceDir.path) {
+                    try? fileManager.removeItem(at: sourceDir)
+                }
+            }
             statusMessage = "Assignment deleted locally."
         } catch {
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
@@ -383,6 +416,97 @@ final class GradeDraftViewModel: ObservableObject {
         }
         persistOrSurfaceError()
         statusMessage = "Final review started. Approve each criterion before exporting as final."
+    }
+
+    func startManualFinalReview() {
+        guard canStartManualFinalReview else {
+            errorMessage = manualGradingReadinessIssues.first ?? "Cannot start manual final review yet."
+            return
+        }
+
+        let parsedCriteria = assignment.parsedRubric.criteria
+        let finalCriteria: [FinalCriterionScore]
+
+        if !parsedCriteria.isEmpty {
+            finalCriteria = parsedCriteria.map { criterion in
+                FinalCriterionScore(
+                    criterionID: criterion.id,
+                    criterion: criterion.title,
+                    rating: "",
+                    proposedPoints: 0,
+                    finalPoints: 0,
+                    maxPoints: criterion.maxPoints,
+                    evidence: [],
+                    explanation: "",
+                    teacherApproved: false,
+                    teacherRationale: "Manual teacher-created final review."
+                )
+            }
+        } else {
+            finalCriteria = [FinalCriterionScore(
+                criterionID: nil,
+                criterion: "Teacher-entered grading standard",
+                rating: "",
+                proposedPoints: 0,
+                finalPoints: 0,
+                maxPoints: 0,
+                evidence: [],
+                explanation: "",
+                teacherApproved: false,
+                teacherRationale: "Manual teacher-created final review. Edit this criterion to match the grading standard, then approve it."
+            )]
+        }
+
+        let review = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .inProgress,
+            criteria: finalCriteria,
+            totalScore: 0,
+            maxScore: finalCriteria.map(\.maxPoints).reduce(0, +),
+            studentFeedback: "",
+            privateTeacherNotes: "",
+            teacherEdited: false
+        )
+        updateAssignment { assignment in
+            assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: review)
+            assignment.appendAuditEvent(.finalReviewStarted, detail: "Teacher started manual final review without AI draft.")
+        }
+        persistOrSurfaceError()
+        statusMessage = "Manual final review started. Edit criteria, approve each one, then approve the final grade."
+    }
+
+    func addCriterionToFinalReview() {
+        guard var review = assignment.finalReview else { return }
+        let newCriterion = FinalCriterionScore(
+            criterionID: nil,
+            criterion: "New criterion",
+            rating: "",
+            proposedPoints: 0,
+            finalPoints: 0,
+            maxPoints: 0,
+            evidence: [],
+            explanation: "",
+            teacherApproved: false,
+            teacherRationale: ""
+        )
+        review.criteria.append(newCriterion)
+        review.teacherEdited = true
+        review = GradeTotals.applyingDeterministicTotals(to: review)
+        updateAssignment { assignment in
+            assignment.finalReview = review
+        }
+        persistOrSurfaceError()
+    }
+
+    func deleteCriterionFromFinalReview(id: UUID) {
+        guard var review = assignment.finalReview else { return }
+        review.criteria.removeAll { $0.id == id }
+        review.teacherEdited = true
+        review = GradeTotals.applyingDeterministicTotals(to: review)
+        updateAssignment { assignment in
+            assignment.finalReview = review
+        }
+        persistOrSurfaceError()
     }
 
     func updateFinalReview(_ review: FinalGradeReview) {

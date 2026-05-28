@@ -770,6 +770,657 @@ final class GradeDraftTests: XCTestCase {
         }
     }
 
+    // MARK: - Manual final review tests
+
+    @MainActor
+    func testManualFinalReviewCanStartWithoutAIDraft() {
+        let assignment = AssignmentRecord(
+            title: "Short answer",
+            rubricText: "Claim: 0-2 points\nEvidence: 0-2 points",
+            reviewedStudentText: "Student wrote something."
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(
+            assignments: [assignment],
+            gradingService: UnavailableLocalGradingService(),
+            store: store
+        )
+
+        XCTAssertNil(viewModel.assignment.latestDraft, "No AI draft should exist")
+        XCTAssertTrue(viewModel.canStartManualFinalReview, "Manual review should be available")
+        viewModel.startManualFinalReview()
+        XCTAssertNotNil(viewModel.assignment.finalReview, "Final review should be created")
+        XCTAssertEqual(viewModel.assignment.finalReview?.status, .inProgress)
+    }
+
+    @MainActor
+    func testManualFinalReviewBlockedWithoutReviewedText() {
+        let assignment = AssignmentRecord(
+            title: "Short answer",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: ""
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        XCTAssertFalse(viewModel.canStartManualFinalReview, "Manual review blocked without reviewed text")
+    }
+
+    @MainActor
+    func testManualFinalReviewBlockedByOCRNeedsReview() {
+        let assignment = AssignmentRecord(
+            title: "Scanned work",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student text from OCR",
+            ocrReviewStatus: .needsReview
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        XCTAssertFalse(viewModel.canStartManualFinalReview, "Manual review blocked when OCR needs review")
+    }
+
+    @MainActor
+    func testManualFinalReviewBlockedByOCRBlocked() {
+        let assignment = AssignmentRecord(
+            title: "Blocked OCR",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Text",
+            ocrReviewStatus: .blocked
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        XCTAssertFalse(viewModel.canStartManualFinalReview, "Manual review blocked when OCR is blocked")
+    }
+
+    @MainActor
+    func testManualFinalReviewBlockedWithoutGradingStandard() {
+        let assignment = AssignmentRecord(
+            title: "No rubric",
+            rubricText: "",
+            answerKeyText: "",
+            exemplarText: "",
+            reviewedStudentText: "Student text"
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        XCTAssertFalse(viewModel.canStartManualFinalReview, "Manual review blocked without any grading standard")
+    }
+
+    @MainActor
+    func testManualFinalReviewWithParsedRubricCreatesCriteria() {
+        let rubric = "Claim: 0-2 points\nEvidence: 0-4 points"
+        let assignment = AssignmentRecord(
+            title: "Essay",
+            rubricText: rubric,
+            reviewedStudentText: "Student essay text."
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(
+            assignments: [assignment],
+            gradingService: UnavailableLocalGradingService(),
+            store: store
+        )
+
+        viewModel.startManualFinalReview()
+
+        let review = viewModel.assignment.finalReview
+        XCTAssertNotNil(review)
+        XCTAssertEqual(review?.criteria.count, 2, "Two criteria expected from parsed rubric")
+        XCTAssertEqual(review?.criteria[0].criterion, "Claim")
+        XCTAssertEqual(review?.criteria[0].maxPoints, 2)
+        XCTAssertEqual(review?.criteria[1].criterion, "Evidence")
+        XCTAssertEqual(review?.criteria[1].maxPoints, 4)
+        XCTAssertTrue(review?.criteria.allSatisfy { !$0.teacherApproved } ?? false, "No criterion should be pre-approved")
+        XCTAssertTrue(review?.criteria.allSatisfy { $0.finalPoints == 0 } ?? false, "All final points should start at 0")
+    }
+
+    @MainActor
+    func testManualFinalReviewWithAnswerKeyOnlyCreatesTeacherReviewCriterion() {
+        let assignment = AssignmentRecord(
+            title: "Short answer",
+            rubricText: "",
+            answerKeyText: "Expected: two specific examples.",
+            reviewedStudentText: "Student answer here."
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(
+            assignments: [assignment],
+            gradingService: UnavailableLocalGradingService(),
+            store: store
+        )
+
+        viewModel.startManualFinalReview()
+
+        let review = viewModel.assignment.finalReview
+        XCTAssertNotNil(review)
+        XCTAssertEqual(review?.criteria.count, 1, "One teacher-review criterion expected when no parsed rubric")
+        XCTAssertEqual(review?.criteria[0].criterion, "Teacher-entered grading standard")
+        XCTAssertFalse(review?.criteria[0].teacherApproved ?? true)
+    }
+
+    @MainActor
+    func testManualFinalReviewCannotBeApprovedUntilAllCriteriaApproved() {
+        var assignment = AssignmentRecord(
+            title: "Essay",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student text."
+        )
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .inProgress,
+            criteria: [FinalCriterionScore(
+                criterion: "Claim",
+                rating: "",
+                proposedPoints: 0,
+                finalPoints: 2,
+                maxPoints: 2,
+                evidence: [],
+                explanation: "",
+                teacherApproved: false
+            )],
+            totalScore: 2,
+            maxScore: 2,
+            studentFeedback: "",
+            privateTeacherNotes: "",
+            teacherEdited: true
+        )
+
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        XCTAssertFalse(viewModel.canApproveFinalReview, "Cannot approve while criterion is unapproved")
+    }
+
+    @MainActor
+    func testApprovedManualFinalReviewEnablesStudentExport() {
+        var assignment = AssignmentRecord(
+            title: "Essay",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student text."
+        )
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .approved,
+            criteria: [FinalCriterionScore(
+                criterion: "Claim",
+                rating: "",
+                proposedPoints: 0,
+                finalPoints: 2,
+                maxPoints: 2,
+                evidence: [],
+                explanation: "",
+                teacherApproved: true
+            )],
+            totalScore: 2,
+            maxScore: 2,
+            studentFeedback: "Good work.",
+            privateTeacherNotes: "",
+            teacherEdited: true
+        )
+
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        XCTAssertTrue(viewModel.canExportStudentReport, "Approved manual final review should enable student export")
+    }
+
+    func testManualFinalReviewSurvivesGRDBRoundTrip() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftManual-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let store = try GRDBAssignmentStore(applicationSupportURL: root)
+
+        var assignment = AssignmentRecord(title: "Manual review round trip")
+        assignment.rubricText = "Claim: 0-2 points"
+        assignment.reviewedStudentText = "Student wrote this."
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .inProgress,
+            criteria: [FinalCriterionScore(
+                criterionID: "criterion-1",
+                criterion: "Claim",
+                rating: "",
+                proposedPoints: 0,
+                finalPoints: 1,
+                maxPoints: 2,
+                evidence: ["Student wrote this."],
+                explanation: "Partial claim.",
+                teacherApproved: false,
+                teacherRationale: "Manual teacher-created final review."
+            )],
+            totalScore: 1,
+            maxScore: 2,
+            studentFeedback: "",
+            privateTeacherNotes: "My private note",
+            teacherEdited: false
+        )
+
+        try store.saveAssignments([assignment])
+        let loaded = try store.loadAssignments()
+
+        XCTAssertEqual(loaded.count, 1)
+        let loadedReview = loaded[0].finalReview
+        XCTAssertNotNil(loadedReview)
+        XCTAssertEqual(loadedReview?.criteria.count, 1)
+        XCTAssertEqual(loadedReview?.criteria[0].criterion, "Claim")
+        XCTAssertEqual(loadedReview?.criteria[0].finalPoints, 1)
+        XCTAssertEqual(loadedReview?.privateTeacherNotes, "My private note")
+    }
+
+    // MARK: - Criterion management tests
+
+    @MainActor
+    func testAddCriterionToFinalReview() {
+        var assignment = AssignmentRecord(
+            title: "Essay",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student text."
+        )
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .inProgress,
+            criteria: [],
+            totalScore: 0,
+            maxScore: 0,
+            studentFeedback: "",
+            privateTeacherNotes: "",
+            teacherEdited: false
+        )
+
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        viewModel.addCriterionToFinalReview()
+        XCTAssertEqual(viewModel.assignment.finalReview?.criteria.count, 1, "One criterion should be added")
+        XCTAssertFalse(viewModel.assignment.finalReview?.criteria[0].teacherApproved ?? true, "New criterion should not be pre-approved")
+    }
+
+    @MainActor
+    func testDeleteCriterionFromFinalReview() {
+        let criterion = FinalCriterionScore(
+            criterion: "Claim",
+            rating: "",
+            proposedPoints: 0,
+            finalPoints: 2,
+            maxPoints: 2,
+            evidence: [],
+            explanation: "",
+            teacherApproved: true
+        )
+        var assignment = AssignmentRecord(
+            title: "Essay",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student text."
+        )
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .inProgress,
+            criteria: [criterion],
+            totalScore: 2,
+            maxScore: 2,
+            studentFeedback: "",
+            privateTeacherNotes: "",
+            teacherEdited: false
+        )
+
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        viewModel.deleteCriterionFromFinalReview(id: criterion.id)
+        XCTAssertEqual(viewModel.assignment.finalReview?.criteria.count, 0, "Criterion should be deleted")
+        XCTAssertEqual(viewModel.assignment.finalReview?.totalScore, 0, "Total should recalculate to 0")
+    }
+
+    @MainActor
+    func testApprovalBlockedAfterAddingUnapprovedCriterion() {
+        let approvedCriterion = FinalCriterionScore(
+            criterion: "Claim",
+            rating: "",
+            proposedPoints: 0,
+            finalPoints: 2,
+            maxPoints: 2,
+            evidence: [],
+            explanation: "",
+            teacherApproved: true
+        )
+        var assignment = AssignmentRecord(
+            title: "Essay",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student text."
+        )
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .inProgress,
+            criteria: [approvedCriterion],
+            totalScore: 2,
+            maxScore: 2,
+            studentFeedback: "",
+            privateTeacherNotes: "",
+            teacherEdited: true
+        )
+
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        XCTAssertTrue(viewModel.canApproveFinalReview, "Should be approvable before adding unapproved criterion")
+        viewModel.addCriterionToFinalReview()
+        XCTAssertFalse(viewModel.canApproveFinalReview, "Should be blocked after adding unapproved criterion")
+    }
+
+    @MainActor
+    func testTotalsRecalculateAfterCriterionDeletion() {
+        let criterionA = FinalCriterionScore(
+            criterion: "Claim",
+            rating: "",
+            proposedPoints: 0,
+            finalPoints: 2,
+            maxPoints: 2,
+            evidence: [],
+            explanation: "",
+            teacherApproved: true
+        )
+        let criterionB = FinalCriterionScore(
+            criterion: "Evidence",
+            rating: "",
+            proposedPoints: 0,
+            finalPoints: 3,
+            maxPoints: 4,
+            evidence: [],
+            explanation: "",
+            teacherApproved: true
+        )
+        var assignment = AssignmentRecord(
+            title: "Essay",
+            rubricText: "Claim: 0-2 points\nEvidence: 0-4 points",
+            reviewedStudentText: "Student text."
+        )
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .inProgress,
+            criteria: [criterionA, criterionB],
+            totalScore: 5,
+            maxScore: 6,
+            studentFeedback: "",
+            privateTeacherNotes: "",
+            teacherEdited: true
+        )
+
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        viewModel.deleteCriterionFromFinalReview(id: criterionB.id)
+
+        XCTAssertEqual(viewModel.assignment.finalReview?.totalScore, 2, "Total should be 2 after removing evidence criterion")
+        XCTAssertEqual(viewModel.assignment.finalReview?.maxScore, 2, "Max should be 2 after removing evidence criterion")
+    }
+
+    // MARK: - Export flow tests
+
+    @MainActor
+    func testStudentReportBlockedWithoutApprovedFinalReview() {
+        let assignment = AssignmentRecord(
+            title: "Essay",
+            rubricText: "Claim: 0-4 points",
+            reviewedStudentText: "Student text."
+        )
+        // No finalReview at all
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+        XCTAssertFalse(viewModel.canExportStudentReport, "Student export blocked without final review")
+    }
+
+    @MainActor
+    func testStudentReportBlockedWhenFinalReviewIsStale() {
+        var assignment = AssignmentRecord(
+            title: "Essay",
+            rubricText: "Claim: 0-4 points",
+            reviewedStudentText: "Student text."
+        )
+        // finalReview with a different packet fingerprint (stale)
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: "stale-fingerprint",
+            status: .approved,
+            criteria: [FinalCriterionScore(
+                criterion: "Claim",
+                rating: "",
+                proposedPoints: 3,
+                finalPoints: 3,
+                maxPoints: 4,
+                evidence: ["student text"],
+                explanation: "Good.",
+                teacherApproved: true
+            )],
+            totalScore: 3,
+            maxScore: 4,
+            studentFeedback: "Good.",
+            privateTeacherNotes: "",
+            teacherEdited: true
+        )
+
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        XCTAssertTrue(viewModel.assignment.finalReviewIsStale, "Final review should be stale")
+        XCTAssertFalse(viewModel.canExportStudentReport, "Student export blocked when stale")
+    }
+
+    func testStudentReportExcludesRawModelResponse() {
+        var assignment = AssignmentRecord(title: "Essay", subject: "ELA", gradeLevel: "6")
+        assignment.reviewedStudentText = "Student text"
+        assignment.rubricText = "Claim: 0-4 points"
+        assignment.latestDraft = GradeDraftResult(
+            studentResponseSummary: "Summary",
+            criteria: [],
+            totalScore: 0,
+            maxScore: 0,
+            studentFeedback: "Draft feedback",
+            teacherNotes: "Private model note.",
+            uncertaintyFlags: [],
+            rawModelResponse: "Raw JSON blob should not appear"
+        )
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .approved,
+            criteria: [FinalCriterionScore(
+                criterion: "Claim",
+                rating: "",
+                proposedPoints: 0,
+                finalPoints: 3,
+                maxPoints: 4,
+                evidence: [],
+                explanation: "",
+                teacherApproved: true
+            )],
+            totalScore: 3,
+            maxScore: 4,
+            studentFeedback: "Teacher final feedback.",
+            privateTeacherNotes: "",
+            teacherEdited: true
+        )
+
+        let report = MarkdownReportBuilder.studentMarkdown(for: assignment)
+        XCTAssertFalse(report.contains("Raw JSON blob"), "Student report must not include raw model response")
+        XCTAssertFalse(report.contains("Private model note"), "Student report must not include raw model teacher notes")
+        XCTAssertTrue(report.contains("Teacher final feedback"), "Student report should include teacher final feedback")
+    }
+
+    func testTeacherAuditIncludesPrivateNotesAndOCRStatusAndFingerprint() {
+        var assignment = AssignmentRecord(title: "Audit test", subject: "Science")
+        assignment.reviewedStudentText = "Student text"
+        assignment.rubricText = "Claim: 0-4 points"
+        assignment.ocrReviewStatus = .reviewed
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .approved,
+            criteria: [FinalCriterionScore(
+                criterion: "Claim",
+                rating: "",
+                proposedPoints: 0,
+                finalPoints: 4,
+                maxPoints: 4,
+                evidence: [],
+                explanation: "",
+                teacherApproved: true
+            )],
+            totalScore: 4,
+            maxScore: 4,
+            studentFeedback: "Great.",
+            privateTeacherNotes: "Private audit note here.",
+            teacherEdited: true
+        )
+
+        let audit = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment)
+        XCTAssertTrue(audit.contains("Private audit note here."), "Teacher audit should include private notes")
+        XCTAssertTrue(audit.contains("OCR reviewed"), "Teacher audit should include OCR status")
+        XCTAssertTrue(audit.contains(assignment.gradingPacketFingerprint), "Teacher audit should include packet fingerprint")
+    }
+
+    func testCSVStatusForNoFinalReview() {
+        let assignment = AssignmentRecord(title: "No review", rubricText: "Claim: 0-4 points", reviewedStudentText: "text")
+        let rows = CSVExportService.buildStudentRows(from: [assignment])
+        let dataRow = rows[1]
+        XCTAssertEqual(dataRow[10], "pending_final_review", "Status should be pending_final_review when no final review")
+    }
+
+    func testCSVStatusForApprovedFinalReview() {
+        var assignment = AssignmentRecord(title: "Approved")
+        assignment.rubricText = "Claim: 0-4 points"
+        assignment.reviewedStudentText = "text"
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .approved,
+            criteria: [FinalCriterionScore(
+                criterion: "Claim", rating: "", proposedPoints: 0, finalPoints: 3,
+                maxPoints: 4, evidence: [], explanation: "", teacherApproved: true
+            )],
+            totalScore: 3, maxScore: 4, studentFeedback: "", privateTeacherNotes: "", teacherEdited: true
+        )
+        let rows = CSVExportService.buildStudentRows(from: [assignment])
+        XCTAssertEqual(rows[1][10], "approved", "Status should be approved")
+    }
+
+    func testCSVStatusForStaleReview() {
+        var assignment = AssignmentRecord(title: "Stale")
+        assignment.rubricText = "Claim: 0-4 points"
+        assignment.reviewedStudentText = "text"
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: "old-fingerprint",
+            status: .approved,
+            criteria: [FinalCriterionScore(
+                criterion: "Claim", rating: "", proposedPoints: 0, finalPoints: 3,
+                maxPoints: 4, evidence: [], explanation: "", teacherApproved: true
+            )],
+            totalScore: 3, maxScore: 4, studentFeedback: "", privateTeacherNotes: "", teacherEdited: true
+        )
+        let rows = CSVExportService.buildStudentRows(from: [assignment])
+        XCTAssertEqual(rows[1][10], "stale_review", "Status should be stale_review when fingerprint mismatch")
+    }
+
+    // MARK: - Source file cleanup test
+
+    @MainActor
+    func testDeleteAssignmentRemovesRecord() {
+        let assignment = AssignmentRecord(title: "To delete", rubricText: "Claim: 0-4 points")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        XCTAssertEqual(viewModel.assignments.count, 1)
+        viewModel.deleteCurrentAssignment()
+        // After deletion one blank placeholder assignment is created if empty
+        XCTAssertFalse(viewModel.assignments.contains { $0.id == assignment.id }, "Deleted assignment should not remain")
+    }
+
+    // MARK: - Local AI unavailability tests
+
+    @MainActor
+    func testLocalAIUnavailableDisablesDraftButton() {
+        let assignment = AssignmentRecord(
+            title: "Short answer",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student text."
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(
+            assignments: [assignment],
+            gradingService: UnavailableLocalGradingService(),
+            store: store
+        )
+        XCTAssertFalse(viewModel.canDraftGrade, "AI draft button should be disabled when local AI unavailable")
+    }
+
+    @MainActor
+    func testLocalAIUnavailableDoesNotDisableManualFinalReview() {
+        let assignment = AssignmentRecord(
+            title: "Manual review",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student text."
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(
+            assignments: [assignment],
+            gradingService: UnavailableLocalGradingService(),
+            store: store
+        )
+        XCTAssertTrue(viewModel.canStartManualFinalReview, "Manual review should be available when local AI is unavailable")
+    }
+
+    // MARK: - OCR review tests
+
+    @MainActor
+    func testScannedInputSetsOCRStatusNeedsReview() {
+        // Creating an assignment with needsReview status simulates a scan
+        let assignment = AssignmentRecord(
+            title: "Scan test",
+            reviewedStudentText: "OCR text",
+            ocrReviewStatus: .needsReview
+        )
+        XCTAssertTrue(assignment.requiresOCRReviewBeforeGrading, "Scan should require OCR review")
+        XCTAssertTrue(assignment.ocrReviewStatus.blocksGrading, "OCR needsReview blocks grading")
+    }
+
+    @MainActor
+    func testMarkingOCRReviewedSetsStatusReviewed() {
+        var assignment = AssignmentRecord(
+            title: "OCR review test",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Extracted text",
+            ocrReviewStatus: .needsReview
+        )
+        // Simulate an OCR document being present
+        assignment.ocrDocument = OCRDocument(
+            pages: [OCRPage(
+                pageIndex: 0,
+                lines: [OCRLine(text: "Extracted text", confidence: 0.95, boundingBox: .zero)]
+            )]
+        )
+
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        XCTAssertFalse(viewModel.canStartManualFinalReview, "Cannot start manual review before OCR reviewed")
+        viewModel.markOCRReviewed()
+        XCTAssertEqual(viewModel.assignment.ocrReviewStatus, .reviewed, "After marking reviewed, status should be reviewed")
+        XCTAssertTrue(viewModel.canStartManualFinalReview, "Manual review should be available after OCR reviewed")
+    }
+
+    @MainActor
+    func testDraftBlockedBeforeOCRReview() {
+        let assignment = AssignmentRecord(
+            title: "OCR blocked",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Text",
+            ocrReviewStatus: .needsReview
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        XCTAssertFalse(viewModel.canDraftGrade, "Draft should be blocked before OCR review")
+    }
+
     // MARK: - Private helpers
 
     private func sampleInput(rubric: String = "Claim: 0-4 points") -> GradingInput {

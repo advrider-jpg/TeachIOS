@@ -12,20 +12,31 @@ The app must not collapse those layers into one mutable blob.
 
 ```text
 GradeDraftApp.swift
-ContentView.swift
-GradeDraftViewModel.swift
+ContentView.swift           — NavigationSplitView with assignment list and detail
+GradeDraftViewModel.swift   — all state transitions; manual and AI-draft grading paths
 Models/GradeDraftModels.swift
 Services/
   OCRService.swift
-  GradingService.swift
+  GradingService.swift      — protocols, validators, UnavailableLocalGradingService
   FoundationModelGradingService.swift
   PromptBuilder.swift
   GradeTotals.swift
-  LocalJSONStore.swift
+  LocalJSONStore.swift      — JSON store and MarkdownReportBuilder
+Export/
+  CSVExportService.swift
+  PDFExportService.swift    — not implemented; throws not-implemented
+  BundleExportService.swift — not implemented; throws not-implemented
+Persistence/
+  Database.swift
+  GRDBAssignmentStore.swift
+Rubrics/
+  MarkdownRubricParser.swift
+Core/
+  AppDependencies.swift
 Views/
   DocumentScannerView.swift
   LocalCapabilityBanner.swift
-  GradeResultView.swift
+  GradeResultView.swift     — GradeResultView (draft view), FinalGradeReviewView (full editor), FinalCriterionEditor
 Resources/
   Info.plist
   PrivacyInfo.xcprivacy
@@ -38,6 +49,17 @@ Resources/
 - `CapabilityChecking` exposes local AI availability so the UI can avoid fake readiness.
 - `AssignmentStoring` owns local assignment persistence.
 - `MarkdownReportBuilder` owns local report generation.
+- `CSVExportService` owns CSV export with formula-injection hardening.
+- PDF and ZIP services throw a not-implemented error; they are not exposed in UI.
+
+## Grading paths
+
+Two distinct teacher-controlled paths both produce `FinalGradeReview`:
+
+1. **AI draft path**: `draftGrade()` → `GradingServicing` → `FinalGradeReview` via `startFinalReviewFromLatestDraft()`. Requires local AI availability.
+2. **Manual path**: `startManualFinalReview()` → creates `FinalGradeReview` from parsed rubric criteria or a single teacher-review-required criterion. Does not require local AI.
+
+Both paths produce the same `FinalGradeReview` model and use the same approval gate, export flow, and audit trail.
 
 ## Data-state rules
 

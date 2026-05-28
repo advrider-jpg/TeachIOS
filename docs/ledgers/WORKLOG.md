@@ -1,5 +1,42 @@
 # Worklog
 
+## 2026-05-28 — Monster slice: MVP product completion
+
+- Files changed:
+  - `GradeDraft/GradeDraftViewModel.swift` — added `canStartManualFinalReview`, `manualGradingReadinessIssues`, `startManualFinalReview()`, `addCriterionToFinalReview()`, `deleteCriterionFromFinalReview(id:)`; updated `deleteCurrentAssignment()` to delete source image directory on assignment delete
+  - `GradeDraft/Views/GradeResultView.swift` — rebuilt `FinalGradeReviewView` with Add/Delete criterion controls, Approve confirmation dialog (canonical Section 14.5 copy), and `onAddCriterion`/`onDeleteCriterion` callbacks; rebuilt `FinalCriterionEditor` with full field editing (criterion name, rating, explanation, evidence add/remove/clear, teacher rationale) and delete button
+  - `GradeDraft/ContentView.swift` — added `ActivityViewController` (UIKit share sheet bridge), `showingOCRReviewConfirm` state and OCR confirmation dialog (canonical Section 12.5 copy), `showingShareSheetWarning` + `readyToShareFile` state and share-sheet warning (canonical Section 18.9 copy), "Start Manual Final Review" button with `manualGradingReadinessIssues`, local AI unavailability note in grading section, About/Local Privacy section (canonical Section 19 copy); replaced ShareLink with warning-gated share sheet flow; updated export section to note PDF/ZIP not available
+  - `GradeDraftTests/GradeDraftTests.swift` — added ~30 new tests covering: manual final review start/block conditions; parsed rubric → criteria mapping; answer-key-only → teacher-review-required criterion; approval gates; GRDB round trip with manual review; criterion add/delete/approval blocking/totals; export gating (blocked without approval, blocked when stale, excludes raw model response); teacher audit includes private notes/OCR/fingerprint; CSV status matrix (pending/approved/stale); local AI unavailability (disables draft, doesn't disable manual); OCR mark-reviewed behavior; delete assignment removes record
+  - `docs/ledgers/WORKLOG.md` — this entry
+  - `docs/ledgers/VALIDATION_LEDGER.md` — extended test coverage list; updated validation status
+  - `docs/ledgers/PROJECT_LEDGER.md` — updated current status
+  - `docs/TEST_PLAN.md` — updated to reflect new test coverage
+  - `docs/V3_IMPLEMENTATION_NOTES.md` — updated to document MVP completion state
+  - `docs/ARCHITECTURE.md` — updated to reflect manual grading path
+
+- What was implemented:
+  - **Manual grading path**: teacher can start, edit, approve, and export a final review without any AI draft, from parsed rubric or answer-key-only baseline.
+  - **Full final-review editor**: all criterion fields are editable (name, rating, final points, max points, explanation, evidence add/remove/clear, teacher rationale, approval toggle).
+  - **Criterion management**: Add Criterion and Delete Criterion with live totals recalculation.
+  - **OCR confirmation dialog**: canonical "Mark OCR reviewed?" with "Mark Reviewed" / "Keep Reviewing" buttons.
+  - **Approve Final Grade confirmation**: canonical "Approve this as the teacher-final grade?" dialog.
+  - **Share-sheet warning**: canonical "Share outside the app?" dialog before UIActivityViewController.
+  - **About/Local Privacy section**: local data inventory, confirmed-absent features, deferred features list.
+  - **Source file cleanup**: `deleteCurrentAssignment()` now removes the Sources/<assignmentID> directory.
+  - **AI unavailability note**: grading section explicitly labels manual path when AI is unavailable.
+  - **PDF/ZIP deferred note**: export section now says PDF and ZIP are not available.
+
+- What remains deferred:
+  - xcodebuild / SwiftLint / simulator smoke test (unavailable in Windows environment).
+  - PDF/ZIP export, side-by-side OCR review, per-line OCR editing, evidence bounding-box linking.
+  - Normalized GRDB schema, typed LocalAIStatus reasons, official curriculum import.
+  - LMS sync, cloud backup, handwriting/visual/math grading.
+
+- Validation:
+  - `python3 scripts/no_network_scan.py` — passed.
+  - `python3 scripts/repo_health.py` — passed.
+  - `xcodebuild` and `swiftlint` — unavailable in this environment.
+
 ## 2026-05-28 — Validation repair pass
 
 - Files changed:
