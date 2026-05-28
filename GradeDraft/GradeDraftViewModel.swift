@@ -90,7 +90,7 @@ final class GradeDraftViewModel: ObservableObject {
             issues.append(message)
         }
         if !assignment.hasGradingStandard {
-            issues.append("Add a rubric, answer key, or grading standard.")
+            issues.append("Add a rubric, answer key, exemplar, or grading criteria.")
         }
         if assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             issues.append("Add pasted text or review OCR text.")
@@ -318,7 +318,7 @@ final class GradeDraftViewModel: ObservableObject {
                 assignment.appendAuditEvent(.sourceCaptured, detail: "Captured \(images.count) \(sourceType.displayName.lowercased()) page(s) locally.")
                 assignment.appendAuditEvent(.ocrCompleted, detail: document.qualitySummary.displaySummary)
             }
-            statusMessage = "OCR complete. Review and confirm the extracted text before drafting a grade."
+            statusMessage = "OCR complete. Review and confirm the extracted text before drafting a feedback suggestion."
             try saveCurrentAssignment()
         } catch {
             errorMessage = error.localizedDescription
@@ -336,12 +336,12 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.appendAuditEvent(.ocrReviewed, detail: "Teacher marked OCR text reviewed. Reviewed text is now eligible for grading.")
         }
         persistOrSurfaceError()
-        statusMessage = "OCR reviewed. Draft grading is now available if local AI and rubric are ready."
+        statusMessage = "OCR reviewed. Draft feedback is now available if Local AI and rubric are ready."
     }
 
     func draftGrade() async {
         guard canDraftGrade else {
-            errorMessage = readinessIssues.first ?? "Draft grading is not ready."
+            errorMessage = readinessIssues.first ?? "Draft feedback is not ready."
             return
         }
         isWorking = true
@@ -358,7 +358,7 @@ final class GradeDraftViewModel: ObservableObject {
                 assignment.finalReview = nil
                 assignment.appendAuditEvent(.draftGenerated, detail: "Local grading draft generated from packet \(input.packetFingerprint).")
             }
-            statusMessage = "Draft grade generated locally. Start final review before using it."
+            statusMessage = "Draft feedback suggestion generated locally. Start teacher final review before using it."
             try saveCurrentAssignment()
         } catch {
             errorMessage = error.localizedDescription

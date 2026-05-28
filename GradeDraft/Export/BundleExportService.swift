@@ -15,6 +15,8 @@ enum BundleExportError: LocalizedError {
     }
 }
 
+/// ZIP/archive bundle export is deferred and not exposed in the UI.
+/// Calling any method will throw a not-implemented error without leaving artifacts.
 struct BundleExportService {
     static func preflightDestination(for assignmentID: UUID) throws -> URL {
         let documents = try FileManager.default.url(
@@ -34,21 +36,8 @@ struct BundleExportService {
         sourceFiles: [URL],
         to destination: URL
     ) throws -> URL {
-        _ = try preflightBundle(
-            sourceFiles: sourceFiles,
-            destination: destination
-        )
         throw BundleExportError.notImplemented(
-            "Bundle export staging with ZIPFoundation is not fully implemented in this pass."
+            "ZIP archive export is not yet available. Use the Markdown or CSV export options."
         )
-    }
-
-    private static func preflightBundle(sourceFiles: [URL], destination: URL) throws -> URL {
-        guard !sourceFiles.isEmpty else {
-            throw BundleExportError.preflightFailed("No source files were provided for the bundle.")
-        }
-
-        _ = try Archive(url: destination, accessMode: .create)
-        return destination
     }
 }

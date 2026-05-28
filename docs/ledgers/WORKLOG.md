@@ -1,5 +1,40 @@
 # Worklog
 
+## 2026-05-28 — GradeDraft hardening pass
+
+- Files changed:
+  - `GradeDraft.xcodeproj/project.pbxproj` — added GRDBAssignmentStore.swift to app target
+  - `GradeDraft/Persistence/Database.swift` — fixed injected-root path bug; resolvedDatabaseFolder stored as property
+  - `GradeDraft/Persistence/GRDBAssignmentStore.swift` — now in Xcode target (was on disk but not in project)
+  - `GradeDraft/Models/GradeDraftModels.swift` — added prompt field (optional, backward-compatible Codable), updated fingerprint and gradingInput, fixed GradeDraftError messages
+  - `GradeDraft/Services/GradingService.swift` — no changes needed
+  - `GradeDraft/Services/PromptBuilder.swift` — fixed prompt duplication (was outputting title twice)
+  - `GradeDraft/Rubrics/MarkdownRubricParser.swift` — removed fake lineCount>=0 logic; now simply delegates to RubricParser
+  - `GradeDraft/Export/PDFExportService.swift` — removed "stub" language from not-implemented errors
+  - `GradeDraft/Export/BundleExportService.swift` — removed "stub" language; simplified to not create archive before throwing
+  - `GradeDraft/Views/LocalCapabilityBanner.swift` — "Local AI available" → "Local AI ready"
+  - `GradeDraft/GradeDraftViewModel.swift` — fixed "draft grade" / "grading" language; added "exemplar" to grading standard readiness copy
+  - `GradeDraft/ContentView.swift` — fixed "Draft Grade" → "Draft Feedback Suggestion"; "Start Final Review" → "Start Teacher Final Review"; added prompt TextField; added export confirmation dialogs using canonical Section 18 copy; updated readiness/empty-state copy
+  - `GradeDraftTests/GradeDraftSnapshotTests.swift` — replaced snapshot tests (no reference images) with deterministic LocalAIStatus tests
+  - `GradeDraftTests/GradeDraftTests.swift` — added sampleInput assessmentPurpose/curriculumReference/prompt; added content-source tests for template IDs, point totals, safety rules; added GRDB injected root and idempotent bootstrap tests; added prompt persistence, fingerprint, and backward-compat decode tests; added prohibited-label test
+  - `docs/ledgers/PROJECT_LEDGER.md` — updated persistence posture and deferred areas
+- What was implemented:
+  - GRDBAssignmentStore added to Xcode project and app target.
+  - GradeDraftDatabase now stores resolvedDatabaseFolder and respects injected roots.
+  - Snapshot test replaced with deterministic tests.
+  - Assignment prompt field implemented (optional, backward-compat). PromptBuilder uses prompt, not title.
+  - MarkdownRubricParser fake logic removed.
+  - PDF/ZIP not-implemented language cleaned.
+  - Export confirmation dialogs added using canonical Section 18 copy.
+  - 12+ new tests added for content-source consistency, GRDB path, prompt, prohibited labels.
+- What remains deferred:
+  - xcodebuild / swiftlint unavailable in this environment (Windows/no Xcode).
+  - Full normalized GRDB schema; PDF/ZIP export; Markdown rubric parser; typed LocalAIStatus reasons.
+- Validation:
+  - `python3 scripts/repo_health.py` — passed.
+  - `python3 scripts/no_network_scan.py` — passed.
+  - `xcodebuild` and `swiftlint` — unavailable in this environment.
+
 ## 2026-05-28 — Initial repo memory layer
 
 - Files changed:

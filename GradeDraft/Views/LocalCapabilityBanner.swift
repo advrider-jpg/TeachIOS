@@ -28,7 +28,7 @@ struct LocalCapabilityBanner: View {
     private var title: String {
         switch status {
         case .available:
-            return "Local AI available"
+            return "Local AI ready"
         case .unavailable:
             return "Local AI unavailable"
         }

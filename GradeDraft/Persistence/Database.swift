@@ -14,13 +14,15 @@ struct DatabaseBackupDescriptor: Codable {
 }
 
 /// Thin GRDB entry point for the next persistence pass.
-/// This is intentionally minimal and intentionally defensive: it validates
-/// migration progress and preflight paths before write operations begin.
+/// Active runtime persistence is a thin GRDB-backed local store that persists
+/// complete assignment records as JSON payloads inside SQLite, with LocalJSONStore
+/// retained as a fallback. This is a bridge, not the final normalized production schema.
 final class GradeDraftDatabase {
     private let databaseQueue: DatabaseQueue
     private let migrations = DatabaseMigrator()
     private let jsonDecoder = JSONDecoder()
     private let jsonEncoder = JSONEncoder()
+    private let resolvedDatabaseFolder: URL
 
     init(applicationSupportURL: URL? = nil) throws {
         let baseURL = applicationSupportURL
@@ -30,11 +32,11 @@ final class GradeDraftDatabase {
             throw GradeDraftDatabaseError.missingStoreRoot
         }
 
-        let databaseFolder = baseURL.appendingPathComponent("GradeDraft", isDirectory: true)
-        let databaseURL = databaseFolder.appendingPathComponent("gradedraft.sqlite")
-        try FileManager.default.createDirectory(at: databaseFolder, withIntermediateDirectories: true)
+        resolvedDatabaseFolder = baseURL.appendingPathComponent("GradeDraft", isDirectory: true)
+        try FileManager.default.createDirectory(at: resolvedDatabaseFolder, withIntermediateDirectories: true)
 
-        databaseQueue = try DatabaseQueue(path: databaseURL.path)
+        let dbURL = resolvedDatabaseFolder.appendingPathComponent("gradedraft.sqlite")
+        databaseQueue = try DatabaseQueue(path: dbURL.path)
     }
 
     func loadAssignments() throws -> [AssignmentRecord] {
@@ -79,7 +81,7 @@ final class GradeDraftDatabase {
     }
 
     func applicationSupportDirectory() throws -> URL {
-        try databaseDirectory()
+        resolvedDatabaseFolder
     }
 
     func bootstrapIfNeeded() throws {
@@ -93,8 +95,7 @@ final class GradeDraftDatabase {
     }
 
     func preflightAuditBundle() throws -> URL {
-        let folder = try databaseDirectory()
-        let backupFolder = folder.appendingPathComponent("Backup", isDirectory: true)
+        let backupFolder = resolvedDatabaseFolder.appendingPathComponent("Backup", isDirectory: true)
         try FileManager.default.createDirectory(at: backupFolder, withIntermediateDirectories: true)
 
         var valuesAreWritable = false
@@ -112,8 +113,8 @@ final class GradeDraftDatabase {
     }
 
     func readBackupDescriptor() throws -> DatabaseBackupDescriptor {
-        let databaseURL = try databaseURL()
-        guard FileManager.default.fileExists(atPath: databaseURL.path) else {
+        let dbURL = resolvedDatabaseFolder.appendingPathComponent("gradedraft.sqlite")
+        guard FileManager.default.fileExists(atPath: dbURL.path) else {
             return DatabaseBackupDescriptor(assignmentCount: 0, exportCreatedAt: Date())
         }
 
@@ -135,17 +136,6 @@ final class GradeDraftDatabase {
 
     private var iso8601: ISO8601DateFormatter {
         Self.iso8601
-    }
-
-    private func databaseDirectory() throws -> URL {
-        guard let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            throw GradeDraftDatabaseError.missingStoreRoot
-        }
-        return folder.appendingPathComponent("GradeDraft", isDirectory: true)
-    }
-
-    private func databaseURL() throws -> URL {
-        try databaseDirectory().appendingPathComponent("gradedraft.sqlite")
     }
 
     private func registerMigrations(_ migrator: inout DatabaseMigrator) {

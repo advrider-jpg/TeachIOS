@@ -23,9 +23,12 @@ enum StableFingerprint {
 
 // MARK: - Assignment and classroom records
 
-struct AssignmentRecord: Identifiable, Codable, Equatable {
+struct AssignmentRecord: Identifiable, Equatable {
     var id: UUID
     var title: String
+    /// The assignment prompt or question. Separate from title; used in the grading packet.
+    /// Optional for backwards-compatible decoding; nil is equivalent to empty.
+    var prompt: String?
     var subject: String
     var gradeLevel: String
     var assessmentPurpose: AssessmentPurpose
@@ -52,6 +55,7 @@ struct AssignmentRecord: Identifiable, Codable, Equatable {
     init(
         id: UUID = UUID(),
         title: String = "New Assignment",
+        prompt: String? = nil,
         subject: String = "",
         gradeLevel: String = "",
         assessmentPurpose: AssessmentPurpose = .summative,
@@ -77,6 +81,7 @@ struct AssignmentRecord: Identifiable, Codable, Equatable {
     ) {
         self.id = id
         self.title = title
+        self.prompt = prompt
         self.subject = subject
         self.gradeLevel = gradeLevel
         self.assessmentPurpose = assessmentPurpose
@@ -101,6 +106,76 @@ struct AssignmentRecord: Identifiable, Codable, Equatable {
         self.updatedAt = updatedAt
     }
 
+    // MARK: - Codable with backward-compatible prompt field
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, prompt, subject, gradeLevel, assessmentPurpose, curriculumReference
+        case className, studentDisplayName, assignmentType, rubricText, customInstructions
+        case answerKeyText, exemplarText, reviewedStudentText, sourceInputs, ocrDocument
+        case ocrReviewStatus, ocrReviewedAt, latestDraft, finalReview
+        case exportRecords, auditEvents, createdAt, updatedAt
+    }
+}
+
+extension AssignmentRecord: Codable {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        prompt = try c.decodeIfPresent(String.self, forKey: .prompt)
+        subject = try c.decode(String.self, forKey: .subject)
+        gradeLevel = try c.decode(String.self, forKey: .gradeLevel)
+        assessmentPurpose = try c.decode(AssessmentPurpose.self, forKey: .assessmentPurpose)
+        curriculumReference = (try? c.decodeIfPresent(String.self, forKey: .curriculumReference)) ?? ""
+        className = try c.decode(String.self, forKey: .className)
+        studentDisplayName = try c.decode(String.self, forKey: .studentDisplayName)
+        assignmentType = try c.decode(AssignmentType.self, forKey: .assignmentType)
+        rubricText = try c.decode(String.self, forKey: .rubricText)
+        customInstructions = try c.decode(String.self, forKey: .customInstructions)
+        answerKeyText = try c.decode(String.self, forKey: .answerKeyText)
+        exemplarText = try c.decode(String.self, forKey: .exemplarText)
+        reviewedStudentText = try c.decode(String.self, forKey: .reviewedStudentText)
+        sourceInputs = (try? c.decode([SourceInputRef].self, forKey: .sourceInputs)) ?? []
+        ocrDocument = try c.decodeIfPresent(OCRDocument.self, forKey: .ocrDocument)
+        ocrReviewStatus = try c.decode(OCRReviewStatus.self, forKey: .ocrReviewStatus)
+        ocrReviewedAt = try c.decodeIfPresent(Date.self, forKey: .ocrReviewedAt)
+        latestDraft = try c.decodeIfPresent(GradeDraftResult.self, forKey: .latestDraft)
+        finalReview = try c.decodeIfPresent(FinalGradeReview.self, forKey: .finalReview)
+        exportRecords = (try? c.decode([ExportRecord].self, forKey: .exportRecords)) ?? []
+        auditEvents = (try? c.decode([AuditEvent].self, forKey: .auditEvents)) ?? []
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(title, forKey: .title)
+        try c.encodeIfPresent(prompt, forKey: .prompt)
+        try c.encode(subject, forKey: .subject)
+        try c.encode(gradeLevel, forKey: .gradeLevel)
+        try c.encode(assessmentPurpose, forKey: .assessmentPurpose)
+        try c.encode(curriculumReference, forKey: .curriculumReference)
+        try c.encode(className, forKey: .className)
+        try c.encode(studentDisplayName, forKey: .studentDisplayName)
+        try c.encode(assignmentType, forKey: .assignmentType)
+        try c.encode(rubricText, forKey: .rubricText)
+        try c.encode(customInstructions, forKey: .customInstructions)
+        try c.encode(answerKeyText, forKey: .answerKeyText)
+        try c.encode(exemplarText, forKey: .exemplarText)
+        try c.encode(reviewedStudentText, forKey: .reviewedStudentText)
+        try c.encode(sourceInputs, forKey: .sourceInputs)
+        try c.encodeIfPresent(ocrDocument, forKey: .ocrDocument)
+        try c.encode(ocrReviewStatus, forKey: .ocrReviewStatus)
+        try c.encodeIfPresent(ocrReviewedAt, forKey: .ocrReviewedAt)
+        try c.encodeIfPresent(latestDraft, forKey: .latestDraft)
+        try c.encodeIfPresent(finalReview, forKey: .finalReview)
+        try c.encode(exportRecords, forKey: .exportRecords)
+        try c.encode(auditEvents, forKey: .auditEvents)
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(updatedAt, forKey: .updatedAt)
+    }
+
     var assignmentInputReady: Bool {
         gradingInput.isReadyForGrading
     }
@@ -118,6 +193,7 @@ struct AssignmentRecord: Identifiable, Codable, Equatable {
     var gradingPacketFingerprint: String {
         StableFingerprint.fingerprint([
             title,
+            prompt ?? "",
             subject,
             gradeLevel,
             assessmentPurpose.rawValue,
@@ -151,6 +227,7 @@ struct AssignmentRecord: Identifiable, Codable, Equatable {
         GradingInput(
             assignmentID: id,
             assignmentTitle: title,
+            prompt: prompt ?? "",
             subject: subject,
             gradeLevel: gradeLevel,
             className: className,
@@ -167,8 +244,8 @@ struct AssignmentRecord: Identifiable, Codable, Equatable {
             ocrQualitySummary: ocrDocument?.qualitySummary ?? OCRQualitySummary(),
             ocrReviewStatus: ocrReviewStatus,
             sourceInputCount: sourceInputs.count,
-            hasGradingStandard: hasGradingStandard,
-            packetFingerprint: gradingPacketFingerprint
+            packetFingerprint: gradingPacketFingerprint,
+            hasGradingStandard: hasGradingStandard
         )
     }
 
@@ -621,6 +698,7 @@ enum RubricParser {
 struct GradingInput: Codable, Equatable {
     var assignmentID: UUID
     var assignmentTitle: String
+    var prompt: String
     var subject: String
     var gradeLevel: String
     var className: String
@@ -1240,11 +1318,11 @@ enum GradeDraftError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .missingRubric:
-            return "Add a rubric, answer key, or grading criteria before drafting a grade."
+            return "Add a rubric, answer key, or exemplar before drafting a feedback suggestion."
         case .missingStudentText:
-            return "Add or review the student text before drafting a grade."
+            return "Add or review the student text before drafting a feedback suggestion."
         case .ocrReviewRequired:
-            return "Review and confirm OCR text before drafting a grade."
+            return "Review and confirm OCR text before drafting a feedback suggestion."
         case .localModelUnavailable(let message):
             return message
         case .malformedModelResponse(let message):
