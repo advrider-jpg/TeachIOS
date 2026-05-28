@@ -46,4 +46,6 @@ jobs:
           xcodebuild test \
             -project GradeDraft.xcodeproj \
             -scheme GradeDraft \
-            -destination "$DESTINATION"
+            -destination "$DESTINATION" \
+            ONLY_ACTIVE_ARCH=YES \
+            EXCLUDED_ARCHS=x86_64
