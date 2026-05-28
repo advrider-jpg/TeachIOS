@@ -17,12 +17,19 @@ Core lane:
 
 - v3 scaffold is active.
 - Active runtime persistence is a thin GRDB-backed local store (`GRDBAssignmentStore`) that persists complete assignment records as JSON payloads inside SQLite. `LocalJSONStore` is retained as a fallback if GRDB init fails. This is a bridge, not the final normalized production schema.
-- `GRDBAssignmentStore.swift` is now included in the Xcode project and app target.
-- `GradeDraftDatabase` correctly respects injected application support roots (fixed injected-root bug).
+- `GRDBAssignmentStore.swift` is included in the Xcode project and app target.
+- `GradeDraftDatabase` correctly respects injected application support roots.
 - Markdown reporting and CSV export are implemented. PDF and ZIP/archive export remain deferred and not exposed in UI.
 - Foundation Models draft grading remains availability-gated.
-- Snapshot testing replaced with deterministic tests (no reference images required).
 - Assignment prompt field (`AssignmentRecord.prompt`) is implemented with backward-compatible Codable decoding.
+- **Manual grading path** is implemented: teacher can start, edit, and approve a final review without any AI draft, from parsed rubric criteria or an answer-key/exemplar-only baseline.
+- **Full final-review editor** is implemented: all criterion fields editable (name, rating, final/max points, explanation, evidence, teacher rationale, approval toggle). Add Criterion and Delete Criterion are supported.
+- **OCR confirmation dialog** ("Mark OCR reviewed?") uses canonical copy before marking text reviewed.
+- **Approve Final Grade confirmation** dialog uses canonical copy before approving.
+- **Share-sheet warning** dialog uses canonical copy before opening UIActivityViewController.
+- **About/Local Privacy section** is in the app UI, listing local data inventory and deferred features.
+- Source image files are deleted when an assignment is deleted (best-effort; no error surfaced if deletion fails).
+- `no_network_scan.py` and `repo_health.py` both pass in current environment. xcodebuild/SwiftLint/simulator not run (Windows environment).
 
 ## Major components / directories
 
