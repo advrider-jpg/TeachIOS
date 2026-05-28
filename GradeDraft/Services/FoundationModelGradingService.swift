@@ -116,7 +116,10 @@ private struct ModelGradeDraftResponse: Decodable {
                     evidence: $0.evidence,
                     evidenceSourceRefs: $0.evidenceSourceRefs,
                     explanation: $0.explanation,
-                    teacherReviewRequired: $0.teacherReviewRequired
+                    teacherReviewRequired: $0.teacherReviewRequired,
+                    nextStep: $0.nextStep,
+                    confidence: $0.confidence,
+                    criterionUncertaintyFlags: $0.criterionUncertaintyFlags
                 )
             }
 
@@ -147,6 +150,9 @@ private struct ModelCriterionScore: Decodable {
     var evidenceSourceRefs: [String]
     var explanation: String
     var teacherReviewRequired: Bool
+    var nextStep: String
+    var confidence: String
+    var criterionUncertaintyFlags: [String]
 
     enum CodingKeys: String, CodingKey {
         case criterionID
@@ -162,8 +168,14 @@ private struct ModelCriterionScore: Decodable {
         case evidenceSourceRefs
         case evidenceSourceRefsSnake = "evidence_source_refs"
         case explanation
+        case nextStep
+        case confidence
         case teacherReviewRequired
         case teacherReviewRequiredSnake = "teacher_review_required"
+        case criterionUncertaintyFlags
+        case criterionUncertaintyFlagsSnake = "criterion_uncertainty_flags"
+        case uncertaintyFlags
+        case uncertaintyFlagsSnake = "uncertainty_flags"
     }
 
     init(from decoder: Decoder) throws {
@@ -176,6 +188,12 @@ private struct ModelCriterionScore: Decodable {
         evidence = try container.decodeFlexibleStringArray(forKeys: [.evidence], defaultValue: [])
         evidenceSourceRefs = try container.decodeFlexibleStringArray(forKeys: [.evidenceSourceRefs, .evidenceSourceRefsSnake], defaultValue: [])
         explanation = try container.decodeFlexibleString(forKeys: [.explanation], defaultValue: "")
+        nextStep = try container.decodeFlexibleString(forKeys: [.nextStep], defaultValue: "")
+        confidence = try container.decodeFlexibleString(forKeys: [.confidence], defaultValue: "medium")
+        criterionUncertaintyFlags = try container.decodeFlexibleStringArray(
+            forKeys: [.criterionUncertaintyFlags, .criterionUncertaintyFlagsSnake, .uncertaintyFlags, .uncertaintyFlagsSnake],
+            defaultValue: []
+        )
         teacherReviewRequired = try container.decodeFlexibleBool(forKeys: [.teacherReviewRequired, .teacherReviewRequiredSnake], defaultValue: true)
     }
 }

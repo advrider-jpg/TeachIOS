@@ -49,3 +49,39 @@
   - Yes.
 - Validation not run:
   - Yes; no commands executed in this pass.
+## 2026-05-28 — Final-review approval gate hardening
+
+- Files changed:
+  - `GradeDraft/GradeDraftViewModel.swift`
+  - `GradeDraft/Views/GradeResultView.swift`
+  - `GradeDraftTests/GradeDraftTests.swift`
+- What was implemented:
+  - Added hard final-review approval gate requiring all criteria approved, valid final points, and non-stale packet state.
+  - Updated final-review UI to disable "Approve Final Grade" until all criterion approvals and score bounds are valid.
+  - Added tests for blocked approval (unapproved criteria), successful approval, and stale final review blocking.
+- Validation status:
+  - `python3 scripts/repo_health.py`
+  - `python3 scripts/no_network_scan.py`
+  - `xcodebuild` / `swiftlint` unavailable in this environment; both commands could not execute.
+- Production impact:
+  - Teacher finalization behavior changed to reject false-positive final approvals.
+- Tests:
+  - Added targeted `GradeDraftTests.swift` coverage for approval gating.
+
+## 2026-05-28 — Grading standard gating broadened to answer key/exemplar
+
+- Files changed:
+  - `GradeDraft/Models/GradeDraftModels.swift`
+  - `GradeDraft/Services/GradingService.swift`
+  - `GradeDraft/GradeDraftViewModel.swift`
+  - `GradeDraftTests/GradeDraftTests.swift`
+- What was implemented:
+  - `GradingInput` now carries an explicit `hasGradingStandard` flag derived from rubric text, answer key text, or exemplar text.
+  - Draft-readiness and local validator checks now accept answer key or exemplar as a valid grading standard, matching source-of-truth behavior.
+  - Added unit tests confirming missing-standard rejection and acceptance when answer key or exemplar is supplied.
+- What remains:
+  - No runtime changes beyond readiness and validator behavior in this pass.
+- Validation status:
+  - `python3 scripts/repo_health.py`
+  - `python3 scripts/no_network_scan.py`
+  - `xcodebuild` and `swiftlint` unavailable in this environment.

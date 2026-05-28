@@ -89,6 +89,10 @@ struct ContentView: View {
 
     private var readinessSection: some View {
         CardSection(title: "Readiness", systemImage: "checkmark.shield") {
+            Text(viewModel.persistenceSummary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
             if viewModel.readinessIssues.isEmpty {
                 Label("Ready for local draft grading.", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
@@ -436,10 +440,14 @@ struct ContentView: View {
             HStack {
                 Button("Prepare Student Report") { viewModel.exportStudentReport() }
                     .buttonStyle(.bordered)
-                    .disabled(viewModel.assignment.finalReview == nil && viewModel.assignment.latestDraft == nil)
+                    .disabled(!viewModel.canExportStudentReport)
 
                 Button("Prepare Teacher Audit") { viewModel.exportTeacherAuditReport() }
                     .buttonStyle(.bordered)
+
+                Button("Prepare CSV Gradebook") { viewModel.exportCSVGradebook() }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.assignment.finalReview == nil && viewModel.assignment.latestDraft == nil)
 
                 if let exportURL = viewModel.exportURL {
                     ShareLink(item: exportURL) {

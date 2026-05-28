@@ -5,6 +5,7 @@ enum GradeDraftDatabaseError: Error, LocalizedError {
     case missingStoreRoot
     case migrationFailed(String)
     case preflightFailed(String)
+    case dataCorrupted(String)
 }
 
 struct DatabaseBackupDescriptor: Codable {
@@ -18,6 +19,8 @@ struct DatabaseBackupDescriptor: Codable {
 final class GradeDraftDatabase {
     private let databaseQueue: DatabaseQueue
     private let migrations = DatabaseMigrator()
+    private let jsonDecoder = JSONDecoder()
+    private let jsonEncoder = JSONEncoder()
 
     init(applicationSupportURL: URL? = nil) throws {
         let baseURL = applicationSupportURL
@@ -32,6 +35,51 @@ final class GradeDraftDatabase {
         try FileManager.default.createDirectory(at: databaseFolder, withIntermediateDirectories: true)
 
         databaseQueue = try DatabaseQueue(path: databaseURL.path)
+    }
+
+    func loadAssignments() throws -> [AssignmentRecord] {
+        try databaseQueue.read { db in
+            let payloads = try String.fetchAll(db, sql: "SELECT payload FROM grade_draft_assignment_records ORDER BY updated_at DESC")
+            return payloads.map { payload in
+                guard let data = payload.data(using: .utf8) else {
+                    throw GradeDraftDatabaseError.dataCorrupted("Unable to decode assignment payload bytes.")
+                }
+                do {
+                    return try jsonDecoder.decode(AssignmentRecord.self, from: data)
+                } catch {
+                    throw GradeDraftDatabaseError.dataCorrupted("Could not decode assignment payload: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    func saveAssignments(_ assignments: [AssignmentRecord]) throws {
+        try databaseQueue.write { db in
+            for assignment in assignments {
+                let payload = try jsonEncoder.encode(assignment)
+                let payloadText = String(data: payload, encoding: .utf8) ?? "[]"
+                let updatedAt = iso8601.string(from: assignment.updatedAt)
+                let id = assignment.id.uuidString
+                try db.execute(
+                    sql: """
+                    INSERT INTO grade_draft_assignment_records (id, payload, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at
+                    """,
+                    arguments: [id, payloadText, updatedAt]
+                )
+            }
+        }
+    }
+
+    func deleteAssignment(id: UUID) throws {
+        try databaseQueue.write { db in
+            try db.execute(sql: "DELETE FROM grade_draft_assignment_records WHERE id = ?", arguments: [id.uuidString])
+        }
+    }
+
+    func applicationSupportDirectory() throws -> URL {
+        try databaseDirectory()
     }
 
     func bootstrapIfNeeded() throws {
@@ -70,13 +118,23 @@ final class GradeDraftDatabase {
         }
 
         let assignmentRowCount = try databaseQueue.read { db in
-            let value = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM grade_draft_assignments") ?? 0
+            let value = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM grade_draft_assignment_records") ?? 0
             return value
         }
         return DatabaseBackupDescriptor(
             assignmentCount: assignmentRowCount,
             exportCreatedAt: Date()
         )
+    }
+
+    private static var iso8601: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private var iso8601: ISO8601DateFormatter {
+        Self.iso8601
     }
 
     private func databaseDirectory() throws -> URL {
@@ -125,7 +183,18 @@ final class GradeDraftDatabase {
             try db.execute(sql: "CREATE INDEX IF NOT EXISTS idx_exports_created_at ON grade_draft_exports(created_at);")
         }
 
-        migrator.registerMigration("002_audit_replay_guardrails") { db in
+        migrator.registerMigration("002_assignment_records_json") { db in
+            try db.execute(sql: """
+            CREATE TABLE IF NOT EXISTS grade_draft_assignment_records (
+                id TEXT PRIMARY KEY,
+                payload TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """)
+            try db.execute(sql: "CREATE INDEX IF NOT EXISTS idx_assignment_records_updated_at ON grade_draft_assignment_records(updated_at);")
+        }
+
+        migrator.registerMigration("003_audit_replay_guardrails") { db in
             try db.execute(sql: """
             CREATE TABLE IF NOT EXISTS grade_draft_bundle_backup_preflight (
                 id TEXT PRIMARY KEY,
