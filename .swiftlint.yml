@@ -1,0 +1,21 @@
+disabled_rules:
+  - trailing_whitespace
+  - file_length
+  - function_body_length
+  - type_body_length
+  - line_length
+
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - first_where
+  - closure_spacing
+
+included:
+  - GradeDraft
+  - GradeDraftTests
+
+excluded:
+  - .build
+  - DerivedData
+  - GradeDraft.xcodeproj

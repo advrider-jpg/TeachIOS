@@ -119,3 +119,12 @@ GradeDraft/
 ## Next implementation pass
 
 The highest-value next pass is replacing local JSON persistence with a real SQLite/SwiftData repository layer and migration plan, followed by side-by-side source-image OCR review, PDF export, and UI tests.
+
+## Development checks
+
+Use these checks before submitting package or architecture changes:
+
+- `python3 scripts/no_network_scan.py`
+- `python3 scripts/repo_health.py`
+- `xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft`
+- `xcodebuild test -project GradeDraft.xcodeproj -scheme GradeDraft -destination 'platform=iOS Simulator,name=<available simulator>'`

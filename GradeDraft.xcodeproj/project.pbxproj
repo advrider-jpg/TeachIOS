@@ -21,6 +21,20 @@
 		00409CECD33DC980764B6B8E /* GradeResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D02E558438747A9D730FC8 /* GradeResultView.swift */; };
 		7B431331244B2236C5880029 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3B0978977513E1648ADF1B8F /* PrivacyInfo.xcprivacy */; };
 		E92F15694F5C9C14E9C64B87 /* GradeDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7540F0CD4B719C0E75EBE09 /* GradeDraftTests.swift */; };
+		acebd1ccda9d452f9cbc80d1 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7764a94835384bd8abb8eb63 /* Database.swift */; };
+		914ffe7fdcd845f3ba9116df /* MarkdownRubricParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 381d0caf446440f7a302ca83 /* MarkdownRubricParser.swift */; };
+		b94f1056aaf4457384e4c22a /* PDFExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = e5dee6955ae64bbf9feecd7c /* PDFExportService.swift */; };
+		2dc5694454014afbb605d4ab /* CSVExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = e027b94ab7db4d8d96e95435 /* CSVExportService.swift */; };
+		6003cc01ccc64fc9be4830ef /* BundleExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ef318821d8b4bd997e1debc /* BundleExportService.swift */; };
+		ff7c133b40a048fc9d77c779 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2799b34fb3fc4e4ab80bcc16 /* AppDependencies.swift */; };
+		83fb1a487f92415bb6a08568 /* GradeDraftSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */; };
+		111111111111111111111111 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 3cb5e66df7814c5c88f70055 /* GRDB */; };
+		222222222222222222222222 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 6d3552c8565e4dfa821c11ec /* Markdown */; };
+		333333333333333333333333 /* TPPDF in Frameworks */ = {isa = PBXBuildFile; productRef = 6007a9e299f6471da0e60897 /* TPPDF */; };
+		444444444444444444444444 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 39a5973c95874d3383ccd429 /* ZIPFoundation */; };
+		555555555555555555555555 /* SwiftCSV in Frameworks */ = {isa = PBXBuildFile; productRef = f19535ba82fd46f1a2ff88f8 /* SwiftCSV */; };
+		666666666666666666666666 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = 9f99f659a06b4432b272724b /* Dependencies */; };
+		777777777777777777777777 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 139742736e6d4f7889df30a6 /* SnapshotTesting */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,11 +55,37 @@
 		93D02E558438747A9D730FC8 /* GradeResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeResultView.swift; sourceTree = "<group>"; };
 		3B0978977513E1648ADF1B8F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		E7540F0CD4B719C0E75EBE09 /* GradeDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTests.swift; sourceTree = "<group>"; };
+		7764a94835384bd8abb8eb63 /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
+		381d0caf446440f7a302ca83 /* MarkdownRubricParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRubricParser.swift; sourceTree = "<group>"; };
+		e5dee6955ae64bbf9feecd7c /* PDFExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFExportService.swift; sourceTree = "<group>"; };
+		e027b94ab7db4d8d96e95435 /* CSVExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVExportService.swift; sourceTree = "<group>"; };
+		4ef318821d8b4bd997e1debc /* BundleExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleExportService.swift; sourceTree = "<group>"; };
+		2799b34fb3fc4e4ab80bcc16 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
+		9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftSnapshotTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		61D85E48ABD4C58BF0072A49 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
-		9BD897F0A7DC24ECB53342F3 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
+		61D85E48ABD4C58BF0072A49 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				111111111111111111111111 /* GRDB in Frameworks */,
+				222222222222222222222222 /* Markdown in Frameworks */,
+				333333333333333333333333 /* TPPDF in Frameworks */,
+				444444444444444444444444 /* ZIPFoundation in Frameworks */,
+				555555555555555555555555 /* SwiftCSV in Frameworks */,
+				666666666666666666666666 /* Dependencies in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9BD897F0A7DC24ECB53342F3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				777777777777777777777777 /* SnapshotTesting in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -61,6 +101,10 @@
 		FDBDEEC77EA1DB023A30F615 /* GradeDraft */ = {
 			isa = PBXGroup;
 			children = (
+				76b6d5b0f6a84a6f8c3b4f17 /* Persistence */,
+				4c7d9c2b1eaa4f8b9d0f7c58 /* Rubrics */,
+				5c3d7f6a2bda4f5d9e1c8a7b /* Export */,
+				7e8a6d2b1c3f4a9f8d5e7b60 /* Core */,
 				2235988D2937F275CA4EA14B /* GradeDraftApp.swift */,
 				8CBAC66372CFBDF2A09FD7CE /* ContentView.swift */,
 				4D671A939D9C358A3A671EFC /* GradeDraftViewModel.swift */,
@@ -115,11 +159,46 @@
 			isa = PBXGroup;
 			children = (
 				E7540F0CD4B719C0E75EBE09 /* GradeDraftTests.swift */,
+				9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */,
 			);
 			path = GradeDraftTests;
 			sourceTree = "<group>";
 		};
 		5ADE8A4128725EB9150C196B /* Products */ = {isa = PBXGroup; children = ( D9730C12B890D116AC692E1F /* GradeDraft.app */, AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */, ); name = Products; sourceTree = "<group>"; };
+		76b6d5b0f6a84a6f8c3b4f17 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				7764a94835384bd8abb8eb63 /* Database.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		4c7d9c2b1eaa4f8b9d0f7c58 /* Rubrics */ = {
+			isa = PBXGroup;
+			children = (
+				381d0caf446440f7a302ca83 /* MarkdownRubricParser.swift */,
+			);
+			path = Rubrics;
+			sourceTree = "<group>";
+		};
+		5c3d7f6a2bda4f5d9e1c8a7b /* Export */ = {
+			isa = PBXGroup;
+			children = (
+				e5dee6955ae64bbf9feecd7c /* PDFExportService.swift */,
+				e027b94ab7db4d8d96e95435 /* CSVExportService.swift */,
+				4ef318821d8b4bd997e1debc /* BundleExportService.swift */,
+			);
+			path = Export;
+			sourceTree = "<group>";
+		};
+		7e8a6d2b1c3f4a9f8d5e7b60 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				2799b34fb3fc4e4ab80bcc16 /* AppDependencies.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -134,6 +213,14 @@
 			buildRules = ( );
 			dependencies = ( );
 			name = GradeDraft;
+			packageProductDependencies = (
+				3cb5e66df7814c5c88f70055 /* GRDB */,
+				6d3552c8565e4dfa821c11ec /* Markdown */,
+				6007a9e299f6471da0e60897 /* TPPDF */,
+				39a5973c95874d3383ccd429 /* ZIPFoundation */,
+				f19535ba82fd46f1a2ff88f8 /* SwiftCSV */,
+				9f99f659a06b4432b272724b /* Dependencies */,
+			);
 			productReference = D9730C12B890D116AC692E1F /* GradeDraft.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -148,6 +235,9 @@
 			buildRules = ( );
 			dependencies = ( );
 			name = GradeDraftTests;
+			packageProductDependencies = (
+				139742736e6d4f7889df30a6 /* SnapshotTesting */,
+			);
 			productReference = AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
@@ -174,6 +264,15 @@
 			productRefGroup = 5ADE8A4128725EB9150C196B /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
+			packageReferences = (
+				159c835c21734a81a06da1ea /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				df62dcd3a3fb42508fa24c7f /* XCRemoteSwiftPackageReference "swift-markdown" */,
+				0faababa1c004f16a92686ac /* XCRemoteSwiftPackageReference "TPPDF" */,
+				c8e0d6aabf7c4b98ba263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+				aecea9b512a14b58acf25f81 /* XCRemoteSwiftPackageReference "SwiftCSV" */,
+				4a438b9c3c1f44e8a3b05f86 /* XCRemoteSwiftPackageReference "Dependencies" */,
+				13164971737547e2884e1c6e /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
+			);
 			targets = ( C9F45524962D088FBA96DA08 /* GradeDraft */, 385F6D1BD8E774F956FF142E /* GradeDraftTests */, );
 		};
 /* End PBXProject section */
@@ -198,11 +297,94 @@
 				EDAE34C4F70B0071371919BC /* DocumentScannerView.swift in Sources */,
 				B82A21CD79BD6729921D0455 /* LocalCapabilityBanner.swift in Sources */,
 				00409CECD33DC980764B6B8E /* GradeResultView.swift in Sources */,
-			); runOnlyForDeploymentPostprocessing = 0; };
+				acebd1ccda9d452f9cbc80d1 /* Database.swift in Sources */,
+				914ffe7fdcd845f3ba9116df /* MarkdownRubricParser.swift in Sources */,
+				b94f1056aaf4457384e4c22a /* PDFExportService.swift in Sources */,
+				2dc5694454014afbb605d4ab /* CSVExportService.swift in Sources */,
+				6003cc01ccc64fc9be4830ef /* BundleExportService.swift in Sources */,
+				ff7c133b40a048fc9d77c779 /* AppDependencies.swift in Sources */,
+				); runOnlyForDeploymentPostprocessing = 0; };
 		C2C867FEB507DB914C2126B0 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
 				E92F15694F5C9C14E9C64B87 /* GradeDraftTests.swift in Sources */,
+				83fb1a487f92415bb6a08568 /* GradeDraftSnapshotTests.swift in Sources */,
 			); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		159c835c21734a81a06da1ea /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 6.0.0; };
+		};
+		df62dcd3a3fb42508fa24c7f /* XCRemoteSwiftPackageReference "swift-markdown" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/swiftlang/swift-markdown.git";
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 0.2.0; };
+		};
+		0faababa1c004f16a92686ac /* XCRemoteSwiftPackageReference "TPPDF" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/techprimate/TPPDF.git";
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 2.0.0; };
+		};
+		c8e0d6aabf7c4b98ba263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 0.9.0; };
+		};
+		aecea9b512a14b58acf25f81 /* XCRemoteSwiftPackageReference "SwiftCSV" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/swiftcsv/SwiftCSV.git";
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 0.8.0; };
+		};
+		4a438b9c3c1f44e8a3b05f86 /* XCRemoteSwiftPackageReference "Dependencies" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-dependencies.git";
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 0.1.0; };
+		};
+		13164971737547e2884e1c6e /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing.git";
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 1.0.0; };
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3cb5e66df7814c5c88f70055 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 159c835c21734a81a06da1ea /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		6d3552c8565e4dfa821c11ec /* Markdown */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = df62dcd3a3fb42508fa24c7f /* XCRemoteSwiftPackageReference "swift-markdown" */;
+			productName = Markdown;
+		};
+		6007a9e299f6471da0e60897 /* TPPDF */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0faababa1c004f16a92686ac /* XCRemoteSwiftPackageReference "TPPDF" */;
+			productName = TPPDF;
+		};
+		39a5973c95874d3383ccd429 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = c8e0d6aabf7c4b98ba263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+		f19535ba82fd46f1a2ff88f8 /* SwiftCSV */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = aecea9b512a14b58acf25f81 /* XCRemoteSwiftPackageReference "SwiftCSV" */;
+			productName = SwiftCSV;
+		};
+		9f99f659a06b4432b272724b /* Dependencies */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4a438b9c3c1f44e8a3b05f86 /* XCRemoteSwiftPackageReference "Dependencies" */;
+			productName = Dependencies;
+		};
+		139742736e6d4f7889df30a6 /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 13164971737547e2884e1c6e /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		44F8FE9E42EE10FA95BF5EC7 /* Debug */ = {

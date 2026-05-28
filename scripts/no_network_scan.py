@@ -31,6 +31,11 @@ ALLOWLIST = {
     pathlib.Path("docs/TEST_PLAN.md"),
     pathlib.Path("scripts/no_network_scan.py"),
 }
+PACKAGE_DOCS_ALLOWLIST = {
+    pathlib.Path("docs/DEPENDENCIES.md"),
+    pathlib.Path("docs/OSS_REVIEW.md"),
+}
+PBX_REPO_PATTERN = re.compile(r"^\s*repositoryURL\s*=")
 
 failures: list[str] = []
 for path in ROOT.rglob("*"):
@@ -48,6 +53,10 @@ for path in ROOT.rglob("*"):
     except UnicodeDecodeError:
         continue
     for lineno, line in enumerate(text.splitlines(), start=1):
+        if path.suffix == ".pbxproj" and PBX_REPO_PATTERN.search(line):
+            continue
+        if path in PACKAGE_DOCS_ALLOWLIST and "github.com/" in line:
+            continue
         for pattern in PATTERNS:
             if pattern.search(line):
                 failures.append(f"{rel}:{lineno}: matched {pattern.pattern!r}: {line.strip()}")
