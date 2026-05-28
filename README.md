@@ -92,20 +92,31 @@ The repo cannot be compiled in this environment because Xcode and the iOS SDK ar
 ## Repository layout
 
 ```text
-GradeDraft/
-  GradeDraft.xcodeproj/
-  GradeDraft/
-    GradeDraftApp.swift
-    ContentView.swift
-    GradeDraftViewModel.swift
-    Models/
-    Services/
-    Views/
-    Resources/
-  GradeDraftTests/
-  docs/
-  scripts/
+.github/workflows/            GitHub Actions CI for the Xcode project
+GradeDraft.xcodeproj/          Shared Xcode project and scheme
+GradeDraft/                    SwiftUI app source
+  Models/                      Assignment, OCR, rubric, draft, and review models
+  Services/                    OCR, grading, totals, persistence, and prompt services
+  Views/                       Reusable SwiftUI views
+  Resources/                   App privacy and property-list resources
+GradeDraftTests/               Unit tests for grading, parsing, export, and guardrails
+docs/                          Curated project documentation
+docs/source-materials/         Original uploaded briefs, plans, and research artifacts
+scripts/                       Repository guardrails and health checks
 ```
+
+Keep the repository root limited to buildable project files, top-level documentation, CI configuration, scripts, and Git metadata. Put new planning or research uploads in `docs/source-materials/`.
+
+## Development checks
+
+Before opening a pull request, run:
+
+```bash
+python3 scripts/repo_health.py
+python3 scripts/no_network_scan.py
+```
+
+Use Xcode to run the shared `GradeDraft` scheme tests. GitHub Actions also runs the health check and `xcodebuild test` on macOS.
 
 ## Next implementation pass
 

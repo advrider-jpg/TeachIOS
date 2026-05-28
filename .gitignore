@@ -1,0 +1,37 @@
+# Xcode
+DerivedData/
+build/
+*.xcresult
+*.xccovreport
+*.xccovarchive
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager / build products
+.build/
+.swiftpm/
+Package.resolved
+
+# User-specific Xcode state
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor / local tooling
+.vscode/
+.idea/
+*.swp
+*.swo
+.env
+.env.*
+
+# Local app/runtime data
+Application Support/
