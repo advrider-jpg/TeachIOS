@@ -151,7 +151,7 @@ final class GradeDraftViewModel: ObservableObject {
         guard finalReview.criteria.isEmpty == false else {
             return false
         }
-        if assignment.finalReviewIsStale {
+        if assignment.hasGradingStandard && assignment.finalReviewIsStale {
             return false
         }
         if !finalReview.allCriteriaApproved {
@@ -172,7 +172,7 @@ final class GradeDraftViewModel: ObservableObject {
         if finalReview.criteria.isEmpty {
             return "Add at least one criterion before approval."
         }
-        if assignment.finalReviewIsStale {
+        if assignment.hasGradingStandard && assignment.finalReviewIsStale {
             return "Refresh final review because grading inputs changed since this review was created."
         }
         if !finalReview.allCriteriaApproved {

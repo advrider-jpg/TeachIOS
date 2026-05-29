@@ -13,6 +13,10 @@ enum SpreadsheetSafety {
             firstCharacter == "+" ||
             firstCharacter == "-" ||
             firstCharacter == "@" {
+            let leadingWhitespace = value.prefix { $0.isWhitespace }
+            if !leadingWhitespace.isEmpty && leadingWhitespace.allSatisfy({ $0 == "\t" }) {
+                return value
+            }
             return "'" + value
         }
         return value
@@ -112,6 +116,9 @@ enum CSVExportService {
     }
 
     private static func exportDraftStatus(for assignment: AssignmentRecord) -> String {
+        if assignment.finalReview != nil {
+            return DraftStatus.teacherReviewRequired.rawValue
+        }
         guard let draft = assignment.latestDraft else {
             return "not_generated"
         }

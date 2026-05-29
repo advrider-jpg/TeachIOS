@@ -89,17 +89,71 @@ jobs:
             -scheme "${{ steps.xcode-target.outputs.scheme }}"
 
       - name: Build and test with Xcode
+        id: xcode-test
+        continue-on-error: true
         run: |
           set -euo pipefail
+          DERIVED_DATA="${{ runner.temp }}/GradeDraftDerivedData"
           mkdir -p xcode-logs
+          set +e
           xcodebuild \
             -project GradeDraft.xcodeproj \
             -scheme "${{ steps.xcode-target.outputs.scheme }}" \
             -destination "${{ steps.xcode-target.outputs.destination }}" \
             ARCHS=arm64 \
+            -derivedDataPath "$DERIVED_DATA" \
             clean test \
-            -resultBundlePath TestResults.xcresult \
+            -resultBundlePath "$DERIVED_DATA/TestResults.xcresult" \
             | tee xcode-logs/xcodebuild.log
+          BUILD_EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+          echo "test_exit_code=$BUILD_EXIT_CODE" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Capture live app screenshot on simulator
+        if: always()
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/GradeDraftDerivedData
+          DESTINATION: ${{ steps.xcode-target.outputs.destination }}
+        run: |
+          set -euo pipefail
+
+          UDID="${DESTINATION##*id=}"
+          UDID="${UDID%%,*}"
+          if [ -z "$UDID" ]; then
+            echo "No simulator UDID found in destination: $DESTINATION"
+            exit 0
+          fi
+
+          APP_PATH="$(find "$DERIVED_DATA" -path '*/Build/Products/*/*.app' -type d | head -n 1 || true)"
+          if [ -z "$APP_PATH" ]; then
+            echo "No built .app found under $DERIVED_DATA; skipping screenshot."
+            exit 0
+          fi
+
+          BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP_PATH/Info.plist" 2>/dev/null || true)"
+          if [ -z "$BUNDLE_ID" ]; then
+            echo "Unable to read CFBundleIdentifier from $APP_PATH/Info.plist; skipping screenshot."
+            exit 0
+          fi
+
+          mkdir -p screenshots
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl install "$UDID" "$APP_PATH" || true
+          if ! xcrun simctl launch "$UDID" "$BUNDLE_ID"; then
+            echo "Could not launch $BUNDLE_ID on simulator $UDID; skipping screenshot."
+            exit 0
+          fi
+          sleep 2
+          xcrun simctl io "$UDID" screenshot "screenshots/live-app-${UDID}-$(date +%Y%m%d-%H%M%S).png"
+
+      - name: Upload iOS screenshot artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-screenshots
+          retention-days: 5
+          path: screenshots
 
       - name: Upload test result bundle and logs
         uses: actions/upload-artifact@v4
@@ -108,11 +162,18 @@ jobs:
           name: xcodebuild-output
           retention-days: 5
           path: |
-            TestResults.xcresult
+            ${{ runner.temp }}/GradeDraftDerivedData/TestResults.xcresult
             xcode-logs/xcodebuild.log
 
-      - name: Write CI job summary
+      - name: Fail if Xcode tests failed
         if: always()
+        run: |
+          if [ "${{ steps.xcode-test.outputs.test_exit_code }}" != "0" ]; then
+            exit 1
+          fi
+
+      - name: Write CI job summary
+        if: success()
         run: |
           {
             echo "## iOS CI Results"
@@ -122,5 +183,6 @@ jobs:
             echo "| Xcode | $(xcodebuild -version | head -1) |"
             echo "| Scheme | ${{ steps.xcode-target.outputs.scheme }} |"
             echo "| Destination | ${{ steps.xcode-target.outputs.destination_name }} (${{ steps.xcode-target.outputs.destination }}) |"
-            echo "| Result Bundle | TestResults.xcresult |"
+            echo "| Result Bundle | ${{ runner.temp }}/GradeDraftDerivedData/TestResults.xcresult |"
+            echo "| Screenshot | screenshots/live-app-*.png |"
           } >> "$GITHUB_STEP_SUMMARY"
