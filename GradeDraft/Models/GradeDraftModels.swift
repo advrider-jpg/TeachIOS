@@ -1502,7 +1502,7 @@ struct GradeDraftResult: Identifiable, Codable, Equatable {
         rawModelResponse: String? = nil
     ) {
         self.id = id
-        self.generatedAt = generatedAt
+        self.generatedAt = Date(timeIntervalSinceReferenceDate: floor(generatedAt.timeIntervalSinceReferenceDate * 1000) / 1000)
         self.packetFingerprint = packetFingerprint
         self.status = status
         self.studentResponseSummary = studentResponseSummary

@@ -30,6 +30,7 @@
 		6003cc01ccc64fc9be4830ef /* BundleExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ef318821d8b4bd997e1debc /* BundleExportService.swift */; };
 		ff7c133b40a048fc9d77c779 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2799b34fb3fc4e4ab80bcc16 /* AppDependencies.swift */; };
 		83fb1a487f92415bb6a08568 /* GradeDraftSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */; };
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* GradeDraftScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* GradeDraftScreenshotTests.swift */; };
 		111111111111111111111111 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 3cb5e66df7814c5c88f70055 /* GRDB */; };
 		222222222222222222222222 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 6d3552c8565e4dfa821c11ec /* Markdown */; };
 		333333333333333333333333 /* TPPDF in Frameworks */ = {isa = PBXBuildFile; productRef = 6007a9e299f6471da0e60897 /* TPPDF */; };
@@ -79,6 +80,7 @@
 		4ef318821d8b4bd997e1debc /* BundleExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleExportService.swift; sourceTree = "<group>"; };
 		2799b34fb3fc4e4ab80bcc16 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
 		9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftSnapshotTests.swift; sourceTree = "<group>"; };
+		B2C3D4E5F6A7B8C9D0E1F2A3 /* GradeDraftScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftScreenshotTests.swift; sourceTree = "<group>"; };
 		9C0011111111111111110002 /* RosterImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterImportService.swift; sourceTree = "<group>"; };
 		9C0011111111111111110004 /* CurriculumCatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurriculumCatalogService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -183,6 +185,7 @@
 				E7540F0CD4B719C0E75EBE09 /* GradeDraftTests.swift */,
 				A1B2C3D4E5F6A7B8C9D0E1F4 /* GradeDraftHardeningTests.swift */,
 				9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */,
+				B2C3D4E5F6A7B8C9D0E1F2A3 /* GradeDraftScreenshotTests.swift */,
 			);
 			path = GradeDraftTests;
 			sourceTree = "<group>";
@@ -336,6 +339,7 @@
 				E92F15694F5C9C14E9C64B87 /* GradeDraftTests.swift in Sources */,
 				A1B2C3D4E5F6A7B8C9D0E1F3 /* GradeDraftHardeningTests.swift in Sources */,
 				83fb1a487f92415bb6a08568 /* GradeDraftSnapshotTests.swift in Sources */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* GradeDraftScreenshotTests.swift in Sources */,
 			); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

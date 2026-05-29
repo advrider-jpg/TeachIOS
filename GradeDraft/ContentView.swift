@@ -19,7 +19,11 @@ private struct ActivityViewController: UIViewControllerRepresentable {
 // MARK: - ContentView
 
 struct ContentView: View {
-    @StateObject private var viewModel = GradeDraftViewModel()
+    @StateObject private var viewModel: GradeDraftViewModel
+
+    init(viewModel: GradeDraftViewModel = GradeDraftViewModel()) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
     @State private var showingScanner = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedTemplateID: String = RubricTemplates.builtIn.first?.id ?? ""
