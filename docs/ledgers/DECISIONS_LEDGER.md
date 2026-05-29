@@ -1,65 +1,43 @@
-# Decisions Ledger (append-only)
+# Decisions Ledger
 
-## D001 — Local-only core workflow
+## D001 — Local-only source completion
 
-Date: Unknown
-Status: Active
-Decision: Keep core grading local-only: no backend, cloud OCR, cloud grading fallback, no analytics SDK, no account-login requirement, and no network entitlement in the default path.
-Rationale: This posture is repeatedly defined as GradeDraft’s product invariant.
-Consequences: Any networked feature must be explicitly introduced and documented before user-facing claims.
-Source / Evidence: `README.md`, `docs/OFFLINE_CAPABILITY.md`.
+Decision: The all-features completion patch implements requested behavior with local SwiftUI, local file storage, local ZIP/PDF writing, GRDB, PDFKit/UIKit, Vision/VisionKit, and Foundation Models availability gates.
 
-## D002 — Teacher-controlled grading model
+Rationale: GradeDraft is a local-first teacher tool. The patch must not introduce hosted services or network dependencies.
 
-Date: Unknown
-Status: Active
-Decision: Maintain proposed-then-finalize flow where local AI drafts are suggestions and teacher review finalizes grading.
-Rationale: Core proposition and anti-fake-state behavior depend on teacher final authority.
-Consequences: Proposed totals/feedback cannot replace teacher finalization semantics.
-Source / Evidence: `README.md`, `docs/GRADING_CONTENT_SOURCE_OF_TRUTH.md`, `docs/ARCHITECTURE.md`.
+## D002 — Student report and teacher audit report remain separate
 
-## D003 — Explicit grading-state boundaries
+Decision: Student-facing reports omit private teacher notes, raw model output, audit metadata, local file paths, other-student data, and raw internal bounding boxes. Teacher-audit reports include sensitive audit information and are warning-gated.
 
-Date: Unknown
-Status: Active
-Decision: Keep source input, OCR output, reviewed text, model draft, final review, export records, and audit events as separate layers/records.
-Rationale: Collapsing these layers destroys staleness detection and auditability.
-Consequences: Persistence and service interfaces must retain explicit boundaries.
-Source / Evidence: `docs/ARCHITECTURE.md`, `docs/CORE_RULES.md`, `docs/TEST_PLAN.md`.
+Rationale: Export behavior must match teacher-controlled privacy and evidence-traceability boundaries.
 
-## D004 — Normalized GRDB product schema active with legacy payload backup
+## D003 — Normalized GRDB is the primary repository path
 
-Date: 2026-05-28
-Status: Active
-Decision: Use GRDB normalized product tables for the local app workflow. Retain legacy JSON payload rows only as a lossless compatibility and backup/migration safety layer.
-Rationale: PDF import/export, OCR line review, evidence traceability, curriculum mapping, roster, and backup/restore require explicit durable records.
-Consequences: Do not describe persistence as JSON-only or deferred. Future work may further split repositories, but the product feature claim is normalized local persistence with compatibility payloads retained.
-Source / Evidence: `GradeDraft/Persistence/Database.swift`, `docs/DATA_MODEL_V3.md`, `docs/GRADING_CONTENT_SOURCE_OF_TRUTH.md`.
+Decision: Normalized tables are created for the full assignment graph, roster, curriculum, evidence, export, audit, and backup/restore entities. Complete JSON payload rows remain as compatibility/export fallback.
 
-## D005 — Local AI availability gates drafting
+Rationale: The app can reconstruct `AssignmentRecord` from normalized rows while retaining a lossless escape hatch during migration.
 
-Date: Unknown
-Status: Active
-Decision: Foundation Models unavailability blocks draft generation; no cloud substitute.
-Rationale: A local grading availability check preserves offline and privacy posture.
-Consequences: Draft path must fail openly when local AI is unavailable.
-Source / Evidence: `README.md`, `docs/OFFLINE_CAPABILITY.md`, `GradeDraft/Services/FoundationModelGradingService.swift`.
+## D004 — PDF import creates source refs before grading
 
-## D006 — Student/audit export separation
+Decision: Imported PDFs are copied into local source storage, page images are rendered for review/OCR, digital text is extracted when present, OCR fallback is used for image-like pages, and review status is set to `needsReview`.
 
-Date: Unknown
-Status: Active
-Decision: Maintain strict student vs teacher-audit separation: student reports exclude private teacher notes by default; teacher-audit reports may include sensitive context.
-Rationale: Prevents exposure of private notes and preserves reporting semantics.
-Consequences: Export builders and labels must enforce the split.
-Source / Evidence: `README.md`, `docs/OFFLINE_CAPABILITY.md`, `GradeDraft/Export/MarkdownReportBuilder.swift`.
-Source / Evidence: `README.md`, `docs/OFFLINE_CAPABILITY.md`, `GradeDraft/Export/CSVExportService.swift`.
+Rationale: Grading must depend on teacher-reviewed text, not unconfirmed extraction output.
 
-## D007 — Strict PR review against prompt
+## D005 — Evidence traceability is visible to teachers, not exposed as raw internals to students
 
-Date: 2026-05-28
-Status: Active
-Decision: When a user provides a PR link after a prompt, future sessions must inspect the live PR against the prompt in maximum depth and request a full-completion fix if anything is incomplete.
-Rationale: This is required to prevent partial compliance and silent drift.
-Consequences: Prompt-derived scope is enforced end-to-end; no phased follow-up or “good enough” completion is accepted for PR mismatches.
-Source / Evidence: Same-thread user instruction in this thread.
+Decision: OCR-line evidence stores page/line/bounding-box metadata and offers source navigation/highlighting in teacher workflows. Student reports use the evidence quote, not raw coordinate metadata.
+
+Rationale: Teachers need traceability; students need clear feedback without internal audit metadata.
+
+## D006 — Curriculum references are local and provenance-labeled
+
+Decision: The catalog is seeded from local Australian Curriculum source materials and teacher-provided fallback references. The UI and reports show provenance and avoid endorsement or reporting-approval claims.
+
+Rationale: Offline mapping adds practical value without overclaiming policy status.
+
+## D007 — Restore conflicts are explicit
+
+Decision: Full backup restore detects assignment ID conflicts and supports keep-local, replace-local, and restore-as-copy behavior. Source files are restored through safe relative paths.
+
+Rationale: Backup restore should be recoverable and auditable without silently overwriting newer local work.

@@ -1,5 +1,4 @@
 import Foundation
-import SwiftCSV
 
 enum SpreadsheetSafety {
     static func sanitizedCell(_ value: String) -> String {

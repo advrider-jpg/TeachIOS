@@ -1331,7 +1331,7 @@ final class GradeDraftTests: XCTestCase {
 
         XCTAssertEqual(viewModel.assignments.count, 1)
         viewModel.deleteCurrentAssignment()
-        // After deletion one blank placeholder assignment is created if empty
+        // After deletion one blank starter assignment is created if empty
         XCTAssertFalse(viewModel.assignments.contains { $0.id == assignment.id }, "Deleted assignment should not remain")
     }
 

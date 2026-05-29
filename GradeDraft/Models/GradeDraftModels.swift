@@ -227,7 +227,8 @@ extension AssignmentRecord: Codable {
             exemplarText,
             reviewedStudentText,
             ocrReviewStatus.rawValue,
-            curriculumMappings.map { $0.curriculumItemID }.joined(separator: "|"),
+            curriculumMappings.map { "\($0.curriculumItemID):\($0.mappingKind):\($0.rubricCriterionID ?? "")" }.joined(separator: "|"),
+            evidenceReferences.map { "\($0.id.uuidString):\($0.sourceKind):\($0.quote):\($0.boundingBox?.stableDisplay ?? "")" }.joined(separator: "|"),
             sourceInputs.map { $0.contentDigest ?? $0.id.uuidString }.joined(separator: "|")
         ])
     }
@@ -249,8 +250,9 @@ extension AssignmentRecord: Codable {
     var sourceReferencedReviewedText: String {
         guard let ocrDocument, !ocrDocument.pages.isEmpty else { return reviewedStudentText }
         return ocrDocument.pages.sorted { $0.pageIndex < $1.pageIndex }.flatMap { page in
-            page.lines.enumerated().map { offset, line in
-                "[p\(page.pageIndex + 1)-l\(offset + 1)-\(line.id.uuidString.prefix(8))] \(line.reviewedText)"
+            page.lines.enumerated().compactMap { offset, line in
+                guard !line.isRejected, !line.reviewedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+                return "[p\(page.pageIndex + 1)-l\(offset + 1)-\(line.id.uuidString.prefix(8))] \(line.reviewedText)"
             }
         }.joined(separator: "\n")
     }
@@ -288,19 +290,192 @@ extension AssignmentRecord: Codable {
 }
 
 struct StudentRecord: Identifiable, Codable, Equatable {
-    var id: UUID = UUID()
+    var id: UUID
     var displayName: String
     var className: String
     var localIdentifier: String
-    var isActive: Bool = true
+    var notes: String
+    var isActive: Bool
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        displayName: String,
+        className: String = "",
+        localIdentifier: String = "",
+        notes: String = "",
+        isActive: Bool = true,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.className = className
+        self.localIdentifier = localIdentifier
+        self.notes = notes
+        self.isActive = isActive
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, displayName, className, localIdentifier, notes, isActive, createdAt, updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? container.decode(UUID.self, forKey: .id)) ?? UUID()
+        displayName = (try? container.decode(String.self, forKey: .displayName)) ?? ""
+        className = (try? container.decode(String.self, forKey: .className)) ?? ""
+        localIdentifier = (try? container.decode(String.self, forKey: .localIdentifier)) ?? ""
+        notes = (try? container.decode(String.self, forKey: .notes)) ?? ""
+        isActive = (try? container.decode(Bool.self, forKey: .isActive)) ?? true
+        createdAt = (try? container.decode(Date.self, forKey: .createdAt)) ?? Date()
+        updatedAt = (try? container.decode(Date.self, forKey: .updatedAt)) ?? createdAt
+    }
 }
 
 struct ClassGroupRecord: Identifiable, Codable, Equatable {
-    var id: UUID = UUID()
+    var id: UUID
     var name: String
     var schoolYear: String
     var term: String
-    var isArchived: Bool = false
+    var subject: String
+    var gradeLevel: String
+    var notes: String
+    var isArchived: Bool
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        schoolYear: String = "",
+        term: String = "",
+        subject: String = "",
+        gradeLevel: String = "",
+        notes: String = "",
+        isArchived: Bool = false,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.name = name
+        self.schoolYear = schoolYear
+        self.term = term
+        self.subject = subject
+        self.gradeLevel = gradeLevel
+        self.notes = notes
+        self.isArchived = isArchived
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, schoolYear, term, subject, gradeLevel, notes, isArchived, createdAt, updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? container.decode(UUID.self, forKey: .id)) ?? UUID()
+        name = (try? container.decode(String.self, forKey: .name)) ?? ""
+        schoolYear = (try? container.decode(String.self, forKey: .schoolYear)) ?? ""
+        term = (try? container.decode(String.self, forKey: .term)) ?? ""
+        subject = (try? container.decode(String.self, forKey: .subject)) ?? ""
+        gradeLevel = (try? container.decode(String.self, forKey: .gradeLevel)) ?? ""
+        notes = (try? container.decode(String.self, forKey: .notes)) ?? ""
+        isArchived = (try? container.decode(Bool.self, forKey: .isArchived)) ?? false
+        createdAt = (try? container.decode(Date.self, forKey: .createdAt)) ?? Date()
+        updatedAt = (try? container.decode(Date.self, forKey: .updatedAt)) ?? createdAt
+    }
+}
+
+enum AssignmentRosterStatus: String, CaseIterable, Codable, Equatable, Identifiable {
+    case notStarted
+    case sourceNeeded
+    case ocrReviewNeeded
+    case readyForGrading
+    case draftGenerated
+    case finalReviewInProgress
+    case approved
+    case exported
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .notStarted: return "Not started"
+        case .sourceNeeded: return "Source needed"
+        case .ocrReviewNeeded: return "OCR review needed"
+        case .readyForGrading: return "Ready for grading"
+        case .draftGenerated: return "Draft generated"
+        case .finalReviewInProgress: return "Final review in progress"
+        case .approved: return "Approved"
+        case .exported: return "Exported"
+        }
+    }
+}
+
+struct ClassStudentEnrollment: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var classGroupID: UUID
+    var studentID: UUID
+    var status: String = "active"
+    var sortOrder: Int = 0
+    var createdAt: Date = Date()
+}
+
+struct AssignmentRosterEntry: Identifiable, Codable, Equatable {
+    var id: UUID
+    var assignmentID: UUID
+    var studentID: UUID
+    var studentDisplayName: String
+    var localIdentifier: String
+    var status: AssignmentRosterStatus
+    var sortOrder: Int
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        assignmentID: UUID,
+        studentID: UUID,
+        studentDisplayName: String,
+        localIdentifier: String = "",
+        status: AssignmentRosterStatus = .notStarted,
+        sortOrder: Int = 0,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.assignmentID = assignmentID
+        self.studentID = studentID
+        self.studentDisplayName = studentDisplayName
+        self.localIdentifier = localIdentifier
+        self.status = status
+        self.sortOrder = sortOrder
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+struct StudentWorkRecord: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var assignmentID: UUID
+    var studentID: UUID?
+    var legacyAssignmentRecordID: UUID?
+    var reviewedStudentText: String
+    var ocrReviewStatus: OCRReviewStatus
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+}
+
+struct RosterRejectedRow: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var rowNumber: Int
+    var rawText: String
+    var reason: String
 }
 
 struct RosterImportPreview: Codable, Equatable {
@@ -308,6 +483,36 @@ struct RosterImportPreview: Codable, Equatable {
     var students: [StudentRecord]
     var duplicateNames: [String]
     var rejectedRows: [String]
+    var rejectedRowDetails: [RosterRejectedRow]
+    var warnings: [String]
+    var hasHeaderRow: Bool
+
+    init(
+        className: String = "",
+        students: [StudentRecord] = [],
+        duplicateNames: [String] = [],
+        rejectedRows: [String] = [],
+        rejectedRowDetails: [RosterRejectedRow] = [],
+        warnings: [String] = [],
+        hasHeaderRow: Bool = false
+    ) {
+        self.className = className
+        self.students = students
+        self.duplicateNames = duplicateNames
+        self.rejectedRows = rejectedRows
+        self.rejectedRowDetails = rejectedRowDetails
+        self.warnings = warnings
+        self.hasHeaderRow = hasHeaderRow
+    }
+}
+
+struct CurriculumSource: Identifiable, Codable, Equatable {
+    var id: String
+    var name: String
+    var version: String
+    var provenance: String
+    var localPath: String
+    var importedAt: Date = Date()
 }
 
 struct CurriculumItem: Identifiable, Codable, Equatable {
@@ -317,19 +522,116 @@ struct CurriculumItem: Identifiable, Codable, Equatable {
     var learningArea: String
     var subject: String
     var yearLevel: String
+    var strand: String
+    var organizer: String
     var itemType: String
     var code: String
     var title: String
     var shortDescription: String
     var sourceURL: String
+    var provenance: String
+
+    init(
+        id: String,
+        source: String,
+        version: String,
+        learningArea: String,
+        subject: String,
+        yearLevel: String,
+        strand: String = "",
+        organizer: String = "",
+        itemType: String,
+        code: String,
+        title: String,
+        shortDescription: String,
+        sourceURL: String,
+        provenance: String = ""
+    ) {
+        self.id = id
+        self.source = source
+        self.version = version
+        self.learningArea = learningArea
+        self.subject = subject
+        self.yearLevel = yearLevel
+        self.strand = strand
+        self.organizer = organizer
+        self.itemType = itemType
+        self.code = code
+        self.title = title
+        self.shortDescription = shortDescription
+        self.sourceURL = sourceURL
+        self.provenance = provenance
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, source, version, learningArea, subject, yearLevel, strand, organizer, itemType, code, title, shortDescription, sourceURL, provenance
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        source = try container.decode(String.self, forKey: .source)
+        version = try container.decode(String.self, forKey: .version)
+        learningArea = try container.decode(String.self, forKey: .learningArea)
+        subject = try container.decode(String.self, forKey: .subject)
+        yearLevel = try container.decode(String.self, forKey: .yearLevel)
+        strand = (try? container.decode(String.self, forKey: .strand)) ?? ""
+        organizer = (try? container.decode(String.self, forKey: .organizer)) ?? ""
+        itemType = try container.decode(String.self, forKey: .itemType)
+        code = try container.decode(String.self, forKey: .code)
+        title = try container.decode(String.self, forKey: .title)
+        shortDescription = try container.decode(String.self, forKey: .shortDescription)
+        sourceURL = try container.decode(String.self, forKey: .sourceURL)
+        provenance = (try? container.decode(String.self, forKey: .provenance)) ?? sourceURL
+    }
+}
+
+struct CurriculumCatalog: Codable, Equatable {
+    var sources: [CurriculumSource]
+    var items: [CurriculumItem]
+    var warning: String
+
+    func filtered(learningArea: String = "", subject: String = "", yearLevel: String = "", searchText: String = "") -> [CurriculumItem] {
+        let normalizedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return items.filter { item in
+            let learningAreaMatch = learningArea.isEmpty || item.learningArea.localizedCaseInsensitiveContains(learningArea)
+            let subjectMatch = subject.isEmpty || item.subject.localizedCaseInsensitiveContains(subject)
+            let yearLevelMatch = yearLevel.isEmpty || item.yearLevel.localizedCaseInsensitiveContains(yearLevel)
+            let searchMatch = normalizedSearch.isEmpty || [item.code, item.title, item.shortDescription, item.learningArea, item.subject]
+                .joined(separator: " ")
+                .lowercased()
+                .contains(normalizedSearch)
+            return learningAreaMatch && subjectMatch && yearLevelMatch && searchMatch
+        }
+    }
 }
 
 struct CurriculumMapping: Identifiable, Codable, Equatable {
-    var id: UUID = UUID()
+    var id: UUID
     var curriculumItemID: String
     var mappingKind: String
-    var teacherSelected: Bool = true
-    var createdAt: Date = Date()
+    var rubricCriterionID: String?
+    var evidenceReferenceID: UUID?
+    var teacherSelected: Bool
+    var createdAt: Date
+
+    init(
+        id: UUID = UUID(),
+        curriculumItemID: String,
+        mappingKind: String,
+        rubricCriterionID: String? = nil,
+        evidenceReferenceID: UUID? = nil,
+        teacherSelected: Bool = true,
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.curriculumItemID = curriculumItemID
+        self.mappingKind = mappingKind
+        self.rubricCriterionID = rubricCriterionID
+        self.evidenceReferenceID = evidenceReferenceID
+        self.teacherSelected = teacherSelected
+        self.createdAt = createdAt
+    }
 }
 
 struct EvidenceReference: Identifiable, Codable, Equatable {
@@ -345,6 +647,32 @@ struct EvidenceReference: Identifiable, Codable, Equatable {
     var teacherConfirmed: Bool
     var createdAt: Date = Date()
 
+    init(
+        id: UUID = UUID(),
+        sourceInputID: UUID? = nil,
+        ocrLineID: UUID? = nil,
+        pageIndex: Int? = nil,
+        quote: String,
+        startOffset: Int? = nil,
+        endOffset: Int? = nil,
+        boundingBox: NormalizedRect? = nil,
+        sourceKind: String,
+        teacherConfirmed: Bool,
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.sourceInputID = sourceInputID
+        self.ocrLineID = ocrLineID
+        self.pageIndex = pageIndex
+        self.quote = quote
+        self.startOffset = startOffset
+        self.endOffset = endOffset
+        self.boundingBox = boundingBox
+        self.sourceKind = sourceKind
+        self.teacherConfirmed = teacherConfirmed
+        self.createdAt = createdAt
+    }
+
     var displaySource: String {
         let page = pageIndex.map { "page \($0 + 1)" } ?? "reviewed text"
         if let ocrLineID { return "\(page), OCR line \(ocrLineID.uuidString.prefix(8))" }
@@ -355,7 +683,7 @@ struct EvidenceReference: Identifiable, Codable, Equatable {
 struct BackupArchiveManifest: Codable, Equatable {
     var archiveID: UUID = UUID()
     var archiveKind: String
-    var schemaVersion: String = "gradedraft-backup-v1"
+    var schemaVersion: String = "gradedraft-backup-v3"
     var createdAt: Date = Date()
     var includesStudentData: Bool = true
     var includesPrivateTeacherNotes: Bool
@@ -363,6 +691,38 @@ struct BackupArchiveManifest: Codable, Equatable {
     var sourceFileCount: Int
     var recordCounts: [String: Int]
     var contentHashes: [String: String]
+    var restoreCompatibility: String = "Compatible with GradeDraft local backup restore v3 when schemaVersion begins with gradedraft-backup-v."
+}
+
+enum BackupConflictResolution: String, CaseIterable, Codable, Equatable, Identifiable {
+    case keepLocal
+    case replaceLocal
+    case restoreAsCopy
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .keepLocal: return "Keep local"
+        case .replaceLocal: return "Replace local"
+        case .restoreAsCopy: return "Restore as copy"
+        }
+    }
+}
+
+struct BackupRestorePreview: Codable, Equatable {
+    var archiveKind: String
+    var schemaVersion: String
+    var assignmentCount: Int
+    var classCount: Int
+    var studentCount: Int
+    var sourceFileCount: Int
+    var conflictAssignmentIDs: [UUID]
+    var warnings: [String]
+
+    var summary: String {
+        "Backup contains \(assignmentCount) assignment(s), \(classCount) class(es), \(studentCount) student(s), and \(sourceFileCount) source file(s); \(conflictAssignmentIDs.count) conflict(s) detected."
+    }
 }
 
 enum AssignmentType: String, CaseIterable, Codable, Identifiable {
@@ -548,13 +908,20 @@ struct OCRDocument: Identifiable, Codable, Equatable {
         pages
             .sorted { $0.pageIndex < $1.pageIndex }
             .map { $0.lines.map(\.rawText).joined(separator: "\n") }
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .joined(separator: "\n\n")
     }
 
     var combinedText: String {
         pages
             .sorted { $0.pageIndex < $1.pageIndex }
-            .map { $0.lines.map(\.reviewedText).joined(separator: "\n") }
+            .map { page in
+                page.lines
+                    .map(\.reviewedText)
+                    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    .joined(separator: "\n")
+            }
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .joined(separator: "\n\n")
     }
 
@@ -562,12 +929,20 @@ struct OCRDocument: Identifiable, Codable, Equatable {
         pages.flatMap(\.lines)
     }
 
+    var activeLines: [OCRLine] {
+        allLines.filter { !$0.isRejected }
+    }
+
     var hasLowConfidenceText: Bool {
-        allLines.contains { $0.confidence < OCRQualitySummary.lowConfidenceThreshold }
+        activeLines.contains { $0.confidence < OCRQualitySummary.lowConfidenceThreshold }
     }
 
     var hasUnconfirmedLines: Bool {
-        allLines.contains { !$0.teacherConfirmed }
+        activeLines.contains { !$0.teacherConfirmed }
+    }
+
+    var unresolvedLineCount: Int {
+        activeLines.filter { $0.needsReview }.count
     }
 
     var qualitySummary: OCRQualitySummary {
@@ -582,12 +957,19 @@ struct OCRDocument: Identifiable, Codable, Equatable {
             var page = page
             page.lines = page.lines.map { line in
                 var line = line
-                line.teacherConfirmed = true
+                if !line.isRejected {
+                    line.teacherConfirmed = true
+                }
                 return line
             }
             return page
         }
         return copy
+    }
+
+    func pageReviewStatus(pageID: UUID) -> OCRReviewStatus {
+        guard let page = pages.first(where: { $0.id == pageID }) else { return .blocked }
+        return page.lines.filter { !$0.isRejected }.contains { !$0.teacherConfirmed } ? .needsReview : .reviewed
     }
 }
 
@@ -614,6 +996,10 @@ struct OCRPage: Identifiable, Codable, Equatable {
         self.imageHeight = imageHeight
         self.lines = lines
     }
+
+    var unresolvedLineCount: Int {
+        lines.filter { $0.needsReview }.count
+    }
 }
 
 struct OCRLine: Identifiable, Codable, Equatable {
@@ -623,6 +1009,7 @@ struct OCRLine: Identifiable, Codable, Equatable {
     var confidence: Float
     var boundingBox: NormalizedRect
     var teacherConfirmed: Bool
+    var isRejected: Bool
 
     init(
         id: UUID = UUID(),
@@ -630,7 +1017,8 @@ struct OCRLine: Identifiable, Codable, Equatable {
         confidence: Float,
         boundingBox: NormalizedRect,
         correctedText: String? = nil,
-        teacherConfirmed: Bool = false
+        teacherConfirmed: Bool = false,
+        isRejected: Bool = false
     ) {
         self.id = id
         self.rawText = text
@@ -638,6 +1026,22 @@ struct OCRLine: Identifiable, Codable, Equatable {
         self.confidence = confidence
         self.boundingBox = boundingBox
         self.teacherConfirmed = teacherConfirmed
+        self.isRejected = isRejected
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, rawText, correctedText, confidence, boundingBox, teacherConfirmed, isRejected
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        rawText = try container.decode(String.self, forKey: .rawText)
+        correctedText = try container.decodeIfPresent(String.self, forKey: .correctedText)
+        confidence = try container.decode(Float.self, forKey: .confidence)
+        boundingBox = try container.decode(NormalizedRect.self, forKey: .boundingBox)
+        teacherConfirmed = try container.decode(Bool.self, forKey: .teacherConfirmed)
+        isRejected = (try? container.decode(Bool.self, forKey: .isRejected)) ?? false
     }
 
     var text: String {
@@ -645,15 +1049,18 @@ struct OCRLine: Identifiable, Codable, Equatable {
     }
 
     var reviewedText: String {
+        guard !isRejected else { return "" }
         let corrected = correctedText?.trimmingCharacters(in: .whitespacesAndNewlines)
         return corrected?.isEmpty == false ? corrected! : rawText
     }
 
     var needsReview: Bool {
-        confidence < OCRQualitySummary.lowConfidenceThreshold || !teacherConfirmed
+        guard !isRejected else { return false }
+        return confidence < OCRQualitySummary.lowConfidenceThreshold || !teacherConfirmed
     }
 
     var reviewStatusLabel: String {
+        if isRejected { return "rejected" }
         if teacherConfirmed { return correctedText == nil ? "confirmed" : "corrected" }
         if correctedText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true { return "blockedFromGrading" }
         return "unreviewed"
@@ -668,31 +1075,50 @@ struct OCRQualitySummary: Codable, Equatable {
     var unconfirmedLineCount: Int
     var averageConfidence: Float
     var minimumConfidence: Float?
+    var rejectedLineCount: Int
 
     init(
         lineCount: Int = 0,
         lowConfidenceLineCount: Int = 0,
         unconfirmedLineCount: Int = 0,
         averageConfidence: Float = 0,
-        minimumConfidence: Float? = nil
+        minimumConfidence: Float? = nil,
+        rejectedLineCount: Int = 0
     ) {
         self.lineCount = lineCount
         self.lowConfidenceLineCount = lowConfidenceLineCount
         self.unconfirmedLineCount = unconfirmedLineCount
         self.averageConfidence = averageConfidence
         self.minimumConfidence = minimumConfidence
+        self.rejectedLineCount = rejectedLineCount
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case lineCount, lowConfidenceLineCount, unconfirmedLineCount, averageConfidence, minimumConfidence, rejectedLineCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        lineCount = try container.decode(Int.self, forKey: .lineCount)
+        lowConfidenceLineCount = try container.decode(Int.self, forKey: .lowConfidenceLineCount)
+        unconfirmedLineCount = try container.decode(Int.self, forKey: .unconfirmedLineCount)
+        averageConfidence = try container.decode(Float.self, forKey: .averageConfidence)
+        minimumConfidence = try container.decodeIfPresent(Float.self, forKey: .minimumConfidence)
+        rejectedLineCount = (try? container.decode(Int.self, forKey: .rejectedLineCount)) ?? 0
     }
 
     init(lines: [OCRLine]) {
-        lineCount = lines.count
-        lowConfidenceLineCount = lines.filter { $0.confidence < Self.lowConfidenceThreshold }.count
-        unconfirmedLineCount = lines.filter { !$0.teacherConfirmed }.count
-        if lines.isEmpty {
+        rejectedLineCount = lines.filter(\.isRejected).count
+        let activeLines = lines.filter { !$0.isRejected }
+        lineCount = activeLines.count
+        lowConfidenceLineCount = activeLines.filter { $0.confidence < Self.lowConfidenceThreshold }.count
+        unconfirmedLineCount = activeLines.filter { !$0.teacherConfirmed }.count
+        if activeLines.isEmpty {
             averageConfidence = 0
             minimumConfidence = nil
         } else {
-            averageConfidence = lines.map(\.confidence).reduce(0, +) / Float(lines.count)
-            minimumConfidence = lines.map(\.confidence).min()
+            averageConfidence = activeLines.map(\.confidence).reduce(0, +) / Float(activeLines.count)
+            minimumConfidence = activeLines.map(\.confidence).min()
         }
     }
 
@@ -701,14 +1127,15 @@ struct OCRQualitySummary: Codable, Equatable {
     }
 
     var displaySummary: String {
-        guard lineCount > 0 else {
+        guard lineCount > 0 || rejectedLineCount > 0 else {
             return "No OCR text has been captured."
         }
         let average = Int((averageConfidence * 100).rounded())
+        let rejectedText = rejectedLineCount > 0 ? " \(rejectedLineCount) rejected line(s) excluded from reviewed text." : ""
         if lowConfidenceLineCount == 0 && unconfirmedLineCount == 0 {
-            return "OCR captured \(lineCount) confirmed text line(s) with average confidence \(average)%."
+            return "OCR captured \(lineCount) confirmed text line(s) with average confidence \(average)%.\(rejectedText)"
         }
-        return "OCR captured \(lineCount) text line(s); \(lowConfidenceLineCount) low-confidence and \(unconfirmedLineCount) unconfirmed. Average confidence \(average)%."
+        return "OCR captured \(lineCount) text line(s); \(lowConfidenceLineCount) low-confidence and \(unconfirmedLineCount) unconfirmed. Average confidence \(average)%.\(rejectedText)"
     }
 }
 
@@ -720,6 +1147,14 @@ struct NormalizedRect: Codable, Equatable {
     var height: CGFloat
 
     static let zero = NormalizedRect(x: 0, y: 0, width: 0, height: 0)
+
+    var stableDisplay: String {
+        "x:\(Self.format(x)) y:\(Self.format(y)) w:\(Self.format(width)) h:\(Self.format(height))"
+    }
+
+    private static func format(_ value: CGFloat) -> String {
+        String(format: "%.4f", Double(value))
+    }
 }
 // swiftlint:enable identifier_name
 
@@ -728,6 +1163,24 @@ struct NormalizedRect: Codable, Equatable {
 struct ParsedRubric: Codable, Equatable {
     var criteria: [RubricCriterion]
     var issues: [String]
+    var groups: [String]
+
+    init(criteria: [RubricCriterion] = [], issues: [String] = [], groups: [String] = []) {
+        self.criteria = criteria
+        self.issues = issues
+        self.groups = groups
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case criteria, issues, groups
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        criteria = (try? container.decode([RubricCriterion].self, forKey: .criteria)) ?? []
+        issues = (try? container.decode([String].self, forKey: .issues)) ?? []
+        groups = (try? container.decode([String].self, forKey: .groups)) ?? []
+    }
 
     var isStructured: Bool {
         !criteria.isEmpty
@@ -740,14 +1193,113 @@ struct RubricCriterion: Identifiable, Codable, Equatable {
     var maxPoints: Double
     var descriptor: String
     var sortOrder: Int
+    var groupTitle: String?
+    var levels: [RubricLevel]
+    var explicitID: String?
+
+    init(
+        id: String,
+        title: String,
+        maxPoints: Double,
+        descriptor: String,
+        sortOrder: Int,
+        groupTitle: String? = nil,
+        levels: [RubricLevel] = [],
+        explicitID: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.maxPoints = maxPoints
+        self.descriptor = descriptor
+        self.sortOrder = sortOrder
+        self.groupTitle = groupTitle
+        self.levels = levels
+        self.explicitID = explicitID
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, maxPoints, descriptor, sortOrder, groupTitle, levels, explicitID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        maxPoints = try container.decode(Double.self, forKey: .maxPoints)
+        descriptor = try container.decode(String.self, forKey: .descriptor)
+        sortOrder = try container.decode(Int.self, forKey: .sortOrder)
+        groupTitle = try container.decodeIfPresent(String.self, forKey: .groupTitle)
+        levels = (try? container.decode([RubricLevel].self, forKey: .levels)) ?? []
+        explicitID = try container.decodeIfPresent(String.self, forKey: .explicitID)
+    }
 }
 
 struct RubricLevel: Identifiable, Codable, Equatable {
     var id: String
     var label: String
     var points: Double
+    var minPoints: Double?
+    var maxPoints: Double?
     var descriptor: String
     var sortOrder: Int
+
+    init(
+        id: String,
+        label: String,
+        points: Double,
+        minPoints: Double? = nil,
+        maxPoints: Double? = nil,
+        descriptor: String,
+        sortOrder: Int
+    ) {
+        self.id = id
+        self.label = label
+        self.points = points
+        self.minPoints = minPoints
+        self.maxPoints = maxPoints
+        self.descriptor = descriptor
+        self.sortOrder = sortOrder
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, label, points, minPoints, maxPoints, descriptor, sortOrder
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        label = try container.decode(String.self, forKey: .label)
+        points = try container.decode(Double.self, forKey: .points)
+        minPoints = try container.decodeIfPresent(Double.self, forKey: .minPoints)
+        maxPoints = try container.decodeIfPresent(Double.self, forKey: .maxPoints)
+        descriptor = try container.decode(String.self, forKey: .descriptor)
+        sortOrder = try container.decode(Int.self, forKey: .sortOrder)
+    }
+}
+
+struct RubricParseIssue: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var severity: String
+    var message: String
+    var lineNumber: Int?
+}
+
+struct RubricImportPreview: Codable, Equatable {
+    var rawMarkdown: String
+    var parsedRubric: ParsedRubric
+    var detectedCriteria: [RubricCriterion]
+    var detectedLevels: [RubricLevel]
+    var issues: [RubricParseIssue]
+    var fallbackRawTextAvailable: Bool
+
+    init(rawMarkdown: String, parsedRubric: ParsedRubric) {
+        self.rawMarkdown = rawMarkdown
+        self.parsedRubric = parsedRubric
+        self.detectedCriteria = parsedRubric.criteria
+        self.detectedLevels = parsedRubric.criteria.flatMap(\.levels)
+        self.issues = parsedRubric.issues.map { RubricParseIssue(severity: "warning", message: $0, lineNumber: nil) }
+        self.fallbackRawTextAvailable = !rawMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 }
 
 enum RubricParser {
@@ -755,31 +1307,42 @@ enum RubricParser {
         let lines = text.components(separatedBy: .newlines)
         var criteria: [RubricCriterion] = []
         var issues: [String] = []
+        var groupStack: [String] = []
+        var seenKeys: Set<String> = []
 
-        for line in lines {
+        for (lineNumber, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            guard !trimmed.hasPrefix("-") && !trimmed.hasPrefix("*") else { continue }
-            guard let maxPoints = maxPoints(in: trimmed) else { continue }
-
-            let title: String
-            if let colon = trimmed.firstIndex(of: ":") {
-                title = String(trimmed[..<colon]).trimmingCharacters(in: .whitespacesAndNewlines)
-            } else {
-                title = trimmed.replacingOccurrences(of: #"\b\d+(?:\.\d+)?\s*(?:points?|pts?)\b"#, with: "", options: [.regularExpression, .caseInsensitive])
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("#") {
+                let heading = trimmed.replacingOccurrences(of: #"^#{1,6}\s*"#, with: "", options: .regularExpression)
+                if !heading.isEmpty { groupStack.append(heading) }
+                continue
             }
-
-            guard !title.isEmpty else { continue }
+            let plain = trimmed
+                .replacingOccurrences(of: #"^[-*•]\s*"#, with: "", options: .regularExpression)
+                .replacingOccurrences(of: #"^\d+[.)]\s*"#, with: "", options: .regularExpression)
+                .replacingOccurrences(of: "**", with: "")
+                .replacingOccurrences(of: "__", with: "")
+            guard let maxPoints = maxPoints(in: plain) else { continue }
+            guard let title = criterionTitle(from: plain), !title.isEmpty else { continue }
+            let key = normalized(title)
+            if seenKeys.contains(key) {
+                issues.append("Duplicate criterion ignored at line \(lineNumber + 1): \(title)")
+                continue
+            }
+            seenKeys.insert(key)
             let order = criteria.count
-            let id = "criterion-\(order + 1)-\(StableFingerprint.fingerprint([title, String(maxPoints)]).suffix(8))"
+            let id = explicitCriterionID(in: plain) ?? stableCriterionID(order: order, title: title, maxPoints: maxPoints)
             criteria.append(
                 RubricCriterion(
                     id: id,
                     title: title,
                     maxPoints: maxPoints,
-                    descriptor: trimmed,
-                    sortOrder: order
+                    descriptor: plain,
+                    sortOrder: order,
+                    groupTitle: groupStack.last,
+                    levels: levels(in: plain, criterionID: id),
+                    explicitID: explicitCriterionID(in: plain)
                 )
             )
         }
@@ -787,13 +1350,17 @@ enum RubricParser {
         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             issues.append("Rubric text is empty.")
         } else if criteria.isEmpty {
-            issues.append("No explicit point-bearing criteria were detected. The model may still use the raw rubric text, but teacher review is required.")
+            issues.append("No explicit point-bearing criteria were detected. The raw rubric text remains available for teacher review and grading context.")
         }
 
-        return ParsedRubric(criteria: criteria, issues: issues)
+        return ParsedRubric(criteria: criteria, issues: issues, groups: Array(Set(groupStack)).sorted())
     }
 
-    private static func maxPoints(in line: String) -> Double? {
+    static func stableCriterionID(order: Int, title: String, maxPoints: Double) -> String {
+        "criterion-\(order + 1)-\(StableFingerprint.fingerprint([title, String(maxPoints)]).suffix(8))"
+    }
+
+    static func maxPoints(in line: String) -> Double? {
         let pattern = #"(?i)(?:0\s*[-–]\s*)?(\d+(?:\.\d+)?)\s*(?:points?|pts?)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
         let range = NSRange(line.startIndex..<line.endIndex, in: line)
@@ -802,6 +1369,65 @@ enum RubricParser {
             return nil
         }
         return Double(line[valueRange])
+    }
+
+    static func pointRange(in line: String) -> (Double?, Double?) {
+        let pattern = #"(?i)(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*(?:points?|pts?)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return (nil, nil) }
+        let range = NSRange(line.startIndex..<line.endIndex, in: line)
+        guard let match = regex.firstMatch(in: line, range: range), match.numberOfRanges > 2,
+              let lowRange = Range(match.range(at: 1), in: line),
+              let highRange = Range(match.range(at: 2), in: line) else { return (nil, nil) }
+        return (Double(line[lowRange]), Double(line[highRange]))
+    }
+
+    static func criterionTitle(from line: String) -> String? {
+        let strippedID = line.replacingOccurrences(of: #"^\[[A-Za-z0-9_-]+\]\s*"#, with: "", options: .regularExpression)
+        if let colon = strippedID.firstIndex(of: ":") {
+            return String(strippedID[..<colon]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let dashRange = strippedID.range(of: #"\s[-–—]\s"#, options: .regularExpression) {
+            return String(strippedID[..<dashRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return strippedID.replacingOccurrences(
+            of: #"(?i)\b(?:0\s*[-–]\s*)?\d+(?:\.\d+)?\s*(?:points?|pts?)\b.*$"#,
+            with: "",
+            options: .regularExpression
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func explicitCriterionID(in line: String) -> String? {
+        let pattern = #"^\[([A-Za-z0-9_-]+)\]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(line.startIndex..<line.endIndex, in: line)
+        guard let match = regex.firstMatch(in: line, range: range), match.numberOfRanges > 1,
+              let idRange = Range(match.range(at: 1), in: line) else { return nil }
+        return String(line[idRange])
+    }
+
+    static func levels(in line: String, criterionID: String) -> [RubricLevel] {
+        let knownLabels = ["Excellent", "Proficient", "Developing", "Beginning", "Meets", "Exceeds", "Approaches"]
+        var levels: [RubricLevel] = []
+        for label in knownLabels where line.localizedCaseInsensitiveContains(label) {
+            let (min, max) = pointRange(in: line)
+            let points = max ?? maxPoints(in: line) ?? 0
+            levels.append(
+                RubricLevel(
+                    id: "\(criterionID)-level-\(levels.count + 1)-\(label.lowercased())",
+                    label: label,
+                    points: points,
+                    minPoints: min,
+                    maxPoints: max,
+                    descriptor: line,
+                    sortOrder: levels.count
+                )
+            )
+        }
+        return levels
+    }
+
+    static func normalized(_ text: String) -> String {
+        text.lowercased().replacingOccurrences(of: #"[^a-z0-9]+"#, with: "", options: .regularExpression)
     }
 }
 
@@ -1082,12 +1708,28 @@ enum ExportKind: String, Codable, Equatable, Identifiable {
 }
 
 struct ExportRecord: Identifiable, Codable, Equatable {
-    var id: UUID = UUID()
+    var id: UUID
     var exportKind: ExportKind
-    var createdAt: Date = Date()
+    var createdAt: Date
     var contentFingerprint: String
     var includesPrivateTeacherNotes: Bool
     var includesOriginalSources: Bool
+
+    init(
+        id: UUID = UUID(),
+        exportKind: ExportKind,
+        createdAt: Date = Date(),
+        contentFingerprint: String,
+        includesPrivateTeacherNotes: Bool,
+        includesOriginalSources: Bool
+    ) {
+        self.id = id
+        self.exportKind = exportKind
+        self.createdAt = createdAt
+        self.contentFingerprint = contentFingerprint
+        self.includesPrivateTeacherNotes = includesPrivateTeacherNotes
+        self.includesOriginalSources = includesOriginalSources
+    }
 }
 
 enum AuditEventType: String, Codable, Equatable {

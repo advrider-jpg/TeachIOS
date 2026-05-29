@@ -1,84 +1,33 @@
 # Validation Ledger
 
-## Known validation commands
+This ledger records source-level validation expectations for the all-features completion patch.
 
-- `python3 scripts/no_network_scan.py`
-- `python3 scripts/repo_health.py`
-- `xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft`
-- `swiftlint lint --config .swiftlint.yml`
-- `xcodebuild test -project GradeDraft.xcodeproj -scheme GradeDraft -destination 'platform=iPhone Simulator,name=<available iPhone simulator destination>'`
+## Static validation to run after patch generation
 
-## CI-equivalent gate
+Run from a clean copy of the uploaded ZIP after applying `GradeDraft_all_features_completion_v3.patch`:
 
-Repository checks are expected in this sequence:
+```bash
+patch -p1 < GradeDraft_all_features_completion_v3.patch
+python3 scripts/repo_health.py
+python3 scripts/no_network_scan.py
+```
 
-- no-network + repo health guardrails
-- package resolution
-- SwiftLint
-- Xcode build/test on available iPhone simulator
+Also inspect the source tree for unresolved completion-language matches, verify that new Swift files are present in `GradeDraft.xcodeproj/project.pbxproj`, and confirm that no `.orig`, `.rej`, temporary patch file, build artifact, or generated junk file is included.
 
-## No-network guardrail details
+## Unit-test coverage added in source
 
-`scripts/no_network_scan.py` checks Swift/PLIST/Privacy/project config files for:
+The patch adds or updates tests for:
 
-- `URLSession`, `NSURLConnection`, `Network`, `NWConnection`, `NWPathMonitor`
-- `http://` / `https://`
-- Firebase, Amplitude, Mixpanel, Sentry, and other common analytics strings
+- Student and teacher PDF export file creation and export gating.
+- Teacher ZIP archive, assignment gradebook archive, full backup archive, manifests, safe archive paths, backup round-trip, conflict handling, and source-file restoration.
+- PDF import metadata construction and OCR-review gating.
+- OCR page/line selection, edit, confirm, reject, document review state, reviewed-text updates, and grading gates.
+- OCR-line evidence, manual evidence, evidence removal/clearing, source-reference alignment, bounding-box persistence, student-report privacy, and teacher-audit traceability.
+- Markdown rubric heading/list/table parsing, level/band extraction, duplicate detection, stable IDs, warnings, and preview confirmation behavior.
+- Curriculum catalog load/filter/map, prompt inclusion, audit-report provenance, persistence, and policy-claim guardrails.
+- Roster CSV preview, duplicate detection, rejected rows, class/student/enrollment/assignment roster behavior, status matrix, and gradebook CSV.
+- Normalized GRDB save/load, compatibility payload removal, legacy JSON migration, child record persistence, and roster/curriculum persistence.
 
-This is static pattern scanning for obvious network/off-device patterns.
+## Runtime validation still required
 
-## Source-level test coverage already present
-
-- deterministic draft totals
-- final totals from teacher-final points
-- missing rubric validation
-- missing student text validation
-- unreviewed OCR gating
-- JSON extraction handling
-- OCR quality warning tests
-- rubric parsing
-- score clamping
-- missing-evidence teacher-review flags
-- structured-criterion completeness
-- student export excluding private notes
-- teacher-audit inclusion of private notes
-- GRDB round-trip including delete and injected root
-- assignment prompt persistence and backward-compatible decode
-- built-in rubric template IDs, totals, and evidence safeguards in instructions
-- PromptBuilder safety rules and prompt field usage
-- prohibited UI label test (no auto-grade, no accept-AI-grade language)
-- local AI unavailable message contains no-cloud-fallback copy
-- final-review approval gate (unapproved criteria, stale review, out-of-range scores)
-- answer key / exemplar as valid grading standard
-- **Manual final review** — start without AI draft; block without reviewed text; block with OCR needsReview/blocked; block without grading standard
-- **Manual final review** — parsed rubric creates matching criteria; answer-key-only creates teacher-review-required criterion
-- **Manual final review** — cannot be approved until all criteria are approved; approved review enables student export; GRDB round trip
-- **Criterion management** — add criterion; delete criterion; approval blocked after adding unapproved; totals recalculate after deletion
-- **Export flow** — student report blocked without approved final review; student report blocked when stale; student report excludes raw model response; teacher audit includes private notes, OCR status, packet fingerprint
-- **CSV status matrix** — no final review (pending), approved, stale
-- **Local AI unavailability** — disables draft button; does not disable manual final review
-- **OCR** — scanned input sets needsReview; markOCRReviewed sets reviewed; draft blocked before OCR review; manual review available after OCR reviewed
-- Source file cleanup on assignment delete (ViewModel logic; actual file removal subject to filesystem)
-
-## Current validation gaps
-
-- UI test for pasted-text flow (requires iOS simulator).
-- UI test for OCR block/review/unblock behavior (requires iOS simulator).
-- UI test for staleness transitions (requires iOS simulator).
-- xcodebuild compile and link test (unavailable in current Windows environment).
-- SwiftLint check (unavailable in current Windows environment).
-- Package.resolved not generated (xcodebuild unavailable in current Windows environment).
-- Migration, backup/restore, OCR fixture depth, and source-span linkage tests.
-- Side-by-side OCR review UI implemented with source previews, editable OCR lines, line confirmation/rejection, and evidence reference linking.
-
-## Validation status
-
-### 2026-05-28 — Monster slice / MVP completion pass
-
-- `python3 scripts/no_network_scan.py` — **passed** (run in-session).
-- `python3 scripts/repo_health.py` — **passed** (run in-session).
-- `xcodebuild -resolvePackageDependencies` — **blocked**: xcodebuild unavailable in Windows environment.
-- `swiftlint lint` — **blocked**: SwiftLint unavailable in Windows environment.
-- `xcodebuild test` — **blocked**: xcodebuild unavailable in Windows environment.
-- Simulator smoke test — **blocked**: iOS simulator unavailable in Windows environment.
-- Do not mark Xcode build/test as passing — it has not been run in this environment.
+Xcode or equivalent Apple SDK tooling must validate app/test target compilation, XCTest execution, UIKit/PDFKit PDF rendering and import, Vision/VisionKit OCR capture, Foundation Models API compatibility, SwiftUI file import/share-sheet behavior, and simulator/device smoke flows.

@@ -12,6 +12,17 @@ final class GradeDraftViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var exportURL: URL?
     @Published var exportKind: ExportKind?
+    @Published var classGroups: [ClassGroupRecord] = []
+    @Published var students: [StudentRecord] = []
+    @Published var assignmentRosterEntries: [AssignmentRosterEntry] = []
+    @Published var latestRosterPreview: RosterImportPreview?
+    @Published var latestRubricPreview: RubricImportPreview?
+    @Published var latestRestorePreview: BackupRestorePreview?
+    @Published var backupConflictResolution: BackupConflictResolution = .restoreAsCopy
+    @Published var curriculumCatalog: CurriculumCatalog = CurriculumCatalogService.localCatalog
+    @Published var curriculumSearchText = ""
+    @Published var curriculumLearningAreaFilter = ""
+    @Published var curriculumYearLevelFilter = ""
 
     private let ocrService: OCRServicing
     private let gradingService: GradingServicing & CapabilityChecking
@@ -49,14 +60,21 @@ final class GradeDraftViewModel: ObservableObject {
             do {
                 let loaded = try resolvedStore.loadAssignments()
                 self.assignments = loaded.isEmpty ? [AssignmentRecord()] : loaded
+                self.classGroups = try resolvedStore.loadClassGroups()
+                self.students = try resolvedStore.loadStudents()
             } catch {
                 self.assignments = [AssignmentRecord()]
                 self.errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
             }
         } else {
             self.assignments = assignments
+            self.classGroups = Self.classGroupsFromAssignments(assignments)
+            self.students = Self.studentsFromAssignments(assignments)
         }
 
+        if self.classGroups.isEmpty { self.classGroups = Self.classGroupsFromAssignments(self.assignments) }
+        if self.students.isEmpty { self.students = Self.studentsFromAssignments(self.assignments) }
+        refreshAssignmentRosterEntries()
         selectedAssignmentID = self.assignments.first?.id
         refreshCapabilityStatus()
     }
@@ -182,6 +200,27 @@ final class GradeDraftViewModel: ObservableObject {
         !assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         assignment.hasGradingStandard &&
         !assignment.requiresOCRReviewBeforeGrading
+    }
+
+    var gradebookAssignments: [AssignmentRecord] {
+        assignments.sorted { lhs, rhs in
+            let classCompare = lhs.className.localizedCaseInsensitiveCompare(rhs.className)
+            if classCompare != .orderedSame { return classCompare == .orderedAscending }
+            let titleCompare = lhs.title.localizedCaseInsensitiveCompare(rhs.title)
+            if titleCompare != .orderedSame { return titleCompare == .orderedAscending }
+            return lhs.studentDisplayName.localizedCaseInsensitiveCompare(rhs.studentDisplayName) == .orderedAscending
+        }
+    }
+
+    func assignmentRosterStatus(for record: AssignmentRecord) -> AssignmentRosterStatus {
+        if record.exportRecords.contains(where: { $0.exportKind == .studentPDF || $0.exportKind == .zipArchive }) { return .exported }
+        if record.finalReview?.status == .approved && !record.finalReviewIsStale { return .approved }
+        if record.finalReview != nil { return .finalReviewInProgress }
+        if record.latestDraft != nil && !record.latestDraftIsStale { return .draftGenerated }
+        if record.ocrReviewStatus.blocksGrading { return .ocrReviewNeeded }
+        if record.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return record.sourceInputs.isEmpty ? .sourceNeeded : .ocrReviewNeeded }
+        if record.hasGradingStandard { return .readyForGrading }
+        return .notStarted
     }
 
     /// Readiness issues that block manual grading (no AI required).
@@ -561,7 +600,7 @@ final class GradeDraftViewModel: ObservableObject {
             let markdown = MarkdownReportBuilder.studentMarkdown(for: assignment)
             exportURL = try MarkdownReportBuilder.writeTemporaryStudentReport(for: assignment)
             exportKind = .studentMarkdown
-            recordExport(kind: .studentMarkdown, markdown: markdown, includesPrivateNotes: false)
+            recordExport(kind: .studentMarkdown, markdown: markdown, includesPrivateNotes: false, includesOriginalSources: false)
             statusMessage = "Student Markdown report is ready to share."
         } catch {
             errorMessage = error.localizedDescription
@@ -573,7 +612,7 @@ final class GradeDraftViewModel: ObservableObject {
             let markdown = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment)
             exportURL = try MarkdownReportBuilder.writeTemporaryTeacherAuditReport(for: assignment)
             exportKind = .teacherAuditMarkdown
-            recordExport(kind: .teacherAuditMarkdown, markdown: markdown, includesPrivateNotes: true)
+            recordExport(kind: .teacherAuditMarkdown, markdown: markdown, includesPrivateNotes: true, includesOriginalSources: false)
             statusMessage = "Teacher audit Markdown report is ready to share. Treat it as sensitive."
         } catch {
             errorMessage = error.localizedDescription
@@ -591,7 +630,7 @@ final class GradeDraftViewModel: ObservableObject {
             try csv.write(to: destination, atomically: true, encoding: .utf8)
             exportURL = destination
             exportKind = .csvGradebook
-            recordExport(kind: .csvGradebook, markdown: csv, includesPrivateNotes: false)
+            recordExport(kind: .csvGradebook, markdown: csv, includesPrivateNotes: false, includesOriginalSources: false)
             statusMessage = "CSV grade summary is ready to share."
         } catch {
             errorMessage = error.localizedDescription
@@ -684,25 +723,59 @@ final class GradeDraftViewModel: ObservableObject {
         }
     }
 
+    func previewMarkdownRubric(_ text: String) -> RubricImportPreview {
+        let preview = MarkdownRubricParser.preview(text)
+        latestRubricPreview = preview
+        return preview
+    }
+
+    func confirmMarkdownRubricImport(_ preview: RubricImportPreview, useStructuredImport: Bool = true) {
+        updateAssignment { assignment in
+            assignment.rubricText = preview.rawMarkdown
+            let criterionCount = useStructuredImport ? preview.detectedCriteria.count : 0
+            assignment.latestDraft = nil
+            assignment.finalReview = nil
+            assignment.appendAuditEvent(.inputChanged, detail: "Confirmed Markdown rubric import with \(criterionCount) structured criterion/criteria and \(preview.issues.count) parse warning(s).")
+        }
+        persistOrSurfaceError()
+        latestRubricPreview = nil
+        statusMessage = preview.detectedCriteria.isEmpty ? "Rubric imported as teacher-reviewed raw Markdown." : "Markdown rubric imported with a teacher-confirmed structured preview."
+    }
+
     func importMarkdownRubric(from url: URL) {
         do {
             let text = try readTextFile(url)
-            let parsed = MarkdownRubricParser.parse(text)
-            updateAssignment { assignment in
-                assignment.rubricText = text
-                if !parsed.criteria.isEmpty {
-                    assignment.appendAuditEvent(.inputChanged, detail: "Imported Markdown rubric with \(parsed.criteria.count) criterion/criteria.")
-                } else {
-                    assignment.appendAuditEvent(.inputChanged, detail: "Imported Markdown rubric text; structured criteria were not detected.")
-                }
-                assignment.latestDraft = nil
-                assignment.finalReview = nil
+            let preview = previewMarkdownRubric(text)
+            statusMessage = "Markdown rubric preview is ready. Confirm the structured import or use the raw rubric text."
+            if preview.detectedCriteria.isEmpty {
+                statusMessage = "Markdown rubric preview found no point-bearing criteria. Confirm raw-text import to use it as grading context."
             }
-            persistOrSurfaceError()
-            statusMessage = parsed.criteria.isEmpty ? "Rubric imported; review criteria manually." : "Markdown rubric imported with structured criteria."
         } catch {
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
         }
+    }
+
+    var filteredCurriculumItems: [CurriculumItem] {
+        curriculumCatalog.filtered(
+            learningArea: curriculumLearningAreaFilter,
+            yearLevel: curriculumYearLevelFilter,
+            searchText: curriculumSearchText
+        )
+    }
+
+    func mapCurriculumItemToCurrentAssignment(_ item: CurriculumItem, mappingKind: String = "assignment") {
+        updateAssignment { assignment in
+            if !assignment.curriculumMappings.contains(where: { $0.curriculumItemID == item.id && $0.mappingKind == mappingKind }) {
+                assignment.curriculumMappings.append(CurriculumMapping(curriculumItemID: item.id, mappingKind: mappingKind))
+            }
+            let selectedItems = assignment.curriculumMappings.compactMap { CurriculumCatalogService.item(id: $0.curriculumItemID, in: curriculumCatalog) }
+            assignment.curriculumReference = CurriculumCatalogService.selectedReferenceSummary(items: selectedItems)
+            assignment.latestDraft = nil
+            assignment.finalReview = nil
+            assignment.appendAuditEvent(.inputChanged, detail: "Mapped local curriculum item \(item.code) to assignment.")
+        }
+        persistOrSurfaceError()
+        statusMessage = "Curriculum item mapped locally with source provenance."
     }
 
     func importCurriculumReference(from url: URL) {
@@ -722,34 +795,123 @@ final class GradeDraftViewModel: ObservableObject {
         }
     }
 
+    func previewRosterCSV(_ text: String, className: String? = nil) -> RosterImportPreview {
+        let preview = RosterImportService.preview(csvText: text, defaultClassName: className ?? assignment.className)
+        latestRosterPreview = preview
+        return preview
+    }
+
+    func saveClassGroup(_ classGroup: ClassGroupRecord) {
+        if let index = classGroups.firstIndex(where: { $0.id == classGroup.id }) {
+            classGroups[index] = classGroup
+        } else {
+            classGroups.append(classGroup)
+        }
+        do {
+            try store.saveClassGroup(classGroup)
+            statusMessage = "Class saved locally."
+        } catch {
+            errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+        }
+    }
+
+    func saveStudent(_ student: StudentRecord) {
+        if let index = students.firstIndex(where: { $0.id == student.id }) {
+            students[index] = student
+        } else {
+            students.append(student)
+        }
+        do {
+            try store.saveStudent(student)
+            statusMessage = "Student saved locally."
+        } catch {
+            errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+        }
+    }
+
+    func deleteClassGroup(id: UUID) {
+        classGroups.removeAll { $0.id == id }
+        do {
+            try store.deleteClassGroup(id: id)
+            statusMessage = "Class archived/deleted locally. Existing assignment records are preserved."
+        } catch {
+            errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+        }
+    }
+
+    func deleteStudent(id: UUID) {
+        students.removeAll { $0.id == id }
+        assignmentRosterEntries.removeAll { $0.studentID == id }
+        do {
+            try store.deleteStudent(id: id)
+            statusMessage = "Student record deleted locally. Existing assignment records are preserved for audit continuity."
+        } catch {
+            errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+        }
+    }
+
     func createAssignmentsFromRosterCSV(_ text: String) {
-        let names = text.components(separatedBy: .newlines)
-            .map { line in line.split(separator: ",").first.map(String.init) ?? line }
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        guard !names.isEmpty else {
-            errorMessage = "Paste at least one student name or local identifier."
+        let preview = previewRosterCSV(text, className: assignment.className)
+        guard !preview.students.isEmpty else {
+            errorMessage = preview.rejectedRows.first ?? "Paste at least one valid student row."
             return
         }
+
+        var classGroup = ClassGroupRecord(
+            name: preview.className.isEmpty ? (assignment.className.isEmpty ? "Untitled class" : assignment.className) : preview.className,
+            schoolYear: "",
+            term: "",
+            subject: assignment.subject,
+            gradeLevel: assignment.gradeLevel
+        )
+        if let existing = classGroups.first(where: { $0.name.localizedCaseInsensitiveCompare(classGroup.name) == .orderedSame }) {
+            classGroup = existing
+        } else {
+            saveClassGroup(classGroup)
+        }
+
         let template = assignment
         var created: [AssignmentRecord] = []
-        for name in names {
+        var rosterEntries: [AssignmentRosterEntry] = []
+        for (index, student) in preview.students.enumerated() {
+            var savedStudent = student
+            if let existing = students.first(where: { !$0.localIdentifier.isEmpty && $0.localIdentifier == student.localIdentifier }) {
+                savedStudent = existing
+            } else {
+                saveStudent(savedStudent)
+            }
+
             var copy = template
             copy.id = UUID()
-            copy.studentDisplayName = name
+            copy.classGroupID = classGroup.id
+            copy.studentID = savedStudent.id
+            copy.className = classGroup.name
+            copy.studentDisplayName = savedStudent.displayName
             copy.latestDraft = nil
             copy.finalReview = nil
             copy.exportRecords = []
-            copy.auditEvents = [AuditEvent(eventType: .assignmentCreated, detail: "Roster-created assignment for \(name).")]
+            copy.auditEvents = [AuditEvent(eventType: .assignmentCreated, detail: "Roster-created assignment for \(savedStudent.displayName).")]
             copy.createdAt = Date()
             copy.updatedAt = Date()
             created.append(copy)
+            rosterEntries.append(
+                AssignmentRosterEntry(
+                    assignmentID: copy.id,
+                    studentID: savedStudent.id,
+                    studentDisplayName: savedStudent.displayName,
+                    localIdentifier: savedStudent.localIdentifier,
+                    status: assignmentRosterStatus(for: copy),
+                    sortOrder: index
+                )
+            )
         }
         assignments.append(contentsOf: created)
+        assignmentRosterEntries.append(contentsOf: rosterEntries)
         assignments.sort { $0.updatedAt > $1.updatedAt }
         selectedAssignmentID = created.first?.id ?? selectedAssignmentID
         persistOrSurfaceError()
-        statusMessage = "Created \(created.count) roster assignment(s) locally."
+        do { try store.saveAssignmentRoster(rosterEntries) } catch { errorMessage = error.localizedDescription }
+        statusMessage = "Created \(created.count) roster assignment(s) locally; \(preview.rejectedRows.count) invalid row(s) were rejected."
     }
 
     func updateOCRLine(pageID: UUID, lineID: UUID, correctedText: String) {
@@ -782,9 +944,17 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.ocrDocument = document
             assignment.reviewedStudentText = document.combinedText
             assignment.ocrReviewStatus = document.hasUnconfirmedLines ? .needsReview : .reviewed
-            if !document.hasUnconfirmedLines { assignment.ocrReviewedAt = Date() }
+            if !document.hasUnconfirmedLines {
+                document.reviewStatus = .reviewed
+                document.reviewedAt = Date()
+                assignment.ocrReviewedAt = document.reviewedAt
+            } else {
+                document.reviewStatus = .needsReview
+            }
+            assignment.ocrDocument = document
             assignment.latestDraft = nil
             assignment.finalReview = nil
+            assignment.appendAuditEvent(.ocrReviewed, detail: "Confirmed OCR line during teacher review.")
         }
         persistOrSurfaceError()
     }
@@ -793,16 +963,51 @@ final class GradeDraftViewModel: ObservableObject {
         updateAssignment { assignment in
             guard var document = assignment.ocrDocument else { return }
             for pageIndex in document.pages.indices where document.pages[pageIndex].id == pageID {
-                document.pages[pageIndex].lines.removeAll { $0.id == lineID }
+                for lineIndex in document.pages[pageIndex].lines.indices where document.pages[pageIndex].lines[lineIndex].id == lineID {
+                    document.pages[pageIndex].lines[lineIndex].isRejected = true
+                    document.pages[pageIndex].lines[lineIndex].teacherConfirmed = true
+                }
             }
             assignment.ocrDocument = document
             assignment.reviewedStudentText = document.combinedText
             assignment.ocrReviewStatus = document.hasUnconfirmedLines ? .needsReview : .reviewed
+            if !document.hasUnconfirmedLines { assignment.ocrReviewedAt = Date() }
             assignment.latestDraft = nil
             assignment.finalReview = nil
-            assignment.appendAuditEvent(.inputChanged, detail: "Rejected OCR line during teacher review.")
+            assignment.appendAuditEvent(.inputChanged, detail: "Rejected OCR line during teacher review; source metadata was preserved and line text was excluded from reviewed text.")
         }
         persistOrSurfaceError()
+    }
+
+    func markOCRPageReviewed(pageID: UUID) {
+        updateAssignment { assignment in
+            guard var document = assignment.ocrDocument else { return }
+            for pageIndex in document.pages.indices where document.pages[pageIndex].id == pageID {
+                for lineIndex in document.pages[pageIndex].lines.indices where !document.pages[pageIndex].lines[lineIndex].isRejected {
+                    document.pages[pageIndex].lines[lineIndex].teacherConfirmed = true
+                }
+            }
+            document.reviewStatus = document.hasUnconfirmedLines ? .needsReview : .reviewed
+            document.reviewedAt = document.hasUnconfirmedLines ? nil : Date()
+            assignment.ocrDocument = document
+            assignment.reviewedStudentText = document.combinedText
+            assignment.ocrReviewStatus = document.reviewStatus
+            assignment.ocrReviewedAt = document.reviewedAt
+            assignment.latestDraft = nil
+            assignment.finalReview = nil
+            assignment.appendAuditEvent(.ocrReviewed, detail: "Teacher marked an OCR page reviewed after resolving every active line on that page.")
+        }
+        persistOrSurfaceError()
+    }
+
+    func nextUnreviewedLine(after currentLineID: UUID? = nil) -> (pageID: UUID, lineID: UUID)? {
+        guard let document = assignment.ocrDocument else { return nil }
+        let unresolved = document.pages.sorted { $0.pageIndex < $1.pageIndex }.flatMap { page in
+            page.lines.filter { $0.needsReview }.map { (page.id, $0.id) }
+        }
+        guard !unresolved.isEmpty else { return nil }
+        guard let currentLineID, let currentIndex = unresolved.firstIndex(where: { $0.1 == currentLineID }) else { return unresolved.first }
+        return unresolved[(currentIndex + 1) % unresolved.count]
     }
 
     func addOCRLineEvidenceToFinalReview(pageID: UUID, lineID: UUID, criterionID: UUID?) {
@@ -845,6 +1050,83 @@ final class GradeDraftViewModel: ObservableObject {
         persistOrSurfaceError()
     }
 
+    func addManualEvidenceToFinalReview(criterionID: UUID?, quote: String) {
+        guard var review = assignment.finalReview else { return }
+        let cleanedQuote = quote.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanedQuote.isEmpty else { return }
+        let evidenceRef = EvidenceReference(
+            sourceInputID: nil,
+            ocrLineID: nil,
+            pageIndex: nil,
+            quote: cleanedQuote,
+            startOffset: nil,
+            endOffset: nil,
+            boundingBox: nil,
+            sourceKind: "manualTeacherEntry",
+            teacherConfirmed: true
+        )
+        let targetIndex: Int
+        if let criterionID, let found = review.criteria.firstIndex(where: { $0.id == criterionID }) {
+            targetIndex = found
+        } else {
+            targetIndex = review.criteria.startIndex
+        }
+        guard review.criteria.indices.contains(targetIndex) else { return }
+        review.criteria[targetIndex].evidence.append(cleanedQuote)
+        var refs = review.criteria[targetIndex].evidenceSourceRefs ?? []
+        refs.append("evidence:\(evidenceRef.id.uuidString):manualTeacherEntry")
+        review.criteria[targetIndex].evidenceSourceRefs = refs
+        review.criteria[targetIndex].teacherApproved = false
+        review.teacherEdited = true
+        updateAssignment { assignment in
+            assignment.evidenceReferences.append(evidenceRef)
+            assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: review)
+            assignment.appendAuditEvent(.inputChanged, detail: "Added manual teacher evidence to final-review criterion.")
+        }
+        persistOrSurfaceError()
+    }
+
+    func removeEvidenceFromFinalReview(criterionID: UUID, evidenceIndex: Int) {
+        guard var review = assignment.finalReview,
+              let criterionIndex = review.criteria.firstIndex(where: { $0.id == criterionID }),
+              review.criteria[criterionIndex].evidence.indices.contains(evidenceIndex) else { return }
+        let removedQuote = review.criteria[criterionIndex].evidence.remove(at: evidenceIndex)
+        var removedEvidenceID: UUID?
+        if var refs = review.criteria[criterionIndex].evidenceSourceRefs, refs.indices.contains(evidenceIndex) {
+            let ref = refs.remove(at: evidenceIndex)
+            removedEvidenceID = evidenceID(in: ref)
+            review.criteria[criterionIndex].evidenceSourceRefs = refs
+        }
+        review.criteria[criterionIndex].teacherApproved = false
+        review.teacherEdited = true
+        updateAssignment { assignment in
+            if let removedEvidenceID {
+                assignment.evidenceReferences.removeAll { $0.id == removedEvidenceID }
+            } else {
+                assignment.evidenceReferences.removeAll { $0.quote == removedQuote }
+            }
+            assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: review)
+            assignment.appendAuditEvent(.inputChanged, detail: "Removed evidence from final-review criterion and synchronized source references.")
+        }
+        persistOrSurfaceError()
+    }
+
+    func clearEvidenceFromFinalReview(criterionID: UUID) {
+        guard var review = assignment.finalReview,
+              let criterionIndex = review.criteria.firstIndex(where: { $0.id == criterionID }) else { return }
+        let ids = (review.criteria[criterionIndex].evidenceSourceRefs ?? []).compactMap(evidenceID(in:))
+        review.criteria[criterionIndex].evidence = []
+        review.criteria[criterionIndex].evidenceSourceRefs = []
+        review.criteria[criterionIndex].teacherApproved = false
+        review.teacherEdited = true
+        updateAssignment { assignment in
+            assignment.evidenceReferences.removeAll { ids.contains($0.id) }
+            assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: review)
+            assignment.appendAuditEvent(.inputChanged, detail: "Cleared criterion evidence and source references.")
+        }
+        persistOrSurfaceError()
+    }
+
     func sourceImage(for source: SourceInputRef) -> UIImage? {
         guard let localRelativePath = source.localRelativePath,
               let appDir = try? store.applicationSupportDirectory() else { return nil }
@@ -862,17 +1144,30 @@ final class GradeDraftViewModel: ObservableObject {
         }
     }
 
-    private func mergeRestoredAssignments(_ restored: [AssignmentRecord]) -> [AssignmentRecord] {
+    private func mergeRestoredAssignments(_ restored: [AssignmentRecord], resolution: BackupConflictResolution) -> [AssignmentRecord] {
         var byID = Dictionary(uniqueKeysWithValues: assignments.map { ($0.id, $0) })
         for record in restored {
-            if let existing = byID[record.id], existing.updatedAt > record.updatedAt {
-                var copy = record
-                copy.id = UUID()
-                copy.title = "Restored copy of \(record.title)"
-                copy.appendAuditEvent(.inputChanged, detail: "Restored as copy because a newer local record existed with the same ID.")
-                byID[copy.id] = copy
+            if let existing = byID[record.id] {
+                switch resolution {
+                case .keepLocal:
+                    var local = existing
+                    local.appendAuditEvent(.inputChanged, detail: "Backup restore detected a conflict and kept the local assignment.")
+                    byID[local.id] = local
+                case .replaceLocal:
+                    var replacement = record
+                    replacement.appendAuditEvent(.inputChanged, detail: "Backup restore replaced the local assignment after conflict resolution.")
+                    byID[record.id] = replacement
+                case .restoreAsCopy:
+                    var copy = record
+                    copy.id = UUID()
+                    copy.title = "Restored copy of \(record.title)"
+                    copy.appendAuditEvent(.inputChanged, detail: "Restored as copy because a local record existed with the same ID.")
+                    byID[copy.id] = copy
+                }
             } else {
-                byID[record.id] = record
+                var restoredRecord = record
+                restoredRecord.appendAuditEvent(.inputChanged, detail: "Restored from local backup archive.")
+                byID[restoredRecord.id] = restoredRecord
             }
         }
         return Array(byID.values)
@@ -881,6 +1176,40 @@ final class GradeDraftViewModel: ObservableObject {
     func sourceFilesForCurrentAssignment() -> [URL] {
         sourceFiles(for: assignment)
     }
+
+    private func mergeRestoredClassGroups(_ restored: [ClassGroupRecord]) {
+        guard !restored.isEmpty else { return }
+        var byID = Dictionary(uniqueKeysWithValues: classGroups.map { ($0.id, $0) })
+        for record in restored {
+            if byID[record.id] == nil || backupConflictResolution == .replaceLocal {
+                byID[record.id] = record
+            }
+        }
+        classGroups = Array(byID.values).sorted { $0.name < $1.name }
+    }
+
+    private func mergeRestoredStudents(_ restored: [StudentRecord]) {
+        guard !restored.isEmpty else { return }
+        var byID = Dictionary(uniqueKeysWithValues: students.map { ($0.id, $0) })
+        for record in restored {
+            if byID[record.id] == nil || backupConflictResolution == .replaceLocal {
+                byID[record.id] = record
+            }
+        }
+        students = Array(byID.values).sorted { $0.displayName < $1.displayName }
+    }
+
+    private func mergeRestoredRosterEntries(_ restored: [AssignmentRosterEntry]) {
+        guard !restored.isEmpty else { return }
+        var byID = Dictionary(uniqueKeysWithValues: assignmentRosterEntries.map { ($0.id, $0) })
+        for entry in restored {
+            if byID[entry.id] == nil || backupConflictResolution == .replaceLocal {
+                byID[entry.id] = entry
+            }
+        }
+        assignmentRosterEntries = Array(byID.values).sorted { $0.sortOrder < $1.sortOrder }
+    }
+
 
     func exportStudentPDF() {
         guard canExportStudentReport else {
@@ -891,7 +1220,7 @@ final class GradeDraftViewModel: ObservableObject {
             let destination = temporaryExportURL(prefix: "GradeDraft-Student", extension: "pdf")
             exportURL = try PDFExportService.studentReportPDF(for: assignment, destination: destination)
             exportKind = .studentPDF
-            recordExport(kind: .studentPDF, markdown: MarkdownReportBuilder.studentMarkdown(for: assignment), includesPrivateNotes: false)
+            recordExport(kind: .studentPDF, markdown: MarkdownReportBuilder.studentMarkdown(for: assignment), includesPrivateNotes: false, includesOriginalSources: false)
             statusMessage = "Student PDF report is ready to share."
         } catch {
             errorMessage = error.localizedDescription
@@ -903,7 +1232,7 @@ final class GradeDraftViewModel: ObservableObject {
             let destination = temporaryExportURL(prefix: "GradeDraft-TeacherAudit", extension: "pdf")
             exportURL = try PDFExportService.teacherAuditPDF(for: assignment, destination: destination)
             exportKind = .teacherAuditPDF
-            recordExport(kind: .teacherAuditPDF, markdown: MarkdownReportBuilder.teacherAuditMarkdown(for: assignment), includesPrivateNotes: true)
+            recordExport(kind: .teacherAuditPDF, markdown: MarkdownReportBuilder.teacherAuditMarkdown(for: assignment), includesPrivateNotes: true, includesOriginalSources: false)
             statusMessage = "Teacher audit PDF is ready to share. Treat it as sensitive."
         } catch {
             errorMessage = error.localizedDescription
@@ -915,7 +1244,7 @@ final class GradeDraftViewModel: ObservableObject {
             let destination = try BundleExportService.preflightDestination(for: assignment.id)
             exportURL = try BundleExportService.writeTeacherAuditArchive(assignment: assignment, sourceFiles: sourceFilesForCurrentAssignment(), to: destination)
             exportKind = .zipArchive
-            recordExport(kind: .zipArchive, markdown: StableFingerprint.fingerprint([assignment.gradingPacketFingerprint]), includesPrivateNotes: true)
+            recordExport(kind: .zipArchive, markdown: StableFingerprint.fingerprint([assignment.gradingPacketFingerprint]), includesPrivateNotes: true, includesOriginalSources: !sourceFilesForCurrentAssignment().isEmpty)
             statusMessage = "Teacher archive ZIP is ready to share. Treat it as sensitive."
         } catch {
             errorMessage = error.localizedDescription
@@ -928,8 +1257,9 @@ final class GradeDraftViewModel: ObservableObject {
             let sourceFiles = assignments.flatMap { assignment in
                 sourceFiles(for: assignment)
             }
-            exportURL = try BundleExportService.writeFullBackup(assignments: assignments, sourceFiles: sourceFiles, to: destination)
+            exportURL = try BundleExportService.writeFullBackup(assignments: assignments, sourceFiles: sourceFiles, to: destination, classGroups: classGroups, students: students, rosterEntries: assignmentRosterEntries)
             exportKind = .fullBackupArchive
+            recordExport(kind: .fullBackupArchive, markdown: StableFingerprint.fingerprint(assignments.map(\.gradingPacketFingerprint)), includesPrivateNotes: true, includesOriginalSources: !sourceFiles.isEmpty)
             statusMessage = "Full local backup archive is ready to share. Treat it as sensitive student data."
         } catch {
             errorMessage = error.localizedDescription
@@ -941,36 +1271,63 @@ final class GradeDraftViewModel: ObservableObject {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             let restored: [AssignmentRecord]
+            var restoredDatabaseExport: BackupDatabaseExport?
             if url.pathExtension.lowercased() == "zip" {
-                restored = try BundleExportService.readBackupAssignments(from: url)
+                latestRestorePreview = try BundleExportService.previewRestore(from: url, existingAssignments: assignments)
+                restoredDatabaseExport = try BundleExportService.readBackupDatabaseExport(from: url)
+                restored = try BundleExportService.restoreBackupArchive(
+                    from: url,
+                    existingAssignments: assignments,
+                    applicationSupportDirectory: try store.applicationSupportDirectory(),
+                    conflictResolution: backupConflictResolution
+                )
             } else {
                 let data = try Data(contentsOf: url)
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
                 restored = try decoder.decode([AssignmentRecord].self, from: data)
+                latestRestorePreview = BackupRestorePreview(
+                    archiveKind: "legacy-json",
+                    schemaVersion: "legacy-json",
+                    assignmentCount: restored.count,
+                    classCount: 0,
+                    studentCount: 0,
+                    sourceFileCount: 0,
+                    conflictAssignmentIDs: restored.compactMap { restoredRecord in assignments.contains(where: { $0.id == restoredRecord.id }) ? restoredRecord.id : nil },
+                    warnings: ["Legacy JSON backup does not contain source files, classes, students, or archive manifest metadata."]
+                )
             }
             guard !restored.isEmpty else {
                 errorMessage = "Backup contained no assignments."
                 return
             }
-            let merged = mergeRestoredAssignments(restored)
+            let merged = mergeRestoredAssignments(restored, resolution: backupConflictResolution)
             assignments = merged.sorted { $0.updatedAt > $1.updatedAt }
+            refreshAssignmentRosterEntries()
+            if let restoredDatabaseExport {
+                mergeRestoredClassGroups(restoredDatabaseExport.classGroups)
+                mergeRestoredStudents(restoredDatabaseExport.students)
+                mergeRestoredRosterEntries(restoredDatabaseExport.rosterEntries)
+            }
             selectedAssignmentID = assignments.first?.id
             try store.saveAssignments(assignments)
-            statusMessage = "Restored \(restored.count) assignment(s) from local backup preview/import."
+            for classGroup in classGroups { try? store.saveClassGroup(classGroup) }
+            for student in students { try? store.saveStudent(student) }
+            if !assignmentRosterEntries.isEmpty { try? store.saveAssignmentRoster(assignmentRosterEntries) }
+            statusMessage = "Restored \(restored.count) assignment(s) plus related class, student, roster, and source-file records from local backup with \(backupConflictResolution.displayName.lowercased()) conflict handling."
         } catch {
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
         }
     }
 
-    private func recordExport(kind: ExportKind, markdown: String, includesPrivateNotes: Bool) {
+    private func recordExport(kind: ExportKind, markdown: String, includesPrivateNotes: Bool, includesOriginalSources: Bool) {
         updateAssignment { assignment in
             assignment.exportRecords.append(
                 ExportRecord(
                     exportKind: kind,
                     contentFingerprint: StableFingerprint.fingerprint([markdown]),
                     includesPrivateTeacherNotes: includesPrivateNotes,
-                    includesOriginalSources: false
+                    includesOriginalSources: includesOriginalSources
                 )
             )
             assignment.appendAuditEvent(.exportPrepared, detail: "Prepared \(kind.displayName).")
@@ -1099,12 +1456,54 @@ final class GradeDraftViewModel: ObservableObject {
         return "\(evidencePart)source:\(sourceID):page:\(page.pageIndex):ocrLine:\(line.id.uuidString):bbox:\(box.x),\(box.y),\(box.width),\(box.height)"
     }
 
+    private func evidenceID(in sourceReference: String) -> UUID? {
+        guard let range = sourceReference.range(of: #"evidence:([A-Fa-f0-9-]{36})"#, options: .regularExpression) else { return nil }
+        let match = String(sourceReference[range])
+        return UUID(uuidString: match.replacingOccurrences(of: "evidence:", with: ""))
+    }
+
     private func temporaryExportURL(prefix: String, extension ext: String) -> URL {
         let safeTitle = assignment.title
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "[^A-Za-z0-9_-]+", with: "-", options: .regularExpression)
         let filename = "\(prefix)-\(safeTitle.isEmpty ? assignment.id.uuidString : safeTitle).\(ext)"
         return fileManager.temporaryDirectory.appendingPathComponent(filename)
+    }
+
+    private func refreshAssignmentRosterEntries() {
+        assignmentRosterEntries = assignments.enumerated().compactMap { index, record in
+            guard let studentID = record.studentID else { return nil }
+            return AssignmentRosterEntry(
+                assignmentID: record.id,
+                studentID: studentID,
+                studentDisplayName: record.studentDisplayName,
+                localIdentifier: students.first(where: { $0.id == studentID })?.localIdentifier ?? "",
+                status: assignmentRosterStatus(for: record),
+                sortOrder: index
+            )
+        }
+    }
+
+    private static func classGroupsFromAssignments(_ assignments: [AssignmentRecord]) -> [ClassGroupRecord] {
+        var byName: [String: ClassGroupRecord] = [:]
+        for record in assignments where !record.className.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let key = record.className.lowercased()
+            if byName[key] == nil {
+                byName[key] = ClassGroupRecord(name: record.className, subject: record.subject, gradeLevel: record.gradeLevel)
+            }
+        }
+        return Array(byName.values).sorted { $0.name < $1.name }
+    }
+
+    private static func studentsFromAssignments(_ assignments: [AssignmentRecord]) -> [StudentRecord] {
+        var byName: [String: StudentRecord] = [:]
+        for record in assignments where !record.studentDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let key = [record.className, record.studentDisplayName].joined(separator: "|").lowercased()
+            if byName[key] == nil {
+                byName[key] = StudentRecord(displayName: record.studentDisplayName, className: record.className)
+            }
+        }
+        return Array(byName.values).sorted { $0.displayName < $1.displayName }
     }
 }
 
@@ -1122,7 +1521,9 @@ private enum CurriculumImportService {
     }
 
     private static func xlsxSharedText(from url: URL) throws -> String {
-        let archive = try Archive(url: url, accessMode: .read)
+        guard let archive = Archive(url: url, accessMode: .read) else {
+            throw GradeDraftError.persistenceFailed("Could not open local curriculum workbook as a ZIP-based XLSX file.")
+        }
         var collected: [String] = []
         for entry in archive where entry.path.hasSuffix(".xml") {
             var data = Data()

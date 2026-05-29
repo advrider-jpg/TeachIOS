@@ -116,6 +116,9 @@ struct FinalGradeReviewView: View {
     var onApprove: () -> Void
     var onAddCriterion: (() -> Void)?
     var onDeleteCriterion: ((UUID) -> Void)?
+    var onAddManualEvidence: ((UUID, String) -> Void)?
+    var onRemoveEvidence: ((UUID, Int) -> Void)?
+    var onClearEvidence: ((UUID) -> Void)?
 
     @State private var workingReview: FinalGradeReview
     @State private var showingApproveConfirm = false
@@ -126,7 +129,10 @@ struct FinalGradeReviewView: View {
         onChange: @escaping (FinalGradeReview) -> Void,
         onApprove: @escaping () -> Void,
         onAddCriterion: (() -> Void)? = nil,
-        onDeleteCriterion: ((UUID) -> Void)? = nil
+        onDeleteCriterion: ((UUID) -> Void)? = nil,
+        onAddManualEvidence: ((UUID, String) -> Void)? = nil,
+        onRemoveEvidence: ((UUID, Int) -> Void)? = nil,
+        onClearEvidence: ((UUID) -> Void)? = nil
     ) {
         self.review = review
         self.isStale = isStale
@@ -134,6 +140,9 @@ struct FinalGradeReviewView: View {
         self.onApprove = onApprove
         self.onAddCriterion = onAddCriterion
         self.onDeleteCriterion = onDeleteCriterion
+        self.onAddManualEvidence = onAddManualEvidence
+        self.onRemoveEvidence = onRemoveEvidence
+        self.onClearEvidence = onClearEvidence
         _workingReview = State(initialValue: review)
     }
 
@@ -171,7 +180,10 @@ struct FinalGradeReviewView: View {
             ForEach($workingReview.criteria) { $criterion in
                 FinalCriterionEditor(
                     criterion: $criterion,
-                    onDelete: onDeleteCriterion.map { del in { del(criterion.id) } }
+                    onDelete: onDeleteCriterion.map { del in { del(criterion.id) } },
+                    onAddManualEvidence: onAddManualEvidence.map { callback in { quote in callback(criterion.id, quote) } },
+                    onRemoveEvidence: onRemoveEvidence.map { callback in { index in callback(criterion.id, index) } },
+                    onClearEvidence: onClearEvidence.map { callback in { callback(criterion.id) } }
                 )
                 .onChange(of: criterion) { _, _ in
                     var updated = workingReview
@@ -288,6 +300,9 @@ struct FinalGradeReviewView: View {
 private struct FinalCriterionEditor: View {
     @Binding var criterion: FinalCriterionScore
     var onDelete: (() -> Void)?
+    var onAddManualEvidence: ((String) -> Void)?
+    var onRemoveEvidence: ((Int) -> Void)?
+    var onClearEvidence: (() -> Void)?
 
     @State private var newEvidenceText = ""
     @State private var showingEvidenceEntry = false
@@ -360,7 +375,12 @@ private struct FinalCriterionEditor: View {
                     }
                     if !criterion.evidence.isEmpty {
                         Button("Clear evidence") {
-                            criterion.evidence = []
+                            if let onClearEvidence {
+                                onClearEvidence()
+                            } else {
+                                criterion.evidence = []
+                                criterion.evidenceSourceRefs = []
+                            }
                         }
                         .font(.caption)
                         .foregroundStyle(.red)
@@ -374,7 +394,14 @@ private struct FinalCriterionEditor: View {
                         Button("Add") {
                             let trimmed = newEvidenceText.trimmingCharacters(in: .whitespacesAndNewlines)
                             if !trimmed.isEmpty {
-                                criterion.evidence += [trimmed]
+                                if let onAddManualEvidence {
+                                    onAddManualEvidence(trimmed)
+                                } else {
+                                    criterion.evidence += [trimmed]
+                                    var refs = criterion.evidenceSourceRefs ?? []
+                                    refs.append("manualTeacherEntry")
+                                    criterion.evidenceSourceRefs = refs
+                                }
                                 newEvidenceText = ""
                                 showingEvidenceEntry = false
                             }
@@ -389,9 +416,16 @@ private struct FinalCriterionEditor: View {
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Button {
-                            var updated = criterion.evidence
-                            updated.remove(at: index)
-                            criterion.evidence = updated
+                            if let onRemoveEvidence {
+                                onRemoveEvidence(index)
+                            } else {
+                                var updated = criterion.evidence
+                                updated.remove(at: index)
+                                criterion.evidence = updated
+                                var refs = criterion.evidenceSourceRefs ?? []
+                                if index < refs.count { refs.remove(at: index) }
+                                criterion.evidenceSourceRefs = refs
+                            }
                         } label: {
                             Image(systemName: "xmark.circle")
                                 .foregroundStyle(.secondary)

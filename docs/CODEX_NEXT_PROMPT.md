@@ -1,33 +1,27 @@
-# Codex Next-Pass Prompt
+# Codex Next Validation Prompt
 
-/goal Harden GradeDraft v3 into a more production-like single-submission MVP. Do not expand into handwriting, posters, LMS sync, cloud services, or visual artifact grading. Preserve the local-only posture and the strict separation between source input, OCR output, reviewed text, model draft, teacher final review, exports, and audit events.
+Use this prompt for the next macOS/Xcode validation pass after applying `GradeDraft_all_features_completion_v3.patch`.
 
-## Repo-scoped Codex skills
+## Goal
 
-These repo-local skills are now the preferred playbook for future sessions:
+Validate the source-implemented GradeDraft v3 feature set on Apple tooling without expanding product scope. Keep the local-only posture: no cloud AI, remote OCR, backend URL, analytics SDK, account login, telemetry, subscriptions, hosted assets, Firebase, RevenueCat, or server API.
 
-- `.agents/skills/gradedraft-core-rules/SKILL.md`: cross-cutting GradeDraft constraints and anti-fake-state doctrine.
-- `.agents/skills/gradedraft-xcode-verify/SKILL.md`: local verification aligned to CI workflow.
-- `.agents/skills/gradedraft-ocr-review/SKILL.md`: OCR review gating and low-trust text controls.
-- `.agents/skills/gradedraft-export-safety/SKILL.md`: student/audit export separation and sensitive-data safety.
-- `.agents/skills/gradedraft-foundationmodels/SKILL.md`: local AI availability, failure paths, and no-fallback behavior.
+## Context
 
-Required work (Completed in v3 Feature Slice):
+The patch implements source-level support for PDF export, ZIP/archive export, PDF import, side-by-side OCR review, per-line OCR evidence linking, bounding-box traceability, Markdown rubric import, normalized GRDB persistence, offline curriculum mapping, roster workflows, and backup/restore UI.
 
-1. [Done] Open the repo locally in Xcode 26+ and fix any compile errors caused by the exact installed Apple SDK, especially Foundation Models API names.
-2. [Done] Do not add any cloud AI fallback, backend URL, analytics SDK, remote OCR, account login, or telemetry.
-3. [Done] Replace/extend the JSON persistence scaffold with SQLite database storage managed via GRDB, using normalized schema tables.
-4. [Done] Add a side-by-side OCR review screen showing source image thumbnails, OCR line confidence, and reviewed text.
-5. [Done] Add per-line OCR correction and teacher confirmation. Low-confidence/unconfirmed OCR blocks grading.
-6. [Done] Preserve local source image references and verify source files exist after scan/photo import.
-7. [Done] Add evidence quote source references with bounding-box linkage and coordinates where available.
-8. [Done] Keep final criterion points separate from proposed points. App-calculated totals use final points for final review.
-9. [Done] Student export excludes private teacher notes. Teacher audit export includes private notes and is labeled sensitive.
-10. [Done] Add tests for PDF/ZIP/archive, roster CSV setup, curriculum import mapping, and side-by-side OCR.
+Runtime validation still requires Xcode because this environment does not launch the iOS app, run XCTest, render PDFKit/UIKit output, exercise Vision/VisionKit capture, or call Foundation Models APIs.
 
-Next-Pass Objectives:
+## Required validation steps on macOS/Xcode
 
-1. Build further UI/UX refinement on the side-by-side OCR panel to support fluid scrolling of large PDFs.
-2. Run local simulator-based UI tests simulating multiple OCR confirmations and corrections.
-3. Conduct profiling checks on memory footprint when handling multi-page high-resolution scans.
-4. Verify Foundation Models responses on target Apple Silicon devices under iOS 18/iPadOS 18 frameworks.
+1. Apply the patch from the repository root with `patch -p1 < GradeDraft_all_features_completion_v3.patch`.
+2. Open `GradeDraft.xcodeproj` and confirm the app and test targets include the new service files.
+3. Build the app target.
+4. Build and run the unit-test target.
+5. Confirm PDFKit import, UIKit PDF export, Vision/VisionKit OCR, SwiftUI file import/share sheets, and Foundation Models availability gates compile against the installed SDK.
+6. Run a simulator/device smoke flow for PDF import, OCR review, evidence linking, final approval, student PDF export, teacher audit ZIP export, roster import, curriculum mapping, full backup, and restore conflict choices.
+7. Preserve teacher-confirmation gating and export sensitivity warnings throughout any fixes.
+
+## Scope guardrails
+
+Do not add hosted services, remote model calls, network curriculum downloads, account systems, analytics, telemetry, subscription SDKs, or external asset hosting. Do not alter `docs/GRADING_CONTENT_SOURCE_OF_TRUTH.md` except typo-level corrections. Keep student-facing export content separated from teacher-audit content.
