@@ -637,7 +637,6 @@ final class GradeDraftViewModel: ObservableObject {
         }
     }
 
-
     func applyPDFFile(_ url: URL) async {
         isWorking = true
         errorMessage = nil
@@ -1148,32 +1147,32 @@ final class GradeDraftViewModel: ObservableObject {
         var byID = Dictionary(uniqueKeysWithValues: assignments.map { ($0.id, $0) })
         for record in restored {
             if let existing = byID[record.id] {
-            switch resolution {
-            case .keepLocal:
-                var local = existing
-                local.appendAuditEvent(.inputChanged, detail: "Backup restore detected a conflict and kept the local assignment.")
-                byID[local.id] = local
-            case .replaceLocal:
-                var replacement = record
-                replacement.appendAuditEvent(.inputChanged, detail: "Backup restore replaced the local assignment after conflict resolution.")
-                byID[record.id] = replacement
-            case .restoreAsCopy:
-                var copy = record
-                let originalID = copy.id
-                copy.id = UUID()
-                copy.sourceInputs = copy.sourceInputs.map { source in
-                    var sourceCopy = source
-                    if let localRelativePath = source.localRelativePath {
-                        sourceCopy.localRelativePath = localRelativePath.replacingOccurrences(
-                            of: "Sources/\(originalID.uuidString)/",
-                            with: "Sources/\(copy.id.uuidString)/"
-                        )
+                switch resolution {
+                case .keepLocal:
+                    var local = existing
+                    local.appendAuditEvent(.inputChanged, detail: "Backup restore detected a conflict and kept the local assignment.")
+                    byID[local.id] = local
+                case .replaceLocal:
+                    var replacement = record
+                    replacement.appendAuditEvent(.inputChanged, detail: "Backup restore replaced the local assignment after conflict resolution.")
+                    byID[record.id] = replacement
+                case .restoreAsCopy:
+                    var copy = record
+                    let originalID = copy.id
+                    copy.id = UUID()
+                    copy.sourceInputs = copy.sourceInputs.map { source in
+                        var sourceCopy = source
+                        if let localRelativePath = source.localRelativePath {
+                            sourceCopy.localRelativePath = localRelativePath.replacingOccurrences(
+                                of: "Sources/\(originalID.uuidString)/",
+                                with: "Sources/\(copy.id.uuidString)/"
+                            )
+                        }
+                        return sourceCopy
                     }
-                    return sourceCopy
-                }
-                copy.title = "Restored copy of \(record.title)"
-                copy.appendAuditEvent(.inputChanged, detail: "Restored as copy because a local record existed with the same ID.")
-                byID[copy.id] = copy
+                    copy.title = "Restored copy of \(record.title)"
+                    copy.appendAuditEvent(.inputChanged, detail: "Restored as copy because a local record existed with the same ID.")
+                    byID[copy.id] = copy
                 }
             } else {
                 var restoredRecord = record
