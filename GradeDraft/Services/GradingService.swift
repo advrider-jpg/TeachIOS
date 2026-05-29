@@ -59,7 +59,7 @@ enum GradeDraftValidator {
         }
 
         if input.ocrQualitySummary.requiresTeacherOCRReview {
-            uncertaintyFlags.append("OCR quality is uncertain; teacher review is required.")
+            uncertaintyFlags.append("Scanned text quality is uncertain; teacher review is required.")
         }
 
         if !input.parsedRubric.issues.isEmpty {
@@ -149,7 +149,7 @@ enum GradeDraftValidator {
             }
 
             if input.ocrQualitySummary.requiresTeacherOCRReview {
-                criteriaUncertainty.append("OCR quality/coverage uncertainty requires teacher review.")
+                criteriaUncertainty.append("Scanned text quality or coverage requires teacher review.")
                 needsReview = true
             }
 

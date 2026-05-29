@@ -15,7 +15,7 @@ struct LocalCapabilityBanner: View {
                 Text(message)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Text("No backend, no cloud OCR, no cloud grading, and no telemetry SDK in this repo.")
+                Text("No backend, no cloud text recognition, no cloud grading, and no telemetry SDK in this repo.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

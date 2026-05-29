@@ -5,9 +5,9 @@ enum PromptBuilder {
         let missingEvidenceMarker = "No supporting evidence found."
         let ocrWarning: String
         if input.ocrQualitySummary.requiresTeacherOCRReview {
-            ocrWarning = "OCR quality warning: \(input.ocrQualitySummary.displaySummary) Treat unclear or garbled text as an uncertainty flag."
+            ocrWarning = "Scanned text quality warning: \(input.ocrQualitySummary.displaySummary) Treat unclear or garbled text as an uncertainty flag."
         } else {
-            ocrWarning = "OCR quality summary: \(input.ocrQualitySummary.displaySummary)"
+            ocrWarning = "Scanned text quality summary: \(input.ocrQualitySummary.displaySummary)"
         }
 
         let structuredCriteria: String
@@ -67,13 +67,13 @@ enum PromptBuilder {
         - When source reference tags like [p1-l2-abcdef12] are present, include matching evidenceSourceRefs for cited quotes.
         - Do not invent curriculum references, official standards, answer-key elements, source facts, or exemplar content.
         - If the rubric is ambiguous, apply the most conservative reasonable score and add an uncertainty flag.
-        - If OCR quality is uncertain, mark teacherReviewRequired true for affected criteria.
+        - If scanned text quality is uncertain, mark teacherReviewRequired true for affected criteria.
         - If the response is weak, unclear, or relies on unsupported source/diagram/math/notation/handwriting, mark teacherReviewRequired true and explain the limitation.
         - Return one JSON object only. Do not wrap it in markdown.
         - Use numeric proposedPoints and maxPoints. Do not include totalScore or maxScore; the app calculates totals.
         - If structured criteria are listed, return one and only one score for each criterionId.
         - Keep student feedback constructive, specific, and concise.
-        - Keep teacherNotes private and use them for ambiguity, OCR concerns, evidence concerns, or grading calls.
+        - Keep teacherNotes private and use them for ambiguity, scanned-text concerns, evidence concerns, or grading calls.
         - Do not present the response as a final grade. Every criterion needs to remain teacher-reviewable.
         - No cloud model fallback exists in this app.
 
@@ -87,8 +87,8 @@ enum PromptBuilder {
         - Assignment type: \(input.assignmentType.displayName)
         - Assessment purpose: \(input.assessmentPurpose.rawValue)
         - Source input count: \(input.sourceInputCount)
-        - OCR review status: \(input.ocrReviewStatus.displayName)
-        - OCR quality summary: \(input.ocrQualitySummary.displaySummary)
+        - Scanned-text review status: \(input.ocrReviewStatus.displayName)
+        - Scanned text quality summary: \(input.ocrQualitySummary.displaySummary)
         - \(ocrWarning)
 
         \(curriculumSection)
@@ -130,7 +130,7 @@ enum PromptBuilder {
             }
           ],
           "studentFeedback": "student-facing feedback that is specific, constructive, and concise",
-          "teacherNotes": "private notes about ambiguity, grading calls, or OCR concerns",
+          "teacherNotes": "private notes about ambiguity, grading calls, or scanned-text concerns",
           "uncertaintyFlags": ["issues the teacher should review"],
           "complianceFlags": ["ways you constrained the draft to the rubric and evidence"]
         }

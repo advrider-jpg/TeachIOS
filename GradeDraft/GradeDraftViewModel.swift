@@ -113,16 +113,16 @@ final class GradeDraftViewModel: ObservableObject {
             issues.append("Add a rubric, answer key, exemplar, or grading criteria.")
         }
         if assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            issues.append("Add pasted text or review OCR text.")
+            issues.append("Add student work or review scanned text.")
         }
         if assignment.ocrReviewStatus.blocksGrading {
-            issues.append("Mark OCR as reviewed before grading.")
+            issues.append("Review scanned text before drafting feedback.")
         }
         if assignment.latestDraftIsStale {
-            issues.append("The saved draft is stale because the text, rubric, or instructions changed.")
+            issues.append("Needs recheck: student work, rubric, or evidence changed.")
         }
         if assignment.finalReviewIsStale {
-            issues.append("The final review is stale because the text, rubric, or instructions changed.")
+            issues.append("This review needs rechecking because student work, rubric, or evidence changed.")
         }
         if assignment.finalReview?.status != .approved, let blockMessage = finalReviewApprovalBlockMessage {
             issues.append(blockMessage)
@@ -173,7 +173,7 @@ final class GradeDraftViewModel: ObservableObject {
             return "Add at least one criterion before approval."
         }
         if assignment.hasGradingStandard && assignment.finalReviewIsStale {
-            return "Refresh final review because grading inputs changed since this review was created."
+            return "Recheck final review because student work, rubric, or evidence changed."
         }
         if !finalReview.allCriteriaApproved {
             return "Approve all final-review criteria before finalizing."
@@ -233,7 +233,7 @@ final class GradeDraftViewModel: ObservableObject {
             issues.append("Add or review the student text before drafting feedback.")
         }
         if assignment.ocrReviewStatus.blocksGrading {
-            issues.append("Review and confirm OCR text before drafting feedback.")
+            issues.append("Review and confirm scanned text before drafting feedback.")
         }
         return issues
     }
@@ -392,7 +392,7 @@ final class GradeDraftViewModel: ObservableObject {
                 assignment.appendAuditEvent(.sourceCaptured, detail: "Captured \(images.count) \(sourceType.displayName.lowercased()) page(s) locally.")
                 assignment.appendAuditEvent(.ocrCompleted, detail: document.qualitySummary.displaySummary)
             }
-            statusMessage = "OCR complete. Review and confirm the extracted text before drafting a feedback suggestion."
+            statusMessage = "Text recognition complete. Review scanned text before drafting feedback."
             try saveCurrentAssignment()
         } catch {
             errorMessage = error.localizedDescription
@@ -407,10 +407,10 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.ocrReviewedAt = Date()
             assignment.latestDraft = nil
             assignment.finalReview = nil
-            assignment.appendAuditEvent(.ocrReviewed, detail: "Teacher marked OCR text reviewed. Reviewed text is now eligible for grading.")
+            assignment.appendAuditEvent(.ocrReviewed, detail: "Teacher marked scanned text reviewed. Reviewed text is now eligible for grading.")
         }
         persistOrSurfaceError()
-        statusMessage = "OCR reviewed. Draft feedback is now available if Local AI and rubric are ready."
+        statusMessage = "Scanned text reviewed. Draft feedback is now available if Local AI and rubric are ready."
     }
 
     func draftGrade() async {
@@ -613,7 +613,7 @@ final class GradeDraftViewModel: ObservableObject {
             exportURL = try MarkdownReportBuilder.writeTemporaryTeacherAuditReport(for: assignment)
             exportKind = .teacherAuditMarkdown
             recordExport(kind: .teacherAuditMarkdown, markdown: markdown, includesPrivateNotes: true, includesOriginalSources: false)
-            statusMessage = "Teacher audit Markdown report is ready to share. Treat it as sensitive."
+            statusMessage = "Teacher Review is ready to share. Treat it as sensitive."
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -715,7 +715,7 @@ final class GradeDraftViewModel: ObservableObject {
                 assignment.appendAuditEvent(.sourceCaptured, detail: "Imported local PDF with \(document.pageCount) page(s); original PDF and rendered pages stored locally.")
                 assignment.appendAuditEvent(.ocrCompleted, detail: documentForReview.qualitySummary.displaySummary)
             }
-            statusMessage = "PDF imported. Review and confirm extracted text before drafting feedback."
+            statusMessage = "PDF imported. Review scanned text before drafting feedback."
             try saveCurrentAssignment()
         } catch {
             errorMessage = error.localizedDescription
@@ -734,11 +734,11 @@ final class GradeDraftViewModel: ObservableObject {
             let criterionCount = useStructuredImport ? preview.detectedCriteria.count : 0
             assignment.latestDraft = nil
             assignment.finalReview = nil
-            assignment.appendAuditEvent(.inputChanged, detail: "Confirmed Markdown rubric import with \(criterionCount) structured criterion/criteria and \(preview.issues.count) parse warning(s).")
+            assignment.appendAuditEvent(.inputChanged, detail: "Confirmed rubric import with \(criterionCount) structured criterion/criteria and \(preview.issues.count) item(s) needing attention.")
         }
         persistOrSurfaceError()
         latestRubricPreview = nil
-        statusMessage = preview.detectedCriteria.isEmpty ? "Rubric imported as teacher-reviewed raw Markdown." : "Markdown rubric imported with a teacher-confirmed structured preview."
+        statusMessage = preview.detectedCriteria.isEmpty ? "Rubric text saved for teacher review." : "Rubric imported with a teacher-confirmed structured preview."
     }
 
     func importMarkdownRubric(from url: URL) {
@@ -927,7 +927,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.ocrReviewStatus = .needsReview
             assignment.latestDraft = nil
             assignment.finalReview = nil
-            assignment.appendAuditEvent(.inputChanged, detail: "Edited OCR line text during teacher review.")
+            assignment.appendAuditEvent(.inputChanged, detail: "Edited scanned text line during teacher review.")
         }
         persistOrSurfaceError()
     }
@@ -953,7 +953,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.ocrDocument = document
             assignment.latestDraft = nil
             assignment.finalReview = nil
-            assignment.appendAuditEvent(.ocrReviewed, detail: "Confirmed OCR line during teacher review.")
+            assignment.appendAuditEvent(.ocrReviewed, detail: "Confirmed scanned text line during teacher review.")
         }
         persistOrSurfaceError()
     }
@@ -973,7 +973,7 @@ final class GradeDraftViewModel: ObservableObject {
             if !document.hasUnconfirmedLines { assignment.ocrReviewedAt = Date() }
             assignment.latestDraft = nil
             assignment.finalReview = nil
-            assignment.appendAuditEvent(.inputChanged, detail: "Rejected OCR line during teacher review; source metadata was preserved and line text was excluded from reviewed text.")
+            assignment.appendAuditEvent(.inputChanged, detail: "Rejected scanned text line during teacher review; original file details were preserved and line text was excluded from reviewed text.")
         }
         persistOrSurfaceError()
     }
@@ -994,7 +994,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.ocrReviewedAt = document.reviewedAt
             assignment.latestDraft = nil
             assignment.finalReview = nil
-            assignment.appendAuditEvent(.ocrReviewed, detail: "Teacher marked an OCR page reviewed after resolving every active line on that page.")
+            assignment.appendAuditEvent(.ocrReviewed, detail: "Teacher marked a scanned page reviewed after resolving every active line on that page.")
         }
         persistOrSurfaceError()
     }
@@ -1044,7 +1044,7 @@ final class GradeDraftViewModel: ObservableObject {
         updateAssignment { assignment in
             assignment.evidenceReferences.append(evidenceRef)
             assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: review)
-            assignment.appendAuditEvent(.inputChanged, detail: "Linked OCR line evidence to final-review criterion.")
+            assignment.appendAuditEvent(.inputChanged, detail: "Linked scanned text evidence to final-review criterion.")
         }
         persistOrSurfaceError()
     }
@@ -1231,7 +1231,7 @@ final class GradeDraftViewModel: ObservableObject {
             exportURL = try PDFExportService.studentReportPDF(for: assignment, destination: destination)
             exportKind = .studentPDF
             recordExport(kind: .studentPDF, markdown: MarkdownReportBuilder.studentMarkdown(for: assignment), includesPrivateNotes: false, includesOriginalSources: false)
-            statusMessage = "Student PDF report is ready to share."
+            statusMessage = "Student Report PDF is ready to share."
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -1239,11 +1239,11 @@ final class GradeDraftViewModel: ObservableObject {
 
     func exportTeacherAuditPDF() {
         do {
-            let destination = temporaryExportURL(prefix: "GradeDraft-TeacherAudit", extension: "pdf")
+            let destination = temporaryExportURL(prefix: "GradeDraft-TeacherReview", extension: "pdf")
             exportURL = try PDFExportService.teacherAuditPDF(for: assignment, destination: destination)
             exportKind = .teacherAuditPDF
             recordExport(kind: .teacherAuditPDF, markdown: MarkdownReportBuilder.teacherAuditMarkdown(for: assignment), includesPrivateNotes: true, includesOriginalSources: false)
-            statusMessage = "Teacher audit PDF is ready to share. Treat it as sensitive."
+            statusMessage = "Teacher Review PDF is ready to share. Treat it as sensitive."
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -1304,7 +1304,7 @@ final class GradeDraftViewModel: ObservableObject {
                     studentCount: 0,
                     sourceFileCount: 0,
                     conflictAssignmentIDs: restored.compactMap { restoredRecord in assignments.contains(where: { $0.id == restoredRecord.id }) ? restoredRecord.id : nil },
-                    warnings: ["Legacy JSON backup does not contain source files, classes, students, or archive manifest metadata."]
+                    warnings: ["Legacy JSON backup does not contain original files, classes, students, or backup details."]
                 )
             }
             guard !restored.isEmpty else {
@@ -1324,7 +1324,7 @@ final class GradeDraftViewModel: ObservableObject {
             for classGroup in classGroups { try? store.saveClassGroup(classGroup) }
             for student in students { try? store.saveStudent(student) }
             if !assignmentRosterEntries.isEmpty { try? store.saveAssignmentRoster(assignmentRosterEntries) }
-            statusMessage = "Restored \(restored.count) assignment(s) plus related class, student, roster, and source-file records from local backup with \(backupConflictResolution.displayName.lowercased()) conflict handling."
+            statusMessage = "Restored \(restored.count) assignment(s) plus related class, student, roster, and original-file records from local backup with \(backupConflictResolution.displayName.lowercased()) handling."
         } catch {
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
         }

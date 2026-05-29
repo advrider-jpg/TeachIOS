@@ -455,7 +455,7 @@ final class OCRQualitySummaryHardeningTests: XCTestCase {
 
     func testDisplaySummaryNoLines() {
         let summary = OCRQualitySummary()
-        XCTAssertTrue(summary.displaySummary.contains("No OCR text"))
+        XCTAssertTrue(summary.displaySummary.contains("No scanned text"))
     }
 
     func testDisplaySummaryAllConfirmed() {
@@ -1304,7 +1304,7 @@ final class ViewModelHardeningTests: XCTestCase {
         var assignment = AssignmentRecord(
             title: "Paste test",
             rubricText: "Claim: 0-4 points",
-            reviewedStudentText: "OCR text",
+            reviewedStudentText: "Scanned text",
             ocrReviewStatus: .reviewed
         )
         assignment.ocrDocument = OCRDocument(pages: [
@@ -1642,7 +1642,7 @@ final class PromptBuilderHardeningTests: XCTestCase {
             averageConfidence: 0.6
         )
         let prompt = PromptBuilder.gradingPrompt(input: input)
-        XCTAssertTrue(prompt.contains("OCR quality warning"))
+        XCTAssertTrue(prompt.contains("Scanned text quality warning"))
     }
 
     private func sampleInput(rubric: String = "Claim: 0-4 points") -> GradingInput {
@@ -1708,7 +1708,7 @@ final class ExportReportHardeningTests: XCTestCase {
     }
 
     func testTeacherAuditContainsAuditEvents() {
-        var assignment = AssignmentRecord(title: "Audit events test")
+        var assignment = AssignmentRecord(title: "Review history test")
         assignment.appendAuditEvent(.assignmentCreated, detail: "Created for testing.")
         assignment.appendAuditEvent(.inputChanged, detail: "Rubric changed.")
         let audit = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment)
@@ -2072,7 +2072,7 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
         assignment.curriculumReference = CurriculumCatalogService.selectedReferenceSummary(items: [item])
         let audit = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment)
         XCTAssertTrue(audit.contains(item.code))
-        XCTAssertTrue(audit.localizedCaseInsensitiveContains("provenance"))
+        XCTAssertTrue(audit.contains("Curriculum references"))
         XCTAssertTrue(assignment.gradingPacketFingerprint.contains("fnv1a64-"))
         XCTAssertTrue(PromptBuilder.gradingPrompt(input: assignment.gradingInput).contains(item.code))
     }

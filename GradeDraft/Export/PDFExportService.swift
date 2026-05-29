@@ -12,13 +12,13 @@ enum PDFExportError: LocalizedError {
     }
 }
 
-/// Plain, local PDF export for student-facing and teacher-audit reports.
+/// Plain, local PDF export for student-facing and teacher-review reports.
 /// The output is intentionally conservative: system font, page numbers, and text derived
 /// from the existing Markdown report builders. It does not upload, fetch, or render remote content.
 struct PDFExportService {
     static func studentReportPDF(for assignment: AssignmentRecord, destination: URL) throws -> URL {
         try writePDF(
-            title: "GradeDraft Student Feedback",
+            title: "GradeDraft Student Report",
             body: MarkdownReportBuilder.studentMarkdown(for: assignment),
             destination: destination
         )
@@ -26,7 +26,7 @@ struct PDFExportService {
 
     static func teacherAuditPDF(for assignment: AssignmentRecord, destination: URL) throws -> URL {
         try writePDF(
-            title: "GradeDraft Teacher Audit Report",
+            title: "GradeDraft Teacher Review",
             body: MarkdownReportBuilder.teacherAuditMarkdown(for: assignment),
             destination: destination
         )

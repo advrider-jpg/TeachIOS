@@ -406,11 +406,11 @@ enum AssignmentRosterStatus: String, CaseIterable, Codable, Equatable, Identifia
     var displayName: String {
         switch self {
         case .notStarted: return "Not started"
-        case .sourceNeeded: return "Source needed"
-        case .ocrReviewNeeded: return "OCR review needed"
-        case .readyForGrading: return "Ready for grading"
-        case .draftGenerated: return "Draft generated"
-        case .finalReviewInProgress: return "Final review in progress"
+        case .sourceNeeded: return "Add student work"
+        case .ocrReviewNeeded: return "Review scanned text"
+        case .readyForGrading: return "Ready for teacher review"
+        case .draftGenerated: return "Review final grade"
+        case .finalReviewInProgress: return "Review final grade"
         case .approved: return "Approved"
         case .exported: return "Exported"
         }
@@ -675,7 +675,7 @@ struct EvidenceReference: Identifiable, Codable, Equatable {
 
     var displaySource: String {
         let page = pageIndex.map { "page \($0 + 1)" } ?? "reviewed text"
-        if let ocrLineID { return "\(page), OCR line \(ocrLineID.uuidString.prefix(8))" }
+        if let ocrLineID { return "\(page), text line \(ocrLineID.uuidString.prefix(8))" }
         return page
     }
 }
@@ -703,9 +703,9 @@ enum BackupConflictResolution: String, CaseIterable, Codable, Equatable, Identif
 
     var displayName: String {
         switch self {
-        case .keepLocal: return "Keep local"
-        case .replaceLocal: return "Replace local"
-        case .restoreAsCopy: return "Restore as copy"
+        case .keepLocal: return "Keep Current Records"
+        case .replaceLocal: return "Replace Current Records"
+        case .restoreAsCopy: return "Import as New Copy"
         }
     }
 }
@@ -721,7 +721,7 @@ struct BackupRestorePreview: Codable, Equatable {
     var warnings: [String]
 
     var summary: String {
-        "Backup contains \(assignmentCount) assignment(s), \(classCount) class(es), \(studentCount) student(s), and \(sourceFileCount) source file(s); \(conflictAssignmentIDs.count) conflict(s) detected."
+        "Backup contains \(assignmentCount) assignment(s), \(classCount) class(es), \(studentCount) student(s), and \(sourceFileCount) original file(s). Matching records found: \(conflictAssignmentIDs.count)."
     }
 }
 
@@ -862,13 +862,13 @@ enum OCRReviewStatus: String, CaseIterable, Codable, Identifiable {
     var displayName: String {
         switch self {
         case .notNeeded:
-            return "No OCR review needed"
+            return "Ready for teacher review"
         case .needsReview:
-            return "Needs OCR review"
+            return "Review scanned text"
         case .reviewed:
-            return "OCR reviewed"
+            return "Ready for teacher review"
         case .blocked:
-            return "OCR blocked"
+            return "Text needs attention"
         }
     }
 
@@ -1061,10 +1061,10 @@ struct OCRLine: Identifiable, Codable, Equatable {
     }
 
     var reviewStatusLabel: String {
-        if isRejected { return "rejected" }
-        if teacherConfirmed { return correctedText == nil ? "confirmed" : "corrected" }
-        if correctedText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true { return "blockedFromGrading" }
-        return "unreviewed"
+        if isRejected { return "Text needs attention" }
+        if teacherConfirmed { return "On track" }
+        if correctedText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true { return "Fix before continuing" }
+        return "Needs attention"
     }
 }
 
@@ -1129,14 +1129,14 @@ struct OCRQualitySummary: Codable, Equatable {
 
     var displaySummary: String {
         guard lineCount > 0 || rejectedLineCount > 0 else {
-            return "No OCR text has been captured."
+            return "No scanned text has been captured."
         }
         let average = Int((averageConfidence * 100).rounded())
         let rejectedText = rejectedLineCount > 0 ? " \(rejectedLineCount) rejected line(s) excluded from reviewed text." : ""
         if lowConfidenceLineCount == 0 && unconfirmedLineCount == 0 {
-            return "OCR captured \(lineCount) confirmed text line(s) with average confidence \(average)%.\(rejectedText)"
+            return "Text recognition captured \(lineCount) confirmed text line(s) with average confidence \(average)%.\(rejectedText)"
         }
-        return "OCR captured \(lineCount) text line(s); \(lowConfidenceLineCount) low-confidence and \(unconfirmedLineCount) unconfirmed. Average confidence \(average)%.\(rejectedText)"
+        return "Text recognition captured \(lineCount) text line(s); \(lowConfidenceLineCount) low-confidence and \(unconfirmedLineCount) unconfirmed. Average confidence \(average)%.\(rejectedText)"
     }
 }
 
@@ -1689,21 +1689,21 @@ enum ExportKind: String, Codable, Equatable, Identifiable {
     var displayName: String {
         switch self {
         case .studentMarkdown:
-            return "Student Markdown report"
+            return "Student Report"
         case .teacherAuditMarkdown:
-            return "Teacher audit Markdown report"
+            return "Teacher Review"
         case .studentPDF:
-            return "Student PDF report"
+            return "Student Report PDF"
         case .teacherAuditPDF:
-            return "Teacher audit PDF report"
+            return "Teacher Review PDF"
         case .csvGradebook:
-            return "CSV grade summary"
+            return "Gradebook Archive"
         case .zipArchive:
-            return "Teacher archive ZIP"
+            return "Teacher Archive"
         case .fullBackupArchive:
-            return "Full local backup archive"
+            return "Full Backup"
         case .backupJSON:
-            return "Local JSON backup"
+            return "Full Backup"
         }
     }
 }
@@ -1826,7 +1826,7 @@ enum RubricTemplates {
             - 1: understandable but choppy, repetitive, or incomplete.
             - 0: difficult to follow or not written as a response.
             """,
-            customInstructions: "Keep feedback specific and actionable. Do not invent missing evidence. If OCR quality is uncertain, flag teacher review. Do not make claims about student effort, ability, or intent."
+            customInstructions: "Keep feedback specific and actionable. Do not invent missing evidence. If scanned text quality is uncertain, flag teacher review. Do not make claims about student effort, ability, or intent."
         ),
         RubricTemplate(
             id: "essay-20pt",
@@ -2094,7 +2094,7 @@ enum GradeDraftError: LocalizedError, Equatable {
         case .missingStudentText:
             return "Add or review the student text before drafting a feedback suggestion."
         case .ocrReviewRequired:
-            return "Review and confirm OCR text before drafting a feedback suggestion."
+            return "Review scanned text before drafting feedback."
         case .localModelUnavailable(let message):
             return message
         case .malformedModelResponse(let message):
@@ -2102,7 +2102,7 @@ enum GradeDraftError: LocalizedError, Equatable {
         case .invalidModelGrade(let message):
             return "The local model returned an invalid grade draft: \(message)"
         case .ocrFailed(let message):
-            return "OCR failed: \(message)"
+            return "Text recognition failed: \(message)"
         case .persistenceFailed(let message):
             return "Could not save local data: \(message)"
         case .exportFailed(let message):

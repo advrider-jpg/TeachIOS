@@ -20,7 +20,7 @@ final class GradeDraftScreenshotTests: XCTestCase {
         let emptyVM = GradeDraftViewModel(assignments: [AssignmentRecord()], store: emptyStore)
         snapshot("01-new-assignment", ContentView(viewModel: emptyVM), to: screenshotDir)
 
-        // 2. Assignment ready to grade (rubric + reviewed OCR text, no draft yet)
+        // 2. Assignment ready to grade (rubric + reviewed scanned text, no draft yet)
         let readyAssignment = makeBaseAssignment()
         let readyStore = InMemoryAssignmentStore(assignments: [readyAssignment])
         let readyVM = GradeDraftViewModel(assignments: [readyAssignment], store: readyStore)
