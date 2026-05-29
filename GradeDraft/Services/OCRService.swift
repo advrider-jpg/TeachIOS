@@ -3,11 +3,11 @@ import ImageIO
 import UIKit
 import Vision
 
-protocol OCRServicing {
+protocol OCRServicing: Sendable {
     func recognizeText(in images: [UIImage]) async throws -> OCRDocument
 }
 
-final class VisionOCRService: OCRServicing {
+final class VisionOCRService: OCRServicing, Sendable {
     func recognizeText(in images: [UIImage]) async throws -> OCRDocument {
         var pages: [OCRPage] = []
 

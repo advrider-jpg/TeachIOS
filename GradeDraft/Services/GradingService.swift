@@ -9,7 +9,7 @@ protocol CapabilityChecking {
     var localAIStatus: LocalAIStatus { get }
 }
 
-protocol GradingServicing {
+protocol GradingServicing: Sendable {
     func draftGrade(input: GradingInput) async throws -> GradeDraftResult
 }
 
@@ -280,7 +280,7 @@ private extension Array where Element == String {
     var isNotEmpty: Bool { !isEmpty }
 }
 
-final class UnavailableLocalGradingService: GradingServicing, CapabilityChecking {
+final class UnavailableLocalGradingService: GradingServicing, CapabilityChecking, Sendable {
     var localAIStatus: LocalAIStatus {
         .unavailable("Local AI grading is unavailable. GradeDraft will not send this student work to a cloud model as a fallback.")
     }
