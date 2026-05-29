@@ -9,6 +9,11 @@ final class GRDBAssignmentStore: AssignmentStoring {
         try database.bootstrapIfNeeded()
     }
 
+    init(applicationSupportURL: URL) throws {
+        database = try GradeDraftDatabase(applicationSupportURL: applicationSupportURL)
+        try database.bootstrapIfNeeded()
+    }
+
     init(database: GradeDraftDatabase) throws {
         self.database = database
         try database.bootstrapIfNeeded()
