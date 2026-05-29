@@ -849,8 +849,8 @@ final class GradeDraftViewModel: ObservableObject {
         }
     }
 
-    func createAssignmentsFromRosterCSV(_ text: String) {
-        let preview = previewRosterCSV(text, className: assignment.className)
+    func createAssignmentsFromRosterCSV(_ text: String, className: String? = nil) {
+        let preview = previewRosterCSV(text, className: className ?? assignment.className)
         guard !preview.students.isEmpty else {
             errorMessage = preview.rejectedRows.first ?? "Paste at least one valid student row."
             return

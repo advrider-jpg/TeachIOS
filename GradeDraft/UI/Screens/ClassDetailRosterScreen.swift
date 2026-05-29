@@ -55,7 +55,7 @@ struct ClassDetailRosterScreen: View {
                             .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                         HStack(spacing: 8) {
                             SecondaryActionButton(title: "Preview import", systemImage: "list.bullet.rectangle", action: { _ = viewModel.previewRosterCSV(rosterCSV, className: classSummary.name) }, disabled: rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            PrimaryActionButton(title: "Create Assignments", systemImage: "doc.badge.plus", action: { viewModel.createAssignmentsFromRosterCSV(rosterCSV) }, disabled: rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            PrimaryActionButton(title: "Create Assignments", systemImage: "doc.badge.plus", action: { viewModel.createAssignmentsFromRosterCSV(rosterCSV, className: classSummary.name) }, disabled: rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
                     }
                     .padding(GradeDraftLayout.rowHorizontalPadding)
