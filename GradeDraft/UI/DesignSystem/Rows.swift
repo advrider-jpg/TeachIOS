@@ -177,7 +177,7 @@ struct WorkAttachmentRow: View {
                 .foregroundStyle(.blue)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 4) {
-                Text(source.fileName.nilIfBlank ?? source.sourceType.displayName)
+                Text(source.fileName?.nilIfBlank ?? source.sourceType.displayName)
                     .font(.headline)
                     .lineLimit(1)
                 Text(attachmentDetail)
