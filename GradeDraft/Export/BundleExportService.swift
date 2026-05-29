@@ -245,19 +245,27 @@ struct BundleExportService {
         guard let archive = Archive(url: url, accessMode: .read) else {
             throw BundleExportError.restoreFailed("Could not open backup archive for restore.")
         }
-        try restoreSourceFiles(from: archive, to: applicationSupportDirectory)
         var restored = try readBackupAssignments(from: url)
         let existingIDs = Set(existingAssignments.map(\.id))
+        var sourcePathRemappings: [String: String] = [:]
         if conflictResolution == .restoreAsCopy {
             restored = restored.map { record in
                 guard existingIDs.contains(record.id) else { return record }
                 var copy = record
+                let originalID = record.id
                 copy.id = UUID()
+                copy.sourceInputs = remapSourceInputs(
+                    copy.sourceInputs,
+                    oldAssignmentID: originalID,
+                    newAssignmentID: copy.id
+                )
+                sourcePathRemappings[originalID.uuidString] = copy.id.uuidString
                 copy.title = "Restored copy of \(record.title)"
                 copy.appendAuditEvent(.inputChanged, detail: "Backup restore copied this assignment because a local assignment already used the original ID.")
                 return copy
             }
         }
+        try restoreSourceFiles(from: archive, to: applicationSupportDirectory, sourcePathRemappings: sourcePathRemappings)
         return restored
     }
 
@@ -306,17 +314,52 @@ struct BundleExportService {
         }
     }
 
-    private static func restoreSourceFiles(from archive: Archive, to applicationSupportDirectory: URL) throws {
+    private static func restoreSourceFiles(
+        from archive: Archive,
+        to applicationSupportDirectory: URL,
+        sourcePathRemappings: [String: String] = [:]
+    ) throws {
         let fileManager = FileManager.default
         for entry in archive where entry.path.hasPrefix("sources/") {
             guard !entry.path.contains("..") else { throw BundleExportError.restoreFailed("Archive source entry contains an unsafe path: \(entry.path).") }
-            let relative = String(entry.path.dropFirst("sources/".count))
-            guard !relative.isEmpty else { continue }
+            let rawRelative = String(entry.path.dropFirst("sources/".count))
+            guard !rawRelative.isEmpty else { continue }
+            let relative = remappedSourceArchivePath(rawRelative, sourcePathRemappings: sourcePathRemappings)
             let destination = applicationSupportDirectory.appendingPathComponent(relative)
             try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
             if fileManager.fileExists(atPath: destination.path) { try fileManager.removeItem(at: destination) }
             _ = try archive.extract(entry, to: destination)
         }
+    }
+
+    private static func remapSourceInputs(
+        _ sourceInputs: [SourceInputRef],
+        oldAssignmentID: UUID,
+        newAssignmentID: UUID
+    ) -> [SourceInputRef] {
+        let oldPrefix = "Sources/\(oldAssignmentID.uuidString)/"
+        return sourceInputs.map { source in
+            var remapped = source
+            if let localRelativePath = source.localRelativePath, localRelativePath.hasPrefix(oldPrefix) {
+                let suffix = String(localRelativePath.dropFirst(oldPrefix.count))
+                remapped.localRelativePath = "Sources/\(newAssignmentID.uuidString)/\(suffix)"
+            }
+            return remapped
+        }
+    }
+
+    private static func remappedSourceArchivePath(
+        _ path: String,
+        sourcePathRemappings: [String: String]
+    ) -> String {
+        for (oldID, newID) in sourcePathRemappings {
+            let oldPrefix = "Sources/\(oldID)/"
+            if path.hasPrefix(oldPrefix) {
+                let suffix = String(path.dropFirst(oldPrefix.count))
+                return "Sources/\(newID)/\(suffix)"
+            }
+        }
+        return path
     }
 
     private static func addCodable<T: Encodable>(_ value: T, named name: String, to archive: Archive) throws {

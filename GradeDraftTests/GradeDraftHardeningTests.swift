@@ -2209,7 +2209,11 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
         let restoredAsCopy = try BundleExportService.restoreBackupArchive(from: written, existingAssignments: [assignment], applicationSupportDirectory: restoreRoot, conflictResolution: .restoreAsCopy)
         XCTAssertEqual(restoredAsCopy.count, 1)
         XCTAssertNotEqual(restoredAsCopy[0].id, assignment.id)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent("Sources/assignment-1/page-1.png").path))
+        let restoredSourcePath = try XCTUnwrap(restoredAsCopy[0].sourceInputs.first?.localRelativePath)
+        XCTAssertEqual(restoredSourcePath, "Sources/\(restoredAsCopy[0].id.uuidString)/page-1.png")
+        XCTAssertTrue(restoredSourcePath.contains(restoredAsCopy[0].id.uuidString))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent(restoredSourcePath).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent("Sources/assignment-1/page-1.png").path))
     }
 
     @MainActor
