@@ -6,21 +6,21 @@ import ZIPFoundation
 
 final class StableFingerprintTests: XCTestCase {
     func testFingerprintIsDeterministic() {
-        let a = StableFingerprint.fingerprint(["hello", "world"])
-        let b = StableFingerprint.fingerprint(["hello", "world"])
-        XCTAssertEqual(a, b, "Same inputs must produce the same fingerprint")
+        let first = StableFingerprint.fingerprint(["hello", "world"])
+        let second = StableFingerprint.fingerprint(["hello", "world"])
+        XCTAssertEqual(first, second, "Same inputs must produce the same fingerprint")
     }
 
     func testFingerprintChangesWithInput() {
-        let a = StableFingerprint.fingerprint(["hello"])
-        let b = StableFingerprint.fingerprint(["world"])
-        XCTAssertNotEqual(a, b, "Different inputs must produce different fingerprints")
+        let first = StableFingerprint.fingerprint(["hello"])
+        let second = StableFingerprint.fingerprint(["world"])
+        XCTAssertNotEqual(first, second, "Different inputs must produce different fingerprints")
     }
 
     func testFingerprintOrderMatters() {
-        let a = StableFingerprint.fingerprint(["a", "b"])
-        let b = StableFingerprint.fingerprint(["b", "a"])
-        XCTAssertNotEqual(a, b, "Different order must produce different fingerprints")
+        let forward = StableFingerprint.fingerprint(["a", "b"])
+        let reversed = StableFingerprint.fingerprint(["b", "a"])
+        XCTAssertNotEqual(forward, reversed, "Different order must produce different fingerprints")
     }
 
     func testFingerprintEmptyArray() {
@@ -40,15 +40,15 @@ final class StableFingerprintTests: XCTestCase {
 
     func testFingerprintDataDeterminism() {
         let data = Data("GradeDraft".utf8)
-        let a = StableFingerprint.fingerprint(data)
-        let b = StableFingerprint.fingerprint(data)
-        XCTAssertEqual(a, b)
+        let first = StableFingerprint.fingerprint(data)
+        let second = StableFingerprint.fingerprint(data)
+        XCTAssertEqual(first, second)
     }
 
     func testFingerprintDistinguishesEmptyComponents() {
-        let a = StableFingerprint.fingerprint(["", "hello"])
-        let b = StableFingerprint.fingerprint(["hello", ""])
-        XCTAssertNotEqual(a, b)
+        let leadingEmpty = StableFingerprint.fingerprint(["", "hello"])
+        let trailingEmpty = StableFingerprint.fingerprint(["hello", ""])
+        XCTAssertNotEqual(leadingEmpty, trailingEmpty)
     }
 }
 
@@ -517,9 +517,9 @@ final class CSVExportServiceHardeningTests: XCTestCase {
     }
 
     func testMultipleAssignmentsProduceMultipleRows() {
-        let a = AssignmentRecord(title: "A", rubricText: "Claim: 0-4 points", reviewedStudentText: "text")
-        let b = AssignmentRecord(title: "B", rubricText: "Evidence: 0-2 points", reviewedStudentText: "text")
-        let rows = CSVExportService.buildStudentRows(from: [a, b])
+        let assignmentA = AssignmentRecord(title: "A", rubricText: "Claim: 0-4 points", reviewedStudentText: "text")
+        let assignmentB = AssignmentRecord(title: "B", rubricText: "Evidence: 0-2 points", reviewedStudentText: "text")
+        let rows = CSVExportService.buildStudentRows(from: [assignmentA, assignmentB])
         XCTAssertEqual(rows.count, 3, "Header + 2 data rows")
     }
 
@@ -1508,13 +1508,13 @@ final class ViewModelHardeningTests: XCTestCase {
 
     @MainActor
     func testSelectAssignment() {
-        let a = AssignmentRecord(title: "A")
-        let b = AssignmentRecord(title: "B")
-        let store = InMemoryAssignmentStore(assignments: [a, b])
-        let viewModel = GradeDraftViewModel(assignments: [a, b], store: store)
+        let assignmentA = AssignmentRecord(title: "A")
+        let assignmentB = AssignmentRecord(title: "B")
+        let store = InMemoryAssignmentStore(assignments: [assignmentA, assignmentB])
+        let viewModel = GradeDraftViewModel(assignments: [assignmentA, assignmentB], store: store)
 
-        viewModel.selectAssignment(b.id)
-        XCTAssertEqual(viewModel.selectedAssignmentID, b.id)
+        viewModel.selectAssignment(assignmentB.id)
+        XCTAssertEqual(viewModel.selectedAssignmentID, assignmentB.id)
         XCTAssertEqual(viewModel.assignment.title, "B")
     }
 }
@@ -1779,11 +1779,11 @@ final class BundleExportHardeningTests: XCTestCase {
     }
 
     func testFullBackupContainsManifestAndData() throws {
-        let a = AssignmentRecord(title: "A", reviewedStudentText: "Text A")
-        let b = AssignmentRecord(title: "B", reviewedStudentText: "Text B")
+        let assignmentA = AssignmentRecord(title: "A", reviewedStudentText: "Text A")
+        let assignmentB = AssignmentRecord(title: "B", reviewedStudentText: "Text B")
         let destination = FileManager.default.temporaryDirectory.appendingPathComponent("backup-hardening-\(UUID()).zip")
         defer { try? FileManager.default.removeItem(at: destination) }
-        let written = try BundleExportService.writeFullBackup(assignments: [a, b], sourceFiles: [], to: destination)
+        let written = try BundleExportService.writeFullBackup(assignments: [assignmentA, assignmentB], sourceFiles: [], to: destination)
         let restored = try BundleExportService.readBackupAssignments(from: written)
         XCTAssertEqual(restored.count, 2)
         XCTAssertTrue(restored.contains { $0.title == "A" })
@@ -1791,10 +1791,10 @@ final class BundleExportHardeningTests: XCTestCase {
     }
 
     func testGradebookArchiveContainsExpectedFiles() throws {
-        let a = AssignmentRecord(title: "Gradebook A", reviewedStudentText: "Text")
+        let gradebookAssignment = AssignmentRecord(title: "Gradebook A", reviewedStudentText: "Text")
         let destination = FileManager.default.temporaryDirectory.appendingPathComponent("gradebook-hardening-\(UUID()).zip")
         defer { try? FileManager.default.removeItem(at: destination) }
-        let written = try BundleExportService.writeAssignmentArchive(assignments: [a], sourceFiles: [], to: destination)
+        let written = try BundleExportService.writeAssignmentArchive(assignments: [gradebookAssignment], sourceFiles: [], to: destination)
         guard let archive = Archive(url: written, accessMode: .read) else {
             return XCTFail("Archive should open")
         }
