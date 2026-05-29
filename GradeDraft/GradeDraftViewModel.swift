@@ -1264,12 +1264,12 @@ final class GradeDraftViewModel: ObservableObject {
     func exportBackupJSON() {
         do {
             let destination = temporaryExportURL(prefix: "GradeDraft-FullBackup", extension: "zip")
-            let sourceFiles = assignments.flatMap { assignment in
+            let sourceFilesForBackup = assignments.flatMap { assignment in
                 sourceFiles(for: assignment)
             }
-            exportURL = try BundleExportService.writeFullBackup(assignments: assignments, sourceFiles: sourceFiles, to: destination, classGroups: classGroups, students: students, rosterEntries: assignmentRosterEntries)
+            exportURL = try BundleExportService.writeFullBackup(assignments: assignments, sourceFiles: sourceFilesForBackup, to: destination, classGroups: classGroups, students: students, rosterEntries: assignmentRosterEntries)
             exportKind = .fullBackupArchive
-            recordExport(kind: .fullBackupArchive, markdown: StableFingerprint.fingerprint(assignments.map(\.gradingPacketFingerprint)), includesPrivateNotes: true, includesOriginalSources: !sourceFiles.isEmpty)
+            recordExport(kind: .fullBackupArchive, markdown: StableFingerprint.fingerprint(assignments.map(\.gradingPacketFingerprint)), includesPrivateNotes: true, includesOriginalSources: !sourceFilesForBackup.isEmpty)
             statusMessage = "Full local backup archive is ready to share. Treat it as sensitive student data."
         } catch {
             errorMessage = error.localizedDescription
