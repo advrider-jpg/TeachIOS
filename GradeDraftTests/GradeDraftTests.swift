@@ -368,7 +368,7 @@ final class GradeDraftTests: XCTestCase {
 
         XCTAssertFalse(viewModel.canApproveFinalReview)
         viewModel.approveFinalReview()
-        XCTAssertEqual(viewModel.errorMessage, "Refresh final review because grading inputs changed since this review was created.")
+        XCTAssertEqual(viewModel.errorMessage, "Recheck final review because student work, rubric, or evidence changed.")
         XCTAssertEqual(viewModel.assignment.finalReview?.status, .inProgress)
     }
 
