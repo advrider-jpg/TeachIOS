@@ -2214,12 +2214,16 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
 
     func testRestoreAsCopyRemapsConflictingAssignmentSourcePaths() throws {
         let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent("V3BackupCopySource-\(UUID())")
+        let restoreRoot = FileManager.default.temporaryDirectory.appendingPathComponent("V3BackupCopyRestore-\(UUID())")
 
         var assignment = approvedAssignment(title: "Backup", student: "Alice")
         let originalRelativePath = "Sources/\(assignment.id.uuidString)/page-1.png"
         let sourceFile = tempRoot.appendingPathComponent(originalRelativePath)
         try FileManager.default.createDirectory(at: sourceFile.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data("source bytes".utf8).write(to: sourceFile)
+        let localConflictFile = restoreRoot.appendingPathComponent(originalRelativePath)
+        try FileManager.default.createDirectory(at: localConflictFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("local-only bytes".utf8).write(to: localConflictFile)
         assignment.sourceInputs = [
             SourceInputRef(
                 sourceType: .pdf,
@@ -2236,7 +2240,6 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
 
         let zipURL = tempRoot.appendingPathComponent("backup.zip")
         let written = try BundleExportService.writeFullBackup(assignments: [assignment], sourceFiles: [sourceFile], to: zipURL)
-        let restoreRoot = FileManager.default.temporaryDirectory.appendingPathComponent("V3BackupCopyRestore-\(UUID())")
 
         let restoredAsCopy = try BundleExportService.restoreBackupArchive(
             from: written,
@@ -2250,7 +2253,11 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
         XCTAssertNotEqual(copiedAssignment.id, assignment.id)
         XCTAssertEqual(copiedRelativePath, "Sources/\(copiedAssignment.id.uuidString)/page-1.png")
         XCTAssertTrue(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent(copiedRelativePath).path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent(originalRelativePath).path))
+        let copiedText = try XCTUnwrap(String(data: try Data(contentsOf: restoreRoot.appendingPathComponent(copiedRelativePath), encoding: .utf8))
+        XCTAssertEqual(copiedText, "source bytes")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent(originalRelativePath).path))
+        let localConflictText = try XCTUnwrap(String(data: try Data(contentsOf: localConflictFile), encoding: .utf8))
+        XCTAssertEqual(localConflictText, "local-only bytes")
     }
 
     @MainActor
