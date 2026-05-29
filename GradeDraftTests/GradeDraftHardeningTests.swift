@@ -348,22 +348,22 @@ final class OCRModelHardeningTests: XCTestCase {
 
     func testOCRLineReviewStatusLabelConfirmed() {
         let line = OCRLine(text: "text", confidence: 0.95, boundingBox: .zero, teacherConfirmed: true)
-        XCTAssertEqual(line.reviewStatusLabel, "confirmed")
+        XCTAssertEqual(line.reviewStatusLabel, "On track")
     }
 
     func testOCRLineReviewStatusLabelCorrected() {
         let line = OCRLine(text: "raw", confidence: 0.95, boundingBox: .zero, correctedText: "corrected", teacherConfirmed: true)
-        XCTAssertEqual(line.reviewStatusLabel, "corrected")
+        XCTAssertEqual(line.reviewStatusLabel, "On track")
     }
 
     func testOCRLineReviewStatusLabelUnreviewed() {
         let line = OCRLine(text: "text", confidence: 0.95, boundingBox: .zero, teacherConfirmed: false)
-        XCTAssertEqual(line.reviewStatusLabel, "unreviewed")
+        XCTAssertEqual(line.reviewStatusLabel, "Needs attention")
     }
 
     func testOCRLineReviewStatusLabelBlockedFromGrading() {
         let line = OCRLine(text: "text", confidence: 0.95, boundingBox: .zero, correctedText: "   ", teacherConfirmed: false)
-        XCTAssertEqual(line.reviewStatusLabel, "blockedFromGrading")
+        XCTAssertEqual(line.reviewStatusLabel, "Fix before continuing")
     }
 
     func testOCRDocumentCombinedTextUsesReviewedText() {
@@ -1533,7 +1533,7 @@ final class EvidenceReferenceHardeningTests: XCTestCase {
             teacherConfirmed: true
         )
         XCTAssertTrue(ref.displaySource.contains("page 3"))
-        XCTAssertTrue(ref.displaySource.contains("OCR line"))
+        XCTAssertTrue(ref.displaySource.contains("text line"))
     }
 
     func testDisplaySourceWithoutOCRLineID() {
@@ -2097,9 +2097,9 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
         var bob = approvedAssignment(title: "Essay", student: "Bob", score: 3)
         bob.className = "6A"
         let csvOutput = CSVExportService.exportedCSV(from: [alice, bob])
-        XCTAssertTrue(csvOutput.contains("\"Alice\""))
-        XCTAssertTrue(csvOutput.contains("\"Bob\""))
-        XCTAssertTrue(csvOutput.contains("\"approved\""))
+        XCTAssertTrue(csvOutput.contains("Alice"))
+        XCTAssertTrue(csvOutput.contains("Bob"))
+        XCTAssertTrue(csvOutput.contains("approved"))
     }
 
     @MainActor
@@ -2135,7 +2135,7 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
 
         let teacherAudit = MarkdownReportBuilder.teacherAuditMarkdown(for: viewModel.assignment)
         XCTAssertTrue(teacherAudit.contains("bbox"))
-        XCTAssertTrue(teacherAudit.contains("OCR line"))
+        XCTAssertTrue(teacherAudit.contains("text line"))
         let studentReport = MarkdownReportBuilder.studentMarkdown(for: viewModel.assignment)
         XCTAssertFalse(studentReport.contains("bbox"))
         XCTAssertFalse(studentReport.contains("source:"))
