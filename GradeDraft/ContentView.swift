@@ -832,13 +832,21 @@ struct ContentView: View {
 
     private func listSubtitle(for assignment: AssignmentRecord) -> String {
         let state: String
-        if assignment.finalReview?.status == .approved { state = "Final approved" }
-        else if assignment.finalReview != nil { state = "Final review" }
-        else if assignment.latestDraftIsStale { state = "Draft stale" }
-        else if assignment.latestDraft != nil { state = "Drafted" }
-        else if assignment.ocrReviewStatus.blocksGrading { state = "Needs OCR review" }
-        else if !assignment.reviewedStudentText.isEmpty { state = "Text ready" }
-        else { state = "Setup" }
+        if assignment.finalReview?.status == .approved {
+            state = "Final approved"
+        } else if assignment.finalReview != nil {
+            state = "Final review"
+        } else if assignment.latestDraftIsStale {
+            state = "Draft stale"
+        } else if assignment.latestDraft != nil {
+            state = "Drafted"
+        } else if assignment.ocrReviewStatus.blocksGrading {
+            state = "Needs OCR review"
+        } else if !assignment.reviewedStudentText.isEmpty {
+            state = "Text ready"
+        } else {
+            state = "Setup"
+        }
         return "\(assignment.assignmentType.displayName) · \(state)"
     }
 }
