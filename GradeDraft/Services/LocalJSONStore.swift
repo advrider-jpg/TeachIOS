@@ -25,6 +25,9 @@ final class LocalJSONStore: AssignmentStoring {
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
     private let assignmentsURL: URL
+    private let classGroupsURL: URL
+    private let studentsURL: URL
+    private let rosterURL: URL
     private let appDirectory: URL
 
     init(fileManager: FileManager = .default) {
@@ -39,6 +42,9 @@ final class LocalJSONStore: AssignmentStoring {
             ?? fileManager.temporaryDirectory
         appDirectory = supportURL.appendingPathComponent("GradeDraft", isDirectory: true)
         assignmentsURL = appDirectory.appendingPathComponent("assignments-v3.json")
+        classGroupsURL = appDirectory.appendingPathComponent("classgroups-v3.json")
+        studentsURL = appDirectory.appendingPathComponent("students-v3.json")
+        rosterURL = appDirectory.appendingPathComponent("roster-v3.json")
     }
 
     func applicationSupportDirectory() throws -> URL {
@@ -49,9 +55,7 @@ final class LocalJSONStore: AssignmentStoring {
     }
 
     func loadAssignments() throws -> [AssignmentRecord] {
-        guard fileManager.fileExists(atPath: assignmentsURL.path) else {
-            return []
-        }
+        guard fileManager.fileExists(atPath: assignmentsURL.path) else { return [] }
         let data = try Data(contentsOf: assignmentsURL)
         return try decoder.decode([AssignmentRecord].self, from: data)
     }
@@ -61,8 +65,7 @@ final class LocalJSONStore: AssignmentStoring {
         if !fileManager.fileExists(atPath: directory.path) {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         }
-        let sorted = assignments.sorted { $0.updatedAt > $1.updatedAt }
-        let data = try encoder.encode(sorted)
+        let data = try encoder.encode(assignments.sorted { $0.updatedAt > $1.updatedAt })
         try data.write(to: assignmentsURL, options: [.atomic])
     }
 
@@ -70,6 +73,65 @@ final class LocalJSONStore: AssignmentStoring {
         var assignments = try loadAssignments()
         assignments.removeAll { $0.id == id }
         try saveAssignments(assignments)
+    }
+
+    func loadClassGroups() throws -> [ClassGroupRecord] {
+        guard fileManager.fileExists(atPath: classGroupsURL.path) else { return [] }
+        return (try? decoder.decode([ClassGroupRecord].self, from: Data(contentsOf: classGroupsURL))) ?? []
+    }
+
+    func saveClassGroup(_ classGroup: ClassGroupRecord) throws {
+        var groups = try loadClassGroups()
+        if let index = groups.firstIndex(where: { $0.id == classGroup.id }) {
+            groups[index] = classGroup
+        } else {
+            groups.append(classGroup)
+        }
+        try encoder.encode(groups).write(to: classGroupsURL, options: [.atomic])
+    }
+
+    func deleteClassGroup(id: UUID) throws {
+        var groups = try loadClassGroups()
+        groups.removeAll { $0.id == id }
+        try encoder.encode(groups).write(to: classGroupsURL, options: [.atomic])
+    }
+
+    func loadStudents() throws -> [StudentRecord] {
+        guard fileManager.fileExists(atPath: studentsURL.path) else { return [] }
+        return (try? decoder.decode([StudentRecord].self, from: Data(contentsOf: studentsURL))) ?? []
+    }
+
+    func saveStudent(_ student: StudentRecord) throws {
+        var students = try loadStudents()
+        if let index = students.firstIndex(where: { $0.id == student.id }) {
+            students[index] = student
+        } else {
+            students.append(student)
+        }
+        try encoder.encode(students).write(to: studentsURL, options: [.atomic])
+    }
+
+    func deleteStudent(id: UUID) throws {
+        var students = try loadStudents()
+        students.removeAll { $0.id == id }
+        try encoder.encode(students).write(to: studentsURL, options: [.atomic])
+    }
+
+    func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] {
+        try loadAllRosterEntries().filter { $0.assignmentID == assignmentID }
+    }
+
+    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws {
+        let assignmentIDs = Set(entries.map(\.assignmentID))
+        var all = try loadAllRosterEntries()
+        all.removeAll { assignmentIDs.contains($0.assignmentID) }
+        all.append(contentsOf: entries)
+        try encoder.encode(all).write(to: rosterURL, options: [.atomic])
+    }
+
+    private func loadAllRosterEntries() throws -> [AssignmentRosterEntry] {
+        guard fileManager.fileExists(atPath: rosterURL.path) else { return [] }
+        return (try? decoder.decode([AssignmentRosterEntry].self, from: Data(contentsOf: rosterURL))) ?? []
     }
 }
 
