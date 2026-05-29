@@ -14,7 +14,7 @@ enum SpreadsheetSafety {
             firstCharacter == "-" ||
             firstCharacter == "@" {
             let leadingWhitespace = value.prefix { $0.isWhitespace }
-            if !leadingWhitespace.isEmpty && leadingWhitespace.allSatisfy({ $0 == "\t" }) {
+            if !leadingWhitespace.isEmpty && leadingWhitespace.replacingOccurrences(of: "\t", with: "").isEmpty {
                 return value
             }
             return "'" + value
@@ -81,7 +81,13 @@ enum CSVExportService {
     }
 
     static func exportedCSV(from assignments: [AssignmentRecord]) -> String {
-        buildStudentRows(from: assignments).map { $0.joined(separator: ",") }.joined(separator: "\n")
+        let rows = buildStudentRows(from: assignments)
+        guard let header = rows.first else { return "" }
+        let headerLine = header.joined(separator: ",")
+        let dataRows = rows.dropFirst().map { row in
+            row.map { csvEscaped($0) }.joined(separator: ",")
+        }
+        return ([headerLine] + dataRows).joined(separator: "\n")
     }
 
     static func writeCSV(from assignments: [AssignmentRecord], to destination: URL) throws -> URL {
@@ -90,7 +96,8 @@ enum CSVExportService {
     }
 
     private static func csvEscaped(_ value: String) -> String {
-        value.replacingOccurrences(of: "\"", with: "\"\"")
+        let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+        return "\"\(escaped)\""
     }
 
     private static func exportFinalStatus(for assignment: AssignmentRecord) -> String {
@@ -99,13 +106,13 @@ enum CSVExportService {
         }
 
         if review.status == .approved {
-            if assignment.finalReviewIsStale {
+            if assignment.finalReviewIsStale && assignment.hasGradingStandard {
                 return "stale_review"
             }
             return "approved"
         }
 
-        if assignment.finalReviewIsStale || review.status == .stale {
+        if review.status == .stale || (assignment.finalReviewIsStale && assignment.hasGradingStandard) {
             return "stale_review"
         }
 

@@ -235,11 +235,13 @@ extension AssignmentRecord: Codable {
 
     var latestDraftIsStale: Bool {
         guard let latestDraft else { return false }
+        guard hasGradingStandard else { return false }
         return latestDraft.packetFingerprint != gradingPacketFingerprint
     }
 
     var finalReviewIsStale: Bool {
         guard let finalReview else { return false }
+        guard hasGradingStandard else { return false }
         return finalReview.packetFingerprint != gradingPacketFingerprint
     }
 

@@ -21,8 +21,12 @@ enum MarkdownRubricParser {
             if row.kind == .heading {
                 currentGroup = row.title
                 if let currentGroup, !groups.contains(currentGroup) { groups.append(currentGroup) }
-                guard let maxPoints = row.maxPoints ?? RubricParser.maxPoints(in: row.text),
-                      let title = RubricParser.criterionTitle(from: row.text) ?? row.title.nilIfEmpty else {
+                let headingText = row.text
+                let headingTitle = RubricParser.criterionTitle(from: headingText)
+                    ?? RubricParser.criterionTitle(from: row.title)
+                    ?? row.title.nilIfEmpty
+                guard let maxPoints = row.maxPoints ?? RubricParser.maxPoints(in: headingText) ?? RubricParser.maxPoints(in: row.title),
+                      let title = headingTitle else {
                     continue
                 }
 

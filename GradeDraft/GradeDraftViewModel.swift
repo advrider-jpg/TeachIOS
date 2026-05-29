@@ -151,15 +151,15 @@ final class GradeDraftViewModel: ObservableObject {
         guard finalReview.criteria.isEmpty == false else {
             return false
         }
-        if assignment.hasGradingStandard && assignment.finalReviewIsStale {
-            return false
-        }
         if !finalReview.allCriteriaApproved {
             return false
         }
         if finalReview.criteria.contains(where: { criterion in
             criterion.finalPoints < 0 || criterion.finalPoints > criterion.maxPoints
         }) {
+            return false
+        }
+        if assignment.finalReviewIsStale {
             return false
         }
         return true
@@ -172,9 +172,6 @@ final class GradeDraftViewModel: ObservableObject {
         if finalReview.criteria.isEmpty {
             return "Add at least one criterion before approval."
         }
-        if assignment.hasGradingStandard && assignment.finalReviewIsStale {
-            return "Refresh final review because grading inputs changed since this review was created."
-        }
         if !finalReview.allCriteriaApproved {
             return "Approve all final-review criteria before finalizing."
         }
@@ -182,6 +179,9 @@ final class GradeDraftViewModel: ObservableObject {
             criterion.finalPoints < 0 || criterion.finalPoints > criterion.maxPoints
         }) {
             return "Correct out-of-range criterion scores before finalizing."
+        }
+        if assignment.finalReviewIsStale {
+            return "Refresh final review because grading inputs changed since this review was created."
         }
         return nil
     }

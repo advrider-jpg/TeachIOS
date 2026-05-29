@@ -98,20 +98,26 @@ final class GradeDraftDatabase {
 
     func loadClassGroups() throws -> [ClassGroupRecord] {
         try databaseQueue.read { db in
-            try Row.fetchAll(db, sql: "SELECT * FROM class_groups ORDER BY updated_at DESC").map { row in
-                ClassGroupRecord(
-                    id: uuid(row, "id"),
-                    name: text(row, "name"),
-                    schoolYear: text(row, "school_year"),
-                    term: text(row, "term"),
-                    subject: text(row, "subject"),
-                    gradeLevel: text(row, "year_level"),
-                    notes: text(row, "notes"),
-                    isArchived: bool(row, "is_archived"),
-                    createdAt: date(row, "created_at"),
-                    updatedAt: date(row, "updated_at")
+            let rows = try Row.fetchAll(db, sql: "SELECT * FROM class_groups ORDER BY updated_at DESC")
+            var groups: [ClassGroupRecord] = []
+            groups.reserveCapacity(rows.count)
+            for row in rows {
+                groups.append(
+                    ClassGroupRecord(
+                        id: try uuid(row, "id", context: "class_groups.id"),
+                        name: text(row, "name"),
+                        schoolYear: text(row, "school_year"),
+                        term: text(row, "term"),
+                        subject: text(row, "subject"),
+                        gradeLevel: text(row, "year_level"),
+                        notes: text(row, "notes"),
+                        isArchived: bool(row, "is_archived"),
+                        createdAt: date(row, "created_at"),
+                        updatedAt: date(row, "updated_at")
+                    )
                 )
             }
+            return groups
         }
     }
 
@@ -140,18 +146,24 @@ final class GradeDraftDatabase {
 
     func loadStudents() throws -> [StudentRecord] {
         try databaseQueue.read { db in
-            try Row.fetchAll(db, sql: "SELECT * FROM students ORDER BY updated_at DESC").map { row in
-                StudentRecord(
-                    id: uuid(row, "id"),
-                    displayName: text(row, "display_name"),
-                    className: text(row, "class_name"),
-                    localIdentifier: text(row, "local_identifier"),
-                    notes: text(row, "notes"),
-                    isActive: bool(row, "is_active", defaultValue: true),
-                    createdAt: date(row, "created_at"),
-                    updatedAt: date(row, "updated_at")
+            let rows = try Row.fetchAll(db, sql: "SELECT * FROM students ORDER BY updated_at DESC")
+            var students: [StudentRecord] = []
+            students.reserveCapacity(rows.count)
+            for row in rows {
+                students.append(
+                    StudentRecord(
+                        id: try uuid(row, "id", context: "students.id"),
+                        displayName: text(row, "display_name"),
+                        className: text(row, "class_name"),
+                        localIdentifier: text(row, "local_identifier"),
+                        notes: text(row, "notes"),
+                        isActive: bool(row, "is_active", defaultValue: true),
+                        createdAt: date(row, "created_at"),
+                        updatedAt: date(row, "updated_at")
+                    )
                 )
             }
+            return students
         }
     }
 
@@ -176,19 +188,25 @@ final class GradeDraftDatabase {
 
     func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] {
         try databaseQueue.read { db in
-            try Row.fetchAll(db, sql: "SELECT * FROM assignment_roster_entries WHERE assignment_id = ? ORDER BY sort_order", arguments: [assignmentID.uuidString]).map { row in
-                AssignmentRosterEntry(
-                    id: uuid(row, "id"),
-                    assignmentID: uuid(row, "assignment_id"),
-                    studentID: uuid(row, "student_id"),
-                    studentDisplayName: text(row, "student_display_name"),
-                    localIdentifier: text(row, "local_identifier"),
-                    status: AssignmentRosterStatus(rawValue: text(row, "status")) ?? .notStarted,
-                    sortOrder: int(row, "sort_order"),
-                    createdAt: date(row, "created_at"),
-                    updatedAt: date(row, "updated_at")
+            let rows = try Row.fetchAll(db, sql: "SELECT * FROM assignment_roster_entries WHERE assignment_id = ? ORDER BY sort_order", arguments: [assignmentID.uuidString])
+            var entries: [AssignmentRosterEntry] = []
+            entries.reserveCapacity(rows.count)
+            for row in rows {
+                entries.append(
+                    AssignmentRosterEntry(
+                        id: try uuid(row, "id", context: "assignment_roster_entries.id"),
+                        assignmentID: try uuid(row, "assignment_id", context: "assignment_roster_entries.assignment_id"),
+                        studentID: try uuid(row, "student_id", context: "assignment_roster_entries.student_id"),
+                        studentDisplayName: text(row, "student_display_name"),
+                        localIdentifier: text(row, "local_identifier"),
+                        status: AssignmentRosterStatus(rawValue: text(row, "status")) ?? .notStarted,
+                        sortOrder: int(row, "sort_order"),
+                        createdAt: date(row, "created_at"),
+                        updatedAt: date(row, "updated_at")
+                    )
                 )
             }
+            return entries
         }
     }
 
@@ -375,10 +393,13 @@ final class GradeDraftDatabase {
 
     private func loadNormalizedAssignments(in db: Database) throws -> [AssignmentRecord] {
         let rows = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_assignments ORDER BY updated_at DESC")
-        return try rows.map { row in
-            let assignmentID = uuid(row, "id")
+        var assignments: [AssignmentRecord] = []
+        assignments.reserveCapacity(rows.count)
+        for row in rows {
+            let assignmentID = try uuid(row, "id", context: "grade_draft_assignments.id")
             let idText = assignmentID.uuidString
-            return AssignmentRecord(
+            assignments.append(
+                AssignmentRecord(
                 id: assignmentID,
                 classGroupID: optionalUUID(row, "class_group_id"),
                 studentID: optionalUUID(row, "student_id"),
@@ -409,7 +430,9 @@ final class GradeDraftDatabase {
                 createdAt: date(row, "created_at"),
                 updatedAt: date(row, "updated_at")
             )
+            )
         }
+        return assignments
     }
 
     private func loadPayloadAssignments(in db: Database) throws -> [AssignmentRecord] {
@@ -421,71 +444,92 @@ final class GradeDraftDatabase {
     }
 
     private func loadSourceInputs(assignmentID: String, in db: Database) throws -> [SourceInputRef] {
-        try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_source_inputs WHERE assignment_id = ? ORDER BY COALESCE(page_index, -1), created_at", arguments: [assignmentID]).map { row in
-            SourceInputRef(
-                id: uuid(row, "id"),
-                sourceType: SourceType(rawValue: text(row, "source_type")) ?? .pastedText,
-                pageIndex: optionalInt(row, "page_index"),
-                localRelativePath: optionalText(row, "local_relative_path"),
-                fileName: optionalText(row, "file_name"),
-                mimeType: optionalText(row, "mime_type"),
-                contentDigest: optionalText(row, "content_digest"),
-                digestAlgorithm: optionalText(row, "digest_algorithm"),
-                imageWidth: optionalDouble(row, "image_width"),
-                imageHeight: optionalDouble(row, "image_height"),
-                pdfPageCount: optionalInt(row, "pdf_page_count"),
-                teacherIncludedInExport: bool(row, "teacher_included_in_export"),
-                createdAt: date(row, "created_at")
+        let rows = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_source_inputs WHERE assignment_id = ? ORDER BY COALESCE(page_index, -1), created_at", arguments: [assignmentID])
+        var sources: [SourceInputRef] = []
+        sources.reserveCapacity(rows.count)
+        for row in rows {
+            sources.append(
+                SourceInputRef(
+                    id: try uuid(row, "id", context: "grade_draft_source_inputs.id"),
+                    sourceType: SourceType(rawValue: text(row, "source_type")) ?? .pastedText,
+                    pageIndex: optionalInt(row, "page_index"),
+                    localRelativePath: optionalText(row, "local_relative_path"),
+                    fileName: optionalText(row, "file_name"),
+                    mimeType: optionalText(row, "mime_type"),
+                    contentDigest: optionalText(row, "content_digest"),
+                    digestAlgorithm: optionalText(row, "digest_algorithm"),
+                    imageWidth: optionalDouble(row, "image_width"),
+                    imageHeight: optionalDouble(row, "image_height"),
+                    pdfPageCount: optionalInt(row, "pdf_page_count"),
+                    teacherIncludedInExport: bool(row, "teacher_included_in_export"),
+                    createdAt: date(row, "created_at")
+                )
             )
         }
+        return sources
     }
 
     private func loadOCRDocument(assignmentID: String, in db: Database) throws -> OCRDocument? {
         let rows = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_ocr_lines WHERE assignment_id = ? ORDER BY page_index, rowid", arguments: [assignmentID])
         guard !rows.isEmpty else { return nil }
         let grouped = Dictionary(grouping: rows) { text($0, "page_id") }
-        let pages: [OCRPage] = grouped.values.map { pageRows in
-            let first = pageRows[0]
-            let lines = pageRows.map { row in
-                OCRLine(
-                    id: uuid(row, "id"),
-                    text: text(row, "raw_text"),
-                    confidence: Float(double(row, "confidence")),
-                    boundingBox: NormalizedRect(x: CGFloat(double(row, "bbox_x")), y: CGFloat(double(row, "bbox_y")), width: CGFloat(double(row, "bbox_width")), height: CGFloat(double(row, "bbox_height"))),
-                    correctedText: optionalText(row, "corrected_text"),
-                    teacherConfirmed: bool(row, "teacher_confirmed"),
-                    isRejected: bool(row, "is_rejected")
+        let groupedPageRows = Array(grouped.values)
+        var pages: [OCRPage] = []
+        pages.reserveCapacity(groupedPageRows.count)
+        for currentPageRows in groupedPageRows {
+            guard let first = currentPageRows.first else { continue }
+            var lines: [OCRLine] = []
+            lines.reserveCapacity(currentPageRows.count)
+            for row in currentPageRows {
+                lines.append(
+                    OCRLine(
+                        id: try uuid(row, "id", context: "grade_draft_ocr_lines.id"),
+                        text: text(row, "raw_text"),
+                        confidence: Float(double(row, "confidence")),
+                        boundingBox: NormalizedRect(x: CGFloat(double(row, "bbox_x")), y: CGFloat(double(row, "bbox_y")), width: CGFloat(double(row, "bbox_width")), height: CGFloat(double(row, "bbox_height"))),
+                        correctedText: optionalText(row, "corrected_text"),
+                        teacherConfirmed: bool(row, "teacher_confirmed"),
+                        isRejected: bool(row, "is_rejected")
+                    )
                 )
             }
-            return OCRPage(
-                id: uuid(first, "page_id"),
-                sourceInputID: optionalUUID(first, "source_input_id"),
-                pageIndex: int(first, "page_index"),
-                lines: lines
+            pages.append(
+                OCRPage(
+                    id: try uuid(first, "page_id", context: "grade_draft_ocr_lines.page_id"),
+                    sourceInputID: optionalUUID(first, "source_input_id"),
+                    pageIndex: int(first, "page_index"),
+                    lines: lines
+                )
             )
-        }.sorted { $0.pageIndex < $1.pageIndex }
+        }
+        pages.sort { $0.pageIndex < $1.pageIndex }
         let document = OCRDocument(pages: pages, reviewStatus: pages.flatMap(\.lines).contains { $0.needsReview } ? .needsReview : .reviewed)
         return document
     }
 
     private func loadLatestDraft(assignmentID: String, in db: Database) throws -> GradeDraftResult? {
         guard let row = try Row.fetchOne(db, sql: "SELECT * FROM grade_draft_drafts WHERE assignment_id = ? ORDER BY generated_at DESC LIMIT 1", arguments: [assignmentID]) else { return nil }
-        let draftID = uuid(row, "id")
-        let criteria = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_draft_criteria WHERE draft_id = ? ORDER BY rowid", arguments: [draftID.uuidString]).map { criterionRow in
-            CriterionScore(
-                id: uuid(criterionRow, "id"),
-                criterionID: optionalText(criterionRow, "criterion_id"),
-                criterion: text(criterionRow, "criterion"),
-                rating: text(criterionRow, "rating"),
-                proposedPoints: double(criterionRow, "proposed_points"),
-                maxPoints: double(criterionRow, "max_points"),
-                evidence: decodeJSONString(text(criterionRow, "evidence_json"), defaultValue: [String]()),
-                evidenceSourceRefs: decodeJSONString(text(criterionRow, "evidence_refs_json"), defaultValue: [String]()),
-                explanation: text(criterionRow, "explanation"),
-                teacherReviewRequired: bool(criterionRow, "teacher_review_required"),
-                nextStep: text(criterionRow, "next_step"),
-                confidence: text(criterionRow, "confidence"),
-                criterionUncertaintyFlags: decodeJSONString(text(criterionRow, "criterion_uncertainty_flags_json"), defaultValue: [String]())
+        let draftID = try uuid(row, "id", context: "grade_draft_drafts.id")
+        let criteriaRows = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_draft_criteria WHERE draft_id = ? ORDER BY rowid", arguments: [draftID.uuidString])
+        var criteria: [CriterionScore] = []
+        criteria.reserveCapacity(criteriaRows.count)
+        for criterionRow in criteriaRows {
+            criteria.append(
+                CriterionScore(
+                    id: try uuid(criterionRow, "id", context: "grade_draft_draft_criteria.id"),
+                    criterionID: optionalText(criterionRow, "criterion_id"),
+                    criterion: text(criterionRow, "criterion"),
+                    rating: text(criterionRow, "rating"),
+                    proposedPoints: double(criterionRow, "proposed_points"),
+                    maxPoints: double(criterionRow, "max_points"),
+                    evidence: try decodeJSONString(criterionRow, "evidence_json"),
+                    evidenceSourceRefs: try decodeJSONString(criterionRow, "evidence_refs_json"),
+                    explanation: text(criterionRow, "explanation"),
+                    teacherReviewRequired: bool(criterionRow, "teacher_review_required"),
+                    nextStep: text(criterionRow, "next_step"),
+                    confidence: text(criterionRow, "confidence"),
+                    criterionUncertaintyFlags: try decodeJSONString(criterionRow, "criterion_uncertainty_flags_json")
+                )
             )
         }
         return GradeDraftResult(
@@ -499,29 +543,34 @@ final class GradeDraftDatabase {
             maxScore: double(row, "max_score"),
             studentFeedback: text(row, "student_feedback"),
             teacherNotes: text(row, "teacher_notes"),
-            uncertaintyFlags: decodeJSONString(text(row, "uncertainty_flags_json"), defaultValue: [String]()),
-            complianceFlags: decodeJSONString(text(row, "compliance_flags_json"), defaultValue: [String]()),
+            uncertaintyFlags: try decodeJSONString(row, "uncertainty_flags_json"),
+            complianceFlags: try decodeJSONString(row, "compliance_flags_json"),
             rawModelResponse: optionalText(row, "raw_model_response")
         )
     }
 
     private func loadFinalReview(assignmentID: String, in db: Database) throws -> FinalGradeReview? {
         guard let row = try Row.fetchOne(db, sql: "SELECT * FROM grade_draft_final_reviews WHERE assignment_id = ? ORDER BY created_at DESC LIMIT 1", arguments: [assignmentID]) else { return nil }
-        let reviewID = uuid(row, "id")
-        let criteria = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_final_criteria WHERE final_review_id = ? ORDER BY rowid", arguments: [reviewID.uuidString]).map { criterionRow in
-            FinalCriterionScore(
-                id: uuid(criterionRow, "id"),
-                criterionID: optionalText(criterionRow, "criterion_id"),
-                criterion: text(criterionRow, "criterion"),
-                rating: text(criterionRow, "rating"),
-                proposedPoints: double(criterionRow, "proposed_points"),
-                finalPoints: double(criterionRow, "final_points"),
-                maxPoints: double(criterionRow, "max_points"),
-                evidence: decodeJSONString(text(criterionRow, "evidence_json"), defaultValue: [String]()),
-                evidenceSourceRefs: decodeJSONString(text(criterionRow, "evidence_refs_json"), defaultValue: [String]()),
-                explanation: text(criterionRow, "explanation"),
-                teacherApproved: bool(criterionRow, "teacher_approved"),
-                teacherRationale: text(criterionRow, "teacher_rationale")
+        let reviewID = try uuid(row, "id", context: "grade_draft_final_reviews.id")
+        let criteriaRows = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_final_criteria WHERE final_review_id = ? ORDER BY rowid", arguments: [reviewID.uuidString])
+        var criteria: [FinalCriterionScore] = []
+        criteria.reserveCapacity(criteriaRows.count)
+        for criterionRow in criteriaRows {
+            criteria.append(
+                FinalCriterionScore(
+                    id: try uuid(criterionRow, "id", context: "grade_draft_final_criteria.id"),
+                    criterionID: optionalText(criterionRow, "criterion_id"),
+                    criterion: text(criterionRow, "criterion"),
+                    rating: text(criterionRow, "rating"),
+                    proposedPoints: double(criterionRow, "proposed_points"),
+                    finalPoints: double(criterionRow, "final_points"),
+                    maxPoints: double(criterionRow, "max_points"),
+                    evidence: try decodeJSONString(criterionRow, "evidence_json"),
+                    evidenceSourceRefs: try decodeJSONString(criterionRow, "evidence_refs_json"),
+                    explanation: text(criterionRow, "explanation"),
+                    teacherApproved: bool(criterionRow, "teacher_approved"),
+                    teacherRationale: text(criterionRow, "teacher_rationale")
+                )
             )
         }
         return FinalGradeReview(
@@ -540,60 +589,84 @@ final class GradeDraftDatabase {
     }
 
     private func loadEvidenceReferences(assignmentID: String, in db: Database) throws -> [EvidenceReference] {
-        try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_evidence_references WHERE assignment_id = ? ORDER BY created_at", arguments: [assignmentID]).map { row in
-            EvidenceReference(
-                id: uuid(row, "id"),
-                sourceInputID: optionalUUID(row, "source_input_id"),
-                ocrLineID: optionalUUID(row, "ocr_line_id"),
-                pageIndex: optionalInt(row, "page_index"),
-                quote: text(row, "quote"),
-                startOffset: optionalInt(row, "start_offset"),
-                endOffset: optionalInt(row, "end_offset"),
-                boundingBox: optionalDouble(row, "bbox_x").map { _ in NormalizedRect(x: CGFloat(double(row, "bbox_x")), y: CGFloat(double(row, "bbox_y")), width: CGFloat(double(row, "bbox_width")), height: CGFloat(double(row, "bbox_height"))) },
-                sourceKind: text(row, "source_kind"),
-                teacherConfirmed: bool(row, "teacher_confirmed"),
-                createdAt: date(row, "created_at")
+        let rows = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_evidence_references WHERE assignment_id = ? ORDER BY created_at", arguments: [assignmentID])
+        var references: [EvidenceReference] = []
+        references.reserveCapacity(rows.count)
+        for row in rows {
+            references.append(
+                EvidenceReference(
+                    id: try uuid(row, "id", context: "grade_draft_evidence_references.id"),
+                    sourceInputID: optionalUUID(row, "source_input_id"),
+                    ocrLineID: optionalUUID(row, "ocr_line_id"),
+                    pageIndex: optionalInt(row, "page_index"),
+                    quote: text(row, "quote"),
+                    startOffset: optionalInt(row, "start_offset"),
+                    endOffset: optionalInt(row, "end_offset"),
+                    boundingBox: optionalDouble(row, "bbox_x").map { _ in NormalizedRect(x: CGFloat(double(row, "bbox_x")), y: CGFloat(double(row, "bbox_y")), width: CGFloat(double(row, "bbox_width")), height: CGFloat(double(row, "bbox_height"))) },
+                    sourceKind: text(row, "source_kind"),
+                    teacherConfirmed: bool(row, "teacher_confirmed"),
+                    createdAt: date(row, "created_at")
+                )
             )
         }
+        return references
     }
 
     private func loadCurriculumMappings(assignmentID: String, in db: Database) throws -> [CurriculumMapping] {
-        try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_curriculum_mappings WHERE assignment_id = ? ORDER BY created_at", arguments: [assignmentID]).map { row in
-            CurriculumMapping(
-                id: uuid(row, "id"),
-                curriculumItemID: text(row, "curriculum_item_id"),
-                mappingKind: text(row, "mapping_kind"),
-                rubricCriterionID: optionalText(row, "rubric_criterion_id"),
-                evidenceReferenceID: optionalUUID(row, "evidence_reference_id"),
-                teacherSelected: bool(row, "teacher_selected", defaultValue: true),
-                createdAt: date(row, "created_at")
+        let rows = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_curriculum_mappings WHERE assignment_id = ? ORDER BY created_at", arguments: [assignmentID])
+        var mappings: [CurriculumMapping] = []
+        mappings.reserveCapacity(rows.count)
+        for row in rows {
+            mappings.append(
+                CurriculumMapping(
+                    id: try uuid(row, "id", context: "grade_draft_curriculum_mappings.id"),
+                    curriculumItemID: text(row, "curriculum_item_id"),
+                    mappingKind: text(row, "mapping_kind"),
+                    rubricCriterionID: optionalText(row, "rubric_criterion_id"),
+                    evidenceReferenceID: optionalUUID(row, "evidence_reference_id"),
+                    teacherSelected: bool(row, "teacher_selected", defaultValue: true),
+                    createdAt: date(row, "created_at")
+                )
             )
         }
+        return mappings
     }
 
     private func loadExportRecords(assignmentID: String, in db: Database) throws -> [ExportRecord] {
-        try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_export_records WHERE assignment_id = ? ORDER BY created_at", arguments: [assignmentID]).map { row in
-            ExportRecord(
-                id: uuid(row, "id"),
-                exportKind: ExportKind(rawValue: text(row, "export_kind")) ?? .teacherAuditMarkdown,
-                createdAt: date(row, "created_at"),
-                contentFingerprint: text(row, "content_fingerprint"),
-                includesPrivateTeacherNotes: bool(row, "includes_private_teacher_notes"),
-                includesOriginalSources: bool(row, "includes_original_sources")
+        let rows = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_export_records WHERE assignment_id = ? ORDER BY created_at", arguments: [assignmentID])
+        var records: [ExportRecord] = []
+        records.reserveCapacity(rows.count)
+        for row in rows {
+            records.append(
+                ExportRecord(
+                    id: try uuid(row, "id", context: "grade_draft_export_records.id"),
+                    exportKind: ExportKind(rawValue: text(row, "export_kind")) ?? .teacherAuditMarkdown,
+                    createdAt: date(row, "created_at"),
+                    contentFingerprint: text(row, "content_fingerprint"),
+                    includesPrivateTeacherNotes: bool(row, "includes_private_teacher_notes"),
+                    includesOriginalSources: bool(row, "includes_original_sources")
+                )
             )
         }
+        return records
     }
 
     private func loadAuditEvents(assignmentID: String, in db: Database) throws -> [AuditEvent] {
-        try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_audit_events WHERE assignment_id = ? ORDER BY created_at", arguments: [assignmentID]).map { row in
-            AuditEvent(
-                id: uuid(row, "id"),
-                timestamp: date(row, "created_at"),
-                eventType: AuditEventType(rawValue: text(row, "event_type")) ?? .inputChanged,
-                actor: text(row, "actor"),
-                detail: text(row, "detail")
+        let rows = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_audit_events WHERE assignment_id = ? ORDER BY created_at", arguments: [assignmentID])
+        var events: [AuditEvent] = []
+        events.reserveCapacity(rows.count)
+        for row in rows {
+            events.append(
+                AuditEvent(
+                    id: try uuid(row, "id", context: "grade_draft_audit_events.id"),
+                    timestamp: date(row, "created_at"),
+                    eventType: AuditEventType(rawValue: text(row, "event_type")) ?? .inputChanged,
+                    actor: text(row, "actor"),
+                    detail: text(row, "detail")
+                )
             )
         }
+        return events
     }
 
     private func deleteAssignmentRows(id: String, in db: Database, keepPayload: Bool = false) throws {
@@ -729,9 +802,22 @@ final class GradeDraftDatabase {
         return String(data: data, encoding: .utf8) ?? "[]"
     }
 
-    private func decodeJSONString<T: Decodable>(_ value: String, defaultValue: T) -> T {
-        guard let data = value.data(using: .utf8) else { return defaultValue }
-        return (try? jsonDecoder.decode(T.self, from: data)) ?? defaultValue
+    private func decodeJSONString<T: Decodable>(_ row: Row, _ column: String) throws -> T {
+        guard let value = optionalText(row, column) else {
+            throw GradeDraftDatabaseError.dataCorrupted("Missing JSON for \(column).")
+        }
+        return try decodeJSONString(value)
+    }
+
+    private func decodeJSONString<T: Decodable>(_ value: String) throws -> T {
+        guard let data = value.data(using: .utf8) else {
+            throw GradeDraftDatabaseError.dataCorrupted("Unable to read JSON payload.")
+        }
+        do {
+            return try jsonDecoder.decode(T.self, from: data)
+        } catch {
+            throw GradeDraftDatabaseError.dataCorrupted("JSON decode failed: \(error)")
+        }
     }
 
     nonisolated(unsafe) private static let iso8601: ISO8601DateFormatter = {
@@ -739,8 +825,14 @@ final class GradeDraftDatabase {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+    nonisolated(unsafe) private static let iso8601WithOptionalFraction: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
 
     private var iso8601: ISO8601DateFormatter { Self.iso8601 }
+    private var iso8601WithOptionalFraction: ISO8601DateFormatter { Self.iso8601WithOptionalFraction }
 
     private func text(_ row: Row, _ column: String, defaultValue: String = "") -> String { optionalText(row, column) ?? defaultValue }
     private func optionalText(_ row: Row, _ column: String) -> String? { let value: String? = row[column]; return value }
@@ -749,11 +841,19 @@ final class GradeDraftDatabase {
     private func double(_ row: Row, _ column: String, defaultValue: Double = 0) -> Double { optionalDouble(row, column) ?? defaultValue }
     private func optionalDouble(_ row: Row, _ column: String) -> Double? { let value: Double? = row[column]; return value }
     private func bool(_ row: Row, _ column: String, defaultValue: Bool = false) -> Bool { let value: Bool? = row[column]; return value ?? defaultValue }
-    private func uuid(_ row: Row, _ column: String) -> UUID { UUID(uuidString: text(row, column)) ?? UUID() }
+    private func uuid(_ row: Row, _ column: String, context: String? = nil) throws -> UUID {
+        let columnContext = context ?? column
+        guard let value = optionalText(row, column), let parsed = UUID(uuidString: value) else {
+            throw GradeDraftDatabaseError.dataCorrupted("Invalid UUID for \(columnContext).")
+        }
+        return parsed
+    }
     private func optionalUUID(_ row: Row, _ column: String) -> UUID? { optionalText(row, column).flatMap(UUID.init(uuidString:)) }
     private func date(_ row: Row, _ column: String) -> Date { optionalDate(row, column) ?? Date() }
     private func optionalDate(_ row: Row, _ column: String) -> Date? {
-        guard let value = optionalText(row, column), !value.isEmpty else { return nil }
-        return iso8601.date(from: value)
+        guard let rawValue = optionalText(row, column) else { return nil }
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+        return iso8601.date(from: value) ?? iso8601WithOptionalFraction.date(from: value)
     }
 }

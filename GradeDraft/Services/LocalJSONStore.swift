@@ -77,7 +77,7 @@ final class LocalJSONStore: AssignmentStoring {
 
     func loadClassGroups() throws -> [ClassGroupRecord] {
         guard fileManager.fileExists(atPath: classGroupsURL.path) else { return [] }
-        return (try? decoder.decode([ClassGroupRecord].self, from: Data(contentsOf: classGroupsURL))) ?? []
+        return try decoder.decode([ClassGroupRecord].self, from: Data(contentsOf: classGroupsURL))
     }
 
     func saveClassGroup(_ classGroup: ClassGroupRecord) throws {
@@ -98,7 +98,7 @@ final class LocalJSONStore: AssignmentStoring {
 
     func loadStudents() throws -> [StudentRecord] {
         guard fileManager.fileExists(atPath: studentsURL.path) else { return [] }
-        return (try? decoder.decode([StudentRecord].self, from: Data(contentsOf: studentsURL))) ?? []
+        return try decoder.decode([StudentRecord].self, from: Data(contentsOf: studentsURL))
     }
 
     func saveStudent(_ student: StudentRecord) throws {
@@ -131,7 +131,7 @@ final class LocalJSONStore: AssignmentStoring {
 
     private func loadAllRosterEntries() throws -> [AssignmentRosterEntry] {
         guard fileManager.fileExists(atPath: rosterURL.path) else { return [] }
-        return (try? decoder.decode([AssignmentRosterEntry].self, from: Data(contentsOf: rosterURL))) ?? []
+        return try decoder.decode([AssignmentRosterEntry].self, from: Data(contentsOf: rosterURL))
     }
 }
 
