@@ -1,3 +1,31 @@
+## 2026-05-29 — Test coverage hardening pass
+
+- Added `GradeDraftTests/GradeDraftHardeningTests.swift` with 100+ new unit tests across 17 test classes:
+  - `StableFingerprintTests` — determinism, order sensitivity, empty inputs, data fingerprints
+  - `RubricParserHardeningTests` — empty/whitespace input, decimal points, abbreviations, bullet skipping, sort order, ID stability
+  - `MarkdownRubricParserHardeningTests` — heading/table extraction, deduplication, fallback to simple parser
+  - `GradeTotalsHardeningTests` — empty criteria, negative points clamping, multi-criteria aggregation, formatting
+  - `OCRModelHardeningTests` — reviewedText fallback, needsReview logic, reviewStatusLabel states, combinedText, markingAllLinesConfirmed
+  - `OCRQualitySummaryHardeningTests` — empty/all-high/all-low confidence, displaySummary states
+  - `SpreadsheetSafetyHardeningTests` — tab prefix, negative decimals, whitespace-leading formulas, isNumericalText edge cases
+  - `CSVExportServiceHardeningTests` — empty list, multi-assignment, header columns, no private notes in CSV
+  - `GradeDraftValidatorHardeningTests` — prohibited inference, empty criteria, duplicate criterion IDs, empty criterion names, evidence outside reviewed text, missing evidence marker, confidence normalization
+  - `OCRReviewStatusHardeningTests` — blocksGrading for all states, displayNames
+  - `AssignmentRecordHardeningTests` — hasGradingStandard permutations, fingerprint change on input change, staleness detection, sourceReferencedReviewedText, audit events
+  - `FinalGradeReviewHardeningTests` — allCriteriaApproved edge cases, FinalCriterionScore init from draft
+  - `ViewModelHardeningTests` — duplicate, roster CSV, OCR edit/confirm/reject, template apply, paste text, approval gating, stale detection, AI unavailability, export blocking, final review start, new assignment, CSV export, select assignment
+  - `EvidenceReferenceHardeningTests` — displaySource with/without OCR/page
+  - `EnumDisplayNameTests` — all enum display names non-empty
+  - `PromptBuilderHardeningTests` — answer key, exemplar, custom instructions, structured criteria, fallback, curriculum, OCR warning
+  - `ExportReportHardeningTests` — student report excludes rawModelResponse/privateNotes, audit contains events/sources, draft-only/no-grade states
+  - `BundleExportHardeningTests` — archive file completeness, full backup round-trip, gradebook archive
+  - `CodableRoundTripHardeningTests` — AssignmentRecord and GradeDraftResult full encode/decode
+  - `SourceInputRefHardeningTests` — default values, PDF metadata
+  - `GradeDraftErrorHardeningTests` — all errors have descriptions, equality, no prohibited labels
+  - `LocalOnlyGradingValidatorHardeningTests` — valid input, blocked OCR
+- Updated Xcode project to include new test file.
+- Validation: `no_network_scan.py` passed, `repo_health.py` passed. `xcodebuild`/`swiftlint` unavailable (Linux environment).
+
 ## 2026-05-28 — Complete remaining product features v2 patch
 
 - Added first-class evidence references with bounding-box/source metadata.
