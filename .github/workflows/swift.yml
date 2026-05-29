@@ -72,7 +72,7 @@ jobs:
             xcrun simctl list devices available
             exit 1
           fi
-          echo "destination=id=$UDID" >> "$GITHUB_OUTPUT"
+          echo "destination=platform=iOS Simulator,id=$UDID,arch=arm64" >> "$GITHUB_OUTPUT"
           DEVICE_NAME=$(xcrun simctl list devices available | awk -F '[()]' -v UDID="$UDID" '$2 == UDID {gsub(/^[[:space:]]+/, "", $1); print $1; exit}')
           echo "destination_name=$DEVICE_NAME" >> "$GITHUB_OUTPUT"
 
