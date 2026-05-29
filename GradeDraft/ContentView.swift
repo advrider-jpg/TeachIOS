@@ -24,6 +24,9 @@ struct ContentView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedTemplateID: String = RubricTemplates.builtIn.first?.id ?? ""
     @State private var rosterCSV = ""
+    @State private var newClassName = ""
+    @State private var newStudentName = ""
+    @State private var newStudentLocalID = ""
 
     @State private var showingPDFImporter = false
     @State private var showingRubricImporter = false
@@ -40,6 +43,7 @@ struct ContentView: View {
 
     @State private var showingOCRReviewConfirm = false
     @State private var selectedOCRPageID: UUID?
+    @State private var selectedOCRLineID: UUID?
     @State private var selectedEvidenceCriterionID: UUID?
 
     @State private var showingShareSheetWarning = false
@@ -102,7 +106,7 @@ struct ContentView: View {
                     viewModel.importCurriculumReference(from: url)
                 }
             }
-            .fileImporter(isPresented: $showingBackupImporter, allowedContentTypes: [.json, .item]) { result in
+            .fileImporter(isPresented: $showingBackupImporter, allowedContentTypes: [.json, .zip, .item]) { result in
                 if case .success(let url) = result {
                     viewModel.restoreBackup(from: url)
                 }
@@ -230,17 +234,117 @@ struct ContentView: View {
     }
 
     private var rosterSection: some View {
-        CardSection(title: "Class roster / batch setup", systemImage: "person.3") {
-            Text("Paste one student name or local identifier per line, or a CSV whose first column is the display name. GradeDraft will create one local assignment record per student using this assignment as the template.")
+        CardSection(title: "Classes, students, roster, and gradebook", systemImage: "person.3") {
+            Text("Manage local class rosters, preview CSV imports, create per-student assignment records, and review gradebook status without accounts or cloud services.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                GridRow { Text("Classes").foregroundStyle(.secondary); Text(viewModel.classGroups.map(\.name).joined(separator: ", ").nilIfEmpty ?? "No class records saved yet.") }
+                GridRow { Text("Students").foregroundStyle(.secondary); Text("\(viewModel.students.count) local student record(s)") }
+                GridRow { Text("Roster status").foregroundStyle(.secondary); Text("\(viewModel.assignmentRosterEntries.count) per-student assignment record(s)") }
+            }
+            .font(.caption)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Quick class and student records").font(.headline)
+                HStack {
+                    TextField("Class name", text: $newClassName)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Save Class") {
+                        viewModel.saveClassGroup(ClassGroupRecord(name: newClassName, subject: viewModel.assignment.subject, gradeLevel: viewModel.assignment.gradeLevel))
+                        newClassName = ""
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(newClassName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                if !viewModel.classGroups.isEmpty {
+                    ForEach(viewModel.classGroups.prefix(6)) { classGroup in
+                        HStack {
+                            Text(classGroup.name)
+                            Spacer()
+                            Button("Delete", role: .destructive) { viewModel.deleteClassGroup(id: classGroup.id) }
+                                .font(.caption)
+                        }
+                        .font(.caption)
+                    }
+                }
+                HStack {
+                    TextField("Student display name", text: $newStudentName)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Local ID", text: $newStudentLocalID)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Save Student") {
+                        viewModel.saveStudent(StudentRecord(displayName: newStudentName, className: newClassName.isEmpty ? viewModel.assignment.className : newClassName, localIdentifier: newStudentLocalID))
+                        newStudentName = ""
+                        newStudentLocalID = ""
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(newStudentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                if !viewModel.students.isEmpty {
+                    ForEach(viewModel.students.prefix(8)) { student in
+                        HStack {
+                            Text(student.displayName)
+                            if !student.localIdentifier.isEmpty { Text("· \(student.localIdentifier)").foregroundStyle(.secondary) }
+                            Spacer()
+                            Button("Delete", role: .destructive) { viewModel.deleteStudent(id: student.id) }
+                                .font(.caption)
+                        }
+                        .font(.caption)
+                    }
+                }
+            }
+
             TextEditor(text: $rosterCSV)
-                .frame(minHeight: 80)
+                .frame(minHeight: 90)
                 .padding(8)
                 .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            Button("Create Assignments From Roster") { viewModel.createAssignmentsFromRosterCSV(rosterCSV) }
-                .buttonStyle(.bordered)
-                .disabled(rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            HStack(spacing: 12) {
+                Button("Preview Roster CSV") { _ = viewModel.previewRosterCSV(rosterCSV) }
+                    .buttonStyle(.bordered)
+                    .disabled(rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Create Assignments From Roster") { viewModel.createAssignmentsFromRosterCSV(rosterCSV) }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            if let preview = viewModel.latestRosterPreview {
+                DisclosureGroup("Roster import preview") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Class: \(preview.className.isEmpty ? viewModel.assignment.className : preview.className)")
+                        Text("Accepted students: \(preview.students.count)")
+                        if !preview.duplicateNames.isEmpty { Text("Duplicate names/IDs: \(preview.duplicateNames.joined(separator: ", "))").foregroundStyle(.orange) }
+                        ForEach(preview.rejectedRowDetails) { rejected in
+                            Text("Row \(rejected.rowNumber): \(rejected.reason)")
+                                .foregroundStyle(.red)
+                        }
+                        ForEach(preview.warnings, id: \.self) { warning in Text(warning).foregroundStyle(.orange) }
+                    }
+                    .font(.caption)
+                }
+            }
+
+            if !viewModel.gradebookAssignments.isEmpty {
+                DisclosureGroup("Gradebook summary") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(viewModel.gradebookAssignments.prefix(20)) { record in
+                            HStack {
+                                Text(record.studentDisplayName.isEmpty ? "Unnamed student" : record.studentDisplayName)
+                                Spacer()
+                                Text(viewModel.assignmentRosterStatus(for: record).displayName)
+                                    .foregroundStyle(.secondary)
+                                if let final = record.finalReview {
+                                    Text("\(GradeTotals.formatted(final.totalScore)) / \(GradeTotals.formatted(final.maxScore))")
+                                        .monospacedDigit()
+                                }
+                            }
+                            .font(.caption)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -313,6 +417,7 @@ struct ContentView: View {
                         ForEach(pages) { page in
                             Button {
                                 selectedOCRPageID = page.id
+                                selectedOCRLineID = nil
                             } label: {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Page \(page.pageIndex + 1)").font(.caption.bold())
@@ -331,6 +436,7 @@ struct ContentView: View {
                             }
                             .buttonStyle(.plain)
                         }
+                        selectedPagePreview(pages: pages)
                     }
                     Divider()
                     ocrLinesPanel(pages: pages)
@@ -338,6 +444,21 @@ struct ContentView: View {
             } else {
                 Text("No OCR document is attached. Import a scan, photo, or PDF, or paste student text manually.").font(.caption).foregroundStyle(.secondary)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func selectedPagePreview(pages: [OCRPage]) -> some View {
+        let page = pages.first(where: { $0.id == selectedOCRPageID }) ?? pages.first
+        if let page {
+            let source = page.sourceInputID.flatMap { sourceID in
+                viewModel.assignment.sourceInputs.first(where: { $0.id == sourceID })
+            }
+            OCRPagePreview(
+                image: source.flatMap { viewModel.sourceImage(for: $0) },
+                page: page,
+                selectedLineID: selectedOCRLineID
+            )
         }
     }
 
@@ -353,26 +474,66 @@ struct ContentView: View {
                 .pickerStyle(.menu)
             }
             if let page {
+                HStack {
+                    Text("Page \(page.pageIndex + 1) · \(page.unresolvedLineCount) unresolved line(s)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Previous/Next Unreviewed") {
+                        if let target = viewModel.nextUnreviewedLine(after: selectedOCRLineID) {
+                            selectedOCRPageID = target.pageID
+                            selectedOCRLineID = target.lineID
+                        }
+                    }
+                    .font(.caption)
+                    Button("Mark Page Reviewed") { viewModel.markOCRPageReviewed(pageID: page.id) }
+                        .font(.caption)
+                }
                 ForEach(page.lines) { line in
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Line confidence \(Int(line.confidence * 100))% · bbox \(String(format: "%.2f, %.2f, %.2f, %.2f", Double(line.boundingBox.x), Double(line.boundingBox.y), Double(line.boundingBox.width), Double(line.boundingBox.height)))")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(line.needsReview ? .orange : .secondary)
+                        HStack {
+                            Text(line.reviewStatusLabel.capitalized)
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color(.secondarySystemBackground), in: Capsule())
+                            Text("Confidence \(Int(line.confidence * 100))% · bbox \(line.boundingBox.stableDisplay)")
+                                .font(.caption.monospaced())
+                                .foregroundStyle(line.needsReview ? .orange : .secondary)
+                        }
+                        Text("Raw: \(line.rawText)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         TextField("Corrected OCR text", text: Binding(
                             get: { line.reviewedText },
                             set: { viewModel.updateOCRLine(pageID: page.id, lineID: line.id, correctedText: $0) }
                         ), axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         HStack {
-                            Button("Confirm Line") { viewModel.confirmOCRLine(pageID: page.id, lineID: line.id) }
-                            Button("Reject") { viewModel.rejectOCRLine(pageID: page.id, lineID: line.id) }
-                            Button("Add as Evidence") { viewModel.addOCRLineEvidenceToFinalReview(pageID: page.id, lineID: line.id, criterionID: selectedEvidenceCriterionID) }
-                                .disabled(viewModel.assignment.finalReview == nil)
+                            Button("Confirm Line") {
+                                selectedOCRLineID = line.id
+                                viewModel.confirmOCRLine(pageID: page.id, lineID: line.id)
+                            }
+                            Button("Reject") {
+                                selectedOCRLineID = line.id
+                                viewModel.rejectOCRLine(pageID: page.id, lineID: line.id)
+                            }
+                            Button("Add as Evidence") {
+                                selectedOCRLineID = line.id
+                                selectedOCRPageID = page.id
+                                viewModel.addOCRLineEvidenceToFinalReview(pageID: page.id, lineID: line.id, criterionID: selectedEvidenceCriterionID)
+                            }
+                            .disabled(viewModel.assignment.finalReview == nil || line.reviewedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
                         .font(.caption)
                     }
                     .padding(8)
-                    .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(selectedOCRLineID == line.id ? Color.accentColor.opacity(0.10) : Color(.systemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(selectedOCRLineID == line.id ? Color.accentColor : Color.clear, lineWidth: 1))
+                    .onTapGesture {
+                        selectedOCRPageID = page.id
+                        selectedOCRLineID = line.id
+                    }
                 }
             }
         }
@@ -394,6 +555,70 @@ struct ContentView: View {
                 Button("Import Curriculum Reference") { showingCurriculumImporter = true }.buttonStyle(.bordered)
             }
 
+            if let preview = viewModel.latestRubricPreview {
+                DisclosureGroup("Markdown rubric import preview") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Detected \(preview.detectedCriteria.count) criterion/criteria and \(preview.detectedLevels.count) scoring band(s).")
+                            .font(.caption)
+                        ForEach(preview.detectedCriteria) { criterion in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(criterion.title) — \(GradeTotals.formatted(criterion.maxPoints)) pts")
+                                    .font(.caption.bold())
+                                if !criterion.levels.isEmpty {
+                                    Text(criterion.levels.map { "\($0.label) \(GradeTotals.formatted($0.points))" }.joined(separator: " · "))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        ForEach(preview.issues, id: \.id) { issue in
+                            Label(issue.message, systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                        HStack {
+                            Button("Confirm Structured Import") { viewModel.confirmMarkdownRubricImport(preview, useStructuredImport: true) }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(preview.detectedCriteria.isEmpty)
+                            Button("Use Raw Rubric Text") { viewModel.confirmMarkdownRubricImport(preview, useStructuredImport: false) }
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                }
+            }
+
+            DisclosureGroup("Local curriculum catalog") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(viewModel.curriculumCatalog.warning)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        TextField("Search local curriculum", text: $viewModel.curriculumSearchText)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Learning area", text: $viewModel.curriculumLearningAreaFilter)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Year level", text: $viewModel.curriculumYearLevelFilter)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    ForEach(viewModel.filteredCurriculumItems.prefix(12)) { item in
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(CurriculumCatalogService.displaySummary(for: item))
+                                    .font(.caption)
+                                    .textSelection(.enabled)
+                                Text(item.shortDescription)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("Map") { viewModel.mapCurriculumItemToCurrentAssignment(item) }
+                                .buttonStyle(.bordered)
+                                .font(.caption)
+                        }
+                    }
+                }
+            }
+
             if !viewModel.assignment.parsedRubric.criteria.isEmpty {
                 DisclosureGroup("Detected structured criteria") {
                     VStack(alignment: .leading, spacing: 6) {
@@ -411,11 +636,11 @@ struct ContentView: View {
                     .foregroundStyle(.orange)
             }
 
-            textEditor(title: "Rubric / grading criteria", text: assignmentBinding(\.rubricText), minHeight: 160, placeholder: "Paste rubric, answer key, or grading criteria...")
-            textEditor(title: "Custom teacher instructions", text: assignmentBinding(\.customInstructions), minHeight: 90, placeholder: "Optional custom grading rules...")
-            textEditor(title: "Answer key", text: assignmentBinding(\.answerKeyText), minHeight: 80, placeholder: "Expected elements, misconceptions, partial credit...")
-            textEditor(title: "Exemplar response", text: assignmentBinding(\.exemplarText), minHeight: 80, placeholder: "Teacher-supplied exemplar...")
-            textEditor(title: "Curriculum / reference material", text: assignmentBinding(\.curriculumReference), minHeight: 100, placeholder: "Teacher-entered or imported curriculum reference...")
+            textEditor(title: "Rubric / grading criteria", text: assignmentBinding(\.rubricText), minHeight: 160, hintText: "Paste rubric, answer key, or grading criteria...")
+            textEditor(title: "Custom teacher instructions", text: assignmentBinding(\.customInstructions), minHeight: 90, hintText: "Optional custom grading rules...")
+            textEditor(title: "Answer key", text: assignmentBinding(\.answerKeyText), minHeight: 80, hintText: "Expected elements, misconceptions, partial credit...")
+            textEditor(title: "Exemplar response", text: assignmentBinding(\.exemplarText), minHeight: 80, hintText: "Teacher-supplied exemplar...")
+            textEditor(title: "Curriculum / reference material", text: assignmentBinding(\.curriculumReference), minHeight: 100, hintText: "Teacher-entered or imported curriculum reference...")
         }
     }
 
@@ -458,7 +683,10 @@ struct ContentView: View {
                     onChange: { updated in viewModel.updateFinalReview(updated) },
                     onApprove: { viewModel.approveFinalReview() },
                     onAddCriterion: { viewModel.addCriterionToFinalReview() },
-                    onDeleteCriterion: { id in viewModel.deleteCriterionFromFinalReview(id: id) }
+                    onDeleteCriterion: { id in viewModel.deleteCriterionFromFinalReview(id: id) },
+                    onAddManualEvidence: { criterionID, quote in viewModel.addManualEvidenceToFinalReview(criterionID: criterionID, quote: quote) },
+                    onRemoveEvidence: { criterionID, index in viewModel.removeEvidenceFromFinalReview(criterionID: criterionID, evidenceIndex: index) },
+                    onClearEvidence: { criterionID in viewModel.clearEvidenceFromFinalReview(criterionID: criterionID) }
                 )
                 .id(finalReview.id)
             } else if let result = viewModel.assignment.latestDraft {
@@ -495,10 +723,34 @@ struct ContentView: View {
             }
             HStack(spacing: 12) {
                 Button("Export Full Local Backup") { showingBackupWarning = true }.buttonStyle(.bordered)
+                Picker("Restore conflict handling", selection: $viewModel.backupConflictResolution) {
+                    ForEach(BackupConflictResolution.allCases) { option in
+                        Text(option.displayName).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
                 Button("Restore Backup") { showingBackupImporter = true }.buttonStyle(.bordered)
                 if viewModel.exportURL != nil {
                     Button { showingShareSheetWarning = true } label: { Label("Share \(viewModel.exportKind?.displayName ?? "Report")", systemImage: "square.and.arrow.up") }
                         .buttonStyle(.borderedProminent)
+                }
+            }
+            if let preview = viewModel.latestRestorePreview {
+                DisclosureGroup("Restore preview and summary") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(preview.summary)
+                        if !preview.conflictAssignmentIDs.isEmpty {
+                            Text("Conflicts: \(preview.conflictAssignmentIDs.map(\.uuidString).joined(separator: ", "))")
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.orange)
+                        }
+                        ForEach(preview.warnings, id: \.self) { warning in
+                            Label(warning, systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .font(.caption)
                 }
             }
         }
@@ -520,14 +772,14 @@ struct ContentView: View {
                     Label("Teacher finalizes all grades.", systemImage: "person.badge.checkmark")
                 }
                 .font(.subheadline)
-                Text("Deferred: official standards certification, handwriting grading, autonomous visual artifact grading, math notation grading, LMS sync, cloud backup, accounts, and subscriptions.")
+                Text("Out of scope: official standards certification, handwriting grading, autonomous visual artifact grading, math notation grading, LMS sync, cloud backup, accounts, and subscriptions.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
     }
 
-    private func textEditor(title: String, text: Binding<String>, minHeight: CGFloat, placeholder: String) -> some View {
+    private func textEditor(title: String, text: Binding<String>, minHeight: CGFloat, hintText: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.headline)
             TextEditor(text: text)
@@ -536,7 +788,7 @@ struct ContentView: View {
                 .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(alignment: .topLeading) {
                     if text.wrappedValue.isEmpty {
-                        Text(placeholder).foregroundStyle(.tertiary).padding(.horizontal, 14).padding(.vertical, 16).allowsHitTesting(false)
+                        Text(hintText).foregroundStyle(.tertiary).padding(.horizontal, 14).padding(.vertical, 16).allowsHitTesting(false)
                     }
                 }
         }
@@ -591,6 +843,49 @@ struct ContentView: View {
     }
 }
 
+private struct OCRPagePreview: View {
+    var image: UIImage?
+    var page: OCRPage
+    var selectedLineID: UUID?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Selected page preview · Page \(page.pageIndex + 1)")
+                .font(.caption.bold())
+            ZStack {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.secondarySystemBackground))
+                        .overlay(Text("No rendered page image available").font(.caption).foregroundStyle(.secondary))
+                }
+                GeometryReader { proxy in
+                    ForEach(page.lines) { line in
+                        let rect = CGRect(
+                            x: line.boundingBox.x * proxy.size.width,
+                            y: line.boundingBox.y * proxy.size.height,
+                            width: max(line.boundingBox.width * proxy.size.width, 1),
+                            height: max(line.boundingBox.height * proxy.size.height, 1)
+                        )
+                        RoundedRectangle(cornerRadius: 3)
+                            .stroke(line.id == selectedLineID ? Color.accentColor : (line.needsReview ? Color.orange : Color.secondary), lineWidth: line.id == selectedLineID ? 3 : 1)
+                            .background((line.id == selectedLineID ? Color.accentColor : Color.clear).opacity(0.12))
+                            .frame(width: rect.width, height: rect.height)
+                            .position(x: rect.midX, y: rect.midY)
+                    }
+                }
+                .allowsHitTesting(false)
+            }
+            .frame(maxWidth: 420, minHeight: 220, maxHeight: 440)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color(.separator), lineWidth: 1))
+        }
+    }
+}
+
 private struct CardSection<Content: View>: View {
     var title: String
     var systemImage: String
@@ -622,5 +917,12 @@ private struct EmptyStateView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

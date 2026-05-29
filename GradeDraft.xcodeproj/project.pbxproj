@@ -37,6 +37,9 @@
 		555555555555555555555555 /* SwiftCSV in Frameworks */ = {isa = PBXBuildFile; productRef = f19535ba82fd46f1a2ff88f8 /* SwiftCSV */; };
 		666666666666666666666666 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = 9f99f659a06b4432b272724b /* Dependencies */; };
 		777777777777777777777777 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 139742736e6d4f7889df30a6 /* SnapshotTesting */; };
+		9C0011111111111111110001 /* RosterImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0011111111111111110002 /* RosterImportService.swift */; };
+		9C0011111111111111110003 /* CurriculumCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0011111111111111110004 /* CurriculumCatalogService.swift */; };
+		888888888888888888888888 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 39a5973c95874d3383ccd429 /* ZIPFoundation */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,6 +79,8 @@
 		4ef318821d8b4bd997e1debc /* BundleExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleExportService.swift; sourceTree = "<group>"; };
 		2799b34fb3fc4e4ab80bcc16 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
 		9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftSnapshotTests.swift; sourceTree = "<group>"; };
+		9C0011111111111111110002 /* RosterImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterImportService.swift; sourceTree = "<group>"; };
+		9C0011111111111111110004 /* CurriculumCatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurriculumCatalogService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -97,6 +102,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				777777777777777777777777 /* SnapshotTesting in Frameworks */,
+				888888888888888888888888 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -147,6 +153,8 @@
 				34C1D9BF4FFCFEB34EEF7264 /* GradeTotals.swift */,
 				080B27BFE3EC6B6E76453A55 /* LocalJSONStore.swift */,
 				A0EC5399AB1F0376FFFF1554 /* PromptBuilder.swift */,
+				9C0011111111111111110002 /* RosterImportService.swift */,
+				9C0011111111111111110004 /* CurriculumCatalogService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -253,6 +261,7 @@
 			name = GradeDraftTests;
 			packageProductDependencies = (
 				139742736e6d4f7889df30a6 /* SnapshotTesting */,
+				39a5973c95874d3383ccd429 /* ZIPFoundation */,
 			);
 			productReference = AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -320,6 +329,8 @@
 				6003cc01ccc64fc9be4830ef /* BundleExportService.swift in Sources */,
 				ff7c133b40a048fc9d77c779 /* AppDependencies.swift in Sources */,
 				b1c2d3e4f5a6b7c8d9e0f1a2 /* GRDBAssignmentStore.swift in Sources */,
+				9C0011111111111111110001 /* RosterImportService.swift in Sources */,
+				9C0011111111111111110003 /* CurriculumCatalogService.swift in Sources */,
 				); runOnlyForDeploymentPostprocessing = 0; };
 		C2C867FEB507DB914C2126B0 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
 				E92F15694F5C9C14E9C64B87 /* GradeDraftTests.swift in Sources */,

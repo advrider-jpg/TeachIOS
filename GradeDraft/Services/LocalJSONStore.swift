@@ -5,6 +5,19 @@ protocol AssignmentStoring {
     func saveAssignments(_ assignments: [AssignmentRecord]) throws
     func deleteAssignment(id: UUID) throws
     func applicationSupportDirectory() throws -> URL
+    func loadClassGroups() throws -> [ClassGroupRecord]
+    func saveClassGroup(_ classGroup: ClassGroupRecord) throws
+    func deleteClassGroup(id: UUID) throws
+    func loadStudents() throws -> [StudentRecord]
+    func saveStudent(_ student: StudentRecord) throws
+    func deleteStudent(id: UUID) throws
+    func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry]
+    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws
+    func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws
+    func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws
+    func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws
+    func saveEvidenceReferences(_ references: [EvidenceReference], assignmentID: UUID) throws
+    func loadFullAssignmentGraph(id: UUID) throws -> AssignmentRecord?
 }
 
 final class LocalJSONStore: AssignmentStoring {
@@ -116,6 +129,16 @@ enum MarkdownReportBuilder {
             output.append("- Quality: \(ocrDocument.qualitySummary.displaySummary)\n")
         }
 
+        if !assignment.curriculumReference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !assignment.curriculumMappings.isEmpty {
+            output.append("\n## Curriculum references and provenance\n")
+            output.append(assignment.curriculumReference.isEmpty ? CurriculumCatalogService.sourceWarning : "\(assignment.curriculumReference)\n")
+            for mapping in assignment.curriculumMappings {
+                if let item = CurriculumCatalogService.item(id: mapping.curriculumItemID) {
+                    output.append("- \(CurriculumCatalogService.displaySummary(for: item))\n")
+                }
+            }
+        }
+
         output.append("\n## Reviewed student text\n\n")
         output.append(assignment.reviewedStudentText.isEmpty ? "No reviewed student text saved.\n" : "\(assignment.reviewedStudentText)\n")
 
@@ -156,7 +179,7 @@ enum MarkdownReportBuilder {
             for evidence in assignment.evidenceReferences {
                 output.append("- \(evidence.quote) — \(evidence.displaySource)")
                 if let box = evidence.boundingBox {
-                    output.append(" — bbox: \(box.x), \(box.y), \(box.width), \(box.height)")
+                    output.append(" — bbox: \(box.stableDisplay)")
                 }
                 output.append("\n")
             }
@@ -277,4 +300,20 @@ enum MarkdownReportBuilder {
             throw GradeDraftError.exportFailed(error.localizedDescription)
         }
     }
+}
+
+extension AssignmentStoring {
+    func loadClassGroups() throws -> [ClassGroupRecord] { [] }
+    func saveClassGroup(_ classGroup: ClassGroupRecord) throws { _ = classGroup }
+    func deleteClassGroup(id: UUID) throws { _ = id }
+    func loadStudents() throws -> [StudentRecord] { [] }
+    func saveStudent(_ student: StudentRecord) throws { _ = student }
+    func deleteStudent(id: UUID) throws { _ = id }
+    func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] { _ = assignmentID; return [] }
+    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws { _ = entries }
+    func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws { _ = sourceInputs; _ = assignmentID }
+    func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws { _ = document; _ = assignmentID }
+    func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws { _ = review; _ = assignmentID }
+    func saveEvidenceReferences(_ references: [EvidenceReference], assignmentID: UUID) throws { _ = references; _ = assignmentID }
+    func loadFullAssignmentGraph(id: UUID) throws -> AssignmentRecord? { try loadAssignments().first { $0.id == id } }
 }

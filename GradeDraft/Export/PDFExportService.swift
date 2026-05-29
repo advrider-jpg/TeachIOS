@@ -1,5 +1,4 @@
 import Foundation
-import TPPDF
 import UIKit
 
 enum PDFExportError: LocalizedError {
@@ -8,7 +7,7 @@ enum PDFExportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .renderFailed(let detail):
-            detail
+            return detail
         }
     }
 }

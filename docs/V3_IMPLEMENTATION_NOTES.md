@@ -1,52 +1,27 @@
 # GradeDraft v3 Implementation Notes
 
-v3 is a truth-state and data-model hardening pass. It does not attempt handwriting, visual artifact grading, LMS sync, or cloud services.
+GradeDraft v3 is a source-level completion pass for the local-first, teacher-controlled grading workflow. The implementation keeps the product bounded to local iOS/iPadOS app behavior and does not add cloud services, remote AI, hosted OCR, accounts, telemetry, analytics, subscriptions, hosted assets, Firebase, RevenueCat, or server APIs.
 
-## Completed in v3
+## Source-implemented feature set
 
-- Source inputs are represented separately from OCR documents and reviewed student text.
-- Image imports/scans are written to local Application Support under `Sources/<assignmentID>/`.
-- Each source input stores page index, local relative path, image dimensions, and a deterministic content digest.
-- OCR has an explicit review state. Scans/photos set `ocrReviewStatus = needsReview` and block draft grading until the teacher marks OCR reviewed.
-- OCR lines now preserve raw text, optional corrected text, confidence, bounding box, and teacher-confirmed state.
-- Rubrics are still stored as teacher-authored text, but v3 adds a simple parser for point-bearing criteria and stable criterion IDs.
-- The grading packet fingerprint reflects the reviewed text, rubric, instructions, answer key, exemplar, OCR state, assignment metadata, and source references.
-- Draft grades carry the packet fingerprint and are marked stale when inputs change.
-- Final reviews carry their own packet fingerprint and become stale when inputs change.
-- Final criterion scores now preserve both proposed points and teacher-final points.
-- Student export and teacher-audit export are separate.
-- Student export excludes private teacher notes.
-- Teacher-audit export includes OCR state, source references, packet fingerprint, private notes, draft state, final state, and audit events.
+The app source now wires all eleven requested feature areas through models, persistence, SwiftUI flows, exports, tests, and documentation.
 
-## Completed in MVP completion pass (2026-05-28)
+1. **Student and teacher PDF export.** `PDFExportService` renders local PDFs with headings, page breaks, page numbers, criterion results, evidence excerpts, and student/audit separation. Student export is gated on a fresh teacher-approved final review. Teacher export is sensitive-record-gated and records private-note sensitivity.
+2. **ZIP/archive export.** `BundleExportService` writes real ZIP archives for teacher audit packets, assignment gradebooks, and full local backups. Manifests include archive identity, kind, schema, counts, source inclusion, private-note inclusion, fingerprints, and restore compatibility.
+3. **PDF import.** The view model imports a PDF into local source storage, records the original PDF and rendered pages as `SourceInputRef` records, extracts digital text with PDFKit when present, falls back to OCR for rendered pages when needed, creates an `OCRDocument`, sets review state to `needsReview`, and blocks grading until teacher review.
+4. **Side-by-side OCR review.** `ContentView` presents page thumbnails, a selected page preview, page navigation, overlays for normalized OCR line boxes, selected-line highlighting, confidence/status labels, raw and corrected text editing, confirm/reject actions, page review, document review, and next-unreviewed navigation.
+5. **Per-line OCR editing and evidence linking.** OCR edits update reviewed text, reset stale grading state, and record audit events. Final-review criteria can add OCR-line evidence, manual evidence, remove individual evidence, or clear evidence while keeping quote arrays and source-reference arrays aligned.
+6. **Bounding-box evidence traceability.** OCR-line evidence stores source input ID, OCR line ID, page index, quote, normalized bounding box, source kind, confirmation state, and created timestamp. Teacher audit reports and archives include source/page/line/bounding-box metadata; student reports omit raw internal coordinate metadata.
+7. **Markdown rubric import/parser.** `MarkdownRubricParser` supports heading groups, bullet and numbered criteria, simple tables, point ranges, maximum-point notation, level/band labels, descriptors, explicit criterion IDs, duplicate detection, parse warnings, and an import preview/confirmation path.
+8. **Normalized SQLite/GRDB path.** `GradeDraftDatabase` creates normalized tables for classes, students, rosters, student work, source inputs, PDFs, OCR documents/pages/lines/revisions, rubrics/criteria/levels, teacher instructions, answer keys, expected elements, exemplars, curriculum items/mappings, grading packets, proposals, teacher/final reviews, evidence refs, export records, audit events, and backup/restore events. Normalized rows are the primary load path, with compatibility JSON retained for fallback/export.
+9. **Offline curriculum import/mapping.** `CurriculumCatalogService` seeds a conservative local curriculum catalog from bundled Australian Curriculum source materials and exposes browsing, filtering, assignment/criterion/evidence mapping, provenance warnings, prompt inclusion, persistence, reports, and archives without any endorsement or compliance claim.
+10. **Class roster and multi-student workflow.** The app models classes, students, enrollments, assignment roster entries, and per-student status. The UI supports class/student creation, roster CSV preview, duplicate/rejected-row handling, enrollment, assignment creation from roster rows, assignment roster status, per-student grading/export, and gradebook CSV.
+11. **Backup/restore UI.** The UI and archive service support backup export warnings, backup creation, ZIP restore import, preview counts, conflict detection, keep-local/replace-local/restore-as-copy choices, source-file restoration, restore summaries, and audit events.
 
-- **Manual grading path**: `startManualFinalReview()` in the ViewModel creates a `FinalGradeReview` from parsed rubric criteria or a single teacher-review-required criterion when no rubric is parsed. No AI draft required.
-- **Manual grading UI**: "Start Manual Final Review" button is shown in the grading section when reviewed text and at least one grading standard exist, and OCR is not blocking. The button is available even when local AI is unavailable.
-- **Full final-review editor**: All `FinalCriterionScore` fields are editable: criterion name, rating, final points, max points, explanation, evidence (add, remove, clear), teacher rationale, and approval toggle.
-- **Criterion management**: Add Criterion (appends a blank criterion) and Delete Criterion (removes by ID) with live total recalculation.
-- **OCR confirmation dialog**: "Mark OCR reviewed?" uses canonical Section 12.5 copy before calling `markOCRReviewed()`.
-- **Approve Final Grade confirmation**: canonical Section 14.5 dialog before final approval.
-- **Share-sheet warning**: canonical Section 18.9 dialog before opening `UIActivityViewController` share sheet (replaced raw `ShareLink`).
-- **About/Local Privacy section**: in-app section listing what data is stored locally, confirmed-absent features, and deferred features.
-- **Source file cleanup**: `deleteCurrentAssignment()` now removes the `Sources/<assignmentID>/` directory (best-effort; errors suppressed to avoid blocking deletion).
-- **AI unavailability note**: grading section explicitly labels manual path when local AI is unavailable, with the canonical no-cloud-fallback message.
-- **Export section note**: PDF and ZIP/archive exports are available as local teacher-controlled exports.
+## Validation status
 
-## Current important limitations
+Static repository checks are run after generating the final patch and applying it to a clean copy of the uploaded ZIP. Xcode build, XCTest execution, simulator smoke tests, PDFKit/UIKit runtime rendering, Vision/VisionKit capture/OCR, and Foundation Models behavior require macOS/Xcode or equivalent CI/plugin tooling.
 
-- Persistence now mirrors assignment state into normalized GRDB tables while retaining JSON payloads for compatibility and lossless round-trip backup.
-- Source image digests use `StableFingerprint` (FNV-1a 64-bit), not cryptographic hashing.
-- OCR review includes a side-by-side source preview and line-level editing/confirmation/rejection UI.
-- Evidence can be linked to OCR line references that include source/page/line/bounding-box metadata.
-- Markdown rubric parsing handles headings, list items, point-bearing lines, and simple tables; ambiguous rubrics remain teacher-review-required.
-- PDF and ZIP/archive export are implemented locally and are warning-gated before sharing.
-- Foundation Models integration is SDK-guarded; validation requires Xcode 26+ on a compatible device.
-- xcodebuild and SwiftLint validation were not run in this environment (Windows).
+## Product boundaries retained
 
-## v4 priority order
-
-1. Add UI tests for scan/import/PDF import → OCR review → manual or AI draft → final → export.
-2. Confirm Foundation Models structured-output APIs in the installed SDK.
-3. Typed `LocalAIStatus` reasons with canonical copy.
-4. Production-hardening pass for removing JSON payload fallback after normalized GRDB migration tests prove full fidelity.
-5. Optional future scope: LMS integration, official jurisdiction reporting verification, and advanced visual/math modes.
+The source remains local-first and teacher-controlled. Handwriting-first grading, visual artifact grading, mathematics notation grading beyond reviewed textual explanation, LMS/cloud sync, accounts, subscriptions, district dashboards, and official jurisdiction reporting approval remain outside the current product scope unless separately implemented and validated.
