@@ -68,6 +68,14 @@ enum MarkdownRubricParser {
 
     private enum RowKind { case heading, bullet, numbered, table, tableHeader, paragraph }
 
+    private struct LevelColumn {
+        var label: String
+        var descriptor: String
+        var points: Double?
+        var min: Double?
+        var max: Double?
+    }
+
     private struct CandidateRow {
         var kind: RowKind
         var text: String
@@ -76,7 +84,7 @@ enum MarkdownRubricParser {
         var groupTitle: String?
         var explicitID: String?
         var maxPoints: Double?
-        var levelColumns: [(label: String, descriptor: String, points: Double?, min: Double?, max: Double?)]
+        var levelColumns: [LevelColumn]
 
         func levels(criterionID: String) -> [RubricLevel] {
             levelColumns.enumerated().map { index, level in
@@ -150,11 +158,11 @@ enum MarkdownRubricParser {
         let pointsText = pointsIndex.flatMap { cells[safe: $0] } ?? cells.joined(separator: " ")
         let tableMaxPoints = pointsIndex.flatMap { cells[safe: $0] }.flatMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) ?? RubricParser.maxPoints(in: $0) }
         let descriptor = descriptorIndex.flatMap { cells[safe: $0] } ?? cells.dropFirst().joined(separator: " ")
-        let levelColumns: [(label: String, descriptor: String, points: Double?, min: Double?, max: Double?)] = headers.enumerated().compactMap { index, header in
+        let levelColumns: [LevelColumn] = headers.enumerated().compactMap { index, header in
             let headerIsLevel = ["excellent", "proficient", "developing", "beginning", "level", "band"].contains { header.lowercased().contains($0) }
             guard headerIsLevel, let value = cells[safe: index], !value.isEmpty else { return nil }
             let range = RubricParser.pointRange(in: value)
-            return (label: header, descriptor: value, points: RubricParser.maxPoints(in: value), min: range.0, max: range.1)
+            return LevelColumn(label: header, descriptor: value, points: RubricParser.maxPoints(in: value), min: range.0, max: range.1)
         }
         return CandidateRow(
             kind: .table,
