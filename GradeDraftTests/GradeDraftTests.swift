@@ -1275,9 +1275,9 @@ final class GradeDraftTests: XCTestCase {
         )
 
         let audit = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment)
-        XCTAssertTrue(audit.contains("Private audit note here."), "Teacher audit should include private notes")
-        XCTAssertTrue(audit.contains("OCR reviewed"), "Teacher audit should include OCR status")
-        XCTAssertTrue(audit.contains(assignment.gradingPacketFingerprint), "Teacher audit should include packet fingerprint")
+        XCTAssertTrue(audit.contains("Private audit note here."), "Teacher review should include private notes")
+        XCTAssertTrue(audit.contains("Scanned-text review status: Ready for teacher review"), "Teacher review should include scanned-text status")
+        XCTAssertTrue(audit.contains(assignment.gradingPacketFingerprint), "Teacher review should include packet fingerprint")
     }
 
     func testCSVStatusForNoFinalReview() {
@@ -1376,7 +1376,7 @@ final class GradeDraftTests: XCTestCase {
         // Creating an assignment with needsReview status simulates a scan
         let assignment = AssignmentRecord(
             title: "Scan test",
-            reviewedStudentText: "OCR text",
+            reviewedStudentText: "Scanned text",
             ocrReviewStatus: .needsReview
         )
         XCTAssertTrue(assignment.requiresOCRReviewBeforeGrading, "Scan should require OCR review")
@@ -1402,10 +1402,10 @@ final class GradeDraftTests: XCTestCase {
         let store = InMemoryAssignmentStore(assignments: [assignment])
         let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
 
-        XCTAssertFalse(viewModel.canStartManualFinalReview, "Cannot start manual review before OCR reviewed")
+        XCTAssertFalse(viewModel.canStartManualFinalReview, "Cannot start manual review before scanned text is reviewed")
         viewModel.markOCRReviewed()
         XCTAssertEqual(viewModel.assignment.ocrReviewStatus, .reviewed, "After marking reviewed, status should be reviewed")
-        XCTAssertTrue(viewModel.canStartManualFinalReview, "Manual review should be available after OCR reviewed")
+        XCTAssertTrue(viewModel.canStartManualFinalReview, "Manual review should be available after scanned text is reviewed")
     }
 
     @MainActor
@@ -1486,7 +1486,7 @@ final class GradeDraftTests: XCTestCase {
             teacherConfirmed: true
         )]
         let audit = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment)
-        XCTAssertTrue(audit.contains("Evidence traceability"))
+        XCTAssertTrue(audit.contains("Evidence"))
         XCTAssertTrue(audit.contains("bbox"))
     }
 

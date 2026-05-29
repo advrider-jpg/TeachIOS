@@ -7,7 +7,7 @@ struct GradeResultView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Draft score")
+                Text("Unreviewed suggestion score")
                     .font(.headline)
                 Spacer()
                 Text("\(GradeTotals.formatted(result.totalScore)) / \(GradeTotals.formatted(result.maxScore))")
@@ -15,7 +15,7 @@ struct GradeResultView: View {
             }
 
             if isStale || result.status == .stale {
-                Label("This draft is stale because grading inputs changed.", systemImage: "exclamationmark.triangle")
+                Label("Needs recheck: student work, rubric, or evidence changed.", systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.orange)
                     .font(.subheadline.bold())
             }
@@ -25,7 +25,7 @@ struct GradeResultView: View {
                 .foregroundStyle(.secondary)
 
             if !result.uncertaintyFlags.isEmpty {
-                DisclosureGroup("Uncertainty flags") {
+                DisclosureGroup("Needs attention") {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(result.uncertaintyFlags, id: \.self) { flag in
                             Label(flag, systemImage: "exclamationmark.triangle")
@@ -42,14 +42,14 @@ struct GradeResultView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Draft student feedback")
+                Text("Unreviewed suggestion feedback")
                     .font(.headline)
-                Text(result.studentFeedback.isEmpty ? "No feedback returned." : result.studentFeedback)
+                Text(result.studentFeedback.isEmpty ? "No feedback suggested." : result.studentFeedback)
                     .textSelection(.enabled)
             }
 
             if !result.complianceFlags.isEmpty {
-                DisclosureGroup("Validation and compliance notes") {
+                DisclosureGroup("Review notes") {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(result.complianceFlags, id: \.self) { flag in
                             Label(flag, systemImage: "checkmark.shield")
@@ -150,7 +150,7 @@ struct FinalGradeReviewView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Teacher final review")
+                    Text("Final Review")
                         .font(.headline)
                     Text(statusText)
                         .font(.caption)
@@ -162,13 +162,13 @@ struct FinalGradeReviewView: View {
             }
 
             if isStale || workingReview.status == .stale {
-                Label("This final review is stale because grading inputs changed after it was created or edited. Review before exporting.", systemImage: "exclamationmark.triangle")
+                Label("This review needs rechecking because student work, rubric, or evidence changed after it was last saved.", systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.orange)
                     .font(.subheadline.bold())
             }
 
             if !canApproveCurrentReview {
-                Label("Approve each criterion and ensure all scores are valid to enable final grade approval.", systemImage: "person.crop.circle.badge.exclamationmark")
+                Label("Approve each criterion and ensure all scores are valid before final approval.", systemImage: "person.crop.circle.badge.exclamationmark")
                     .foregroundStyle(.orange)
                     .font(.caption)
             }
@@ -202,9 +202,9 @@ struct FinalGradeReviewView: View {
             .disabled(onAddCriterion == nil)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Student-facing feedback")
+                Text("Student Feedback")
                     .font(.headline)
-                Text("This text is included in the student report. Keep it constructive and evidence-linked.")
+                Text("Visible to student. Keep it constructive and evidence-linked.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 TextEditor(text: $workingReview.studentFeedback)
@@ -214,9 +214,9 @@ struct FinalGradeReviewView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Private teacher notes")
+                Text("Private Teacher Note")
                     .font(.headline)
-                Text("These notes are included only in the teacher audit export, not the student report.")
+                Text("Not visible to student. Included only in teacher-only records.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 TextEditor(text: $workingReview.privateTeacherNotes)
@@ -264,7 +264,7 @@ struct FinalGradeReviewView: View {
             }
             Button("Keep Reviewing", role: .cancel) {}
         } message: {
-            Text("Approve this as the teacher-final grade? You can still keep the AI proposal for audit, but the final score and feedback will reflect your reviewed edits.")
+            Text("Approve this as the final grade? GradeDraft will keep the unreviewed suggestion in teacher-only review history, and the final score and feedback will reflect your reviewed edits.")
         }
     }
 
@@ -275,7 +275,7 @@ struct FinalGradeReviewView: View {
         case .approved:
             return "Approved by teacher."
         case .stale:
-            return "Stale. Review inputs changed after this final review was created."
+            return "Needs recheck. Student work, rubric, or evidence changed after this review was saved."
         }
     }
 
@@ -315,7 +315,7 @@ private struct FinalCriterionEditor: View {
                     .textFieldStyle(.roundedBorder)
                 Spacer()
                 if criterion.proposedPoints > 0 || criterion.maxPoints > 0 {
-                    Text("Proposed \(GradeTotals.formatted(criterion.proposedPoints)) / \(GradeTotals.formatted(criterion.maxPoints))")
+                    Text("Suggestion \(GradeTotals.formatted(criterion.proposedPoints)) / \(GradeTotals.formatted(criterion.maxPoints))")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -433,15 +433,11 @@ private struct FinalCriterionEditor: View {
                         .buttonStyle(.plain)
                     }
                 }
-                if let refs = criterion.evidenceSourceRefs, !refs.isEmpty {
-                    DisclosureGroup("Evidence source references") {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(refs, id: \.self) { ref in
-                                Text(ref)
-                                    .font(.caption.monospaced())
-                                    .textSelection(.enabled)
-                            }
-                        }
+                if criterion.evidenceSourceRefs?.isEmpty == false {
+                    DisclosureGroup("Evidence details") {
+                        Text("Linked to reviewed student work or teacher-added evidence. Use Review Scanned Text to check line context.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 if criterion.evidence.isEmpty && !showingEvidenceEntry {
@@ -451,7 +447,7 @@ private struct FinalCriterionEditor: View {
                 }
             }
 
-            TextField("Teacher rationale or private note for this criterion", text: $criterion.teacherRationale, axis: .vertical)
+            TextField("Teacher rationale or private note", text: $criterion.teacherRationale, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .font(.caption)
 

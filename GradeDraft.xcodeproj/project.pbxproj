@@ -41,6 +41,37 @@
 		9C0011111111111111110001 /* RosterImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0011111111111111110002 /* RosterImportService.swift */; };
 		9C0011111111111111110003 /* CurriculumCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0011111111111111110004 /* CurriculumCatalogService.swift */; };
 		888888888888888888888888 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 39a5973c95874d3383ccd429 /* ZIPFoundation */; };
+		B70000000000000000000001 /* AppTabShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000001 /* AppTabShell.swift */; };
+		B70000000000000000000002 /* ShareSheetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000002 /* ShareSheetBridge.swift */; };
+		B70000000000000000000003 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000003 /* Buttons.swift */; };
+		B70000000000000000000004 /* Cards.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000004 /* Cards.swift */; };
+		B70000000000000000000005 /* EvidenceComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000005 /* EvidenceComponents.swift */; };
+		B70000000000000000000006 /* ExportComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000006 /* ExportComponents.swift */; };
+		B70000000000000000000007 /* FinalReviewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000007 /* FinalReviewComponents.swift */; };
+		B70000000000000000000008 /* GradeDraftColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000008 /* GradeDraftColors.swift */; };
+		B70000000000000000000009 /* GradeDraftSpacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000009 /* GradeDraftSpacing.swift */; };
+		B70000000000000000000010 /* GradeDraftStringHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000010 /* GradeDraftStringHelpers.swift */; };
+		B70000000000000000000011 /* GradeDraftTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000011 /* GradeDraftTypography.swift */; };
+		B70000000000000000000012 /* Headers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000012 /* Headers.swift */; };
+		B70000000000000000000013 /* OCRComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000013 /* OCRComponents.swift */; };
+		B70000000000000000000014 /* ProgressComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000014 /* ProgressComponents.swift */; };
+		B70000000000000000000015 /* Rows.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000015 /* Rows.swift */; };
+		B70000000000000000000016 /* RubricComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000016 /* RubricComponents.swift */; };
+		B70000000000000000000017 /* StatusChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000017 /* StatusChip.swift */; };
+		B70000000000000000000018 /* AssignmentOverviewScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000018 /* AssignmentOverviewScreen.swift */; };
+		B70000000000000000000019 /* AssignmentsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000019 /* AssignmentsScreen.swift */; };
+		B70000000000000000000020 /* ClassDetailRosterScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000020 /* ClassDetailRosterScreen.swift */; };
+		B70000000000000000000021 /* ClassesScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000021 /* ClassesScreen.swift */; };
+		B70000000000000000000022 /* ExportsRestoreScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000022 /* ExportsRestoreScreen.swift */; };
+		B70000000000000000000023 /* FinalReviewScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000023 /* FinalReviewScreen.swift */; };
+		B70000000000000000000024 /* HomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000024 /* HomeScreen.swift */; };
+		B70000000000000000000025 /* ReviewScannedTextScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000025 /* ReviewScannedTextScreen.swift */; };
+		B70000000000000000000026 /* ReviewScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000026 /* ReviewScreen.swift */; };
+		B70000000000000000000027 /* RubricInstructionsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000027 /* RubricInstructionsScreen.swift */; };
+		B70000000000000000000028 /* ScreenModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000028 /* ScreenModels.swift */; };
+		B70000000000000000000029 /* SettingsAboutLocalPrivacyScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000029 /* SettingsAboutLocalPrivacyScreen.swift */; };
+		B70000000000000000000030 /* StudentWorkScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000030 /* StudentWorkScreen.swift */; };
+		D70000000000000000000001 /* GradeDraftUILanguageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000001 /* GradeDraftUILanguageTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,6 +114,37 @@
 		B2C3D4E5F6A7B8C9D0E1F2A3 /* GradeDraftScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftScreenshotTests.swift; sourceTree = "<group>"; };
 		9C0011111111111111110002 /* RosterImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterImportService.swift; sourceTree = "<group>"; };
 		9C0011111111111111110004 /* CurriculumCatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurriculumCatalogService.swift; sourceTree = "<group>"; };
+		B60000000000000000000001 /* AppTabShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTabShell.swift; sourceTree = "<group>"; };
+		B60000000000000000000002 /* ShareSheetBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheetBridge.swift; sourceTree = "<group>"; };
+		B60000000000000000000003 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
+		B60000000000000000000004 /* Cards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards.swift; sourceTree = "<group>"; };
+		B60000000000000000000005 /* EvidenceComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceComponents.swift; sourceTree = "<group>"; };
+		B60000000000000000000006 /* ExportComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportComponents.swift; sourceTree = "<group>"; };
+		B60000000000000000000007 /* FinalReviewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinalReviewComponents.swift; sourceTree = "<group>"; };
+		B60000000000000000000008 /* GradeDraftColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftColors.swift; sourceTree = "<group>"; };
+		B60000000000000000000009 /* GradeDraftSpacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftSpacing.swift; sourceTree = "<group>"; };
+		B60000000000000000000010 /* GradeDraftStringHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftStringHelpers.swift; sourceTree = "<group>"; };
+		B60000000000000000000011 /* GradeDraftTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTypography.swift; sourceTree = "<group>"; };
+		B60000000000000000000012 /* Headers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Headers.swift; sourceTree = "<group>"; };
+		B60000000000000000000013 /* OCRComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRComponents.swift; sourceTree = "<group>"; };
+		B60000000000000000000014 /* ProgressComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressComponents.swift; sourceTree = "<group>"; };
+		B60000000000000000000015 /* Rows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rows.swift; sourceTree = "<group>"; };
+		B60000000000000000000016 /* RubricComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RubricComponents.swift; sourceTree = "<group>"; };
+		B60000000000000000000017 /* StatusChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusChip.swift; sourceTree = "<group>"; };
+		B60000000000000000000018 /* AssignmentOverviewScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentOverviewScreen.swift; sourceTree = "<group>"; };
+		B60000000000000000000019 /* AssignmentsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentsScreen.swift; sourceTree = "<group>"; };
+		B60000000000000000000020 /* ClassDetailRosterScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassDetailRosterScreen.swift; sourceTree = "<group>"; };
+		B60000000000000000000021 /* ClassesScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassesScreen.swift; sourceTree = "<group>"; };
+		B60000000000000000000022 /* ExportsRestoreScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportsRestoreScreen.swift; sourceTree = "<group>"; };
+		B60000000000000000000023 /* FinalReviewScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinalReviewScreen.swift; sourceTree = "<group>"; };
+		B60000000000000000000024 /* HomeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreen.swift; sourceTree = "<group>"; };
+		B60000000000000000000025 /* ReviewScannedTextScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewScannedTextScreen.swift; sourceTree = "<group>"; };
+		B60000000000000000000026 /* ReviewScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewScreen.swift; sourceTree = "<group>"; };
+		B60000000000000000000027 /* RubricInstructionsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RubricInstructionsScreen.swift; sourceTree = "<group>"; };
+		B60000000000000000000028 /* ScreenModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenModels.swift; sourceTree = "<group>"; };
+		B60000000000000000000029 /* SettingsAboutLocalPrivacyScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutLocalPrivacyScreen.swift; sourceTree = "<group>"; };
+		B60000000000000000000030 /* StudentWorkScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentWorkScreen.swift; sourceTree = "<group>"; };
+		D60000000000000000000001 /* GradeDraftUILanguageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftUILanguageTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,6 +185,7 @@
 		FDBDEEC77EA1DB023A30F615 /* GradeDraft */ = {
 			isa = PBXGroup;
 			children = (
+				A60000000000000000000105 /* UI */,
 				76b6d5b0f6a84a6f8c3b4f17 /* Persistence */,
 				4c7d9c2b1eaa4f8b9d0f7c58 /* Rubrics */,
 				5c3d7f6a2bda4f5d9e1c8a7b /* Export */,
@@ -186,6 +249,7 @@
 				A1B2C3D4E5F6A7B8C9D0E1F4 /* GradeDraftHardeningTests.swift */,
 				9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */,
 				B2C3D4E5F6A7B8C9D0E1F2A3 /* GradeDraftScreenshotTests.swift */,
+				D60000000000000000000001 /* GradeDraftUILanguageTests.swift */,
 			);
 			path = GradeDraftTests;
 			sourceTree = "<group>";
@@ -224,6 +288,67 @@
 				2799b34fb3fc4e4ab80bcc16 /* AppDependencies.swift */,
 			);
 			path = Core;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000105 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				A60000000000000000000108 /* AppShell */,
+				A60000000000000000000106 /* DesignSystem */,
+				A60000000000000000000107 /* Screens */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000108 /* AppShell */ = {
+			isa = PBXGroup;
+			children = (
+				B60000000000000000000001 /* AppTabShell.swift */,
+				B60000000000000000000002 /* ShareSheetBridge.swift */,
+			);
+			path = AppShell;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000106 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				B60000000000000000000003 /* Buttons.swift */,
+				B60000000000000000000004 /* Cards.swift */,
+				B60000000000000000000005 /* EvidenceComponents.swift */,
+				B60000000000000000000006 /* ExportComponents.swift */,
+				B60000000000000000000007 /* FinalReviewComponents.swift */,
+				B60000000000000000000008 /* GradeDraftColors.swift */,
+				B60000000000000000000009 /* GradeDraftSpacing.swift */,
+				B60000000000000000000010 /* GradeDraftStringHelpers.swift */,
+				B60000000000000000000011 /* GradeDraftTypography.swift */,
+				B60000000000000000000012 /* Headers.swift */,
+				B60000000000000000000013 /* OCRComponents.swift */,
+				B60000000000000000000014 /* ProgressComponents.swift */,
+				B60000000000000000000015 /* Rows.swift */,
+				B60000000000000000000016 /* RubricComponents.swift */,
+				B60000000000000000000017 /* StatusChip.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000107 /* Screens */ = {
+			isa = PBXGroup;
+			children = (
+				B60000000000000000000018 /* AssignmentOverviewScreen.swift */,
+				B60000000000000000000019 /* AssignmentsScreen.swift */,
+				B60000000000000000000020 /* ClassDetailRosterScreen.swift */,
+				B60000000000000000000021 /* ClassesScreen.swift */,
+				B60000000000000000000022 /* ExportsRestoreScreen.swift */,
+				B60000000000000000000023 /* FinalReviewScreen.swift */,
+				B60000000000000000000024 /* HomeScreen.swift */,
+				B60000000000000000000025 /* ReviewScannedTextScreen.swift */,
+				B60000000000000000000026 /* ReviewScreen.swift */,
+				B60000000000000000000027 /* RubricInstructionsScreen.swift */,
+				B60000000000000000000028 /* ScreenModels.swift */,
+				B60000000000000000000029 /* SettingsAboutLocalPrivacyScreen.swift */,
+				B60000000000000000000030 /* StudentWorkScreen.swift */,
+			);
+			path = Screens;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -312,6 +437,36 @@
 
 /* Begin PBXSourcesBuildPhase section */
 		AD7F4DA0D2B5600DAD6CC1D4 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
+				B70000000000000000000001 /* AppTabShell.swift in Sources */,
+				B70000000000000000000002 /* ShareSheetBridge.swift in Sources */,
+				B70000000000000000000003 /* Buttons.swift in Sources */,
+				B70000000000000000000004 /* Cards.swift in Sources */,
+				B70000000000000000000005 /* EvidenceComponents.swift in Sources */,
+				B70000000000000000000006 /* ExportComponents.swift in Sources */,
+				B70000000000000000000007 /* FinalReviewComponents.swift in Sources */,
+				B70000000000000000000008 /* GradeDraftColors.swift in Sources */,
+				B70000000000000000000009 /* GradeDraftSpacing.swift in Sources */,
+				B70000000000000000000010 /* GradeDraftStringHelpers.swift in Sources */,
+				B70000000000000000000011 /* GradeDraftTypography.swift in Sources */,
+				B70000000000000000000012 /* Headers.swift in Sources */,
+				B70000000000000000000013 /* OCRComponents.swift in Sources */,
+				B70000000000000000000014 /* ProgressComponents.swift in Sources */,
+				B70000000000000000000015 /* Rows.swift in Sources */,
+				B70000000000000000000016 /* RubricComponents.swift in Sources */,
+				B70000000000000000000017 /* StatusChip.swift in Sources */,
+				B70000000000000000000018 /* AssignmentOverviewScreen.swift in Sources */,
+				B70000000000000000000019 /* AssignmentsScreen.swift in Sources */,
+				B70000000000000000000020 /* ClassDetailRosterScreen.swift in Sources */,
+				B70000000000000000000021 /* ClassesScreen.swift in Sources */,
+				B70000000000000000000022 /* ExportsRestoreScreen.swift in Sources */,
+				B70000000000000000000023 /* FinalReviewScreen.swift in Sources */,
+				B70000000000000000000024 /* HomeScreen.swift in Sources */,
+				B70000000000000000000025 /* ReviewScannedTextScreen.swift in Sources */,
+				B70000000000000000000026 /* ReviewScreen.swift in Sources */,
+				B70000000000000000000027 /* RubricInstructionsScreen.swift in Sources */,
+				B70000000000000000000028 /* ScreenModels.swift in Sources */,
+				B70000000000000000000029 /* SettingsAboutLocalPrivacyScreen.swift in Sources */,
+				B70000000000000000000030 /* StudentWorkScreen.swift in Sources */,
 				87C11B82C1B3493DEB9EF36F /* GradeDraftApp.swift in Sources */,
 				1A2F1E13B4A601B308F525EE /* ContentView.swift in Sources */,
 				5228B779E078711C4ADE8832 /* GradeDraftViewModel.swift in Sources */,
@@ -340,6 +495,7 @@
 				A1B2C3D4E5F6A7B8C9D0E1F3 /* GradeDraftHardeningTests.swift in Sources */,
 				83fb1a487f92415bb6a08568 /* GradeDraftSnapshotTests.swift in Sources */,
 				C3D4E5F6A7B8C9D0E1F2A3B4 /* GradeDraftScreenshotTests.swift in Sources */,
+				D70000000000000000000001 /* GradeDraftUILanguageTests.swift in Sources */,
 			); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

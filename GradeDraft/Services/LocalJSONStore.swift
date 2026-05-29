@@ -137,8 +137,8 @@ final class LocalJSONStore: AssignmentStoring {
 
 enum MarkdownReportBuilder {
     static func studentMarkdown(for assignment: AssignmentRecord) -> String {
-        var output = reportHeader(title: "GradeDraft Student Feedback", assignment: assignment)
-        output.append("\n> This student-facing report excludes private teacher notes and raw model responses.\n")
+        var output = reportHeader(title: "GradeDraft Student Report", assignment: assignment)
+        output.append("\n> This student-facing report includes only teacher-approved student-facing content and excludes private teacher notes, review history, scanned-text review details, original-file details, and unreviewed AI suggestions.\n")
 
         if let final = assignment.finalReview {
             output.append("\n## Final teacher-approved grade\n")
@@ -151,9 +151,9 @@ enum MarkdownReportBuilder {
             output.append("\n## Draft grade for teacher review\n")
             output.append("**Score:** \(GradeTotals.formatted(draft.totalScore)) / \(GradeTotals.formatted(draft.maxScore))\n")
             output.append("\nThis is not a finalized grade. A teacher must review and approve it before use.\n")
-            output.append("\n### Draft student feedback\n")
+            output.append("\n### Feedback suggestion for teacher review\n")
             output.append("\(draft.studentFeedback)\n")
-            output.append("\n### Draft criteria\n")
+            output.append("\n### Criteria suggestions\n")
             appendDraftCriteria(draft.criteria, to: &output)
         } else {
             output.append("\n## No grade has been drafted yet\n")
@@ -163,36 +163,36 @@ enum MarkdownReportBuilder {
     }
 
     static func teacherAuditMarkdown(for assignment: AssignmentRecord) -> String {
-        var output = reportHeader(title: "GradeDraft Teacher Audit Report", assignment: assignment)
-        output.append("\n> This teacher audit report may include private notes, reviewed text, OCR warnings, source fingerprints, and grading-state metadata. Treat it as sensitive student data.\n")
+        var output = reportHeader(title: "GradeDraft Teacher Review", assignment: assignment)
+        output.append("\n> This teacher-only review may include private notes, reviewed student work, scanned-text review details, original-file details, and local review history. Treat it as sensitive student data.\n")
 
-        output.append("\n## Readiness and source state\n")
-        output.append("- OCR review status: \(assignment.ocrReviewStatus.displayName)\n")
-        output.append("- Source inputs: \(assignment.sourceInputs.count)\n")
-        output.append("- Current grading packet fingerprint: \(assignment.gradingPacketFingerprint)\n")
+        output.append("\n## Readiness and student work status\n")
+        output.append("- Scanned-text review status: \(assignment.ocrReviewStatus.displayName)\n")
+        output.append("- Original files: \(assignment.sourceInputs.count)\n")
+        output.append("- Local review detail: \(assignment.gradingPacketFingerprint)\n")
         if assignment.latestDraftIsStale {
-            output.append("- Draft status: stale; input changed after the draft was generated.\n")
+            output.append("- Draft status: Needs recheck; student work or rubric changed after the feedback suggestion was created.\n")
         }
         if assignment.finalReviewIsStale {
-            output.append("- Final review status: stale; input changed after the final review was created.\n")
+            output.append("- Final review status: Needs recheck; student work or rubric changed after the final review was created.\n")
         }
 
         if !assignment.sourceInputs.isEmpty {
-            output.append("\n### Source inputs\n")
+            output.append("\n### Original files\n")
             for source in assignment.sourceInputs {
-                output.append("- \(source.sourceType.displayName) page \(source.pageIndex.map { String($0 + 1) } ?? "n/a"): \(source.localRelativePath ?? "no local path") [\(source.digestAlgorithm ?? "no digest"): \(source.contentDigest ?? "none")]\n")
+                output.append("- \(source.sourceType.displayName) page \(source.pageIndex.map { String($0 + 1) } ?? "n/a"): \(source.localRelativePath ?? "not recorded") [\(source.digestAlgorithm ?? "no digest"): \(source.contentDigest ?? "none")]\n")
             }
         }
 
         if let ocrDocument = assignment.ocrDocument {
-            output.append("\n## OCR summary\n")
+            output.append("\n## Scanned-text review summary\n")
             output.append("- Engine: \(ocrDocument.engine)\n")
             output.append("- Review status: \(ocrDocument.reviewStatus.displayName)\n")
             output.append("- Quality: \(ocrDocument.qualitySummary.displaySummary)\n")
         }
 
         if !assignment.curriculumReference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !assignment.curriculumMappings.isEmpty {
-            output.append("\n## Curriculum references and provenance\n")
+            output.append("\n## Curriculum references\n")
             output.append(assignment.curriculumReference.isEmpty ? CurriculumCatalogService.sourceWarning : "\(assignment.curriculumReference)\n")
             for mapping in assignment.curriculumMappings {
                 if let item = CurriculumCatalogService.item(id: mapping.curriculumItemID) {
@@ -206,9 +206,9 @@ enum MarkdownReportBuilder {
 
         if let final = assignment.finalReview {
             output.append("\n## Final teacher review\n")
-            output.append("- Status: \(final.status.rawValue)\n")
+            output.append("- Status: \(finalReviewStatusLabel(final.status))\n")
             output.append("- Score: \(GradeTotals.formatted(final.totalScore)) / \(GradeTotals.formatted(final.maxScore))\n")
-            output.append("- Packet fingerprint: \(final.packetFingerprint)\n")
+            output.append("- Local review detail: \(final.packetFingerprint)\n")
             output.append("\n### Final criteria\n")
             appendFinalCriteria(final.criteria, includeTeacherRationale: true, to: &output)
             if !final.privateTeacherNotes.isEmpty {
@@ -217,18 +217,18 @@ enum MarkdownReportBuilder {
         }
 
         if let draft = assignment.latestDraft {
-            output.append("\n## Model draft\n")
-            output.append("- Draft status: \(draft.status.rawValue)\n")
+            output.append("\n## Feedback suggestion for teacher review\n")
+            output.append("- Draft status: \(draftStatusLabel(draft.status))\n")
             output.append("- Score: \(GradeTotals.formatted(draft.totalScore)) / \(GradeTotals.formatted(draft.maxScore))\n")
-            output.append("- Packet fingerprint: \(draft.packetFingerprint)\n")
-            output.append("\n### Draft criteria\n")
+            output.append("- Local review detail: \(draft.packetFingerprint)\n")
+            output.append("\n### Criteria suggestions\n")
             appendDraftCriteria(draft.criteria, to: &output)
             if !draft.uncertaintyFlags.isEmpty {
-                output.append("\n### Uncertainty flags\n")
+                output.append("\n### Items needing attention\n")
                 for flag in draft.uncertaintyFlags { output.append("- \(flag)\n") }
             }
             if !draft.complianceFlags.isEmpty {
-                output.append("\n### Compliance flags\n")
+                output.append("\n### Review notes\n")
                 for flag in draft.complianceFlags { output.append("- \(flag)\n") }
             }
         }
@@ -237,7 +237,7 @@ enum MarkdownReportBuilder {
         output.append(assignment.rubricText.isEmpty ? "No rubric saved.\n" : "\(assignment.rubricText)\n")
 
         if !assignment.evidenceReferences.isEmpty {
-            output.append("\n## Evidence traceability\n")
+            output.append("\n## Evidence\n")
             for evidence in assignment.evidenceReferences {
                 output.append("- \(evidence.quote) — \(evidence.displaySource)")
                 if let box = evidence.boundingBox {
@@ -247,9 +247,9 @@ enum MarkdownReportBuilder {
             }
         }
 
-        output.append("\n## Audit events\n")
+        output.append("\n## Review history\n")
         if assignment.auditEvents.isEmpty {
-            output.append("No audit events recorded.\n")
+            output.append("No review history recorded.\n")
         } else {
             for event in assignment.auditEvents.sorted(by: { $0.timestamp < $1.timestamp }) {
                 output.append("- \(event.timestamp): \(event.eventType.rawValue) — \(event.detail)\n")
@@ -304,7 +304,9 @@ enum MarkdownReportBuilder {
         for criterion in criteria {
             output.append("\n#### \(criterion.criterion)\n")
             output.append("- Final score: \(GradeTotals.formatted(criterion.finalPoints)) / \(GradeTotals.formatted(criterion.maxPoints))\n")
-            output.append("- Proposed score: \(GradeTotals.formatted(criterion.proposedPoints)) / \(GradeTotals.formatted(criterion.maxPoints))\n")
+            if includeTeacherRationale {
+                output.append("- Suggestion score: \(GradeTotals.formatted(criterion.proposedPoints)) / \(GradeTotals.formatted(criterion.maxPoints))\n")
+            }
             output.append("- Rating: \(criterion.rating.isEmpty ? "Not specified" : criterion.rating)\n")
             output.append("- Explanation: \(criterion.explanation.isEmpty ? "None provided." : criterion.explanation)\n")
             if !criterion.evidence.isEmpty {
@@ -312,12 +314,35 @@ enum MarkdownReportBuilder {
                 for evidence in criterion.evidence { output.append("  - \(evidence)\n") }
             }
             if includeTeacherRationale, let refs = criterion.evidenceSourceRefs, !refs.isEmpty {
-                output.append("- Evidence source references:\n")
+                output.append("- Teacher-only evidence details:\n")
                 for ref in refs { output.append("  - \(ref)\n") }
             }
             if includeTeacherRationale && !criterion.teacherRationale.isEmpty {
                 output.append("- Teacher rationale: \(criterion.teacherRationale)\n")
             }
+        }
+    }
+
+
+    private static func finalReviewStatusLabel(_ status: FinalReviewStatus) -> String {
+        switch status {
+        case .inProgress:
+            return "Review final grade"
+        case .approved:
+            return "Approved"
+        case .stale:
+            return "Needs recheck"
+        }
+    }
+
+    private static func draftStatusLabel(_ status: DraftStatus) -> String {
+        switch status {
+        case .generated:
+            return "Ready for teacher review"
+        case .stale:
+            return "Needs recheck"
+        case .teacherReviewRequired:
+            return "Needs attention"
         }
     }
 
@@ -332,13 +357,13 @@ enum MarkdownReportBuilder {
             suffix = "Student"
             filenameExtension = "md"
         case .teacherAuditMarkdown:
-            suffix = "TeacherAudit"
+            suffix = "TeacherReview"
             filenameExtension = "md"
         case .studentPDF:
             suffix = "Student"
             filenameExtension = "pdf"
         case .teacherAuditPDF:
-            suffix = "TeacherAudit"
+            suffix = "TeacherReview"
             filenameExtension = "pdf"
         case .csvGradebook:
             suffix = "CSV"

@@ -231,7 +231,7 @@ struct BundleExportService {
             studentCount: manifest.recordCounts["students"] ?? 0,
             sourceFileCount: manifest.sourceFileCount,
             conflictAssignmentIDs: conflicts,
-            warnings: manifest.includesPrivateTeacherNotes ? ["Backup contains private teacher notes and audit records."] : []
+            warnings: manifest.includesPrivateTeacherNotes ? ["Backup contains private teacher notes and teacher-only review records."] : []
         )
     }
 
