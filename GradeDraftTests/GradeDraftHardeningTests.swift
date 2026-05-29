@@ -2212,6 +2212,47 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent("Sources/assignment-1/page-1.png").path))
     }
 
+    func testRestoreAsCopyRemapsConflictingAssignmentSourcePaths() throws {
+        let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent("V3BackupCopySource-\(UUID())")
+
+        var assignment = approvedAssignment(title: "Backup", student: "Alice")
+        let originalRelativePath = "Sources/\(assignment.id.uuidString)/page-1.png"
+        let sourceFile = tempRoot.appendingPathComponent(originalRelativePath)
+        try FileManager.default.createDirectory(at: sourceFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("source bytes".utf8).write(to: sourceFile)
+        assignment.sourceInputs = [
+            SourceInputRef(
+                sourceType: .pdf,
+                pageIndex: 0,
+                localRelativePath: originalRelativePath,
+                fileName: "work.pdf",
+                mimeType: "application/pdf",
+                contentDigest: "digest",
+                digestAlgorithm: "fnv1a64",
+                pdfPageCount: 1,
+                teacherIncludedInExport: true
+            )
+        ]
+
+        let zipURL = tempRoot.appendingPathComponent("backup.zip")
+        let written = try BundleExportService.writeFullBackup(assignments: [assignment], sourceFiles: [sourceFile], to: zipURL)
+        let restoreRoot = FileManager.default.temporaryDirectory.appendingPathComponent("V3BackupCopyRestore-\(UUID())")
+
+        let restoredAsCopy = try BundleExportService.restoreBackupArchive(
+            from: written,
+            existingAssignments: [assignment],
+            applicationSupportDirectory: restoreRoot,
+            conflictResolution: .restoreAsCopy
+        )
+
+        let copiedAssignment = try XCTUnwrap(restoredAsCopy.first)
+        let copiedRelativePath = try XCTUnwrap(copiedAssignment.sourceInputs.first?.localRelativePath)
+        XCTAssertNotEqual(copiedAssignment.id, assignment.id)
+        XCTAssertEqual(copiedRelativePath, "Sources/\(copiedAssignment.id.uuidString)/page-1.png")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent(copiedRelativePath).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent(originalRelativePath).path))
+    }
+
     @MainActor
     func testBackupRestoreUIPathDetectsConflictAndRestoresAsCopy() throws {
         let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent("V3ViewModelRestore-\(UUID())")

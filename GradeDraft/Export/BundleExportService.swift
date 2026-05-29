@@ -245,20 +245,35 @@ struct BundleExportService {
         guard let archive = Archive(url: url, accessMode: .read) else {
             throw BundleExportError.restoreFailed("Could not open backup archive for restore.")
         }
-        let existingIDs = Set(existingAssignments.map(\.id))
-        let existingIDStrings = Set(existingAssignments.map { $0.id.uuidString })
-        try restoreSourceFiles(from: archive, to: applicationSupportDirectory, conflictResolution: conflictResolution, conflictingAssignmentIDs: existingIDStrings)
         var restored = try readBackupAssignments(from: url)
+        let existingIDs = Set(existingAssignments.map(\.id))
+        let copyIDMap: [String: String]
         if conflictResolution == .restoreAsCopy {
+            copyIDMap = Dictionary(uniqueKeysWithValues: restored.compactMap { record in
+                existingIDs.contains(record.id) ? (record.id.uuidString, UUID().uuidString) : nil
+            })
             restored = restored.map { record in
                 guard existingIDs.contains(record.id) else { return record }
                 var copy = record
-                copy.id = UUID()
+                if let copyID = copyIDMap[record.id.uuidString].flatMap(UUID.init(uuidString:)) {
+                    copy.id = copyID
+                }
                 copy.title = "Restored copy of \(record.title)"
+                copy.sourceInputs = remappedSourceInputs(copy.sourceInputs, from: record.id.uuidString, to: copy.id.uuidString)
                 copy.appendAuditEvent(.inputChanged, detail: "Backup restore copied this assignment because a local assignment already used the original ID.")
                 return copy
             }
+        } else {
+            copyIDMap = [:]
         }
+        let conflictingAssignmentIDs = Set(existingAssignments.map { $0.id.uuidString })
+        try restoreSourceFiles(
+            from: archive,
+            to: applicationSupportDirectory,
+            conflictResolution: conflictResolution,
+            conflictingAssignmentIDs: conflictingAssignmentIDs,
+            copyAssignmentIDs: copyIDMap
+        )
         return restored
     }
 
@@ -311,17 +326,19 @@ struct BundleExportService {
         from archive: Archive,
         to applicationSupportDirectory: URL,
         conflictResolution: BackupConflictResolution,
-        conflictingAssignmentIDs: Set<String>
+        conflictingAssignmentIDs: Set<String>,
+        copyAssignmentIDs: [String: String] = [:]
     ) throws {
         let fileManager = FileManager.default
         for entry in archive where entry.path.hasPrefix("sources/") {
             guard !entry.path.contains("..") else { throw BundleExportError.restoreFailed("Archive source entry contains an unsafe path: \(entry.path).") }
-            let relative = String(entry.path.dropFirst("sources/".count))
+            var relative = String(entry.path.dropFirst("sources/".count))
             guard !relative.isEmpty else { continue }
-            // For keepLocal and restoreAsCopy, skip source files belonging to existing local
-            // assignments so the local teacher's source material is not overwritten.
-            if conflictResolution != .replaceLocal,
-               conflictingAssignmentIDs.contains(where: { relative.contains($0) }) {
+            if conflictResolution == .restoreAsCopy,
+               let remapped = remappedSourcePath(relative, using: copyAssignmentIDs) {
+                relative = remapped
+            } else if conflictResolution != .replaceLocal,
+                      conflictingAssignmentIDs.contains(where: { sourcePath(relative, belongsTo: $0) }) {
                 continue
             }
             let destination = applicationSupportDirectory.appendingPathComponent(relative)
@@ -329,6 +346,27 @@ struct BundleExportService {
             if fileManager.fileExists(atPath: destination.path) { try fileManager.removeItem(at: destination) }
             _ = try archive.extract(entry, to: destination)
         }
+    }
+
+    private static func remappedSourceInputs(_ sourceInputs: [SourceInputRef], from originalAssignmentID: String, to copiedAssignmentID: String) -> [SourceInputRef] {
+        sourceInputs.map { source in
+            var remapped = source
+            if let localRelativePath = source.localRelativePath {
+                remapped.localRelativePath = remappedSourcePath(localRelativePath, using: [originalAssignmentID: copiedAssignmentID]) ?? localRelativePath
+            }
+            return remapped
+        }
+    }
+
+    private static func remappedSourcePath(_ path: String, using copyAssignmentIDs: [String: String]) -> String? {
+        for (originalID, copiedID) in copyAssignmentIDs where sourcePath(path, belongsTo: originalID) {
+            return path.replacingOccurrences(of: "Sources/\(originalID)/", with: "Sources/\(copiedID)/")
+        }
+        return nil
+    }
+
+    private static func sourcePath(_ path: String, belongsTo assignmentID: String) -> Bool {
+        path.hasPrefix("Sources/\(assignmentID)/") || path.contains("/Sources/\(assignmentID)/")
     }
 
     private static func addCodable<T: Encodable>(_ value: T, named name: String, to archive: Archive) throws {

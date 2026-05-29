@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-05-29 — Restore-as-copy source path remap
+
+- Fixed full-backup restore-as-copy so conflicting assignment source refs are remapped from `Sources/<originalAssignmentID>/...` to `Sources/<copiedAssignmentID>/...` and source files are restored under the copied assignment ID.
+- Added XCTest coverage for the conflicting restore-as-copy source remap path.
+- Ran available local static guardrails; Xcode/plugin validation is blocked in this environment because `xcodebuild` and `xcrun` are unavailable.
+
 ## 2026-05-29 — All-features completion source patch
 
 ### Baseline inspected
