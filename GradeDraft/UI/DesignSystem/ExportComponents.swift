@@ -28,7 +28,7 @@ struct ExportOptionRow: View {
                     StatusChip(status, compact: true)
                     Text(actionLabel)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(disabled ? .secondary : .blue)
+                        .foregroundStyle(disabled ? Color(.secondaryLabel) : Color.blue)
                         .lineLimit(1)
                 }
             }
