@@ -2253,7 +2253,7 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
         XCTAssertNotEqual(copiedAssignment.id, assignment.id)
         XCTAssertEqual(copiedRelativePath, "Sources/\(copiedAssignment.id.uuidString)/page-1.png")
         XCTAssertTrue(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent(copiedRelativePath).path))
-        let copiedText = try XCTUnwrap(String(data: try Data(contentsOf: restoreRoot.appendingPathComponent(copiedRelativePath)), encoding: .utf8)
+        let copiedText = try XCTUnwrap(String(data: try Data(contentsOf: restoreRoot.appendingPathComponent(copiedRelativePath)), encoding: .utf8))
         XCTAssertEqual(copiedText, "source bytes")
         XCTAssertTrue(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent(originalRelativePath).path))
         let localConflictText = try XCTUnwrap(String(data: try Data(contentsOf: localConflictFile), encoding: .utf8))
