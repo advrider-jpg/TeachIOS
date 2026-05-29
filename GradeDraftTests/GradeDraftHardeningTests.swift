@@ -928,27 +928,27 @@ final class AssignmentRecordHardeningTests: XCTestCase {
 
     func testGradingPacketFingerprintChangesWithRubric() {
         var record = AssignmentRecord(title: "Test", rubricText: "Claim: 0-4 points", reviewedStudentText: "text")
-        let f1 = record.gradingPacketFingerprint
+        let fingerprintBefore = record.gradingPacketFingerprint
         record.rubricText = "Evidence: 0-2 points"
-        let f2 = record.gradingPacketFingerprint
-        XCTAssertNotEqual(f1, f2)
+        let fingerprintAfter = record.gradingPacketFingerprint
+        XCTAssertNotEqual(fingerprintBefore, fingerprintAfter)
     }
 
     func testGradingPacketFingerprintChangesWithStudentText() {
         var record = AssignmentRecord(title: "Test", rubricText: "Claim: 0-4 points", reviewedStudentText: "text A")
-        let f1 = record.gradingPacketFingerprint
+        let fingerprintBefore = record.gradingPacketFingerprint
         record.reviewedStudentText = "text B"
-        let f2 = record.gradingPacketFingerprint
-        XCTAssertNotEqual(f1, f2)
+        let fingerprintAfter = record.gradingPacketFingerprint
+        XCTAssertNotEqual(fingerprintBefore, fingerprintAfter)
     }
 
     func testGradingPacketFingerprintChangesWithOCRStatus() {
         var record = AssignmentRecord(title: "Test", rubricText: "Claim: 0-4 points", reviewedStudentText: "text")
         record.ocrReviewStatus = .notNeeded
-        let f1 = record.gradingPacketFingerprint
+        let fingerprintBefore = record.gradingPacketFingerprint
         record.ocrReviewStatus = .reviewed
-        let f2 = record.gradingPacketFingerprint
-        XCTAssertNotEqual(f1, f2)
+        let fingerprintAfter = record.gradingPacketFingerprint
+        XCTAssertNotEqual(fingerprintBefore, fingerprintAfter)
     }
 
     func testLatestDraftIsStaleWhenFingerprintDiffers() {
@@ -1391,8 +1391,8 @@ final class ViewModelHardeningTests: XCTestCase {
         let store = InMemoryAssignmentStore(assignments: [assignment])
         let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
 
-        viewModel.updateAssignment { a in
-            a.rubricText = "Evidence: 0-2 points"
+        viewModel.updateAssignment { record in
+            record.rubricText = "Evidence: 0-2 points"
         }
         XCTAssertEqual(viewModel.assignment.latestDraft?.status, .stale, "Draft should be marked stale on input change")
     }
