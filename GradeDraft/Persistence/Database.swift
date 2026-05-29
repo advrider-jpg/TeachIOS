@@ -383,7 +383,7 @@ final class GradeDraftDatabase {
                 classGroupID: optionalUUID(row, "class_group_id"),
                 studentID: optionalUUID(row, "student_id"),
                 title: text(row, "title"),
-                prompt: text(row, "prompt"),
+                prompt: optionalText(row, "prompt").flatMap { $0.isEmpty ? nil : $0 },
                 subject: text(row, "subject"),
                 gradeLevel: text(row, "grade_level"),
                 assessmentPurpose: AssessmentPurpose(rawValue: text(row, "assessment_purpose")) ?? .summative,

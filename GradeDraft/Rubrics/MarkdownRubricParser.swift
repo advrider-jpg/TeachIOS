@@ -21,6 +21,33 @@ enum MarkdownRubricParser {
             if row.kind == .heading {
                 currentGroup = row.title
                 if let currentGroup, !groups.contains(currentGroup) { groups.append(currentGroup) }
+                guard let maxPoints = row.maxPoints ?? RubricParser.maxPoints(in: row.text),
+                      let title = RubricParser.criterionTitle(from: row.text) ?? row.title.nilIfEmpty else {
+                    continue
+                }
+
+                let normalizedTitle = RubricParser.normalized(title)
+                if seen.contains(normalizedTitle) {
+                    issues.append("Duplicate criterion ignored: \(title)")
+                    continue
+                }
+                seen.insert(normalizedTitle)
+                let order = criteria.count
+                let id = row.explicitID ?? RubricParser.stableCriterionID(order: order, title: title, maxPoints: maxPoints)
+                var levels = row.levels(criterionID: id)
+                if levels.isEmpty { levels = RubricParser.levels(in: row.text, criterionID: id) }
+                criteria.append(
+                    RubricCriterion(
+                        id: id,
+                        title: title,
+                        maxPoints: maxPoints,
+                        descriptor: row.descriptor.isEmpty ? row.text : row.descriptor,
+                        sortOrder: order,
+                        groupTitle: currentGroup,
+                        levels: levels,
+                        explicitID: row.explicitID
+                    )
+                )
                 continue
             }
 
