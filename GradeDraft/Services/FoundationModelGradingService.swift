@@ -4,7 +4,7 @@ import Foundation
 import FoundationModels
 #endif
 
-final class FoundationModelGradingService: GradingServicing, CapabilityChecking {
+final class FoundationModelGradingService: GradingServicing, CapabilityChecking, Sendable {
     var localAIStatus: LocalAIStatus {
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
