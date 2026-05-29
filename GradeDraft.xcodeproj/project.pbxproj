@@ -21,6 +21,7 @@
 		00409CECD33DC980764B6B8E /* GradeResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D02E558438747A9D730FC8 /* GradeResultView.swift */; };
 		7B431331244B2236C5880029 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3B0978977513E1648ADF1B8F /* PrivacyInfo.xcprivacy */; };
 		E92F15694F5C9C14E9C64B87 /* GradeDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7540F0CD4B719C0E75EBE09 /* GradeDraftTests.swift */; };
+		A1B2C3D4E5F6A7B8C9D0E1F3 /* GradeDraftHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F4 /* GradeDraftHardeningTests.swift */; };
 		acebd1ccda9d452f9cbc80d1 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7764a94835384bd8abb8eb63 /* Database.swift */; };
 		b1c2d3e4f5a6b7c8d9e0f1a2 /* GRDBAssignmentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = a1b2c3d4e5f6a7b8c9d0e1f2 /* GRDBAssignmentStore.swift */; };
 		914ffe7fdcd845f3ba9116df /* MarkdownRubricParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 381d0caf446440f7a302ca83 /* MarkdownRubricParser.swift */; };
@@ -66,6 +67,7 @@
 		93D02E558438747A9D730FC8 /* GradeResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeResultView.swift; sourceTree = "<group>"; };
 		3B0978977513E1648ADF1B8F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		E7540F0CD4B719C0E75EBE09 /* GradeDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTests.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F4 /* GradeDraftHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftHardeningTests.swift; sourceTree = "<group>"; };
 		7764a94835384bd8abb8eb63 /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
 		a1b2c3d4e5f6a7b8c9d0e1f2 /* GRDBAssignmentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GRDBAssignmentStore.swift; sourceTree = "<group>"; };
 		381d0caf446440f7a302ca83 /* MarkdownRubricParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRubricParser.swift; sourceTree = "<group>"; };
@@ -171,6 +173,7 @@
 			isa = PBXGroup;
 			children = (
 				E7540F0CD4B719C0E75EBE09 /* GradeDraftTests.swift */,
+				A1B2C3D4E5F6A7B8C9D0E1F4 /* GradeDraftHardeningTests.swift */,
 				9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */,
 			);
 			path = GradeDraftTests;
@@ -320,6 +323,7 @@
 				); runOnlyForDeploymentPostprocessing = 0; };
 		C2C867FEB507DB914C2126B0 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
 				E92F15694F5C9C14E9C64B87 /* GradeDraftTests.swift in Sources */,
+				A1B2C3D4E5F6A7B8C9D0E1F3 /* GradeDraftHardeningTests.swift in Sources */,
 				83fb1a487f92415bb6a08568 /* GradeDraftSnapshotTests.swift in Sources */,
 			); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
