@@ -19,7 +19,7 @@ struct DocumentScannerView: UIViewControllerRepresentable {
         Coordinator(onComplete: onComplete, onCancel: onCancel, onError: onError)
     }
 
-    final class Coordinator: NSObject, @preconcurrency VNDocumentCameraViewControllerDelegate {
+    final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
         private let onComplete: ([UIImage]) -> Void
         private let onCancel: () -> Void
         private let onError: (Error) -> Void
@@ -31,24 +31,25 @@ struct DocumentScannerView: UIViewControllerRepresentable {
         }
 
         func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
-            var images: [UIImage] = []
-            for index in 0..<scan.pageCount {
-                images.append(scan.imageOfPage(at: index))
-            }
-            controller.dismiss(animated: true) {
-                self.onComplete(images)
+            // UIKit guarantees this delegate fires on the main thread.
+            MainActor.assumeIsolated {
+                var images: [UIImage] = []
+                for index in 0..<scan.pageCount {
+                    images.append(scan.imageOfPage(at: index))
+                }
+                controller.dismiss(animated: true) { self.onComplete(images) }
             }
         }
 
         func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
-            controller.dismiss(animated: true) {
-                self.onCancel()
+            MainActor.assumeIsolated {
+                controller.dismiss(animated: true) { self.onCancel() }
             }
         }
 
         func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFailWithError error: Error) {
-            controller.dismiss(animated: true) {
-                self.onError(error)
+            MainActor.assumeIsolated {
+                controller.dismiss(animated: true) { self.onError(error) }
             }
         }
     }
