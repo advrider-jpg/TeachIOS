@@ -6,6 +6,7 @@ import XCTest
 /// Deterministic tests for LocalCapabilityBanner UI state.
 /// Snapshot testing was removed because no reference images were committed.
 /// These tests verify the view's observable behavior without image comparison.
+@MainActor
 final class GradeDraftCapabilityBannerTests: XCTestCase {
 
     func testAvailableStatusIsStoredCorrectly() {
