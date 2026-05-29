@@ -19,6 +19,7 @@ struct DocumentScannerView: UIViewControllerRepresentable {
         Coordinator(onComplete: onComplete, onCancel: onCancel, onError: onError)
     }
 
+    @MainActor
     final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
         private let onComplete: ([UIImage]) -> Void
         private let onCancel: () -> Void
