@@ -19,7 +19,9 @@ struct DocumentScannerView: UIViewControllerRepresentable {
         Coordinator(onComplete: onComplete, onCancel: onCancel, onError: onError)
     }
 
-    final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
+    // @unchecked Sendable: Coordinator only stores immutable callbacks; UIKit guarantees
+    // all VNDocumentCameraViewControllerDelegate calls arrive on the main thread.
+    final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate, @unchecked Sendable {
         private let onComplete: ([UIImage]) -> Void
         private let onCancel: () -> Void
         private let onError: (Error) -> Void
@@ -31,12 +33,10 @@ struct DocumentScannerView: UIViewControllerRepresentable {
         }
 
         func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
-            // UIKit guarantees this delegate fires on the main thread.
+            // Extract images here (nonisolated) so non-Sendable VNDocumentCameraScan is
+            // never sent into the @MainActor region. UIImage is Sendable.
+            let images = (0..<scan.pageCount).map { scan.imageOfPage(at: $0) }
             MainActor.assumeIsolated {
-                var images: [UIImage] = []
-                for index in 0..<scan.pageCount {
-                    images.append(scan.imageOfPage(at: index))
-                }
                 controller.dismiss(animated: true) { self.onComplete(images) }
             }
         }
