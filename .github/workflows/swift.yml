@@ -51,8 +51,6 @@ jobs:
             -destination "$SIMULATOR_DESTINATION" \
             -resultBundlePath TestResults.xcresult \
             -enableCodeCoverage YES \
-            -test-timeouts-enabled YES \
-            -defaultTestExecutionTimeAllowance 60 \
             ONLY_ACTIVE_ARCH=YES \
             EXCLUDED_ARCHS=x86_64 \
             2>&1 | xcbeautify --report junit --report-path test-reports/
