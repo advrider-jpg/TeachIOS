@@ -25,6 +25,8 @@ enum StableFingerprint {
 
 struct AssignmentRecord: Identifiable, Equatable {
     var id: UUID
+    var classGroupID: UUID?
+    var studentID: UUID?
     var title: String
     /// The assignment prompt or question. Separate from title; used in the grading packet.
     /// Optional for backwards-compatible decoding; nil is equivalent to empty.
@@ -49,11 +51,15 @@ struct AssignmentRecord: Identifiable, Equatable {
     var finalReview: FinalGradeReview?
     var exportRecords: [ExportRecord]
     var auditEvents: [AuditEvent]
+    var evidenceReferences: [EvidenceReference]
+    var curriculumMappings: [CurriculumMapping]
     var createdAt: Date
     var updatedAt: Date
 
     init(
         id: UUID = UUID(),
+        classGroupID: UUID? = nil,
+        studentID: UUID? = nil,
         title: String = "New Assignment",
         prompt: String? = nil,
         subject: String = "",
@@ -76,10 +82,14 @@ struct AssignmentRecord: Identifiable, Equatable {
         finalReview: FinalGradeReview? = nil,
         exportRecords: [ExportRecord] = [],
         auditEvents: [AuditEvent] = [],
+        evidenceReferences: [EvidenceReference] = [],
+        curriculumMappings: [CurriculumMapping] = [],
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
         self.id = id
+        self.classGroupID = classGroupID
+        self.studentID = studentID
         self.title = title
         self.prompt = prompt
         self.subject = subject
@@ -102,6 +112,8 @@ struct AssignmentRecord: Identifiable, Equatable {
         self.finalReview = finalReview
         self.exportRecords = exportRecords
         self.auditEvents = auditEvents
+        self.evidenceReferences = evidenceReferences
+        self.curriculumMappings = curriculumMappings
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -109,11 +121,11 @@ struct AssignmentRecord: Identifiable, Equatable {
     // MARK: - Codable with backward-compatible prompt field
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, prompt, subject, gradeLevel, assessmentPurpose, curriculumReference
+        case id, classGroupID, studentID, title, prompt, subject, gradeLevel, assessmentPurpose, curriculumReference
         case className, studentDisplayName, assignmentType, rubricText, customInstructions
         case answerKeyText, exemplarText, reviewedStudentText, sourceInputs, ocrDocument
         case ocrReviewStatus, ocrReviewedAt, latestDraft, finalReview
-        case exportRecords, auditEvents, createdAt, updatedAt
+        case exportRecords, auditEvents, evidenceReferences, curriculumMappings, createdAt, updatedAt
     }
 }
 
@@ -121,6 +133,8 @@ extension AssignmentRecord: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
+        classGroupID = try container.decodeIfPresent(UUID.self, forKey: .classGroupID)
+        studentID = try container.decodeIfPresent(UUID.self, forKey: .studentID)
         title = try container.decode(String.self, forKey: .title)
         prompt = try container.decodeIfPresent(String.self, forKey: .prompt)
         subject = try container.decode(String.self, forKey: .subject)
@@ -143,6 +157,8 @@ extension AssignmentRecord: Codable {
         finalReview = try container.decodeIfPresent(FinalGradeReview.self, forKey: .finalReview)
         exportRecords = (try? container.decode([ExportRecord].self, forKey: .exportRecords)) ?? []
         auditEvents = (try? container.decode([AuditEvent].self, forKey: .auditEvents)) ?? []
+        evidenceReferences = (try? container.decode([EvidenceReference].self, forKey: .evidenceReferences)) ?? []
+        curriculumMappings = (try? container.decode([CurriculumMapping].self, forKey: .curriculumMappings)) ?? []
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
@@ -150,6 +166,8 @@ extension AssignmentRecord: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(classGroupID, forKey: .classGroupID)
+        try container.encodeIfPresent(studentID, forKey: .studentID)
         try container.encode(title, forKey: .title)
         try container.encodeIfPresent(prompt, forKey: .prompt)
         try container.encode(subject, forKey: .subject)
@@ -172,6 +190,8 @@ extension AssignmentRecord: Codable {
         try container.encodeIfPresent(finalReview, forKey: .finalReview)
         try container.encode(exportRecords, forKey: .exportRecords)
         try container.encode(auditEvents, forKey: .auditEvents)
+        try container.encode(evidenceReferences, forKey: .evidenceReferences)
+        try container.encode(curriculumMappings, forKey: .curriculumMappings)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
     }
@@ -192,6 +212,8 @@ extension AssignmentRecord: Codable {
 
     var gradingPacketFingerprint: String {
         StableFingerprint.fingerprint([
+            classGroupID?.uuidString ?? "",
+            studentID?.uuidString ?? "",
             title,
             prompt ?? "",
             subject,
@@ -205,6 +227,7 @@ extension AssignmentRecord: Codable {
             exemplarText,
             reviewedStudentText,
             ocrReviewStatus.rawValue,
+            curriculumMappings.map { $0.curriculumItemID }.joined(separator: "|"),
             sourceInputs.map { $0.contentDigest ?? $0.id.uuidString }.joined(separator: "|")
         ])
     }
@@ -221,6 +244,15 @@ extension AssignmentRecord: Codable {
 
     var requiresOCRReviewBeforeGrading: Bool {
         ocrReviewStatus == .needsReview || ocrReviewStatus == .blocked
+    }
+
+    var sourceReferencedReviewedText: String {
+        guard let ocrDocument, !ocrDocument.pages.isEmpty else { return reviewedStudentText }
+        return ocrDocument.pages.sorted { $0.pageIndex < $1.pageIndex }.flatMap { page in
+            page.lines.enumerated().map { offset, line in
+                "[p\(page.pageIndex + 1)-l\(offset + 1)-\(line.id.uuidString.prefix(8))] \(line.reviewedText)"
+            }
+        }.joined(separator: "\n")
     }
 
     var gradingInput: GradingInput {
@@ -241,6 +273,7 @@ extension AssignmentRecord: Codable {
             assessmentPurpose: assessmentPurpose,
             curriculumReference: curriculumReference,
             reviewedStudentText: reviewedStudentText,
+            reviewedTextWithSourceRefs: sourceReferencedReviewedText,
             ocrQualitySummary: ocrDocument?.qualitySummary ?? OCRQualitySummary(),
             ocrReviewStatus: ocrReviewStatus,
             sourceInputCount: sourceInputs.count,
@@ -268,6 +301,68 @@ struct ClassGroupRecord: Identifiable, Codable, Equatable {
     var schoolYear: String
     var term: String
     var isArchived: Bool = false
+}
+
+struct RosterImportPreview: Codable, Equatable {
+    var className: String
+    var students: [StudentRecord]
+    var duplicateNames: [String]
+    var rejectedRows: [String]
+}
+
+struct CurriculumItem: Identifiable, Codable, Equatable {
+    var id: String
+    var source: String
+    var version: String
+    var learningArea: String
+    var subject: String
+    var yearLevel: String
+    var itemType: String
+    var code: String
+    var title: String
+    var shortDescription: String
+    var sourceURL: String
+}
+
+struct CurriculumMapping: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var curriculumItemID: String
+    var mappingKind: String
+    var teacherSelected: Bool = true
+    var createdAt: Date = Date()
+}
+
+struct EvidenceReference: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var sourceInputID: UUID?
+    var ocrLineID: UUID?
+    var pageIndex: Int?
+    var quote: String
+    var startOffset: Int?
+    var endOffset: Int?
+    var boundingBox: NormalizedRect?
+    var sourceKind: String
+    var teacherConfirmed: Bool
+    var createdAt: Date = Date()
+
+    var displaySource: String {
+        let page = pageIndex.map { "page \($0 + 1)" } ?? "reviewed text"
+        if let ocrLineID { return "\(page), OCR line \(ocrLineID.uuidString.prefix(8))" }
+        return page
+    }
+}
+
+struct BackupArchiveManifest: Codable, Equatable {
+    var archiveID: UUID = UUID()
+    var archiveKind: String
+    var schemaVersion: String = "gradedraft-backup-v1"
+    var createdAt: Date = Date()
+    var includesStudentData: Bool = true
+    var includesPrivateTeacherNotes: Bool
+    var includesOriginalSources: Bool
+    var sourceFileCount: Int
+    var recordCounts: [String: Int]
+    var contentHashes: [String: String]
 }
 
 enum AssignmentType: String, CaseIterable, Codable, Identifiable {
@@ -355,10 +450,13 @@ struct SourceInputRef: Identifiable, Codable, Equatable {
     var sourceType: SourceType
     var pageIndex: Int?
     var localRelativePath: String?
+    var fileName: String?
+    var mimeType: String?
     var contentDigest: String?
     var digestAlgorithm: String?
     var imageWidth: Double?
     var imageHeight: Double?
+    var pdfPageCount: Int?
     var teacherIncludedInExport: Bool
     var createdAt: Date
 
@@ -367,10 +465,13 @@ struct SourceInputRef: Identifiable, Codable, Equatable {
         sourceType: SourceType,
         pageIndex: Int? = nil,
         localRelativePath: String? = nil,
+        fileName: String? = nil,
+        mimeType: String? = nil,
         contentDigest: String? = nil,
         digestAlgorithm: String? = nil,
         imageWidth: Double? = nil,
         imageHeight: Double? = nil,
+        pdfPageCount: Int? = nil,
         teacherIncludedInExport: Bool = false,
         createdAt: Date = Date()
     ) {
@@ -378,10 +479,13 @@ struct SourceInputRef: Identifiable, Codable, Equatable {
         self.sourceType = sourceType
         self.pageIndex = pageIndex
         self.localRelativePath = localRelativePath
+        self.fileName = fileName
+        self.mimeType = mimeType
         self.contentDigest = contentDigest
         self.digestAlgorithm = digestAlgorithm
         self.imageWidth = imageWidth
         self.imageHeight = imageHeight
+        self.pdfPageCount = pdfPageCount
         self.teacherIncludedInExport = teacherIncludedInExport
         self.createdAt = createdAt
     }
@@ -547,6 +651,12 @@ struct OCRLine: Identifiable, Codable, Equatable {
 
     var needsReview: Bool {
         confidence < OCRQualitySummary.lowConfidenceThreshold || !teacherConfirmed
+    }
+
+    var reviewStatusLabel: String {
+        if teacherConfirmed { return correctedText == nil ? "confirmed" : "corrected" }
+        if correctedText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true { return "blockedFromGrading" }
+        return "unreviewed"
     }
 }
 
@@ -714,6 +824,7 @@ struct GradingInput: Codable, Equatable {
     var assessmentPurpose: AssessmentPurpose
     var curriculumReference: String
     var reviewedStudentText: String
+    var reviewedTextWithSourceRefs: String
     var ocrQualitySummary: OCRQualitySummary
     var ocrReviewStatus: OCRReviewStatus
     var sourceInputCount: Int
@@ -884,6 +995,7 @@ struct FinalCriterionScore: Identifiable, Codable, Equatable {
     var finalPoints: Double
     var maxPoints: Double
     var evidence: [String]
+    var evidenceSourceRefs: [String]?
     var explanation: String
     var teacherApproved: Bool
     var teacherRationale: String
@@ -897,6 +1009,7 @@ struct FinalCriterionScore: Identifiable, Codable, Equatable {
         finalPoints: Double,
         maxPoints: Double,
         evidence: [String],
+        evidenceSourceRefs: [String]? = nil,
         explanation: String,
         teacherApproved: Bool = false,
         teacherRationale: String = ""
@@ -909,6 +1022,7 @@ struct FinalCriterionScore: Identifiable, Codable, Equatable {
         self.finalPoints = finalPoints
         self.maxPoints = maxPoints
         self.evidence = evidence
+        self.evidenceSourceRefs = evidenceSourceRefs
         self.explanation = explanation
         self.teacherApproved = teacherApproved
         self.teacherRationale = teacherRationale
@@ -923,6 +1037,7 @@ struct FinalCriterionScore: Identifiable, Codable, Equatable {
             finalPoints: draft.proposedPoints,
             maxPoints: draft.maxPoints,
             evidence: draft.evidence,
+            evidenceSourceRefs: draft.evidenceSourceRefs,
             explanation: draft.explanation,
             teacherApproved: false,
             teacherRationale: draft.teacherReviewRequired ? "Review required by draft." : ""
@@ -935,7 +1050,11 @@ struct FinalCriterionScore: Identifiable, Codable, Equatable {
 enum ExportKind: String, Codable, Equatable, Identifiable {
     case studentMarkdown
     case teacherAuditMarkdown
+    case studentPDF
+    case teacherAuditPDF
     case csvGradebook
+    case zipArchive
+    case fullBackupArchive
     case backupJSON
 
     var id: String { rawValue }
@@ -946,8 +1065,16 @@ enum ExportKind: String, Codable, Equatable, Identifiable {
             return "Student Markdown report"
         case .teacherAuditMarkdown:
             return "Teacher audit Markdown report"
+        case .studentPDF:
+            return "Student PDF report"
+        case .teacherAuditPDF:
+            return "Teacher audit PDF report"
         case .csvGradebook:
             return "CSV grade summary"
+        case .zipArchive:
+            return "Teacher archive ZIP"
+        case .fullBackupArchive:
+            return "Full local backup archive"
         case .backupJSON:
             return "Local JSON backup"
         }

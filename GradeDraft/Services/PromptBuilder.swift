@@ -64,6 +64,7 @@ enum PromptBuilder {
         - Grade only from the reviewed student text and the grading packet supplied here.
         - Do not infer effort, intent, motivation, behavior, personality, ability, disability, EAL/D status, demographic traits, giftedness, support level, or laziness.
         - Do not invent evidence. Every criterion must cite direct evidence from the reviewed student text or use this exact marker: \(missingEvidenceMarker)
+        - When source reference tags like [p1-l2-abcdef12] are present, include matching evidenceSourceRefs for cited quotes.
         - Do not invent curriculum references, official standards, answer-key elements, source facts, or exemplar content.
         - If the rubric is ambiguous, apply the most conservative reasonable score and add an uncertainty flag.
         - If OCR quality is uncertain, mark teacherReviewRequired true for affected criteria.
@@ -104,9 +105,9 @@ enum PromptBuilder {
         \(answerKeySection)
         \(exemplarSection)
 
-        Reviewed student text:
+        Reviewed student text with source references:
         \"\"\"
-        \(input.reviewedStudentText)
+        \(input.reviewedTextWithSourceRefs.isEmpty ? input.reviewedStudentText : input.reviewedTextWithSourceRefs)
         \"\"\"
 
         Required JSON schema:

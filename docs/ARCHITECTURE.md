@@ -24,8 +24,8 @@ Services/
   LocalJSONStore.swift      — JSON store and MarkdownReportBuilder
 Export/
   CSVExportService.swift
-  PDFExportService.swift    — not implemented; throws not-implemented
-  BundleExportService.swift — not implemented; throws not-implemented
+  PDFExportService.swift    — local student/teacher report PDF rendering
+  BundleExportService.swift — local teacher ZIP/archive export
 Persistence/
   Database.swift
   GRDBAssignmentStore.swift
@@ -50,7 +50,7 @@ Resources/
 - `AssignmentStoring` owns local assignment persistence.
 - `MarkdownReportBuilder` owns local report generation.
 - `CSVExportService` owns CSV export with formula-injection hardening.
-- PDF and ZIP services throw a not-implemented error; they are not exposed in UI.
+- PDF and ZIP/archive exports are implemented locally: PDF uses plain local report rendering and ZIP/archive contains student report, teacher audit report, CSV, assignment JSON, audit/export records, and included source files.
 
 ## Grading paths
 
@@ -75,6 +75,6 @@ Both paths produce the same `FinalGradeReview` model and use the same approval g
 
 `AssignmentRecord.gradingPacketFingerprint` is derived from reviewed text, rubric, instructions, answer key, exemplar, OCR review status, and source references. Draft and final review records store the fingerprint used to produce them. If inputs change, the app marks existing draft/final review state stale.
 
-## Deferred production hardening
+## Persistence posture
 
-The scaffold uses JSON for local persistence to stay easy to inspect. Production should move to SQLite or SwiftData with migrations, import/restore preflight, and stronger audit-query support.
+The app now maintains normalized GRDB tables for assignments, sources, OCR lines, drafts, final reviews, exports, and audit events while retaining assignment JSON payloads for compatibility and lossless round-trip storage. Future production hardening can remove payload fallback after migration coverage is proven.

@@ -1,4 +1,5 @@
 import XCTest
+import ZIPFoundation
 @testable import GradeDraft
 
 final class InMemoryAssignmentStore: AssignmentStoring {
@@ -1421,6 +1422,149 @@ final class GradeDraftTests: XCTestCase {
         XCTAssertFalse(viewModel.canDraftGrade, "Draft should be blocked before OCR review")
     }
 
+    // MARK: - Advanced feature completion regression tests
+
+    func testEvidenceReferenceModelStoresBoundingBoxTraceability() {
+        let sourceID = UUID()
+        let lineID = UUID()
+        let reference = EvidenceReference(
+            sourceInputID: sourceID,
+            ocrLineID: lineID,
+            pageIndex: 0,
+            quote: "Student evidence",
+            startOffset: 0,
+            endOffset: 16,
+            boundingBox: NormalizedRect(x: 0.1, y: 0.2, width: 0.3, height: 0.4),
+            sourceKind: "ocrLine",
+            teacherConfirmed: true
+        )
+        XCTAssertEqual(reference.sourceInputID, sourceID)
+        XCTAssertEqual(reference.ocrLineID, lineID)
+        XCTAssertEqual(reference.boundingBox?.width, 0.3)
+        XCTAssertTrue(reference.displaySource.contains("page 1"))
+    }
+
+    func testStudentReportDoesNotExposeEvidenceSourceRefs() {
+        var assignment = AssignmentRecord(title: "Privacy", reviewedStudentText: "Evidence")
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .approved,
+            criteria: [FinalCriterionScore(
+                criterion: "Claim",
+                rating: "",
+                proposedPoints: 0,
+                finalPoints: 1,
+                maxPoints: 1,
+                evidence: ["Evidence"],
+                evidenceSourceRefs: ["source:secret:page:0:ocrLine:secret"],
+                explanation: "Evidence supports claim.",
+                teacherApproved: true
+            )],
+            totalScore: 1,
+            maxScore: 1,
+            studentFeedback: "Good.",
+            privateTeacherNotes: "Private",
+            teacherEdited: true
+        )
+        let report = MarkdownReportBuilder.studentMarkdown(for: assignment)
+        XCTAssertFalse(report.contains("source:secret"))
+        XCTAssertFalse(report.contains("Private"))
+    }
+
+    func testTeacherAuditReportIncludesEvidenceTraceability() {
+        let lineID = UUID()
+        var assignment = AssignmentRecord(title: "Audit", reviewedStudentText: "Evidence")
+        assignment.evidenceReferences = [EvidenceReference(
+            sourceInputID: UUID(),
+            ocrLineID: lineID,
+            pageIndex: 0,
+            quote: "Evidence",
+            startOffset: nil,
+            endOffset: nil,
+            boundingBox: NormalizedRect(x: 0.1, y: 0.2, width: 0.3, height: 0.4),
+            sourceKind: "ocrLine",
+            teacherConfirmed: true
+        )]
+        let audit = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment)
+        XCTAssertTrue(audit.contains("Evidence traceability"))
+        XCTAssertTrue(audit.contains("bbox"))
+    }
+
+    func testPDFExportServicesWriteNonEmptyFiles() throws {
+        var assignment = AssignmentRecord(title: "PDF", reviewedStudentText: "Evidence")
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .approved,
+            criteria: [FinalCriterionScore(
+                criterion: "Claim",
+                rating: "",
+                proposedPoints: 0,
+                finalPoints: 1,
+                maxPoints: 1,
+                evidence: ["Evidence"],
+                explanation: "Met.",
+                teacherApproved: true
+            )],
+            totalScore: 1,
+            maxScore: 1,
+            studentFeedback: "Good.",
+            privateTeacherNotes: "Private",
+            teacherEdited: true
+        )
+        let studentURL = FileManager.default.temporaryDirectory.appendingPathComponent("student-\(UUID()).pdf")
+        let auditURL = FileManager.default.temporaryDirectory.appendingPathComponent("audit-\(UUID()).pdf")
+        defer { try? FileManager.default.removeItem(at: studentURL); try? FileManager.default.removeItem(at: auditURL) }
+        let writtenStudent = try PDFExportService.studentReportPDF(for: assignment, destination: studentURL)
+        let writtenAudit = try PDFExportService.teacherAuditPDF(for: assignment, destination: auditURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: writtenStudent.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: writtenAudit.path))
+        XCTAssertGreaterThan((try Data(contentsOf: writtenStudent)).count, 100)
+        XCTAssertGreaterThan((try Data(contentsOf: writtenAudit)).count, 100)
+    }
+
+    func testArchiveContainsManifestAndCoreFiles() throws {
+        let assignment = AssignmentRecord(title: "Archive", reviewedStudentText: "Text")
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("archive-\(UUID()).zip")
+        defer { try? FileManager.default.removeItem(at: destination) }
+        let written = try BundleExportService.writeTeacherAuditArchive(assignment: assignment, sourceFiles: [], to: destination)
+        guard let archive = Archive(url: written, accessMode: .read) else {
+            return XCTFail("Archive should open")
+        }
+        XCTAssertNotNil(archive["manifest.json"])
+        XCTAssertNotNil(archive["student_report.md"])
+        XCTAssertNotNil(archive["teacher_audit_report.md"])
+        XCTAssertNotNil(archive["assignment.json"])
+    }
+
+    func testFullBackupArchiveCanBeReadBack() throws {
+        let assignment = AssignmentRecord(title: "Backup", reviewedStudentText: "Text")
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("backup-\(UUID()).zip")
+        defer { try? FileManager.default.removeItem(at: destination) }
+        let written = try BundleExportService.writeFullBackup(assignments: [assignment], sourceFiles: [], to: destination)
+        let restored = try BundleExportService.readBackupAssignments(from: written)
+        XCTAssertEqual(restored.count, 1)
+        XCTAssertEqual(restored[0].title, "Backup")
+    }
+
+    func testMarkdownRubricParserExtractsTableCriteria() {
+        let markdown = """
+        | Criterion ID | Criterion | Max Points | Evidence Required | Level | Level Points | Descriptor |
+        |---|---|---:|---|---|---:|---|
+        | claim | Claim | 4 | yes | Strong | 4 | Clear claim |
+        | evidence | Evidence | 3 | yes | Strong | 3 | Strong evidence |
+        """
+        let parsed = MarkdownRubricParser.parse(markdown)
+        XCTAssertGreaterThanOrEqual(parsed.criteria.count, 2)
+        XCTAssertTrue(parsed.criteria.contains { $0.title.localizedCaseInsensitiveContains("Claim") })
+    }
+
+    func testSourceInputStoresPDFMetadata() {
+        let source = SourceInputRef(sourceType: .pdf, fileName: "work.pdf", mimeType: "application/pdf", pdfPageCount: 2)
+        XCTAssertEqual(source.fileName, "work.pdf")
+        XCTAssertEqual(source.mimeType, "application/pdf")
+        XCTAssertEqual(source.pdfPageCount, 2)
+    }
+
     // MARK: - Private helpers
 
     private func sampleInput(rubric: String = "Claim: 0-4 points") -> GradingInput {
@@ -1442,6 +1586,7 @@ final class GradeDraftTests: XCTestCase {
             assessmentPurpose: .summative,
             curriculumReference: "",
             reviewedStudentText: "Student response",
+            reviewedTextWithSourceRefs: "Student response",
             ocrQualitySummary: OCRQualitySummary(),
             ocrReviewStatus: .notNeeded,
             sourceInputCount: 1,

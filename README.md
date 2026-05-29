@@ -47,8 +47,8 @@ GradeDraft does **not** upload student work, rubrics, prompts, draft grades, or 
 
 - OCR: Vision / VisionKit.
 - Local grading draft: Foundation Models, when available on supported devices.
-- Storage: local JSON in Application Support for the scaffold; SQLite/SwiftData is a later production hardening pass.
-- Export: explicit teacher-controlled local Markdown reports.
+- Storage: local-first GRDB database storing normalized assignment, source, OCR, review, export, and audit tables.
+- Export: teacher-controlled local reports in Markdown, PDF, and ZIP/backup archives.
 - Minimum deployment target in this scaffold: iOS 17.0.
 - Foundation Models code is guarded with `canImport(FoundationModels)` and iOS availability checks.
 
@@ -118,7 +118,7 @@ GradeDraft/
 
 ## Next implementation pass
 
-The highest-value next pass is replacing local JSON persistence with a real SQLite/SwiftData repository layer and migration plan, followed by side-by-side source-image OCR review, PDF export, and UI tests.
+The next implementation pass involves expanding automated UI test coverage across iOS 18 simulator devices, testing custom model variants under Foundation Models configurations, and adding deeper offline curriculum integration.
 
 ## Development checks
 

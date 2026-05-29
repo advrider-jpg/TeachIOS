@@ -151,6 +151,17 @@ enum MarkdownReportBuilder {
         output.append("\n## Rubric\n\n")
         output.append(assignment.rubricText.isEmpty ? "No rubric saved.\n" : "\(assignment.rubricText)\n")
 
+        if !assignment.evidenceReferences.isEmpty {
+            output.append("\n## Evidence traceability\n")
+            for evidence in assignment.evidenceReferences {
+                output.append("- \(evidence.quote) — \(evidence.displaySource)")
+                if let box = evidence.boundingBox {
+                    output.append(" — bbox: \(box.x), \(box.y), \(box.width), \(box.height)")
+                }
+                output.append("\n")
+            }
+        }
+
         output.append("\n## Audit events\n")
         if assignment.auditEvents.isEmpty {
             output.append("No audit events recorded.\n")
@@ -215,6 +226,10 @@ enum MarkdownReportBuilder {
                 output.append("- Evidence:\n")
                 for evidence in criterion.evidence { output.append("  - \(evidence)\n") }
             }
+            if includeTeacherRationale, let refs = criterion.evidenceSourceRefs, !refs.isEmpty {
+                output.append("- Evidence source references:\n")
+                for ref in refs { output.append("  - \(ref)\n") }
+            }
             if includeTeacherRationale && !criterion.teacherRationale.isEmpty {
                 output.append("- Teacher rationale: \(criterion.teacherRationale)\n")
             }
@@ -234,9 +249,21 @@ enum MarkdownReportBuilder {
         case .teacherAuditMarkdown:
             suffix = "TeacherAudit"
             filenameExtension = "md"
+        case .studentPDF:
+            suffix = "Student"
+            filenameExtension = "pdf"
+        case .teacherAuditPDF:
+            suffix = "TeacherAudit"
+            filenameExtension = "pdf"
         case .csvGradebook:
             suffix = "CSV"
             filenameExtension = "csv"
+        case .zipArchive:
+            suffix = "Archive"
+            filenameExtension = "zip"
+        case .fullBackupArchive:
+            suffix = "FullBackup"
+            filenameExtension = "zip"
         case .backupJSON:
             suffix = "Backup"
             filenameExtension = "json"
