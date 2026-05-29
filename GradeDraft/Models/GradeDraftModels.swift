@@ -917,6 +917,7 @@ struct OCRDocument: Identifiable, Codable, Equatable {
             .sorted { $0.pageIndex < $1.pageIndex }
             .map { page in
                 page.lines
+                    .filter { !$0.isRejected }
                     .map(\.reviewedText)
                     .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                     .joined(separator: "\n")

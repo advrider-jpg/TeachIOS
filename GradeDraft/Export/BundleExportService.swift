@@ -245,9 +245,10 @@ struct BundleExportService {
         guard let archive = Archive(url: url, accessMode: .read) else {
             throw BundleExportError.restoreFailed("Could not open backup archive for restore.")
         }
-        try restoreSourceFiles(from: archive, to: applicationSupportDirectory)
-        var restored = try readBackupAssignments(from: url)
         let existingIDs = Set(existingAssignments.map(\.id))
+        let existingIDStrings = Set(existingAssignments.map { $0.id.uuidString })
+        try restoreSourceFiles(from: archive, to: applicationSupportDirectory, conflictResolution: conflictResolution, conflictingAssignmentIDs: existingIDStrings)
+        var restored = try readBackupAssignments(from: url)
         if conflictResolution == .restoreAsCopy {
             restored = restored.map { record in
                 guard existingIDs.contains(record.id) else { return record }
@@ -306,12 +307,23 @@ struct BundleExportService {
         }
     }
 
-    private static func restoreSourceFiles(from archive: Archive, to applicationSupportDirectory: URL) throws {
+    private static func restoreSourceFiles(
+        from archive: Archive,
+        to applicationSupportDirectory: URL,
+        conflictResolution: BackupConflictResolution,
+        conflictingAssignmentIDs: Set<String>
+    ) throws {
         let fileManager = FileManager.default
         for entry in archive where entry.path.hasPrefix("sources/") {
             guard !entry.path.contains("..") else { throw BundleExportError.restoreFailed("Archive source entry contains an unsafe path: \(entry.path).") }
             let relative = String(entry.path.dropFirst("sources/".count))
             guard !relative.isEmpty else { continue }
+            // For keepLocal and restoreAsCopy, skip source files belonging to existing local
+            // assignments so the local teacher's source material is not overwritten.
+            if conflictResolution != .replaceLocal,
+               conflictingAssignmentIDs.contains(where: { relative.contains($0) }) {
+                continue
+            }
             let destination = applicationSupportDirectory.appendingPathComponent(relative)
             try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
             if fileManager.fileExists(atPath: destination.path) { try fileManager.removeItem(at: destination) }
