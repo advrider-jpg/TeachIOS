@@ -73,7 +73,7 @@ struct PDFExportService {
                     return margin + 48
                 }
 
-                var y = beginPage()
+                var cursorY = beginPage()
                 let lineHeight: CGFloat = 18
                 let bottomLimit = pageBounds.height - margin
 
@@ -87,16 +87,16 @@ struct PDFExportService {
                         context: nil
                     )
                     let height = max(lineHeight, ceil(bounding.height) + 4)
-                    if y + height > bottomLimit {
-                        y = beginPage()
+                    if cursorY + height > bottomLimit {
+                        cursorY = beginPage()
                     }
                     (text as NSString).draw(
-                        with: CGRect(x: margin, y: y, width: contentWidth, height: height),
+                        with: CGRect(x: margin, y: cursorY, width: contentWidth, height: height),
                         options: [.usesLineFragmentOrigin, .usesFontLeading],
                         attributes: bodyAttributes,
                         context: nil
                     )
-                    y += height
+                    cursorY += height
                 }
             }
             return destination
