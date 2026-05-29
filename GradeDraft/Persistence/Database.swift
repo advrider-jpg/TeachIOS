@@ -58,10 +58,18 @@ final class GradeDraftDatabase {
     func loadAssignments() throws -> [AssignmentRecord] {
         try databaseQueue.read { db in
             let normalizedCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM grade_draft_assignments") ?? 0
+            let payloadCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM grade_draft_assignment_records") ?? 0
+            if payloadCount > 0 {
+                do {
+                    return try loadPayloadAssignments(in: db)
+                } catch {
+                    if normalizedCount == 0 { throw error }
+                }
+            }
             if normalizedCount > 0 {
                 return try loadNormalizedAssignments(in: db)
             }
-            return try loadPayloadAssignments(in: db)
+            return []
         }
     }
 

@@ -82,6 +82,16 @@ enum MarkdownRubricParser {
             )
         }
 
+        criteria.append(
+            contentsOf: parseHeadingCriteriaFromText(
+                text,
+                startingAt: criteria.count,
+                seen: &seen,
+                groups: &groups,
+                issues: &issues
+            )
+        )
+
         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             issues.append("Rubric text is empty.")
         } else if criteria.isEmpty {
@@ -174,6 +184,54 @@ enum MarkdownRubricParser {
             )
         }
         return rows
+    }
+
+    private static func parseHeadingCriteriaFromText(
+        _ text: String,
+        startingAt: Int,
+        seen: inout Set<String>,
+        groups: inout [String],
+        issues: inout [String]
+    ) -> [RubricCriterion] {
+        var fallbackCriteria: [RubricCriterion] = []
+        var order = startingAt
+        for raw in text.components(separatedBy: .newlines) {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+            if !trimmed.hasPrefix("#") { continue }
+            let cleaned = markdownPlain(trimmed.replacingOccurrences(of: #"^#{1,6}\s*"#, with: "", options: .regularExpression))
+            let maxPoints = RubricParser.maxPoints(in: cleaned) ?? RubricParser.maxPoints(in: trimmed)
+            guard let maxPoints else { continue }
+            let extractedTitle = RubricParser.criterionTitle(from: cleaned) ??
+                cleaned.replacingOccurrences(of: #"(?i)\s*:\s*0\s*[-–]\s*\d+(?:\.\d+)?\s*(?:points?|pts?)\b.*$"#, with: "", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = extractedTitle.isEmpty ? nil : extractedTitle
+            guard let title else { continue }
+
+            let normalizedTitle = RubricParser.normalized(title)
+            if seen.contains(normalizedTitle) {
+                issues.append("Duplicate criterion ignored: \(title)")
+                continue
+            }
+            seen.insert(normalizedTitle)
+            let id = RubricParser.stableCriterionID(order: order, title: title, maxPoints: maxPoints)
+            let levels = RubricParser.levels(in: cleaned, criterionID: id)
+            if !groups.contains(title) { groups.append(title) }
+            fallbackCriteria.append(
+                RubricCriterion(
+                    id: id,
+                    title: title,
+                    maxPoints: maxPoints,
+                    descriptor: cleaned.isEmpty ? trimmed : cleaned,
+                    sortOrder: order,
+                    groupTitle: groups.last,
+                    levels: levels,
+                    explicitID: RubricParser.explicitCriterionID(in: cleaned)
+                )
+            )
+            order += 1
+        }
+        return fallbackCriteria
     }
 
     private static func tableRow(cells: [String], headers: [String]) -> CandidateRow {

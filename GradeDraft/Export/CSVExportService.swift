@@ -5,18 +5,21 @@ enum SpreadsheetSafety {
         guard !value.isEmpty else { return value }
         if isNumericalText(value) { return value }
 
-        guard let firstCharacter = value.first(where: { !$0.isWhitespace }) else {
-            return value
-        }
+        guard let firstCharacter = value.first(where: { !$0.isWhitespace }) else { return value }
 
         if firstCharacter == "=" ||
             firstCharacter == "+" ||
             firstCharacter == "-" ||
             firstCharacter == "@" {
             let leadingWhitespace = value.prefix { $0.isWhitespace }
-            if !leadingWhitespace.isEmpty && leadingWhitespace.replacingOccurrences(of: "\t", with: "").isEmpty {
+            if leadingWhitespace.isEmpty {
+                return "'" + value
+            }
+
+            if leadingWhitespace.allSatisfy({ $0 == "\t" }) {
                 return value
             }
+
             return "'" + value
         }
         return value

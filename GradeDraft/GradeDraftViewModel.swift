@@ -159,7 +159,7 @@ final class GradeDraftViewModel: ObservableObject {
         }) {
             return false
         }
-        if assignment.finalReviewIsStale {
+        if assignment.hasGradingStandard && assignment.finalReviewIsStale {
             return false
         }
         return true
@@ -180,7 +180,7 @@ final class GradeDraftViewModel: ObservableObject {
         }) {
             return "Correct out-of-range criterion scores before finalizing."
         }
-        if assignment.finalReviewIsStale {
+        if assignment.hasGradingStandard && assignment.finalReviewIsStale {
             return "Refresh final review because grading inputs changed since this review was created."
         }
         return nil
