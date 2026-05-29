@@ -55,22 +55,7 @@ jobs:
           set -euo pipefail
           PROJECT=GradeDraft.xcodeproj
           SCHEME_OUTPUT="$(xcodebuild -list -json -project "$PROJECT")"
-
-          SCHEME="$(printf '%s' "$SCHEME_OUTPUT" | /usr/bin/python3 - <<'PY'
-import json, sys
-
-data = json.load(sys.stdin)
-schemes = data.get("project", {}).get("schemes", [])
-selected = ""
-for candidate in schemes:
-    if candidate == "GradeDraft":
-        selected = candidate
-        break
-if not selected and schemes:
-    selected = schemes[0]
-print(selected or "")
-PY
-)"
+          SCHEME="$(echo "$SCHEME_OUTPUT" | /usr/bin/python3 -c 'import json,sys; data=json.load(sys.stdin); schemes=data.get("project",{}).get("schemes",[]); print(next((name for name in schemes if name=="GradeDraft"), schemes[0] if schemes else ""))')"
           if [ -z "$SCHEME" ]; then
             echo "Could not detect a scheme from xcodebuild -list output."
             echo "$SCHEME_OUTPUT"
