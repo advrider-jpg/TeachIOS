@@ -525,9 +525,9 @@ final class CSVExportServiceHardeningTests: XCTestCase {
 
     func testCSVOutputHasCorrectHeaderColumns() {
         let csv = CSVExportService.exportedCSV(from: [])
-        XCTAssertTrue(csv.hasPrefix("\"assignment_id\""))
-        XCTAssertTrue(csv.contains("\"final_status\""))
-        XCTAssertTrue(csv.contains("\"ocr_status\""))
+        XCTAssertTrue(csv.hasPrefix("assignment_id"))
+        XCTAssertTrue(csv.contains("final_status"))
+        XCTAssertTrue(csv.contains("ocr_status"))
     }
 
     func testCSVNoPrivateNotesExposed() {

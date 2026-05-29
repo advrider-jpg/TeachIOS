@@ -73,7 +73,7 @@ enum CSVExportService {
                 SpreadsheetSafety.sanitizedCell(assignment.ocrReviewStatus.rawValue),
                 SpreadsheetSafety.sanitizedCell(exportDraftStatus(for: assignment)),
                 String(assignment.finalReviewIsStale),
-                String(assignment.latestDraftIsStale),
+                String(assignment.finalReview == nil && assignment.latestDraftIsStale),
                 ISO8601DateFormatter.gradingExport.string(from: assignment.updatedAt)
             ])
         }
@@ -81,10 +81,7 @@ enum CSVExportService {
     }
 
     static func exportedCSV(from assignments: [AssignmentRecord]) -> String {
-        let rows = buildStudentRows(from: assignments)
-        return rows.map { row in
-            row.map { "\"\(csvEscaped($0))\"" }.joined(separator: ",")
-        }.joined(separator: "\n")
+        buildStudentRows(from: assignments).map { $0.joined(separator: ",") }.joined(separator: "\n")
     }
 
     static func writeCSV(from assignments: [AssignmentRecord], to destination: URL) throws -> URL {
