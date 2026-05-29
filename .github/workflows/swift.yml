@@ -96,6 +96,7 @@ jobs:
             -project GradeDraft.xcodeproj \
             -scheme "${{ steps.xcode-target.outputs.scheme }}" \
             -destination "${{ steps.xcode-target.outputs.destination }}" \
+            ARCHS=arm64 \
             clean test \
             -resultBundlePath TestResults.xcresult \
             | tee xcode-logs/xcodebuild.log
