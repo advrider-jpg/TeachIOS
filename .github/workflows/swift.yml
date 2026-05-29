@@ -54,11 +54,26 @@ jobs:
         run: |
           set -euo pipefail
           PROJECT=GradeDraft.xcodeproj
+          SCHEME_OUTPUT="$(xcodebuild -list -json -project "$PROJECT")"
 
-          SCHEME=$(xcodebuild -list -project "$PROJECT" 2>&1 \
-            | awk '/^[[:space:]]*Schemes:/{flag=1; next} flag && $0 ~ /\S/ && $0 !~ /^[[:space:]]*[A-Za-z ]+:$/ {gsub(/^[[:space:]]+/, "", $0); print $0; exit}')
+          SCHEME="$(printf '%s' "$SCHEME_OUTPUT" | /usr/bin/python3 - <<'PY'
+import json, sys
+
+data = json.load(sys.stdin)
+schemes = data.get("project", {}).get("schemes", [])
+selected = ""
+for candidate in schemes:
+    if candidate == "GradeDraft":
+        selected = candidate
+        break
+if not selected and schemes:
+    selected = schemes[0]
+print(selected or "")
+PY
+)"
           if [ -z "$SCHEME" ]; then
             echo "Could not detect a scheme from xcodebuild -list output."
+            echo "$SCHEME_OUTPUT"
             exit 1
           fi
           echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
