@@ -183,11 +183,11 @@ extension GradeDraftViewModel {
     }
 
     func v6Status(for assignment: AssignmentRecord) -> GradeDraftUIStatus {
-        if assignment.exportRecords.contains(where: { $0.exportKind == .studentPDF || $0.exportKind == .zipArchive }) {
-            return .exported
-        }
         if assignment.finalReviewIsStale || assignment.latestDraftIsStale {
             return .needsRecheck
+        }
+        if assignment.exportRecords.contains(where: { $0.exportKind == .studentPDF || $0.exportKind == .zipArchive }) {
+            return .exported
         }
         if assignment.finalReview?.status == .approved {
             return .readyToExport
