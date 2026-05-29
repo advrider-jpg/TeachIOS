@@ -69,7 +69,7 @@ This is static pattern scanning for obvious network/off-device patterns.
 - SwiftLint check (unavailable in current Windows environment).
 - Package.resolved not generated (xcodebuild unavailable in current Windows environment).
 - Migration, backup/restore, OCR fixture depth, and source-span linkage tests.
-- Side-by-side OCR review UI (deferred).
+- Side-by-side OCR review UI implemented with source previews, editable OCR lines, line confirmation/rejection, and evidence reference linking.
 
 ## Validation status
 

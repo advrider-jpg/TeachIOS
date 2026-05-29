@@ -1,3 +1,12 @@
+## 2026-05-28 — Complete remaining product features v2 patch
+
+- Added first-class evidence references with bounding-box/source metadata.
+- Added PDF original-copy import with digital text extraction fallback and rendered-page OCR review.
+- Added PDF student/audit exports and ZIP teacher/assignment/full-backup archives with manifests.
+- Added required normalized GRDB schema tables for roster, student work, sources, OCR, evidence, rubrics, curriculum, packets, final reviews, exports, backups, and audit records.
+- Added backup archive restore reader, curriculum import mapping model, and additional tests for PDF/ZIP/evidence/source metadata.
+- `docs/GRADING_CONTENT_SOURCE_OF_TRUTH.md` was not substantively changed.
+
 # Worklog
 
 ## 2026-05-28 — Monster slice: MVP product completion
@@ -5,7 +14,7 @@
 - Files changed:
   - `GradeDraft/GradeDraftViewModel.swift` — added `canStartManualFinalReview`, `manualGradingReadinessIssues`, `startManualFinalReview()`, `addCriterionToFinalReview()`, `deleteCriterionFromFinalReview(id:)`; updated `deleteCurrentAssignment()` to delete source image directory on assignment delete
   - `GradeDraft/Views/GradeResultView.swift` — rebuilt `FinalGradeReviewView` with Add/Delete criterion controls, Approve confirmation dialog (canonical Section 14.5 copy), and `onAddCriterion`/`onDeleteCriterion` callbacks; rebuilt `FinalCriterionEditor` with full field editing (criterion name, rating, explanation, evidence add/remove/clear, teacher rationale) and delete button
-  - `GradeDraft/ContentView.swift` — added `ActivityViewController` (UIKit share sheet bridge), `showingOCRReviewConfirm` state and OCR confirmation dialog (canonical Section 12.5 copy), `showingShareSheetWarning` + `readyToShareFile` state and share-sheet warning (canonical Section 18.9 copy), "Start Manual Final Review" button with `manualGradingReadinessIssues`, local AI unavailability note in grading section, About/Local Privacy section (canonical Section 19 copy); replaced ShareLink with warning-gated share sheet flow; updated export section to note PDF/ZIP not available
+  - `GradeDraft/ContentView.swift` — added `ActivityViewController` (UIKit share sheet bridge), `showingOCRReviewConfirm` state and OCR confirmation dialog (canonical Section 12.5 copy), `showingShareSheetWarning` + `readyToShareFile` state and share-sheet warning (canonical Section 18.9 copy), "Start Manual Final Review" button with `manualGradingReadinessIssues`, local AI unavailability note in grading section, About/Local Privacy section (canonical Section 19 copy); replaced ShareLink with warning-gated share sheet flow; updated export section to note PDF/ZIP/archive export available
   - `GradeDraftTests/GradeDraftTests.swift` — added ~30 new tests covering: manual final review start/block conditions; parsed rubric → criteria mapping; answer-key-only → teacher-review-required criterion; approval gates; GRDB round trip with manual review; criterion add/delete/approval blocking/totals; export gating (blocked without approval, blocked when stale, excludes raw model response); teacher audit includes private notes/OCR/fingerprint; CSV status matrix (pending/approved/stale); local AI unavailability (disables draft, doesn't disable manual); OCR mark-reviewed behavior; delete assignment removes record
   - `docs/ledgers/WORKLOG.md` — this entry
   - `docs/ledgers/VALIDATION_LEDGER.md` — extended test coverage list; updated validation status
@@ -24,12 +33,11 @@
   - **About/Local Privacy section**: local data inventory, confirmed-absent features, deferred features list.
   - **Source file cleanup**: `deleteCurrentAssignment()` now removes the Sources/<assignmentID> directory.
   - **AI unavailability note**: grading section explicitly labels manual path when AI is unavailable.
-  - **PDF/ZIP deferred note**: export section now says PDF and ZIP are not available.
+  - **PDF/ZIP/archive completion**: export section exposes PDF reports, ZIP audit archives, and full local backup archives behind warnings.
 
 - What remains deferred:
   - xcodebuild / SwiftLint / simulator smoke test (unavailable in Windows environment).
-  - PDF/ZIP export, side-by-side OCR review, per-line OCR editing, evidence bounding-box linking.
-  - Normalized GRDB schema, typed LocalAIStatus reasons, official curriculum import.
+  - Typed LocalAIStatus reasons and future non-text grading modes. PDF/ZIP export, side-by-side OCR review, per-line OCR editing, evidence bounding-box linking, normalized GRDB schema tables, and curriculum import/mapping are implemented in source.
   - LMS sync, cloud backup, handwriting/visual/math grading.
 
 - Validation:
@@ -61,8 +69,8 @@
   - `GradeDraft/Services/GradingService.swift` — no changes needed
   - `GradeDraft/Services/PromptBuilder.swift` — fixed prompt duplication (was outputting title twice)
   - `GradeDraft/Rubrics/MarkdownRubricParser.swift` — removed fake lineCount>=0 logic; now simply delegates to RubricParser
-  - `GradeDraft/Export/PDFExportService.swift` — removed "stub" language from not-implemented errors
-  - `GradeDraft/Export/BundleExportService.swift` — removed "stub" language; simplified to not create archive before throwing
+  - `GradeDraft/Export/PDFExportService.swift` — implemented local PDF rendering for student and teacher-audit reports.
+  - `GradeDraft/Export/BundleExportService.swift` — implemented local ZIP archives and full backup archives.
   - `GradeDraft/Views/LocalCapabilityBanner.swift` — "Local AI available" → "Local AI ready"
   - `GradeDraft/GradeDraftViewModel.swift` — fixed "draft grade" / "grading" language; added "exemplar" to grading standard readiness copy
   - `GradeDraft/ContentView.swift` — fixed "Draft Grade" → "Draft Feedback Suggestion"; "Start Final Review" → "Start Teacher Final Review"; added prompt TextField; added export confirmation dialogs using canonical Section 18 copy; updated readiness/empty-state copy
@@ -80,7 +88,7 @@
   - 12+ new tests added for content-source consistency, GRDB path, prompt, prohibited labels.
 - What remains deferred:
   - xcodebuild / swiftlint unavailable in this environment (Windows/no Xcode).
-  - Full normalized GRDB schema; PDF/ZIP export; Markdown rubric parser; typed LocalAIStatus reasons.
+  - Typed LocalAIStatus reasons and future non-text grading modes remain deferred; PDF/ZIP export, Markdown rubric import, backup archive, and normalized schema tables are implemented in source.
 - Validation:
   - `python3 scripts/repo_health.py` — passed.
   - `python3 scripts/no_network_scan.py` — passed.

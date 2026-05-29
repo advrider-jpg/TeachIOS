@@ -30,25 +30,23 @@ v3 is a truth-state and data-model hardening pass. It does not attempt handwriti
 - **About/Local Privacy section**: in-app section listing what data is stored locally, confirmed-absent features, and deferred features.
 - **Source file cleanup**: `deleteCurrentAssignment()` now removes the `Sources/<assignmentID>/` directory (best-effort; errors suppressed to avoid blocking deletion).
 - **AI unavailability note**: grading section explicitly labels manual path when local AI is unavailable, with the canonical no-cloud-fallback message.
-- **Export section note**: PDF and ZIP are stated as not available in this version.
+- **Export section note**: PDF and ZIP/archive exports are available as local teacher-controlled exports.
 
 ## Current important limitations
 
-- The persistence layer is GRDB-backed JSON payloads (not a normalized relational schema). Sufficient for MVP, not production-grade.
+- Persistence now mirrors assignment state into normalized GRDB tables while retaining JSON payloads for compatibility and lossless round-trip backup.
 - Source image digests use `StableFingerprint` (FNV-1a 64-bit), not cryptographic hashing.
-- OCR review is document-level only. Per-line correction UI is not implemented.
-- Evidence quotes are not linked to OCR bounding boxes or source spans.
-- The rubric parser handles `Criterion: 0-N points` patterns only; arbitrary table/markdown rubrics are not fully parsed.
-- PDF and ZIP export are not implemented and not exposed in UI.
+- OCR review includes a side-by-side source preview and line-level editing/confirmation/rejection UI.
+- Evidence can be linked to OCR line references that include source/page/line/bounding-box metadata.
+- Markdown rubric parsing handles headings, list items, point-bearing lines, and simple tables; ambiguous rubrics remain teacher-review-required.
+- PDF and ZIP/archive export are implemented locally and are warning-gated before sharing.
 - Foundation Models integration is SDK-guarded; validation requires Xcode 26+ on a compatible device.
 - xcodebuild and SwiftLint validation were not run in this environment (Windows).
 
 ## v4 priority order
 
-1. Replace JSON payloads with normalized GRDB schema; add migration tests and backup/restore preflight.
-2. Add side-by-side source image and OCR review UI with per-line correction.
-3. Link evidence quotes to OCR spans or teacher-confirmed text ranges.
-4. Add PDF export (student and teacher-audit templates).
-5. Add UI tests for scan/import → OCR review → draft → final → export.
-6. Confirm Foundation Models structured-output APIs in the installed SDK.
-7. Typed `LocalAIStatus` reasons with canonical copy.
+1. Add UI tests for scan/import/PDF import → OCR review → manual or AI draft → final → export.
+2. Confirm Foundation Models structured-output APIs in the installed SDK.
+3. Typed `LocalAIStatus` reasons with canonical copy.
+4. Production-hardening pass for removing JSON payload fallback after normalized GRDB migration tests prove full fidelity.
+5. Optional future scope: LMS integration, official jurisdiction reporting verification, and advanced visual/math modes.

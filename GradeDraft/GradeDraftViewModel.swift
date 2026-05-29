@@ -1,5 +1,7 @@
 import Foundation
+import PDFKit
 import UIKit
+import ZIPFoundation
 
 @MainActor
 final class GradeDraftViewModel: ObservableObject {
@@ -596,6 +598,371 @@ final class GradeDraftViewModel: ObservableObject {
         }
     }
 
+
+    func applyPDFFile(_ url: URL) async {
+        isWorking = true
+        errorMessage = nil
+        exportURL = nil
+        exportKind = nil
+        defer { isWorking = false }
+
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+
+        do {
+            guard let document = PDFDocument(url: url) else {
+                throw GradeDraftError.ocrFailed("The selected PDF could not be opened.")
+            }
+            guard document.pageCount > 0 else {
+                throw GradeDraftError.ocrFailed("The selected PDF did not contain any pages.")
+            }
+
+            let appDirectory = try store.applicationSupportDirectory()
+            let sourceRoot = appDirectory
+                .appendingPathComponent("Sources", isDirectory: true)
+                .appendingPathComponent(assignment.id.uuidString, isDirectory: true)
+            let originalFolder = sourceRoot.appendingPathComponent("original", isDirectory: true)
+            try fileManager.createDirectory(at: originalFolder, withIntermediateDirectories: true)
+            let pdfID = UUID()
+            let originalPDFURL = originalFolder.appendingPathComponent("\(pdfID.uuidString).pdf")
+            if fileManager.fileExists(atPath: originalPDFURL.path) { try fileManager.removeItem(at: originalPDFURL) }
+            try fileManager.copyItem(at: url, to: originalPDFURL)
+            let pdfData = try Data(contentsOf: originalPDFURL)
+            let originalPDFSource = SourceInputRef(
+                id: pdfID,
+                sourceType: .pdf,
+                pageIndex: nil,
+                localRelativePath: "Sources/\(assignment.id.uuidString)/original/\(pdfID.uuidString).pdf",
+                fileName: url.lastPathComponent,
+                mimeType: "application/pdf",
+                contentDigest: StableFingerprint.fingerprint(pdfData),
+                digestAlgorithm: "fnv1a64",
+                pdfPageCount: document.pageCount,
+                teacherIncludedInExport: true
+            )
+
+            let digitalTextByPage = extractDigitalPDFText(document)
+            let images = try renderPDFPages(document)
+            guard !images.isEmpty else {
+                throw GradeDraftError.ocrFailed("The selected PDF did not contain renderable pages.")
+            }
+            var pageSourceRefs = try persistSourceImages(images, sourceType: .pdf, assignmentID: assignment.id)
+            for index in pageSourceRefs.indices {
+                pageSourceRefs[index].fileName = "PDF page \(index + 1) render"
+                pageSourceRefs[index].mimeType = "image/png"
+                pageSourceRefs[index].pdfPageCount = document.pageCount
+            }
+
+            let ocrDocument: OCRDocument
+            if digitalTextByPage.contains(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                ocrDocument = ocrDocumentFromDigitalPDFText(digitalTextByPage, sourceRefs: pageSourceRefs)
+            } else {
+                var recognized = try await ocrService.recognizeText(in: images)
+                for index in recognized.pages.indices where index < pageSourceRefs.count {
+                    recognized.pages[index].sourceInputID = pageSourceRefs[index].id
+                }
+                ocrDocument = recognized
+            }
+
+            var documentForReview = ocrDocument
+            documentForReview.reviewStatus = .needsReview
+            updateAssignment { assignment in
+                assignment.sourceInputs = [originalPDFSource] + pageSourceRefs
+                assignment.ocrDocument = documentForReview
+                assignment.ocrReviewStatus = .needsReview
+                assignment.ocrReviewedAt = nil
+                assignment.reviewedStudentText = documentForReview.combinedText
+                assignment.latestDraft = nil
+                assignment.finalReview = nil
+                assignment.appendAuditEvent(.sourceCaptured, detail: "Imported local PDF with \(document.pageCount) page(s); original PDF and rendered pages stored locally.")
+                assignment.appendAuditEvent(.ocrCompleted, detail: documentForReview.qualitySummary.displaySummary)
+            }
+            statusMessage = "PDF imported. Review and confirm extracted text before drafting feedback."
+            try saveCurrentAssignment()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func importMarkdownRubric(from url: URL) {
+        do {
+            let text = try readTextFile(url)
+            let parsed = MarkdownRubricParser.parse(text)
+            updateAssignment { assignment in
+                assignment.rubricText = text
+                if !parsed.criteria.isEmpty {
+                    assignment.appendAuditEvent(.inputChanged, detail: "Imported Markdown rubric with \(parsed.criteria.count) criterion/criteria.")
+                } else {
+                    assignment.appendAuditEvent(.inputChanged, detail: "Imported Markdown rubric text; structured criteria were not detected.")
+                }
+                assignment.latestDraft = nil
+                assignment.finalReview = nil
+            }
+            persistOrSurfaceError()
+            statusMessage = parsed.criteria.isEmpty ? "Rubric imported; review criteria manually." : "Markdown rubric imported with structured criteria."
+        } catch {
+            errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+        }
+    }
+
+    func importCurriculumReference(from url: URL) {
+        do {
+            let text = try CurriculumImportService.importableText(from: url)
+            let summary = CurriculumImportService.summary(from: text, sourceName: url.lastPathComponent)
+            updateAssignment { assignment in
+                assignment.curriculumReference = summary
+                assignment.latestDraft = nil
+                assignment.finalReview = nil
+                assignment.appendAuditEvent(.inputChanged, detail: "Imported local curriculum/reference material from \(url.lastPathComponent).")
+            }
+            persistOrSurfaceError()
+            statusMessage = "Curriculum/reference material imported locally. Confirm it matches your jurisdiction before grading."
+        } catch {
+            errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+        }
+    }
+
+    func createAssignmentsFromRosterCSV(_ text: String) {
+        let names = text.components(separatedBy: .newlines)
+            .map { line in line.split(separator: ",").first.map(String.init) ?? line }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !names.isEmpty else {
+            errorMessage = "Paste at least one student name or local identifier."
+            return
+        }
+        let template = assignment
+        var created: [AssignmentRecord] = []
+        for name in names {
+            var copy = template
+            copy.id = UUID()
+            copy.studentDisplayName = name
+            copy.latestDraft = nil
+            copy.finalReview = nil
+            copy.exportRecords = []
+            copy.auditEvents = [AuditEvent(eventType: .assignmentCreated, detail: "Roster-created assignment for \(name).")]
+            copy.createdAt = Date()
+            copy.updatedAt = Date()
+            created.append(copy)
+        }
+        assignments.append(contentsOf: created)
+        assignments.sort { $0.updatedAt > $1.updatedAt }
+        selectedAssignmentID = created.first?.id ?? selectedAssignmentID
+        persistOrSurfaceError()
+        statusMessage = "Created \(created.count) roster assignment(s) locally."
+    }
+
+    func updateOCRLine(pageID: UUID, lineID: UUID, correctedText: String) {
+        updateAssignment { assignment in
+            guard var document = assignment.ocrDocument else { return }
+            for pageIndex in document.pages.indices where document.pages[pageIndex].id == pageID {
+                for lineIndex in document.pages[pageIndex].lines.indices where document.pages[pageIndex].lines[lineIndex].id == lineID {
+                    document.pages[pageIndex].lines[lineIndex].correctedText = correctedText
+                    document.pages[pageIndex].lines[lineIndex].teacherConfirmed = false
+                }
+            }
+            assignment.ocrDocument = document
+            assignment.reviewedStudentText = document.combinedText
+            assignment.ocrReviewStatus = .needsReview
+            assignment.latestDraft = nil
+            assignment.finalReview = nil
+            assignment.appendAuditEvent(.inputChanged, detail: "Edited OCR line text during teacher review.")
+        }
+        persistOrSurfaceError()
+    }
+
+    func confirmOCRLine(pageID: UUID, lineID: UUID) {
+        updateAssignment { assignment in
+            guard var document = assignment.ocrDocument else { return }
+            for pageIndex in document.pages.indices where document.pages[pageIndex].id == pageID {
+                for lineIndex in document.pages[pageIndex].lines.indices where document.pages[pageIndex].lines[lineIndex].id == lineID {
+                    document.pages[pageIndex].lines[lineIndex].teacherConfirmed = true
+                }
+            }
+            assignment.ocrDocument = document
+            assignment.reviewedStudentText = document.combinedText
+            assignment.ocrReviewStatus = document.hasUnconfirmedLines ? .needsReview : .reviewed
+            if !document.hasUnconfirmedLines { assignment.ocrReviewedAt = Date() }
+            assignment.latestDraft = nil
+            assignment.finalReview = nil
+        }
+        persistOrSurfaceError()
+    }
+
+    func rejectOCRLine(pageID: UUID, lineID: UUID) {
+        updateAssignment { assignment in
+            guard var document = assignment.ocrDocument else { return }
+            for pageIndex in document.pages.indices where document.pages[pageIndex].id == pageID {
+                document.pages[pageIndex].lines.removeAll { $0.id == lineID }
+            }
+            assignment.ocrDocument = document
+            assignment.reviewedStudentText = document.combinedText
+            assignment.ocrReviewStatus = document.hasUnconfirmedLines ? .needsReview : .reviewed
+            assignment.latestDraft = nil
+            assignment.finalReview = nil
+            assignment.appendAuditEvent(.inputChanged, detail: "Rejected OCR line during teacher review.")
+        }
+        persistOrSurfaceError()
+    }
+
+    func addOCRLineEvidenceToFinalReview(pageID: UUID, lineID: UUID, criterionID: UUID?) {
+        guard var review = assignment.finalReview,
+              let document = assignment.ocrDocument,
+              let page = document.pages.first(where: { $0.id == pageID }),
+              let line = page.lines.first(where: { $0.id == lineID }) else { return }
+        let quote = line.reviewedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !quote.isEmpty else { return }
+        let evidenceRef = EvidenceReference(
+            sourceInputID: page.sourceInputID,
+            ocrLineID: line.id,
+            pageIndex: page.pageIndex,
+            quote: quote,
+            startOffset: nil,
+            endOffset: nil,
+            boundingBox: line.boundingBox,
+            sourceKind: "ocrLine",
+            teacherConfirmed: line.teacherConfirmed
+        )
+        let sourceRef = evidenceSourceReference(page: page, line: line, evidenceID: evidenceRef.id)
+        let targetIndex: Int
+        if let criterionID, let found = review.criteria.firstIndex(where: { $0.id == criterionID }) {
+            targetIndex = found
+        } else {
+            targetIndex = review.criteria.startIndex
+        }
+        guard review.criteria.indices.contains(targetIndex) else { return }
+        review.criteria[targetIndex].evidence.append(quote)
+        var refs = review.criteria[targetIndex].evidenceSourceRefs ?? []
+        refs.append(sourceRef)
+        review.criteria[targetIndex].evidenceSourceRefs = refs
+        review.criteria[targetIndex].teacherApproved = false
+        review.teacherEdited = true
+        updateAssignment { assignment in
+            assignment.evidenceReferences.append(evidenceRef)
+            assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: review)
+            assignment.appendAuditEvent(.inputChanged, detail: "Linked OCR line evidence to final-review criterion.")
+        }
+        persistOrSurfaceError()
+    }
+
+    func sourceImage(for source: SourceInputRef) -> UIImage? {
+        guard let localRelativePath = source.localRelativePath,
+              let appDir = try? store.applicationSupportDirectory() else { return nil }
+        let url = appDir.appendingPathComponent(localRelativePath)
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return UIImage(data: data)
+    }
+
+    private func sourceFiles(for assignment: AssignmentRecord) -> [URL] {
+        guard let appDir = try? store.applicationSupportDirectory() else { return [] }
+        return assignment.sourceInputs.compactMap { source in
+            guard let localRelativePath = source.localRelativePath else { return nil }
+            let url = appDir.appendingPathComponent(localRelativePath)
+            return fileManager.fileExists(atPath: url.path) ? url : nil
+        }
+    }
+
+    private func mergeRestoredAssignments(_ restored: [AssignmentRecord]) -> [AssignmentRecord] {
+        var byID = Dictionary(uniqueKeysWithValues: assignments.map { ($0.id, $0) })
+        for record in restored {
+            if let existing = byID[record.id], existing.updatedAt > record.updatedAt {
+                var copy = record
+                copy.id = UUID()
+                copy.title = "Restored copy of \(record.title)"
+                copy.appendAuditEvent(.inputChanged, detail: "Restored as copy because a newer local record existed with the same ID.")
+                byID[copy.id] = copy
+            } else {
+                byID[record.id] = record
+            }
+        }
+        return Array(byID.values)
+    }
+
+    func sourceFilesForCurrentAssignment() -> [URL] {
+        sourceFiles(for: assignment)
+    }
+
+    func exportStudentPDF() {
+        guard canExportStudentReport else {
+            errorMessage = "Student-facing export is blocked until the teacher approves the final grade."
+            return
+        }
+        do {
+            let destination = temporaryExportURL(prefix: "GradeDraft-Student", extension: "pdf")
+            exportURL = try PDFExportService.studentReportPDF(for: assignment, destination: destination)
+            exportKind = .studentPDF
+            recordExport(kind: .studentPDF, markdown: MarkdownReportBuilder.studentMarkdown(for: assignment), includesPrivateNotes: false)
+            statusMessage = "Student PDF report is ready to share."
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func exportTeacherAuditPDF() {
+        do {
+            let destination = temporaryExportURL(prefix: "GradeDraft-TeacherAudit", extension: "pdf")
+            exportURL = try PDFExportService.teacherAuditPDF(for: assignment, destination: destination)
+            exportKind = .teacherAuditPDF
+            recordExport(kind: .teacherAuditPDF, markdown: MarkdownReportBuilder.teacherAuditMarkdown(for: assignment), includesPrivateNotes: true)
+            statusMessage = "Teacher audit PDF is ready to share. Treat it as sensitive."
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func exportArchiveBundle() {
+        do {
+            let destination = try BundleExportService.preflightDestination(for: assignment.id)
+            exportURL = try BundleExportService.writeTeacherAuditArchive(assignment: assignment, sourceFiles: sourceFilesForCurrentAssignment(), to: destination)
+            exportKind = .zipArchive
+            recordExport(kind: .zipArchive, markdown: StableFingerprint.fingerprint([assignment.gradingPacketFingerprint]), includesPrivateNotes: true)
+            statusMessage = "Teacher archive ZIP is ready to share. Treat it as sensitive."
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func exportBackupJSON() {
+        do {
+            let destination = temporaryExportURL(prefix: "GradeDraft-FullBackup", extension: "zip")
+            let sourceFiles = assignments.flatMap { assignment in
+                sourceFiles(for: assignment)
+            }
+            exportURL = try BundleExportService.writeFullBackup(assignments: assignments, sourceFiles: sourceFiles, to: destination)
+            exportKind = .fullBackupArchive
+            statusMessage = "Full local backup archive is ready to share. Treat it as sensitive student data."
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func restoreBackup(from url: URL) {
+        do {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let restored: [AssignmentRecord]
+            if url.pathExtension.lowercased() == "zip" {
+                restored = try BundleExportService.readBackupAssignments(from: url)
+            } else {
+                let data = try Data(contentsOf: url)
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                restored = try decoder.decode([AssignmentRecord].self, from: data)
+            }
+            guard !restored.isEmpty else {
+                errorMessage = "Backup contained no assignments."
+                return
+            }
+            let merged = mergeRestoredAssignments(restored)
+            assignments = merged.sorted { $0.updatedAt > $1.updatedAt }
+            selectedAssignmentID = assignments.first?.id
+            try store.saveAssignments(assignments)
+            statusMessage = "Restored \(restored.count) assignment(s) from local backup preview/import."
+        } catch {
+            errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+        }
+    }
+
     private func recordExport(kind: ExportKind, markdown: String, includesPrivateNotes: Bool) {
         updateAssignment { assignment in
             assignment.exportRecords.append(
@@ -658,5 +1025,147 @@ final class GradeDraftViewModel: ObservableObject {
                 teacherIncludedInExport: false
             )
         }
+    }
+
+    private func renderPDFPages(_ document: PDFDocument) throws -> [UIImage] {
+        var images: [UIImage] = []
+        for index in 0..<document.pageCount {
+            guard let page = document.page(at: index) else { continue }
+            let bounds = page.bounds(for: .mediaBox)
+            let scale: CGFloat = 2.0
+            let size = CGSize(width: max(bounds.width, 1) * scale, height: max(bounds.height, 1) * scale)
+            let renderer = UIGraphicsImageRenderer(size: size)
+            let image = renderer.image { context in
+                UIColor.white.setFill()
+                context.fill(CGRect(origin: .zero, size: size))
+                context.cgContext.saveGState()
+                context.cgContext.scaleBy(x: scale, y: scale)
+                page.draw(with: .mediaBox, to: context.cgContext)
+                context.cgContext.restoreGState()
+            }
+            images.append(image)
+        }
+        return images
+    }
+
+    private func extractDigitalPDFText(_ document: PDFDocument) -> [String] {
+        (0..<document.pageCount).map { index in
+            document.page(at: index)?.string ?? ""
+        }
+    }
+
+    private func ocrDocumentFromDigitalPDFText(_ pageTexts: [String], sourceRefs: [SourceInputRef]) -> OCRDocument {
+        let pages: [OCRPage] = pageTexts.enumerated().map { pageIndex, text in
+            let lines = text.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .enumerated()
+                .map { lineIndex, lineText in
+                    OCRLine(
+                        text: lineText,
+                        confidence: 1.0,
+                        boundingBox: NormalizedRect(x: 0.02, y: CGFloat(lineIndex) * 0.035, width: 0.96, height: 0.03),
+                        teacherConfirmed: false
+                    )
+                }
+            return OCRPage(
+                sourceInputID: pageIndex < sourceRefs.count ? sourceRefs[pageIndex].id : nil,
+                pageIndex: pageIndex,
+                imageWidth: sourceRefs[safe: pageIndex]?.imageWidth,
+                imageHeight: sourceRefs[safe: pageIndex]?.imageHeight,
+                lines: lines
+            )
+        }
+        return OCRDocument(engine: "PDFKit digital text", engineVersion: "system", pages: pages)
+    }
+
+    private func readTextFile(_ url: URL) throws -> String {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let data = try Data(contentsOf: url)
+        if let text = String(data: data, encoding: .utf8) {
+            return text
+        }
+        if let text = String(data: data, encoding: .utf16) {
+            return text
+        }
+        throw GradeDraftError.persistenceFailed("Could not read imported file as text.")
+    }
+
+    private func evidenceSourceReference(page: OCRPage, line: OCRLine, evidenceID: UUID? = nil) -> String {
+        let sourceID = page.sourceInputID?.uuidString ?? "unknown-source"
+        let box = line.boundingBox
+        let evidencePart = evidenceID.map { "evidence:\($0.uuidString):" } ?? ""
+        return "\(evidencePart)source:\(sourceID):page:\(page.pageIndex):ocrLine:\(line.id.uuidString):bbox:\(box.x),\(box.y),\(box.width),\(box.height)"
+    }
+
+    private func temporaryExportURL(prefix: String, extension ext: String) -> URL {
+        let safeTitle = assignment.title
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "[^A-Za-z0-9_-]+", with: "-", options: .regularExpression)
+        let filename = "\(prefix)-\(safeTitle.isEmpty ? assignment.id.uuidString : safeTitle).\(ext)"
+        return fileManager.temporaryDirectory.appendingPathComponent(filename)
+    }
+}
+
+private enum CurriculumImportService {
+    static func importableText(from url: URL) throws -> String {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let data = try Data(contentsOf: url)
+        if let text = String(data: data, encoding: .utf8) { return text }
+        if let text = String(data: data, encoding: .utf16) { return text }
+        if url.pathExtension.lowercased() == "xlsx" {
+            return try xlsxSharedText(from: url)
+        }
+        throw GradeDraftError.persistenceFailed("Could not read imported curriculum/reference file as text.")
+    }
+
+    private static func xlsxSharedText(from url: URL) throws -> String {
+        let archive = try Archive(url: url, accessMode: .read)
+        var collected: [String] = []
+        for entry in archive where entry.path.hasSuffix(".xml") {
+            var data = Data()
+            _ = try archive.extract(entry) { chunk in data.append(chunk) }
+            guard let xml = String(data: data, encoding: .utf8) else { continue }
+            let cleaned = xml
+                .replacingOccurrences(of: #"<[^>]+>"#, with: " ", options: .regularExpression)
+                .replacingOccurrences(of: "&amp;", with: "&")
+                .replacingOccurrences(of: "&lt;", with: "<")
+                .replacingOccurrences(of: "&gt;", with: ">")
+                .replacingOccurrences(of: "&quot;", with: "\"")
+            collected.append(cleaned)
+        }
+        return collected.joined(separator: "\n")
+    }
+
+    static func summary(from text: String, sourceName: String) -> String {
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let codePattern = #"\b[A-Z]{2,}[A-Z0-9]{3,}\b"#
+        let codes = lines.flatMap { line -> [String] in
+            guard let regex = try? NSRegularExpression(pattern: codePattern) else { return [] }
+            let range = NSRange(line.startIndex..<line.endIndex, in: line)
+            return regex.matches(in: line, range: range).compactMap { match in
+                Range(match.range, in: line).map { String(line[$0]) }
+            }
+        }
+        let excerpts = lines.prefix(20).joined(separator: "\n")
+        return """
+        Source: \(sourceName)
+        Import status: Teacher-provided local curriculum/reference material. Confirm against the official jurisdiction source before reporting.
+        Detected codes: \(Array(Set(codes)).sorted().joined(separator: ", "))
+
+        Excerpts:
+        \(excerpts)
+        """
+    }
+}
+
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

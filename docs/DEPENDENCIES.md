@@ -29,4 +29,4 @@ This document records the OSS dependency set introduced for the next implementat
 
 - `swift-snapshot-testing` is intentionally test-only.
 - SwiftLint is not linked into any runtime target; it is installed and executed in CI.
-- Full parser/export/persistence migrations are deferred to follow-on passes and are currently represented by thin adapter stubs.
+- Markdown rubric parsing, local PDF/ZIP export, curriculum import, and normalized GRDB mirror tables are implemented in app code. The full production data model remains local-first and uses the declared package set only.

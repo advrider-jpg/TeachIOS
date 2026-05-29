@@ -399,6 +399,17 @@ private struct FinalCriterionEditor: View {
                         .buttonStyle(.plain)
                     }
                 }
+                if let refs = criterion.evidenceSourceRefs, !refs.isEmpty {
+                    DisclosureGroup("Evidence source references") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(refs, id: \.self) { ref in
+                                Text(ref)
+                                    .font(.caption.monospaced())
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+                }
                 if criterion.evidence.isEmpty && !showingEvidenceEntry {
                     Text("No evidence cited. Add a quote from the reviewed student text.")
                         .font(.caption)
