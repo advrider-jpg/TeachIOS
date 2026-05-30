@@ -192,6 +192,24 @@
 		E00000000000000000000113 /* ExportPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportPolicyTests.swift; sourceTree = "<group>"; };
 		E00000000000000000000114 /* ExportHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportHardeningTests.swift; sourceTree = "<group>"; };
 		E00000000000000000000115 /* ArchiveRestoreSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveRestoreSafetyTests.swift; sourceTree = "<group>"; };
+		C00000000000000000000001 /* AnswerKeyTemplateCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnswerKeyTemplateCatalog.swift; sourceTree = "<group>"; };
+		C00000000000000000000002 /* ExemplarTemplateCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExemplarTemplateCatalog.swift; sourceTree = "<group>"; };
+		C00000000000000000000003 /* ExportWarningCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportWarningCatalog.swift; sourceTree = "<group>"; };
+		C00000000000000000000004 /* FormativeFocusTemplateCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormativeFocusTemplateCatalog.swift; sourceTree = "<group>"; };
+		C00000000000000000000005 /* GradeDraftContentCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftContentCatalog.swift; sourceTree = "<group>"; };
+		C00000000000000000000006 /* GradeDraftContentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftContentModels.swift; sourceTree = "<group>"; };
+		C00000000000000000000007 /* GradeDraftContentValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftContentValidator.swift; sourceTree = "<group>"; };
+		C00000000000000000000008 /* GradeDraftCopyCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftCopyCatalog.swift; sourceTree = "<group>"; };
+		C00000000000000000000009 /* GradingPacketBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradingPacketBuilder.swift; sourceTree = "<group>"; };
+		C00000000000000000000010 /* GradingPacketModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradingPacketModels.swift; sourceTree = "<group>"; };
+		C00000000000000000000011 /* RegionalSettingsCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionalSettingsCatalog.swift; sourceTree = "<group>"; };
+		C00000000000000000000012 /* ReportTemplateCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportTemplateCatalog.swift; sourceTree = "<group>"; };
+		C00000000000000000000013 /* RubricTemplateCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RubricTemplateCatalog.swift; sourceTree = "<group>"; };
+		C00000000000000000000014 /* TeacherInstructionTemplateCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeacherInstructionTemplateCatalog.swift; sourceTree = "<group>"; };
+		C00000000000000000000015 /* TemplateApplicationHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateApplicationHelpers.swift; sourceTree = "<group>"; };
+		C00000000000000000000016 /* PlannedContentSupportCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannedContentSupportCatalog.swift; sourceTree = "<group>"; };
+		C00000000000000000000100 /* GradeDraftContentCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftContentCatalogTests.swift; sourceTree = "<group>"; };
+		C00000000000000000000200 /* grade_draft_content_catalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = grade_draft_content_catalog.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
