@@ -209,3 +209,44 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
         hasGradingStandard: true
     )
 }
+
+// Retained for debug, compatibility, and test use. Production Foundation Models
+// drafting uses typed guided generation (FoundationModelGradeProposalSchema).
+enum JSONExtractor {
+    static func extractFirstJSONObject(from text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let start = trimmed.firstIndex(of: "{") else {
+            return trimmed
+        }
+
+        var depth = 0
+        var isInsideString = false
+        var isEscaped = false
+        var index = start
+
+        while index < trimmed.endIndex {
+            let character = trimmed[index]
+
+            if isEscaped {
+                isEscaped = false
+            } else if character == "\\" {
+                isEscaped = true
+            } else if character == "\"" {
+                isInsideString.toggle()
+            } else if !isInsideString {
+                if character == "{" {
+                    depth += 1
+                } else if character == "}" {
+                    depth -= 1
+                    if depth == 0 {
+                        return String(trimmed[start...index])
+                    }
+                }
+            }
+
+            index = trimmed.index(after: index)
+        }
+
+        return trimmed
+    }
+}
