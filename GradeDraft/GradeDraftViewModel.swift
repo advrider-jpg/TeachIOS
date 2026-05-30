@@ -23,6 +23,7 @@ final class GradeDraftViewModel: ObservableObject {
     @Published var curriculumSearchText = ""
     @Published var curriculumLearningAreaFilter = ""
     @Published var curriculumYearLevelFilter = ""
+    @Published private(set) var deviceBackupPolicyStatus: DeviceBackupPolicyStatus = .unknown("Backup exclusion has not been checked yet.")
 
     private let ocrService: OCRServicing
     private let gradingService: GradingServicing & CapabilityChecking
@@ -76,6 +77,7 @@ final class GradeDraftViewModel: ObservableObject {
         if self.students.isEmpty { self.students = Self.studentsFromAssignments(self.assignments) }
         refreshAssignmentRosterEntries()
         selectedAssignmentID = self.assignments.first?.id
+        refreshDeviceBackupPolicyStatus()
         refreshCapabilityStatus()
     }
 
@@ -188,6 +190,64 @@ final class GradeDraftViewModel: ObservableObject {
 
     var persistenceSummary: String {
         "Persistence: \(persistenceMode)"
+    }
+
+    var localDataExcludedFromDeviceBackup: Bool {
+        deviceBackupPolicyStatus.isExcluded
+    }
+
+    var deviceBackupStatusSummary: String {
+        switch deviceBackupPolicyStatus {
+        case .excluded:
+            return "Student records are marked to stay out of device backup where the platform supports this file setting."
+        case .included:
+            return "Student records may be included in device backup according to this device and account configuration."
+        case .unknown(let detail):
+            return "Device-backup exclusion has not been verified. \(detail)"
+        }
+    }
+
+    func refreshDeviceBackupPolicyStatus() {
+        do {
+            let directory = try store.applicationSupportDirectory()
+            let values = try directory.resourceValues(forKeys: [.isExcludedFromBackupKey])
+            if let excluded = values.isExcludedFromBackup {
+                deviceBackupPolicyStatus = excluded ? .excluded : .included
+            } else {
+                deviceBackupPolicyStatus = .unknown("The platform did not report an exclusion value for the local storage directory.")
+            }
+        } catch {
+            deviceBackupPolicyStatus = .unknown(error.localizedDescription)
+        }
+    }
+
+    func includeLocalDataInDeviceBackupAfterWarning() {
+        do {
+            try setApplicationSupportExcludedFromDeviceBackup(false, surfaceStatus: true)
+        } catch {
+            errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+        }
+    }
+
+    func keepLocalDataExcludedFromDeviceBackup() {
+        do {
+            try setApplicationSupportExcludedFromDeviceBackup(true, surfaceStatus: true)
+        } catch {
+            errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+        }
+    }
+
+    private func setApplicationSupportExcludedFromDeviceBackup(_ excluded: Bool, surfaceStatus: Bool) throws {
+        var directory = try store.applicationSupportDirectory()
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = excluded
+        try directory.setResourceValues(values)
+        deviceBackupPolicyStatus = excluded ? .excluded : .included
+        if surfaceStatus {
+            statusMessage = excluded
+                ? "Local student records remain excluded from device backup where supported."
+                : "Local student records may now be included in device backup according to device settings."
+        }
     }
 
     var canDraftGrade: Bool {
@@ -324,6 +384,7 @@ final class GradeDraftViewModel: ObservableObject {
             }
             if updated.finalReview != nil {
                 updated.finalReview?.status = .stale
+                updated.appendAuditEvent(.finalReviewMarkedStale, detail: "Grading inputs changed after final review.")
             }
         }
         upsertAssignment(updated)
@@ -331,16 +392,42 @@ final class GradeDraftViewModel: ObservableObject {
 
     func applyTemplate(_ template: RubricTemplate) {
         updateAssignment { assignment in
-            assignment.assignmentType = template.assignmentType
-            assignment.assessmentPurpose = template.assessmentPurpose
-            assignment.rubricText = template.rubricText
-            assignment.customInstructions = template.customInstructions
-            assignment.latestDraft = nil
-            assignment.finalReview = nil
-            assignment.appendAuditEvent(.inputChanged, detail: "Rubric template applied: \(template.name).")
+            assignment = GradeDraftTemplateApplication.applyingRubricTemplate(template, to: assignment, resetDrafts: false)
         }
         persistOrSurfaceError()
-        statusMessage = "Template applied locally. Review before grading."
+        statusMessage = "Rubric template applied locally. Review before drafting feedback."
+    }
+
+    func applyTeacherInstructionTemplate(_ template: TeacherInstructionTemplate, mode: TemplateInsertionMode = .append) {
+        updateAssignment { assignment in
+            assignment = GradeDraftTemplateApplication.appendingInstructionTemplate(template, to: assignment, mode: mode)
+        }
+        persistOrSurfaceError()
+        statusMessage = "Teacher instruction template appended locally."
+    }
+
+    func applyAnswerKeyTemplate(_ template: AnswerKeyTemplate, mode: TemplateInsertionMode = .append) {
+        updateAssignment { assignment in
+            assignment = GradeDraftTemplateApplication.insertingAnswerKeyTemplate(template, to: assignment, mode: mode)
+        }
+        persistOrSurfaceError()
+        statusMessage = "Answer-key template inserted locally. Existing answer-key text was preserved."
+    }
+
+    func applyExemplarTemplate(_ template: ExemplarTemplate, mode: TemplateInsertionMode = .append) {
+        updateAssignment { assignment in
+            assignment = GradeDraftTemplateApplication.insertingExemplarTemplate(template, to: assignment, mode: mode)
+        }
+        persistOrSurfaceError()
+        statusMessage = "Exemplar template inserted locally. Existing exemplar text was preserved."
+    }
+
+    func applyFormativeFocusTemplate(_ template: FormativeFocusTemplate, mode: TemplateInsertionMode = .append) {
+        updateAssignment { assignment in
+            assignment = GradeDraftTemplateApplication.insertingFormativeFocusTemplate(template, to: assignment, mode: mode)
+        }
+        persistOrSurfaceError()
+        statusMessage = "Formative focus template appended locally."
     }
 
     func applyPastedStudentText(_ text: String) {
@@ -396,6 +483,44 @@ final class GradeDraftViewModel: ObservableObject {
             try saveCurrentAssignment()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    func clearCurrentStudentWork() {
+        let assignmentID = assignment.id
+        let hadSourceInputs = !assignment.sourceInputs.isEmpty
+        var cleanupErrorDetail: String?
+        if hadSourceInputs {
+            do {
+                let appDir = try store.applicationSupportDirectory()
+                let sourceDir = appDir
+                    .appendingPathComponent("Sources", isDirectory: true)
+                    .appendingPathComponent(assignmentID.uuidString, isDirectory: true)
+                if fileManager.fileExists(atPath: sourceDir.path) {
+                    try fileManager.removeItem(at: sourceDir)
+                }
+            } catch {
+                cleanupErrorDetail = error.localizedDescription
+            }
+        }
+        updateAssignment { assignment in
+            assignment.ocrDocument = nil
+            assignment.ocrReviewStatus = .notNeeded
+            assignment.ocrReviewedAt = nil
+            assignment.sourceInputs = []
+            assignment.reviewedStudentText = ""
+            assignment.latestDraft = nil
+            assignment.finalReview = nil
+            assignment.appendAuditEvent(.inputChanged, detail: "Teacher cleared student work and reviewed text after the local clear-work warning.")
+            if let cleanupErrorDetail {
+                assignment.appendAuditEvent(.localFileCleanupFailed, detail: cleanupErrorDetail)
+            }
+        }
+        persistOrSurfaceError()
+        if let cleanupErrorDetail {
+            errorMessage = "Student work references were cleared, but local source files may remain: \(cleanupErrorDetail)"
+        } else {
+            statusMessage = "Student work cleared locally."
         }
     }
 
@@ -609,8 +734,9 @@ final class GradeDraftViewModel: ObservableObject {
 
     func exportTeacherAuditReport() {
         do {
-            let markdown = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment)
-            exportURL = try MarkdownReportBuilder.writeTemporaryTeacherAuditReport(for: assignment)
+            let generatedAt = Date()
+            let markdown = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment, generatedAt: generatedAt)
+            exportURL = try MarkdownReportBuilder.writeTemporaryTeacherAuditReport(for: assignment, generatedAt: generatedAt)
             exportKind = .teacherAuditMarkdown
             recordExport(kind: .teacherAuditMarkdown, markdown: markdown, includesPrivateNotes: true, includesOriginalSources: false)
             statusMessage = "Teacher Review is ready to share. Treat it as sensitive."
@@ -1248,7 +1374,7 @@ final class GradeDraftViewModel: ObservableObject {
             let destination = temporaryExportURL(prefix: "GradeDraft-TeacherReview", extension: "pdf")
             exportURL = try PDFExportService.teacherAuditPDF(for: assignment, destination: destination)
             exportKind = .teacherAuditPDF
-            recordExport(kind: .teacherAuditPDF, markdown: MarkdownReportBuilder.teacherAuditMarkdown(for: assignment), includesPrivateNotes: true, includesOriginalSources: false)
+            recordExport(kind: .teacherAuditPDF, markdown: MarkdownReportBuilder.teacherAuditMarkdown(for: assignment, generatedAt: Date()), includesPrivateNotes: true, includesOriginalSources: false)
             statusMessage = "Teacher Review PDF is ready to share. Treat it as sensitive."
         } catch {
             errorMessage = error.localizedDescription
@@ -1334,6 +1460,77 @@ final class GradeDraftViewModel: ObservableObject {
         } catch {
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
         }
+    }
+
+    func copyPreparedExportTextToClipboard() {
+        guard let exportURL, let exportKind else {
+            errorMessage = "Create an export before copying text."
+            return
+        }
+        guard clipboardTextExportKinds.contains(exportKind) else {
+            errorMessage = "Clipboard copy is available only for text-based exports."
+            return
+        }
+        do {
+            let text = try String(contentsOf: exportURL, encoding: .utf8)
+            UIPasteboard.general.string = text
+            updateAssignment { assignment in
+                assignment.appendAuditEvent(.exportPrepared, detail: "Copied \(exportKind.displayName) text to clipboard after the clipboard warning.")
+            }
+            persistOrSurfaceError()
+            statusMessage = "Export text copied to the clipboard. Share only through approved channels."
+        } catch {
+            errorMessage = GradeDraftError.exportFailed(error.localizedDescription).localizedDescription
+        }
+    }
+
+    func exportRiskSummary(for exportKind: ExportKind) -> ExportRiskSummary {
+        let scopedAssignments: [AssignmentRecord]
+        switch exportKind {
+        case .fullBackupArchive, .backupJSON:
+            scopedAssignments = assignments
+        default:
+            scopedAssignments = [assignment]
+        }
+        let includesDraftContent: Bool
+        switch exportKind {
+        case .studentMarkdown, .studentPDF:
+            includesDraftContent = false
+        case .csvGradebook:
+            includesDraftContent = scopedAssignments.contains { record in
+                record.finalReview == nil || record.finalReview?.status != .approved || record.finalReviewIsStale
+            }
+        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .backupJSON, .fullBackupArchive:
+            includesDraftContent = scopedAssignments.contains { record in
+                record.latestDraft != nil || record.finalReview?.status != .approved || record.finalReviewIsStale
+            }
+        }
+        let includesPrivateNotes: Bool
+        switch exportKind {
+        case .studentMarkdown, .studentPDF, .csvGradebook:
+            includesPrivateNotes = false
+        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .backupJSON, .fullBackupArchive:
+            includesPrivateNotes = true
+        }
+        let includesOriginalSources: Bool
+        switch exportKind {
+        case .zipArchive:
+            includesOriginalSources = !sourceFilesForCurrentAssignment().isEmpty
+        case .fullBackupArchive:
+            includesOriginalSources = assignments.contains { !sourceFiles(for: $0).isEmpty }
+        default:
+            includesOriginalSources = false
+        }
+        return ExportRiskSummary(
+            includesDraftContent: includesDraftContent,
+            includesPrivateNotes: includesPrivateNotes,
+            includesOriginalSources: includesOriginalSources,
+            affectedAssignmentCount: scopedAssignments.count
+        )
+    }
+
+    private var clipboardTextExportKinds: Set<ExportKind> {
+        [.studentMarkdown, .teacherAuditMarkdown, .csvGradebook, .backupJSON]
     }
 
     private func recordExport(kind: ExportKind, markdown: String, includesPrivateNotes: Bool, includesOriginalSources: Bool) {

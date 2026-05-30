@@ -1,0 +1,999 @@
+{
+  "catalogVersion": "v3-runtime-content-suite",
+  "generatedFrom": "GradeDraft typed runtime catalogs; raw planning source excluded from app resource",
+  "generatedAt": "2026-05-30T00:00:00Z",
+  "rubricTemplates": [
+    {
+      "id": "short-answer-4pt",
+      "name": "4-point short answer",
+      "assignmentType": "shortAnswer",
+      "assessmentPurpose": "summative",
+      "description": "Fast rubric for constructed responses and exit tickets.",
+      "rubricText": "Claim / direct answer: 0-1 point\n- 1: directly answers the question or makes a clear claim.\n- 0: does not answer the question or is off topic.\n\nEvidence / support: 0-2 points\n- 2: includes accurate, relevant evidence or details.\n- 1: includes partial, vague, or minimally relevant evidence.\n- 0: includes no relevant evidence.\n\nExplanation: 0-1 point\n- 1: explains how the evidence supports the answer.\n- 0: gives evidence without explanation or has no explanation.",
+      "customInstructions": "Do not penalize spelling, grammar, or handwriting unless they materially interfere with meaning. Award equivalent wording when the meaning is correct. Cite the reviewed student text for each criterion or mark teacher review required.",
+      "sourceSection": "6"
+    },
+    {
+      "id": "paragraph-response-8pt",
+      "name": "8-point paragraph response",
+      "assignmentType": "paragraphResponse",
+      "assessmentPurpose": "summative",
+      "description": "Claim, evidence, reasoning, and clarity for one-paragraph responses.",
+      "rubricText": "Clear claim/topic sentence: 0-2 points\n- 2: clear, focused claim that answers the prompt.\n- 1: claim is present but vague, incomplete, or only partly responsive.\n- 0: no clear claim.\n\nRelevant evidence: 0-2 points\n- 2: at least two accurate and relevant details, examples, or quotations.\n- 1: one relevant detail or partially relevant evidence.\n- 0: no relevant evidence.\n\nReasoning/explanation: 0-2 points\n- 2: clearly explains how the evidence supports the claim.\n- 1: explanation is present but underdeveloped.\n- 0: no reasoning or explanation.\n\nOrganization and clarity: 0-2 points\n- 2: coherent, complete paragraph with logical flow.\n- 1: understandable but choppy, repetitive, or incomplete.\n- 0: difficult to follow or not written as a response.",
+      "customInstructions": "Keep feedback specific and actionable. Do not invent missing evidence. If OCR quality is uncertain, flag teacher review. Do not make claims about student effort, ability, or intent.",
+      "sourceSection": "6"
+    },
+    {
+      "id": "essay-20pt",
+      "name": "20-point essay",
+      "assignmentType": "essay",
+      "assessmentPurpose": "summative",
+      "description": "General essay rubric for claim, structure, evidence, analysis, and conventions.",
+      "rubricText": "Thesis/claim: 0-4 points\n- 4: clear, precise, and responsive thesis or controlling claim.\n- 3: clear claim with minor limitation or lack of precision.\n- 2: partially responsive, vague, or inconsistent claim.\n- 1: minimal or unclear claim.\n- 0: no discernible claim or off-topic response.\n\nEvidence: 0-4 points\n- 4: accurate, relevant, and sufficient evidence throughout.\n- 3: mostly relevant evidence with minor gaps.\n- 2: some relevant evidence but insufficient, vague, or uneven.\n- 1: minimal evidence.\n- 0: no relevant evidence.\n\nAnalysis/reasoning: 0-4 points\n- 4: consistently explains how evidence supports the claim.\n- 3: generally explains evidence with minor gaps.\n- 2: some explanation, but reasoning is underdeveloped.\n- 1: minimal explanation or mostly summary.\n- 0: no analysis or reasoning.\n\nOrganization: 0-4 points\n- 4: logical structure with effective transitions and paragraphing.\n- 3: organized overall with minor lapses.\n- 2: uneven organization that sometimes disrupts meaning.\n- 1: limited organization.\n- 0: disorganized or not developed as an essay.\n\nLanguage/conventions: 0-4 points\n- 4: clear language and conventions support meaning.\n- 3: minor errors that do not interfere with meaning.\n- 2: errors or awkward language sometimes interfere with meaning.\n- 1: frequent errors make meaning difficult.\n- 0: conventions or language prevent reliable understanding.",
+      "customInstructions": "Use the rubric criteria exactly. The draft grade must cite text evidence for each criterion. Do not reward length alone. Do not infer effort, ability, or intent. Mark teacher review required when evidence is missing or when the rubric descriptor is ambiguous.",
+      "sourceSection": "6"
+    },
+    {
+      "id": "lab-writeup-16pt",
+      "name": "16-point lab write-up",
+      "assignmentType": "labWriteup",
+      "assessmentPurpose": "summative",
+      "description": "For written science reports, lab reflections, and conclusions.",
+      "rubricText": "Question / purpose: 0-2 points\n- 2: clearly states the investigation question or purpose.\n- 1: states a partial or vague question/purpose.\n- 0: missing or unrelated.\n\nHypothesis or prediction: 0-2 points\n- 2: gives a testable hypothesis or prediction linked to the investigation.\n- 1: gives a prediction that is vague, incomplete, or weakly linked.\n- 0: missing or unrelated.\n\nMethod / procedure summary: 0-3 points\n- 3: accurately summarizes the relevant procedure or variables.\n- 2: mostly accurate but missing a meaningful detail.\n- 1: minimal or unclear method description.\n- 0: missing or inaccurate.\n\nData / observations: 0-3 points\n- 3: includes relevant data or observations and identifies patterns.\n- 2: includes some relevant data or observations.\n- 1: includes minimal or unclear data/observations.\n- 0: missing.\n\nConclusion: 0-3 points\n- 3: answers the question and connects to the data.\n- 2: answers the question with limited data connection.\n- 1: gives a weak or unsupported conclusion.\n- 0: missing or unrelated.\n\nScientific reasoning: 0-3 points\n- 3: explains why the data support the conclusion using appropriate scientific ideas.\n- 2: gives some scientific reasoning with gaps.\n- 1: minimal or unclear reasoning.\n- 0: no scientific reasoning.",
+      "customInstructions": "Grade only the written content provided. Do not infer experimental performance beyond the text. Flag missing data, unclear vocabulary, diagram dependence, or unsupported scientific claims for teacher review.",
+      "sourceSection": "6"
+    },
+    {
+      "id": "reading-comprehension-10pt",
+      "name": "10-point reading comprehension response",
+      "assignmentType": "readingComprehension",
+      "assessmentPurpose": "summative",
+      "description": "For text-based responses to a reading prompt.",
+      "rubricText": "Direct answer: 0-2 points\n- 2: answers the question accurately and completely.\n- 1: partially answers the question or is somewhat accurate.\n- 0: does not answer the question or is inaccurate.\n\nText evidence: 0-3 points\n- 3: cites or describes accurate, relevant evidence from the text.\n- 2: includes relevant but limited or partially explained evidence.\n- 1: includes vague, weak, or minimally relevant evidence.\n- 0: includes no relevant evidence.\n\nInference/explanation: 0-3 points\n- 3: clearly explains how the evidence supports the answer or inference.\n- 2: provides some explanation with minor gaps.\n- 1: explanation is minimal, unclear, or mostly restates evidence.\n- 0: no explanation.\n\nClarity: 0-2 points\n- 2: response is clear and understandable.\n- 1: response is understandable but incomplete, repetitive, or unclear in places.\n- 0: response is too unclear to assess reliably.",
+      "customInstructions": "Use only the reviewed student response and the supplied answer key or prompt. If the student refers to text evidence that is not included in the reviewed text, mark teacher review required rather than assuming the reference is correct.",
+      "sourceSection": "6"
+    },
+    {
+      "id": "science-explanation-12pt",
+      "name": "12-point science explanation",
+      "assignmentType": "shortAnswer",
+      "assessmentPurpose": "summative",
+      "description": "For written scientific explanations using concepts, evidence, and reasoning.",
+      "rubricText": "Concept understanding: 0-4 points\n- 4: accurately explains the key scientific concept or relationship.\n- 3: mostly accurate with minor gaps or imprecision.\n- 2: partially accurate but includes meaningful gaps or confusion.\n- 1: minimal accurate understanding.\n- 0: inaccurate, missing, or unrelated.\n\nUse of evidence/data: 0-3 points\n- 3: uses relevant data, observations, or examples to support the explanation.\n- 2: uses some relevant evidence but connection is limited.\n- 1: includes minimal or weak evidence.\n- 0: no relevant evidence.\n\nScientific reasoning: 0-3 points\n- 3: clearly connects evidence to the concept using scientific reasoning.\n- 2: gives some reasoning with gaps.\n- 1: reasoning is minimal or unclear.\n- 0: no reasoning.\n\nScientific vocabulary and clarity: 0-2 points\n- 2: uses appropriate vocabulary clearly.\n- 1: uses some vocabulary but imprecisely or with clarity issues.\n- 0: vocabulary is missing, misleading, or prevents reliable assessment.",
+      "customInstructions": "Do not grade diagrams, tables, equations, or experimental setup unless the relevant information appears in the reviewed text or was entered by the teacher. Flag any missing data, diagram dependence, or uncertain vocabulary for teacher review.",
+      "sourceSection": "6"
+    },
+    {
+      "id": "hass-source-response-12pt",
+      "name": "12-point HASS source response",
+      "assignmentType": "paragraphResponse",
+      "assessmentPurpose": "summative",
+      "description": "For history, geography, civics, economics, and source-based written responses.",
+      "rubricText": "Understanding of source or context: 0-3 points\n- 3: accurately identifies relevant source/context information.\n- 2: mostly accurate with minor gaps.\n- 1: limited or partially accurate understanding.\n- 0: inaccurate, missing, or unrelated.\n\nUse of evidence: 0-3 points\n- 3: uses specific, relevant evidence from the source or provided material.\n- 2: uses some relevant evidence but lacks specificity or completeness.\n- 1: evidence is vague, weak, or minimally relevant.\n- 0: no relevant evidence.\n\nReasoning / interpretation: 0-4 points\n- 4: explains the significance, cause/effect, perspective, pattern, or relationship clearly.\n- 3: generally sound reasoning with minor gaps.\n- 2: partial reasoning with meaningful gaps.\n- 1: minimal reasoning or mostly description.\n- 0: no relevant reasoning.\n\nCommunication: 0-2 points\n- 2: clear, organized response using relevant terms.\n- 1: understandable but unclear, incomplete, or loosely organized.\n- 0: too unclear to assess reliably.",
+      "customInstructions": "Do not assume source facts that are not in the reviewed student response, prompt, answer key, or teacher-provided context. Mark teacher review required when the response depends on a source excerpt not included in the grading packet.",
+      "sourceSection": "6"
+    },
+    {
+      "id": "formative-exit-ticket-8pt",
+      "name": "8-point formative exit ticket",
+      "assignmentType": "shortAnswer",
+      "assessmentPurpose": "formative",
+      "description": "Evidence and next-step feedback for quick formative checks.",
+      "rubricText": "Shows current understanding: 0-3 points\n- 3: shows clear understanding of the focus concept or skill.\n- 2: shows partial understanding with a small gap or imprecision.\n- 1: shows limited understanding or a significant misconception.\n- 0: does not yet show the focus concept or skill.\n\nUses relevant evidence or reasoning: 0-2 points\n- 2: includes relevant evidence, reasoning, or explanation.\n- 1: includes limited or unclear evidence/reasoning.\n- 0: no supporting evidence or reasoning.\n\nIdentifies or applies key vocabulary/strategy: 0-1 point\n- 1: uses an appropriate key term, strategy, or representation in text.\n- 0: does not use the expected term/strategy or it is unclear.\n\nActionable next step: 0-2 points\n- 2: response makes the next teaching or learning step clear.\n- 1: some next-step need is visible but requires teacher interpretation.\n- 0: evidence is insufficient to determine a next step.",
+      "customInstructions": "This is formative. Emphasize what the student appears to understand from the evidence and one concrete next step. Do not present the output as a final summative grade by default.",
+      "sourceSection": "6"
+    },
+    {
+      "id": "reflection-response-12pt",
+      "name": "12-point reflection response",
+      "assignmentType": "paragraphResponse",
+      "assessmentPurpose": "summative",
+      "description": "For written learning reflections and task reflections.",
+      "rubricText": "Connection to task or learning goal: 0-3 points\n- 3: clearly connects reflection to the task, goal, or learning focus.\n- 2: mostly connected with minor gaps.\n- 1: weak or vague connection.\n- 0: no clear connection.\n\nSpecific evidence or example: 0-3 points\n- 3: includes a specific example from the work, process, or learning.\n- 2: includes a relevant but limited example.\n- 1: includes a vague or minimal example.\n- 0: no specific example.\n\nExplanation of learning: 0-3 points\n- 3: explains what was learned or improved with clear reasoning.\n- 2: gives some explanation with gaps.\n- 1: minimal explanation.\n- 0: no explanation.\n\nNext step: 0-3 points\n- 3: identifies a specific and realistic next step.\n- 2: identifies a general next step.\n- 1: next step is vague or only implied.\n- 0: no next step.",
+      "customInstructions": "Assess only the written reflection. Do not infer effort, attitude, motivation, or personality. Feedback should be supportive, specific, and focused on the evidence in the response.",
+      "sourceSection": "6"
+    }
+  ],
+  "teacherInstructionTemplates": [
+    {
+      "id": "general-evidence-first",
+      "name": "General evidence-first instruction",
+      "description": "Source-of-truth teacher instruction template: General evidence-first instruction.",
+      "text": "Grade only from the reviewed student text and the grading materials I provided. For every criterion, cite evidence from the reviewed text or mark teacher review required if evidence is missing or unclear.",
+      "scope": "grading",
+      "priority": "standard",
+      "studentFacing": false,
+      "privateTeacherOnly": true,
+      "sourceSection": "7"
+    },
+    {
+      "id": "do-not-penalize-conventions",
+      "name": "Do-not-penalize conventions instruction",
+      "description": "Source-of-truth teacher instruction template: Do-not-penalize conventions instruction.",
+      "text": "Do not penalize spelling, grammar, punctuation, capitalization, or handwriting unless the rubric explicitly assesses conventions or the errors materially interfere with meaning.",
+      "scope": "accessibility",
+      "priority": "standard",
+      "studentFacing": false,
+      "privateTeacherOnly": true,
+      "sourceSection": "7"
+    },
+    {
+      "id": "strict-answer-key",
+      "name": "Strict answer-key instruction",
+      "description": "Source-of-truth teacher instruction template: Strict answer-key instruction.",
+      "text": "Use the answer key as the main scoring reference. Award equivalent wording when the meaning is correct. If the response is partially correct, identify which expected elements are present and which are missing.",
+      "scope": "answerKey",
+      "priority": "required",
+      "studentFacing": false,
+      "privateTeacherOnly": true,
+      "sourceSection": "7"
+    },
+    {
+      "id": "exemplar-comparison",
+      "name": "Exemplar comparison instruction",
+      "description": "Source-of-truth teacher instruction template: Exemplar comparison instruction.",
+      "text": "Use the exemplar only as a reference for quality and completeness. Do not require the student's response to match the exemplar wording. Score against the rubric criteria, not against stylistic similarity to the exemplar.",
+      "scope": "exemplar",
+      "priority": "standard",
+      "studentFacing": false,
+      "privateTeacherOnly": true,
+      "sourceSection": "7"
+    },
+    {
+      "id": "formative-feedback",
+      "name": "Formative feedback instruction",
+      "description": "Source-of-truth teacher instruction template: Formative feedback instruction.",
+      "text": "This is formative feedback. Emphasize current evidence of understanding, one misconception or gap if present, and one practical next step. Do not frame the output as a final grade unless I approve it as summative.",
+      "scope": "formative",
+      "priority": "standard",
+      "studentFacing": false,
+      "privateTeacherOnly": true,
+      "sourceSection": "7"
+    },
+    {
+      "id": "summative-caution",
+      "name": "Summative caution instruction",
+      "description": "Source-of-truth teacher instruction template: Summative caution instruction.",
+      "text": "This may be used for a summative record after teacher review. Keep score suggestions conservative when evidence is incomplete. Mark teacher review required for ambiguous rubric interpretation, missing evidence, or OCR uncertainty.",
+      "scope": "summative",
+      "priority": "standard",
+      "studentFacing": false,
+      "privateTeacherOnly": true,
+      "sourceSection": "7"
+    },
+    {
+      "id": "ocr-uncertainty",
+      "name": "OCR uncertainty instruction",
+      "description": "Source-of-truth teacher instruction template: OCR uncertainty instruction.",
+      "text": "Some text may have come from OCR. If a quote appears garbled, incomplete, or inconsistent, mark teacher review required and do not rely on that text for a confident score.",
+      "scope": "ocrReview",
+      "priority": "required",
+      "studentFacing": false,
+      "privateTeacherOnly": true,
+      "sourceSection": "7"
+    },
+    {
+      "id": "eald-sensitive",
+      "name": "EAL/D-sensitive instruction",
+      "description": "Source-of-truth teacher instruction template: EAL/D-sensitive instruction.",
+      "text": "Assess the content and reasoning shown in the reviewed student text. Do not infer the student's language background. Do not penalize language features unless the rubric assesses language control or the wording prevents reliable understanding.",
+      "scope": "accessibility",
+      "priority": "standard",
+      "studentFacing": false,
+      "privateTeacherOnly": true,
+      "sourceSection": "7"
+    },
+    {
+      "id": "adjustment-context",
+      "name": "Adjustment-context instruction",
+      "description": "Source-of-truth teacher instruction template: Adjustment-context instruction.",
+      "text": "Use only the teacher-provided adjustment context. Do not infer disability, support needs, giftedness, EAL/D status, effort, or intent. Keep adjustment notes private unless I explicitly include them in student-facing feedback.",
+      "scope": "adjustment",
+      "priority": "standard",
+      "studentFacing": false,
+      "privateTeacherOnly": true,
+      "sourceSection": "7"
+    },
+    {
+      "id": "off-prompt",
+      "name": "Off-prompt instruction",
+      "description": "Source-of-truth teacher instruction template: Off-prompt instruction.",
+      "text": "If the response does not address the prompt, identify the mismatch and score only the evidence that can be connected to the rubric. Do not invent relevance.",
+      "scope": "grading",
+      "priority": "required",
+      "studentFacing": false,
+      "privateTeacherOnly": true,
+      "sourceSection": "7"
+    },
+    {
+      "id": "misconception",
+      "name": "Misconception instruction",
+      "description": "Source-of-truth teacher instruction template: Misconception instruction.",
+      "text": "If the response shows a misconception listed in the answer key or visible in the reviewed text, identify it specifically and suggest a next step. Do not diagnose broader ability or future performance.",
+      "scope": "misconception",
+      "priority": "standard",
+      "studentFacing": false,
+      "privateTeacherOnly": true,
+      "sourceSection": "7"
+    }
+  ],
+  "answerKeyTemplates": [
+    {
+      "id": "short-answer-answer-key",
+      "name": "Short-answer answer key template",
+      "assignmentTypes": [
+        "shortAnswer",
+        "paragraphResponse",
+        "readingComprehension"
+      ],
+      "description": "Planned template content from Section 8: Short-answer answer key template.",
+      "markdownTemplate": "# Answer Key\n\n## Prompt\n[Paste the question or task.]\n\n## Full-credit answer\n[State the expected answer in teacher wording.]\n\n## Required elements\n1. [Required element 1]\n2. [Required element 2]\n3. [Required element 3]\n\n## Acceptable equivalent wording\n- [Alternative wording or synonym]\n- [Alternative phrasing]\n\n## Partial credit guidance\n- Full credit: [conditions]\n- Partial credit: [conditions]\n- No credit: [conditions]\n\n## Common misconceptions\n- [Misconception 1]\n- [Misconception 2]\n\n## Do not penalize\n- [Spelling unless meaning is unclear]\n- [Equivalent wording]",
+      "sourceSection": "8"
+    },
+    {
+      "id": "science-explanation-answer-key",
+      "name": "Science explanation answer key template",
+      "assignmentTypes": [
+        "shortAnswer",
+        "labWriteup"
+      ],
+      "description": "Planned template content from Section 8: Science explanation answer key template.",
+      "markdownTemplate": "# Science Explanation Key\n\n## Focus question\n[Paste focus question.]\n\n## Key concept(s)\n- [Concept 1]\n- [Concept 2]\n\n## Expected evidence or data\n- [Data/observation 1]\n- [Data/observation 2]\n\n## Expected reasoning\n[Describe how the evidence should connect to the concept.]\n\n## Scientific vocabulary\n- [Term 1]\n- [Term 2]\n\n## Common misconceptions\n- [Misconception]\n\n## Unsupported evidence warning\nIf the response depends on a diagram, table, equation, or data not included in reviewed text, mark teacher review required.",
+      "sourceSection": "8"
+    },
+    {
+      "id": "hass-source-response-answer-key",
+      "name": "HASS source response answer key template",
+      "assignmentTypes": [
+        "paragraphResponse",
+        "essay"
+      ],
+      "description": "Planned template content from Section 8: HASS source response answer key template.",
+      "markdownTemplate": "# HASS Source Response Key\n\n## Question\n[Paste question.]\n\n## Source/context provided to students\n[Summarize or paste the relevant source context if appropriate.]\n\n## Expected source understanding\n- [Expected understanding]\n\n## Expected evidence\n- [Evidence students may cite]\n\n## Expected reasoning\n- [Cause/effect, perspective, pattern, significance, continuity/change, civic reasoning, geographic reasoning, etc.]\n\n## Common weak responses\n- [Weak response pattern]\n\n## Teacher review trigger\nMark teacher review required if the student refers to source content that is not available in the reviewed text or teacher-provided context.",
+      "sourceSection": "8"
+    }
+  ],
+  "exemplarTemplates": [
+    {
+      "id": "paragraph-essay-exemplar",
+      "name": "Paragraph/essay exemplar template",
+      "assignmentTypes": [
+        "paragraphResponse",
+        "essay"
+      ],
+      "description": "Planned template content from Section 8: Paragraph/essay exemplar template.",
+      "markdownTemplate": "# Exemplar Response\n\n## Prompt\n[Paste prompt.]\n\n## Exemplar quality level\n[High / proficient / developing / teacher-created reference]\n\n## Exemplar text\n[Paste exemplar.]\n\n## Why this exemplar is useful\n- [Feature 1, e.g., clear claim]\n- [Feature 2, e.g., uses evidence]\n- [Feature 3, e.g., explains reasoning]\n\n## Important caution\nUse this exemplar as a reference. Do not require the student's response to copy its wording or structure unless the rubric requires that structure.",
+      "sourceSection": "8"
+    }
+  ],
+  "formativeFocusTemplates": [
+    {
+      "id": "formative-focus",
+      "name": "Formative focus template",
+      "assignmentTypes": [
+        "shortAnswer",
+        "paragraphResponse",
+        "readingComprehension",
+        "labWriteup"
+      ],
+      "description": "Planned template content from Section 8: Formative focus template.",
+      "markdownTemplate": "# Formative Focus\n\n## Learning focus\n[What understanding or skill is being checked?]\n\n## Aim\n[Why is this evidence being collected now?]\n\n## Timing\n[Before teaching / during teaching / after practice / exit ticket / revision check]\n\n## Expected evidence\n[What should the student response show?]\n\n## Possible next teaching decisions\n- [Reteach]\n- [Small group]\n- [Move on]\n- [Give extension]\n- [Clarify misconception]\n\n## Student feedback style\nShort, specific, and next-step focused.",
+      "sourceSection": "8"
+    }
+  ],
+  "exportWarnings": [
+    {
+      "id": "global-export-warning",
+      "name": "Global export confirmation",
+      "title": "Export student information?",
+      "body": "This export may include student names, assignment work, grades, rubric scores, feedback, and teacher notes. Once exported, the file may leave the app's protected local storage. Store and share it only through approved school channels.",
+      "warningLine": "This content may contain identifiable student information.",
+      "securityNote": "Use approved school storage and sharing channels only.",
+      "checklist": [
+        "Confirm the destination is approved for student records.",
+        "Confirm the export is needed for a current teaching or recordkeeping purpose.",
+        "Confirm the file will not be shared with unintended recipients."
+      ],
+      "primaryButton": "Continue to Export",
+      "secondaryButton": "Cancel",
+      "finalButton": "Export",
+      "acknowledgementText": "I understand this file may contain sensitive student information.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": false,
+      "optionalCheckbox": null,
+      "postPreviewConfirmation": null,
+      "escalatedConfirmation": null,
+      "defaultChoice": null
+    },
+    {
+      "id": "student-report-warning",
+      "name": "Student-facing report export",
+      "title": "Review student-facing report",
+      "body": "This report is intended for student or family review. Confirm that it includes only the feedback, scores, and evidence you want the student or family to see.",
+      "warningLine": "Student-facing exports must be previewed before release.",
+      "checklist": [
+        "Confirm the final review is approved.",
+        "Confirm teacher-only notes and draft reasoning are excluded.",
+        "Confirm the wording is appropriate for the student or family."
+      ],
+      "primaryButton": "Preview Report",
+      "secondaryButton": "Cancel",
+      "finalButton": "Export Student Report",
+      "postPreviewConfirmation": "I reviewed this report and confirmed it is appropriate to share.",
+      "acknowledgementText": "I reviewed the report and confirmed it is appropriate to share.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": true,
+      "securityNote": null,
+      "optionalCheckbox": null,
+      "escalatedConfirmation": null,
+      "defaultChoice": null
+    },
+    {
+      "id": "teacher-only-record-warning",
+      "name": "Teacher-only record export",
+      "title": "Export teacher-only grading record?",
+      "body": "This file may include internal grading notes, draft scores, rubric reasoning, OCR uncertainty flags, and teacher annotations. It is not intended for students or families unless reviewed and redacted.",
+      "warningLine": "This is a private teacher record, not a student-facing report.",
+      "securityNote": "Store only with internal school records or other approved teacher-only systems.",
+      "checklist": [
+        "Confirm the export is for teacher or school recordkeeping.",
+        "Confirm students or families will not receive teacher-only sections without review.",
+        "Confirm draft and OCR uncertainty information is permitted in the destination."
+      ],
+      "primaryButton": "Export Teacher Record",
+      "secondaryButton": "Cancel",
+      "finalButton": "Export Teacher Record",
+      "acknowledgementText": "I understand this export may include teacher-only content.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": false,
+      "optionalCheckbox": null,
+      "postPreviewConfirmation": null,
+      "escalatedConfirmation": null,
+      "defaultChoice": null
+    },
+    {
+      "id": "pdf-warning",
+      "name": "PDF export warning",
+      "title": "Export PDF with student information?",
+      "body": "This PDF may include student names, assignment text, grading feedback, rubric scores, and evidence quotes. Review the preview before sharing. Once exported, the PDF can be copied, printed, emailed, uploaded, or forwarded outside the app.",
+      "warningLine": "PDF files can be forwarded or printed outside the app.",
+      "checklist": [
+        "Preview the generated PDF.",
+        "Confirm the visible sections match the intended audience.",
+        "Confirm the file name and destination are appropriate."
+      ],
+      "primaryButton": "Preview PDF",
+      "secondaryButton": "Cancel",
+      "finalButton": "Export PDF",
+      "postPreviewConfirmation": "I reviewed the PDF preview and confirmed it is ready to export.",
+      "acknowledgementText": "I understand this PDF may expose student information if shared incorrectly.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": false,
+      "securityNote": null,
+      "optionalCheckbox": null,
+      "escalatedConfirmation": null,
+      "defaultChoice": null
+    },
+    {
+      "id": "csv-warning",
+      "name": "CSV export warning",
+      "title": "Export spreadsheet data?",
+      "body": "This CSV may include student names, scores, grades, rubric labels, and comments. CSV files are easy to copy, upload, email, and re-import into other systems. Use only approved school storage and transfer methods.",
+      "warningLine": "Spreadsheet exports can expose many records at once.",
+      "checklist": [
+        "Confirm only permitted rows are included.",
+        "Confirm the CSV does not include draft grades unless intended for teacher use.",
+        "Confirm the destination is approved."
+      ],
+      "primaryButton": "Export CSV",
+      "secondaryButton": "Cancel",
+      "finalButton": "Export CSV",
+      "acknowledgementText": "I understand this file may expose student records if shared incorrectly.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": false,
+      "securityNote": null,
+      "optionalCheckbox": null,
+      "postPreviewConfirmation": null,
+      "escalatedConfirmation": null,
+      "defaultChoice": null
+    },
+    {
+      "id": "json-backup-warning",
+      "name": "JSON export warning",
+      "title": "Export structured data?",
+      "body": "This JSON file may contain full assignment records, OCR text, rubric data, scores, feedback, teacher notes, and internal metadata. JSON exports may reveal more information than a student-facing report.",
+      "warningLine": "Structured data exports can include complete local records.",
+      "checklist": [
+        "Confirm the backup is permitted by your school or district.",
+        "Confirm the storage location is protected.",
+        "Confirm you understand this may include teacher-only metadata."
+      ],
+      "primaryButton": "Export JSON",
+      "secondaryButton": "Cancel",
+      "finalButton": "Export JSON",
+      "acknowledgementText": "I understand this export may include complete local records.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": false,
+      "securityNote": null,
+      "optionalCheckbox": null,
+      "postPreviewConfirmation": null,
+      "escalatedConfirmation": null,
+      "defaultChoice": null
+    },
+    {
+      "id": "zip-archive-warning",
+      "name": "ZIP/archive export warning",
+      "title": "Export archive with source files?",
+      "body": "This archive may include scanned work images, OCR text, grading records, feedback drafts, rubrics, and teacher notes. Archives can contain multiple files and may expose more student information than expected.",
+      "warningLine": "Archives can include original source files and private records.",
+      "securityNote": "Review archive contents before sharing or retaining the file.",
+      "checklist": [
+        "Review the archive inventory.",
+        "Confirm original source files are allowed in this export.",
+        "Confirm the destination is approved for backups."
+      ],
+      "primaryButton": "Review Archive Contents",
+      "secondaryButton": "Cancel",
+      "finalButton": "Create Archive",
+      "postPreviewConfirmation": "I reviewed the archive inventory and confirmed it is permitted.",
+      "acknowledgementText": "I understand this archive may include original student work and private teacher records.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": false,
+      "optionalCheckbox": null,
+      "escalatedConfirmation": null,
+      "defaultChoice": null
+    },
+    {
+      "id": "clipboard-warning",
+      "name": "Clipboard warning",
+      "title": "Copy student information?",
+      "body": "The copied text may include student information. Other apps, shared devices, or clipboard history tools may expose copied content. Copy only what you need.",
+      "warningLine": "Clipboard content may be visible to other apps or tools.",
+      "checklist": [],
+      "primaryButton": "Copy",
+      "secondaryButton": "Cancel",
+      "finalButton": "Copy",
+      "acknowledgementText": "I understand copied content may be exposed outside GradeDraft.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": false,
+      "securityNote": null,
+      "optionalCheckbox": null,
+      "postPreviewConfirmation": null,
+      "escalatedConfirmation": null,
+      "defaultChoice": null
+    },
+    {
+      "id": "share-sheet-warning",
+      "name": "Share sheet warning",
+      "title": "Share outside the app?",
+      "body": "You are about to send a file or text to another app. GradeDraft cannot control how that destination app stores, syncs, forwards, or protects the information.",
+      "warningLine": "The destination app controls the shared content after you send it.",
+      "checklist": [
+        "Confirm the destination app is approved.",
+        "Confirm the recipient or storage location is correct."
+      ],
+      "primaryButton": "Open Share Sheet",
+      "secondaryButton": "Cancel",
+      "finalButton": "Open Share Sheet",
+      "acknowledgementText": "I understand the destination app controls the shared content after export.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": false,
+      "securityNote": null,
+      "optionalCheckbox": null,
+      "postPreviewConfirmation": null,
+      "escalatedConfirmation": null,
+      "defaultChoice": null
+    },
+    {
+      "id": "backup-toggle-warning",
+      "name": "Backup toggle warning",
+      "title": "Include student records in device backup?",
+      "body": "By default, GradeDraft keeps student records local and excludes sensitive app files from backup where supported. If you enable backup for student records, copies may be stored outside this device according to your device and account settings.",
+      "warningLine": "Device backup may copy local student records outside this device.",
+      "securityNote": "Confirm this is permitted before changing the local backup exclusion setting.",
+      "checklist": [
+        "Confirm your school or district permits device backup for these records.",
+        "Confirm the device account and backup destination are appropriate.",
+        "Confirm you can reverse the setting if required."
+      ],
+      "primaryButton": "Enable Backup",
+      "secondaryButton": "Keep Local Only",
+      "finalButton": "Enable Backup",
+      "defaultChoice": "Keep Local Only",
+      "acknowledgementText": "I have confirmed this is permitted by my school or district.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": false,
+      "optionalCheckbox": null,
+      "postPreviewConfirmation": null,
+      "escalatedConfirmation": null
+    },
+    {
+      "id": "delete-local-data-warning",
+      "name": "Delete local data warning",
+      "title": "Delete local student records?",
+      "body": "This will remove the selected records from this device. This action may delete scans, OCR text, scores, feedback, and teacher notes stored in the app. Export a permitted backup first if your school requires retention.",
+      "warningLine": "This destructive action cannot be undone from inside GradeDraft.",
+      "checklist": [
+        "Confirm the selected local records should be deleted.",
+        "Confirm required retention or backup obligations are satisfied.",
+        "Confirm you are not deleting another student's work by mistake."
+      ],
+      "primaryButton": "Delete Records",
+      "secondaryButton": "Cancel",
+      "finalButton": "Delete Records",
+      "escalatedConfirmation": "Type DELETE to confirm local record deletion.",
+      "acknowledgementText": "I understand this local deletion cannot be undone from inside GradeDraft.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": false,
+      "securityNote": null,
+      "optionalCheckbox": null,
+      "postPreviewConfirmation": null,
+      "defaultChoice": null
+    },
+    {
+      "id": "teacher-notes-inclusion-warning",
+      "name": "Teacher notes inclusion warning",
+      "title": "Include teacher-only notes?",
+      "body": "Teacher-only notes may contain internal observations, draft reasoning, or information not intended for students or families. Include them only if this export is for internal school use.",
+      "warningLine": "Teacher notes are private by default.",
+      "checklist": [
+        "Confirm the export audience is teacher-only or school-internal.",
+        "Confirm student-facing copies will not include these notes."
+      ],
+      "primaryButton": "Include Teacher Notes",
+      "secondaryButton": "Exclude Teacher Notes",
+      "finalButton": "Include Teacher Notes",
+      "acknowledgementText": "I understand this export may include private teacher notes.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": false,
+      "securityNote": null,
+      "optionalCheckbox": null,
+      "postPreviewConfirmation": null,
+      "escalatedConfirmation": null,
+      "defaultChoice": null
+    },
+    {
+      "id": "draft-grade-export-warning",
+      "name": "Draft grade export warning",
+      "title": "Export draft scores?",
+      "body": "Some scores or comments are still marked as drafts. Draft grading content should not be shared with students or families unless you have reviewed and finalized it.",
+      "warningLine": "Draft grading content requires teacher review before student-facing sharing.",
+      "checklist": [
+        "Confirm draft scores are intended for teacher-only use.",
+        "Confirm student-facing exports are blocked until final approval."
+      ],
+      "primaryButton": "Review Drafts",
+      "secondaryButton": "Export Teacher Copy",
+      "finalButton": "Export Teacher Copy",
+      "acknowledgementText": "I understand this export may include draft grading content.",
+      "requiresAcknowledgement": true,
+      "blocksStudentFacingExportByDefault": false,
+      "securityNote": null,
+      "optionalCheckbox": null,
+      "postPreviewConfirmation": null,
+      "escalatedConfirmation": null,
+      "defaultChoice": null
+    }
+  ],
+  "reportTemplates": {
+    "studentReport": [
+      "# GradeDraft Student Feedback\n\n**Assignment:** {{assignmentTitle}}\n**Student:** {{studentDisplayNameOrLocalIdentifier}}\n**Class:** {{classNameOrNotSpecified}}\n**Subject:** {{subjectOrNotSpecified}}\n**Grade/year level:** {{gradeLevelOrNotSpecified}}\n**Assignment type:** {{assignmentTypeDisplayName}}\n**Updated:** {{updatedDate}}\n\n> Generated from local app state. GradeDraft does not upload this report.\n> This student-facing report excludes private teacher notes and raw model responses.",
+      "## Final teacher-approved grade\n\n**Score:** {{finalTotalScore}} / {{finalMaxScore}}\n\n### Feedback\n\n{{teacherFinalStudentFeedback}}\n\n### Criteria\n\n{{#criteria}}\n#### {{criterionName}}\n- Final score: {{finalPoints}} / {{maxPoints}}\n- Rating: {{ratingOrNotSpecified}}\n- Evidence: {{studentFacingEvidence}}\n- Explanation: {{studentFacingExplanation}}\n{{/criteria}}",
+      "## Draft grade for teacher review\n\nThis is not a finalized grade. A teacher must review and approve it before use.",
+      "## Formative feedback\n\n**Learning focus:** {{formativeFocus}}\n\n### Evidence noticed\n\n{{evidenceSummary}}\n\n### Current understanding\n\n{{currentUnderstandingFeedback}}\n\n### Next step\n\n{{nextStep}}\n\n> This formative feedback is for learning support and is not a final grade unless the teacher marks it as summative."
+    ],
+    "teacherAuditReport": [
+      "# GradeDraft Teacher Audit Report\n\n**Assignment:** {{assignmentTitle}}\n**Student:** {{studentDisplayNameOrLocalIdentifier}}\n**Class:** {{classNameOrNotSpecified}}\n**Subject:** {{subjectOrNotSpecified}}\n**Grade/year level:** {{gradeLevelOrNotSpecified}}\n**Assignment type:** {{assignmentTypeDisplayName}}\n**Updated:** {{updatedDate}}\n\n> This teacher audit report may include private notes, reviewed text, OCR warnings, source fingerprints, and grading-state metadata. Treat it as sensitive student data.\n> Generated from local app state. GradeDraft does not upload this report.",
+      "## Readiness and source state\n- OCR review status: {{ocrReviewStatus}}\n- Source inputs: {{sourceInputCount}}\n- Current grading packet fingerprint: {{packetFingerprint}}\n- Draft stale: {{yesNo}}\n- Final review stale: {{yesNo}}\n\n## Source inputs\n{{sourceInputList}}\n\n## OCR summary\n- Engine: {{ocrEngine}}\n- Review status: {{ocrReviewStatus}}\n- Quality: {{ocrQualitySummary}}\n- Reviewed at: {{ocrReviewedAtOrNotReviewed}}\n\n## Reviewed student text\n\n{{reviewedStudentText}}\n\n## Rubric and grading materials\n\n### Rubric\n{{rubricText}}\n\n### Custom teacher instructions\n{{customInstructions}}\n\n### Answer key\n{{answerKeyText}}\n\n### Exemplar\n{{exemplarText}}\n\n## Model draft\n- Draft status: {{draftStatus}}\n- Score: {{draftTotalScore}} / {{draftMaxScore}}\n- Packet fingerprint: {{draftPacketFingerprint}}\n\n{{draftCriteria}}\n\n### Uncertainty flags\n{{uncertaintyFlags}}\n\n### Compliance flags\n{{complianceFlags}}\n\n### Private model/teacher notes\n{{draftTeacherNotes}}\n\n## Final teacher review\n- Status: {{finalStatus}}\n- Score: {{finalTotalScore}} / {{finalMaxScore}}\n- Packet fingerprint: {{finalPacketFingerprint}}\n- Finalized at: {{finalizedAtOrNotFinalized}}\n\n{{finalCriteria}}\n\n### Private teacher notes\n{{privateTeacherNotes}}\n\n## Export records\n{{exportRecords}}\n\n## Audit events\n{{auditEvents}}",
+      "Teacher audit reports may include private notes, OCR uncertainty, source references, draft scoring, final scoring, and reviewed student text. They are sensitive student records and should not be shared with students or families unless reviewed and redacted."
+    ]
+  },
+  "canonicalPromptTemplate": "You are a local-only rubric grading assistant for a teacher. You are not the final grader. The teacher will review, edit, and approve every score and comment.\n\nMandatory rules:\n- Grade only from the reviewed student text, rubric, answer key, exemplar, curriculum reference, formative focus, and custom teacher instructions supplied in this packet.\n- Do not infer effort, intent, motivation, behavior, ability beyond the submitted work, demographics, disability, EAL/D status, giftedness, support level, or personality traits.\n- Do not invent evidence. Every criterion must cite direct evidence from the reviewed student text or use this exact marker: No supporting evidence found.\n- Do not invent curriculum references, official standards, answer-key elements, source facts, or exemplar content.\n- If the rubric is ambiguous, apply the most conservative reasonable score and add an uncertainty flag.\n- If OCR quality or wording is uncertain, mark teacherReviewRequired true for affected criteria.\n- If evidence is weak, missing, garbled, or only implied, mark teacherReviewRequired true.\n- If the response depends on an unsupported source, diagram, image, math notation, handwriting, or visual artifact, mark teacherReviewRequired true and explain the limitation.\n- Return one JSON object only. Do not wrap it in markdown.\n- Use numeric proposedPoints and maxPoints.\n- Do not include totalScore or maxScore; the app calculates totals.\n- If structured criteria are listed, return one and only one score for each criterionId.\n- Keep student feedback constructive, specific, and concise.\n- Keep teacherNotes private and use them for ambiguity, OCR concerns, evidence concerns, or grading calls.\n- When source reference tags like [p1-l2-abcdef12] are present, include matching evidenceSourceRefs for cited quotes.\n- No cloud model fallback exists in this app. If local draft feedback is unavailable, do not suggest using a cloud service.\n\nAssignment metadata:\n- Title: {{assignmentTitle}}\n- Prompt: {{promptOrNone}}\n- Student: {{studentDisplayNameOrNotSpecified}}\n- Class: {{classNameOrNotSpecified}}\n- Subject: {{subjectOrNotSpecified}}\n- Grade/year level: {{gradeLevelOrNotSpecified}}\n- Assignment type: {{assignmentTypeDisplayName}}\n- Assessment purpose: {{assessmentPurpose}}\n- Source input count: {{sourceInputCount}}\n- OCR review status: {{ocrReviewStatus}}\n- OCR quality summary: {{ocrQualitySummary}}\n\n{{curriculumReferenceSection}}\nStructured rubric criteria:\n{{structuredRubricCriteria}}\n\nRaw rubric / answer key / grading criteria:\n\"\"\"\n{{rubricText}}\n\"\"\"\n\n{{customInstructionsSection}}{{formativeFocusSection}}{{answerKeySection}}{{exemplarSection}}Reviewed student text:\n\"\"\"\n{{reviewedStudentText}}\n\"\"\"\n\nRequired JSON schema:\n{\n  \"studentResponseSummary\": \"one or two factual sentences about what the student wrote\",\n  \"criteria\": [\n    {\n      \"criterionId\": \"criterion id from the structured rubric list when available\",\n      \"criterion\": \"criterion name exactly or nearly exactly from the rubric\",\n      \"rating\": \"rubric level or short label\",\n      \"proposedPoints\": 0,\n      \"maxPoints\": 0,\n      \"evidence\": [\"quote from reviewed student text, or No supporting evidence found.\"],\n      \"evidenceSourceRefs\": [],\n      \"explanation\": \"specific rubric-based explanation\",\n      \"nextStep\": \"specific improvement suggestion when appropriate\",\n      \"confidence\": \"high | medium | low\",\n      \"teacherReviewRequired\": true,\n      \"uncertaintyFlags\": []\n    }\n  ],\n  \"studentFeedback\": \"student-facing feedback that is specific, constructive, and concise\",\n  \"teacherNotes\": \"private notes about ambiguity, grading calls, OCR concerns, or unsupported evidence\",\n  \"uncertaintyFlags\": [\"issues the teacher should review\"],\n  \"complianceFlags\": [\"ways the draft was constrained to rubric and evidence\"]\n}",
+  "nonNegotiableRules": [
+    "The default grading workflow must not require a server.",
+    "The default workflow must not upload student work.",
+    "The default workflow must not use cloud OCR.",
+    "The default workflow must not use cloud AI grading.",
+    "The app must not generate a proposed grade without at least one teacher-provided grading standard: rubric, answer key, exemplar, achievement-standard aspect, or custom grading criteria.",
+    "The app must not grade OCR-derived text until required OCR review has been completed.",
+    "Every proposed criterion score must cite student evidence or be marked for teacher review.",
+    "The AI proposes; the teacher finalizes.",
+    "Proposed points and teacher-final points must remain separate.",
+    "Totals must be calculated deterministically in app code, not trusted from model output.",
+    "Raw source input, OCR output, reviewed text, model proposal, teacher edits, final grade, exports, and audit events must remain separate records.",
+    "A draft or final review must become stale when its source grading packet changes.",
+    "Student-facing exports must exclude private teacher notes by default.",
+    "Teacher-audit exports are sensitive student records.",
+    "The UI must not imply that unavailable OCR, local AI, export, or grading functionality is working.",
+    "The app must fail openly on OCR failure, local AI unavailability, malformed model output, persistence failure, or export failure.",
+    "Handwriting, diagrams, posters, physical models, and visual artifacts require explicit teacher-confirmed evidence before grading.",
+    "Subjective criteria such as creativity, craftsmanship, effort, or presentation quality require teacher review and must not be presented as fully automated judgements.",
+    "The app must not infer student effort, intent, motivation, behavior, disability, EAL/D status, giftedness, demographic traits, support level, or ability beyond the submitted work.",
+    "The app must not claim official curriculum scoring, official standards certification, or jurisdiction reporting compliance unless those features are separately implemented and reviewed."
+  ],
+  "safeUILabels": [
+    "Generate Draft Feedback",
+    "Review Draft",
+    "Teacher Review",
+    "Review Evidence",
+    "Finalize Grade",
+    "Teacher-Approved Grade",
+    "Draft Feedback",
+    "Needs Teacher Review"
+  ],
+  "prohibitedUILabels": [
+    "Auto-grade",
+    "Accept AI Grade",
+    "AI final grade",
+    "Grade instantly",
+    "Fully automated",
+    "Guaranteed score",
+    "Objective AI marking",
+    "AI Teacher",
+    "Mark without review",
+    "Skip review",
+    "One-click grade"
+  ],
+  "supportCatalog": {
+    "ocrReviewStates": [
+      {
+        "id": "ocr-not-needed",
+        "title": "No OCR review needed",
+        "body": "The assignment uses typed or pasted text and does not require scanned-text review."
+      },
+      {
+        "id": "ocr-needs-review",
+        "title": "Review scanned text",
+        "body": "Teacher review is required before scanned text can be used for drafting feedback."
+      },
+      {
+        "id": "ocr-reviewed",
+        "title": "Scanned text reviewed",
+        "body": "A teacher confirmed the OCR text that will be used as student evidence."
+      },
+      {
+        "id": "ocr-blocked",
+        "title": "OCR review blocked",
+        "body": "The scanned text is not ready. Fix or replace the source before drafting feedback."
+      }
+    ],
+    "ocrConfidenceBands": [
+      {
+        "id": "ocr-confidence-high",
+        "title": "High confidence",
+        "body": "Most recognized text appears reliable, but teacher review remains available."
+      },
+      {
+        "id": "ocr-confidence-medium",
+        "title": "Mixed confidence",
+        "body": "Some text may need correction before it is used as grading evidence."
+      },
+      {
+        "id": "ocr-confidence-low",
+        "title": "Low confidence",
+        "body": "Treat affected lines as uncertain and require teacher review before grading."
+      },
+      {
+        "id": "ocr-confidence-unavailable",
+        "title": "No confidence data",
+        "body": "The app cannot verify OCR quality for this text. Review manually before grading."
+      }
+    ],
+    "localAIAvailabilityStates": [
+      {
+        "id": "local-ai-available",
+        "title": "Local draft feedback available",
+        "body": "Draft feedback can be generated locally when the grading packet is ready."
+      },
+      {
+        "id": "local-ai-unavailable",
+        "title": "Local draft feedback unavailable",
+        "body": "No cloud fallback is provided. Continue with manual teacher review."
+      },
+      {
+        "id": "local-ai-malformed-output",
+        "title": "Malformed local output",
+        "body": "The app must reject malformed draft output and ask the teacher to retry or grade manually."
+      },
+      {
+        "id": "local-ai-needs-input",
+        "title": "More grading input needed",
+        "body": "Add reviewed student text and a grading standard before requesting local draft feedback."
+      }
+    ],
+    "teacherReviewWorkflowCopy": [
+      {
+        "id": "teacher-review-required",
+        "title": "Teacher review required",
+        "body": "The local draft is a proposal. The teacher must review, edit, and approve every final score."
+      },
+      {
+        "id": "criterion-review",
+        "title": "Criterion review",
+        "body": "Each criterion score needs evidence, points within range, and teacher confirmation."
+      },
+      {
+        "id": "final-review-stale",
+        "title": "Final review needs recheck",
+        "body": "A grading input changed after final review, so the teacher must recheck the record."
+      },
+      {
+        "id": "student-export-blocked",
+        "title": "Student export blocked",
+        "body": "Student-facing export remains blocked until the final review is approved and current."
+      }
+    ],
+    "privacyCopy": [
+      {
+        "id": "privacy-local-first",
+        "title": "Local-first storage",
+        "body": "Student work and grading records are stored locally unless the teacher exports them."
+      },
+      {
+        "id": "privacy-no-cloud-fallback",
+        "title": "No cloud fallback",
+        "body": "If a local feature is unavailable, the app does not silently switch to an external service."
+      },
+      {
+        "id": "privacy-teacher-only",
+        "title": "Teacher-only by default",
+        "body": "Draft records, teacher notes, answer keys, exemplars, and audit data are private teacher content by default."
+      },
+      {
+        "id": "privacy-export-control",
+        "title": "Teacher-controlled export",
+        "body": "The teacher must confirm export and share actions before content leaves local app storage."
+      }
+    ],
+    "emptyAndReadinessStates": [
+      {
+        "id": "empty-add-work",
+        "title": "Add student work",
+        "body": "Paste text or add scanned work before grading."
+      },
+      {
+        "id": "empty-add-standard",
+        "title": "Add a grading standard",
+        "body": "Add a rubric, answer key, exemplar, or grading criteria before drafting feedback."
+      },
+      {
+        "id": "empty-review-ocr",
+        "title": "Review scanned text",
+        "body": "Confirm OCR text before it is used as evidence."
+      },
+      {
+        "id": "empty-start-review",
+        "title": "Start final review",
+        "body": "Review and approve criterion scores before student-facing export."
+      },
+      {
+        "id": "empty-export-blocked",
+        "title": "Export blocked",
+        "body": "Student-facing export is blocked until final review is approved and current."
+      }
+    ],
+    "australianCurriculumGuardrails": [
+      {
+        "id": "curriculum-local-reference",
+        "title": "Local reference only",
+        "body": "Curriculum references are local teacher aids, not official reporting certification."
+      },
+      {
+        "id": "curriculum-confirm",
+        "title": "Teacher confirmation required",
+        "body": "Confirm jurisdiction, year level, learning area, and wording before using curriculum references."
+      },
+      {
+        "id": "curriculum-no-official-claim",
+        "title": "No official claim",
+        "body": "Do not present local curriculum mappings as official standards reporting unless that workflow is implemented and reviewed."
+      }
+    ],
+    "formativeModeSchema": [
+      {
+        "id": "formative-focus",
+        "title": "Formative focus",
+        "body": "Teacher-supplied formative focus shapes feedback emphasis without changing evidence requirements."
+      },
+      {
+        "id": "formative-next-step",
+        "title": "Next step",
+        "body": "Feedback should identify a realistic next step tied to the submitted work."
+      },
+      {
+        "id": "formative-no-final-claim",
+        "title": "No final-grade claim",
+        "body": "Formative mode does not remove teacher review or final approval requirements."
+      }
+    ],
+    "exportFormatRequirements": [
+      {
+        "id": "export-student-report",
+        "title": "Student report",
+        "body": "Student reports exclude teacher-only notes, draft reasoning, and internal audit trail by default."
+      },
+      {
+        "id": "export-teacher-audit",
+        "title": "Teacher audit",
+        "body": "Teacher audit reports include grading packet context, export records, and audit events."
+      },
+      {
+        "id": "export-csv",
+        "title": "CSV grade summary",
+        "body": "CSV exports should be treated as student record exports and confirmed before sharing."
+      },
+      {
+        "id": "export-archive",
+        "title": "Archive",
+        "body": "Archives may include original sources and private records, so inventory and confirmation are required."
+      },
+      {
+        "id": "export-backup",
+        "title": "Backup",
+        "body": "Backups may include complete local records and must be treated as sensitive student data."
+      }
+    ],
+    "studentFeedbackRules": [
+      {
+        "id": "feedback-specific",
+        "text": "Use specific evidence-based feedback rather than broad praise."
+      },
+      {
+        "id": "feedback-constructive",
+        "text": "Give next steps the student can act on."
+      },
+      {
+        "id": "feedback-no-private-notes",
+        "text": "Exclude private teacher notes and internal uncertainty reasoning from student-facing reports."
+      },
+      {
+        "id": "feedback-no-traits",
+        "text": "Do not infer personality, effort, intent, ability, demographic traits, or support needs."
+      },
+      {
+        "id": "feedback-age-appropriate",
+        "text": "Keep wording appropriate for the class level and teacher-supplied context."
+      }
+    ],
+    "inclusiveSafeguards": [
+      {
+        "id": "inclusive-adjustments",
+        "text": "Use adjustment context only when the teacher supplies it and only for the intended grading purpose."
+      },
+      {
+        "id": "inclusive-no-diagnosis",
+        "text": "Do not infer diagnosis, disability, EAL/D status, giftedness, or support level from student work."
+      },
+      {
+        "id": "inclusive-evidence",
+        "text": "Separate submitted evidence from teacher-supplied adjustment notes."
+      },
+      {
+        "id": "inclusive-teacher-review",
+        "text": "Flag inclusive-practice uncertainty for teacher review rather than resolving it automatically."
+      }
+    ],
+    "futureModeGuardrails": [
+      {
+        "id": "future-handwriting",
+        "text": "Handwriting-specific grading must not be exposed as working unless implemented and tested."
+      },
+      {
+        "id": "future-diagram",
+        "text": "Diagram or visual-artifact grading must require teacher-confirmed evidence before scoring."
+      },
+      {
+        "id": "future-math-working",
+        "text": "Math-working analysis must not be claimed unless implemented with matching tests."
+      },
+      {
+        "id": "future-lms",
+        "text": "LMS sync and cloud backup must not be presented as working unless implemented with tests and privacy review."
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "accept-rubrics",
+        "text": "Nine rubric templates are available from the new catalog."
+      },
+      {
+        "id": "accept-instructions",
+        "text": "Eleven teacher instruction templates are available and insertable."
+      },
+      {
+        "id": "accept-answer-exemplar-formative",
+        "text": "Answer-key, exemplar, and formative templates are available and insertable without silently deleting teacher content."
+      },
+      {
+        "id": "accept-warnings",
+        "text": "Export, share, backup, and delete warnings are available and attached to the correct flows."
+      },
+      {
+        "id": "accept-stale",
+        "text": "Template insertion changes the grading packet fingerprint and stale-state behavior remains intact."
+      },
+      {
+        "id": "accept-report-separation",
+        "text": "Student reports exclude teacher-only content; teacher audit reports include grading context and audit trail."
+      },
+      {
+        "id": "accept-prohibited",
+        "text": "Catalog and visible UI copy avoid prohibited product claims."
+      }
+    ]
+  },
+  "ocrReviewStates": [
+    "Not needed: no scanned text requires review.",
+    "Needs review: extracted text must be confirmed before draft feedback.",
+    "Reviewed: teacher-confirmed text may be used in the grading packet.",
+    "Blocked: OCR output is too uncertain or incomplete for draft feedback."
+  ],
+  "ocrConfidenceBands": [
+    "High confidence: review normally and confirm before grading.",
+    "Medium confidence: check wording, spelling, and line breaks before grading.",
+    "Low confidence: require close teacher review and cite uncertainty where relevant."
+  ],
+  "ocrReviewCopy": [
+    "Review extracted text before draft feedback.",
+    "Reject garbled lines rather than grading from them.",
+    "Use teacher-confirmed text as the grading source."
+  ],
+  "teacherReviewWorkflowCopy": [
+    "Draft feedback is for teacher review only.",
+    "Teacher-final scores remain separate from suggested scores.",
+    "Evidence, uncertainty flags, and OCR concerns must be checked before approval.",
+    "Final approval records the teacher-approved grade."
+  ],
+  "studentFeedbackRules": [
+    "Use student-facing language that is specific, constructive, and concise.",
+    "Do not include private teacher notes in student reports.",
+    "Do not disclose raw model responses, internal compliance flags, or audit history to students by default.",
+    "Do not infer effort, intent, motivation, behavior, demographics, disability, EAL/D status, giftedness, support level, or ability beyond submitted work.",
+    "Cite reviewed student evidence when explaining a score."
+  ],
+  "emptyStateCopy": [
+    "Add student work before draft feedback.",
+    "Review scanned text before draft feedback.",
+    "Add a grading standard before draft feedback.",
+    "Local draft feedback is unavailable on this device or configuration.",
+    "Student-facing export is blocked until teacher approval."
+  ],
+  "regionalCurriculumSafeguards": [
+    "Teacher-entered curriculum references are local reference material.",
+    "No official curriculum scoring or jurisdiction reporting compliance is claimed.",
+    "Confirm curriculum references against your jurisdiction before reporting."
+  ],
+  "inclusiveSafeguards": [
+    "Do not infer disability, EAL/D status, giftedness, support level, behavior, or ability beyond submitted work.",
+    "Use adjustment context only when teacher-supplied and relevant to the submitted work.",
+    "Flag subjective criteria such as creativity, craftsmanship, effort, and presentation quality for teacher review."
+  ],
+  "formativeModeSchema": [
+    "Current evidence of learning",
+    "Next small step",
+    "Teacher follow-up prompt",
+    "Confidence or uncertainty flag"
+  ],
+  "futureModeGuardrails": [
+    "Handwriting grading is unavailable without teacher-confirmed text evidence.",
+    "Diagram grading is unavailable without teacher-confirmed evidence.",
+    "Poster, model, and visual artifact grading are unavailable without teacher-confirmed evidence.",
+    "Math-working analysis is unavailable unless the reasoning is represented in reviewed text.",
+    "LMS sync and cloud backup are unavailable unless separately implemented and tested."
+  ],
+  "exportFormatRequirements": [
+    "Student-facing reports exclude private teacher notes and internal review history by default.",
+    "Teacher review reports are sensitive student records.",
+    "CSV exports must be treated as student-record data.",
+    "ZIP archives and backups may include original files and complete local records.",
+    "Clipboard and share-sheet actions require explicit teacher confirmation."
+  ],
+  "acceptanceCriteria": [
+    "Rubric, instruction, answer-key, exemplar, and formative templates are available from typed catalogs.",
+    "Template insertion changes the grading packet fingerprint without silently deleting teacher-entered content.",
+    "Prompt generation includes optional teacher-supplied fields only when supplied.",
+    "Student reports exclude teacher-only/internal fields by default.",
+    "Teacher audit reports include grading packet context and audit trail.",
+    "Tests prevent catalog drift and prohibited wording."
+  ]
+}

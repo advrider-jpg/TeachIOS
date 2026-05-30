@@ -267,22 +267,24 @@ final class GradeDraftDatabase {
         INSERT INTO grade_draft_assignments (
             id, class_group_id, student_id, title, prompt, subject, grade_level, class_name, student_display_name,
             assignment_type, assessment_purpose, curriculum_reference, rubric_text, custom_instructions, answer_key_text,
-            exemplar_text, reviewed_student_text, ocr_review_status, ocr_reviewed_at, grading_packet_fingerprint, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            exemplar_text, formative_focus_text, reviewed_student_text, ocr_review_status, ocr_reviewed_at, grading_packet_fingerprint,
+            applied_templates_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET class_group_id = excluded.class_group_id, student_id = excluded.student_id, title = excluded.title,
         prompt = excluded.prompt, subject = excluded.subject, grade_level = excluded.grade_level, class_name = excluded.class_name,
         student_display_name = excluded.student_display_name, assignment_type = excluded.assignment_type, assessment_purpose = excluded.assessment_purpose,
         curriculum_reference = excluded.curriculum_reference, rubric_text = excluded.rubric_text, custom_instructions = excluded.custom_instructions,
-        answer_key_text = excluded.answer_key_text, exemplar_text = excluded.exemplar_text, reviewed_student_text = excluded.reviewed_student_text,
-        ocr_review_status = excluded.ocr_review_status, ocr_reviewed_at = excluded.ocr_reviewed_at, grading_packet_fingerprint = excluded.grading_packet_fingerprint,
-        updated_at = excluded.updated_at
+        answer_key_text = excluded.answer_key_text, exemplar_text = excluded.exemplar_text, formative_focus_text = excluded.formative_focus_text,
+        reviewed_student_text = excluded.reviewed_student_text, ocr_review_status = excluded.ocr_review_status,
+        ocr_reviewed_at = excluded.ocr_reviewed_at, grading_packet_fingerprint = excluded.grading_packet_fingerprint,
+        applied_templates_json = excluded.applied_templates_json, updated_at = excluded.updated_at
         """, arguments: [
             id, assignment.classGroupID?.uuidString, assignment.studentID?.uuidString, assignment.title, assignment.prompt ?? "",
             assignment.subject, assignment.gradeLevel, assignment.className, assignment.studentDisplayName, assignment.assignmentType.rawValue,
             assignment.assessmentPurpose.rawValue, assignment.curriculumReference, assignment.rubricText, assignment.customInstructions,
-            assignment.answerKeyText, assignment.exemplarText, assignment.reviewedStudentText, assignment.ocrReviewStatus.rawValue,
-            assignment.ocrReviewedAt.map { iso8601.string(from: $0) }, assignment.gradingPacketFingerprint,
-            iso8601.string(from: assignment.createdAt), iso8601.string(from: assignment.updatedAt)
+            assignment.answerKeyText, assignment.exemplarText, assignment.formativeFocusText, assignment.reviewedStudentText,
+            assignment.ocrReviewStatus.rawValue, assignment.ocrReviewedAt.map { iso8601.string(from: $0) }, assignment.gradingPacketFingerprint,
+            try jsonString(assignment.appliedTemplates), iso8601.string(from: assignment.createdAt), iso8601.string(from: assignment.updatedAt)
         ])
         for source in assignment.sourceInputs { try saveSourceInput(source, assignmentID: id, in: db) }
         if let document = assignment.ocrDocument { try saveOCRDocumentRows(document, assignmentID: id, in: db) }
@@ -395,6 +397,7 @@ final class GradeDraftDatabase {
                 customInstructions: text(row, "custom_instructions"),
                 answerKeyText: text(row, "answer_key_text"),
                 exemplarText: text(row, "exemplar_text"),
+                formativeFocusText: text(row, "formative_focus_text"),
                 reviewedStudentText: text(row, "reviewed_student_text"),
                 sourceInputs: try loadSourceInputs(assignmentID: idText, in: db),
                 ocrDocument: try loadOCRDocument(assignmentID: idText, in: db),
@@ -406,6 +409,7 @@ final class GradeDraftDatabase {
                 auditEvents: try loadAuditEvents(assignmentID: idText, in: db),
                 evidenceReferences: try loadEvidenceReferences(assignmentID: idText, in: db),
                 curriculumMappings: try loadCurriculumMappings(assignmentID: idText, in: db),
+                appliedTemplates: decodeJSONString(text(row, "applied_templates_json", defaultValue: "[]"), defaultValue: [AppliedTemplateRecord]()),
                 createdAt: date(row, "created_at"),
                 updatedAt: date(row, "updated_at")
             )
@@ -628,6 +632,8 @@ final class GradeDraftDatabase {
             try self.addColumnIfNeeded(db, table: "grade_draft_assignments", column: "class_group_id", definition: "TEXT")
             try self.addColumnIfNeeded(db, table: "grade_draft_assignments", column: "student_id", definition: "TEXT")
             try self.addColumnIfNeeded(db, table: "grade_draft_assignments", column: "ocr_reviewed_at", definition: "TEXT")
+            try self.addColumnIfNeeded(db, table: "grade_draft_assignments", column: "formative_focus_text", definition: "TEXT NOT NULL DEFAULT ''")
+            try self.addColumnIfNeeded(db, table: "grade_draft_assignments", column: "applied_templates_json", definition: "TEXT NOT NULL DEFAULT '[]'")
             try self.addColumnIfNeeded(db, table: "grade_draft_ocr_lines", column: "is_rejected", definition: "BOOLEAN NOT NULL DEFAULT 0")
             try self.addColumnIfNeeded(db, table: "grade_draft_drafts", column: "student_response_summary", definition: "TEXT NOT NULL DEFAULT ''")
             try self.addColumnIfNeeded(db, table: "grade_draft_drafts", column: "uncertainty_flags_json", definition: "TEXT NOT NULL DEFAULT '[]'")
@@ -651,8 +657,9 @@ final class GradeDraftDatabase {
             subject TEXT NOT NULL, grade_level TEXT NOT NULL, class_name TEXT NOT NULL DEFAULT '', student_display_name TEXT NOT NULL DEFAULT '',
             assignment_type TEXT NOT NULL, assessment_purpose TEXT NOT NULL DEFAULT 'summative', curriculum_reference TEXT NOT NULL DEFAULT '',
             rubric_text TEXT NOT NULL DEFAULT '', custom_instructions TEXT NOT NULL DEFAULT '', answer_key_text TEXT NOT NULL DEFAULT '',
-            exemplar_text TEXT NOT NULL DEFAULT '', reviewed_student_text TEXT NOT NULL DEFAULT '', ocr_review_status TEXT NOT NULL DEFAULT 'notNeeded',
-            ocr_reviewed_at TEXT, grading_packet_fingerprint TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            exemplar_text TEXT NOT NULL DEFAULT '', formative_focus_text TEXT NOT NULL DEFAULT '', reviewed_student_text TEXT NOT NULL DEFAULT '',
+            ocr_review_status TEXT NOT NULL DEFAULT 'notNeeded', ocr_reviewed_at TEXT, grading_packet_fingerprint TEXT NOT NULL DEFAULT '',
+            applied_templates_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS grade_draft_source_inputs (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, source_type TEXT NOT NULL, page_index INTEGER, local_relative_path TEXT, file_name TEXT, mime_type TEXT, content_digest TEXT, digest_algorithm TEXT, image_width REAL, image_height REAL, pdf_page_count INTEGER, teacher_included_in_export BOOLEAN NOT NULL, created_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS grade_draft_ocr_lines (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, page_id TEXT NOT NULL, source_input_id TEXT, page_index INTEGER NOT NULL, raw_text TEXT NOT NULL, corrected_text TEXT, confidence REAL NOT NULL, bbox_x REAL NOT NULL, bbox_y REAL NOT NULL, bbox_width REAL NOT NULL, bbox_height REAL NOT NULL, teacher_confirmed BOOLEAN NOT NULL, is_rejected BOOLEAN NOT NULL DEFAULT 0);

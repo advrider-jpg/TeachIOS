@@ -106,11 +106,11 @@ struct StudentWorkScreen: View {
                 selectedPhoto = nil
             }
         }
-        .confirmationDialog("Clear student work?", isPresented: $showingClearConfirm, titleVisibility: .visible) {
-            Button("Clear Work", role: .destructive) { clearWork() }
-            Button("Cancel", role: .cancel) {}
+        .confirmationDialog(clearWarningTitle, isPresented: $showingClearConfirm, titleVisibility: .visible) {
+            Button(clearWarningPrimaryButton, role: .destructive) { viewModel.clearCurrentStudentWork() }
+            Button(clearWarningSecondaryButton, role: .cancel) {}
         } message: {
-            Text("This removes the current attached files, reviewed text, draft suggestions, and final review from this assignment record.")
+            Text(clearWarningBody)
         }
     }
 
@@ -121,16 +121,19 @@ struct StudentWorkScreen: View {
         )
     }
 
-    private func clearWork() {
-        viewModel.updateAssignment { assignment in
-            assignment.ocrDocument = nil
-            assignment.ocrReviewStatus = .notNeeded
-            assignment.ocrReviewedAt = nil
-            assignment.sourceInputs = []
-            assignment.reviewedStudentText = ""
-            assignment.latestDraft = nil
-            assignment.finalReview = nil
-            assignment.appendAuditEvent(.inputChanged, detail: "Teacher cleared student work and reviewed text.")
-        }
+    private var clearWarningTitle: String {
+        ExportWarningCatalog.clearStudentWorkWarning.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var clearWarningBody: String {
+        ExportWarningCatalog.clearStudentWorkWarning.body.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var clearWarningPrimaryButton: String {
+        ExportWarningCatalog.clearStudentWorkWarning.primaryButton.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var clearWarningSecondaryButton: String {
+        ExportWarningCatalog.clearStudentWorkWarning.secondaryButton.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

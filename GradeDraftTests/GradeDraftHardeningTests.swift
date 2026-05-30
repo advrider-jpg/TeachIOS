@@ -1728,10 +1728,10 @@ final class ExportReportHardeningTests: XCTestCase {
     func testStudentReportForAssignmentWithNoGrade() {
         let assignment = AssignmentRecord(title: "No grade", reviewedStudentText: "text")
         let report = MarkdownReportBuilder.studentMarkdown(for: assignment)
-        XCTAssertTrue(report.contains("No grade has been drafted"))
+        XCTAssertTrue(report.contains("No final teacher-approved grade is available"))
     }
 
-    func testStudentReportForDraftOnlyAssignment() {
+    func testStudentReportForDraftOnlyAssignmentExcludesDraftContentByDefault() {
         var assignment = AssignmentRecord(title: "Draft only", reviewedStudentText: "text")
         assignment.latestDraft = GradeDraftResult(
             studentResponseSummary: "Summary",
@@ -1743,9 +1743,11 @@ final class ExportReportHardeningTests: XCTestCase {
             studentFeedback: "Good work", teacherNotes: "Private", uncertaintyFlags: []
         )
         let report = MarkdownReportBuilder.studentMarkdown(for: assignment)
-        XCTAssertTrue(report.contains("Draft grade for teacher review"))
-        XCTAssertTrue(report.contains("Good work"))
+        XCTAssertTrue(report.contains("No final teacher-approved grade is available"))
+        XCTAssertFalse(report.contains("Draft grade for teacher review"))
+        XCTAssertFalse(report.contains("Good work"))
         XCTAssertFalse(report.contains("Private"))
+        XCTAssertTrue(MarkdownReportBuilder.teacherAuditMarkdown(for: assignment).contains("Good work"))
     }
 }
 

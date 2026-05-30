@@ -50,6 +50,8 @@ struct ExportDisclosureSection: Equatable {
 }
 
 enum ExportConfirmationKind: String, Identifiable, CaseIterable {
+    case studentReportMarkdown
+    case teacherReviewMarkdown
     case studentReportPDF
     case teacherReviewPDF
     case fullBackup
@@ -58,8 +60,31 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
 
     var id: String { rawValue }
 
+    var exportKind: ExportKind {
+        switch self {
+        case .studentReportMarkdown:
+            return .studentMarkdown
+        case .teacherReviewMarkdown:
+            return .teacherAuditMarkdown
+        case .studentReportPDF:
+            return .studentPDF
+        case .teacherReviewPDF:
+            return .teacherAuditPDF
+        case .fullBackup:
+            return .fullBackupArchive
+        case .teacherArchive:
+            return .zipArchive
+        case .gradebookArchive:
+            return .csvGradebook
+        }
+    }
+
     var title: String {
         switch self {
+        case .studentReportMarkdown:
+            return "Student Report Markdown"
+        case .teacherReviewMarkdown:
+            return "Teacher Review Markdown"
         case .studentReportPDF:
             return "Student Report PDF"
         case .teacherReviewPDF:
@@ -75,6 +100,10 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
 
     var subtitle: String {
         switch self {
+        case .studentReportMarkdown:
+            return "Student-facing text report for sharing after final approval."
+        case .teacherReviewMarkdown:
+            return "Teacher-only text record. Do not share with students or families."
         case .studentReportPDF:
             return "For sharing with students or families."
         case .teacherReviewPDF:
@@ -90,6 +119,10 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
 
     var confirmTitle: String {
         switch self {
+        case .studentReportMarkdown:
+            return "Create Student Report Markdown"
+        case .teacherReviewMarkdown:
+            return "Create Teacher Review Markdown"
         case .studentReportPDF:
             return "Create Student Report PDF"
         case .teacherReviewPDF:
@@ -103,9 +136,22 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
         }
     }
 
+    var baseWarnings: [ExportWarningDefinition] {
+        ExportWarningCatalog.warnings(for: exportKind)
+    }
+
+    var warningStatus: GradeDraftUIStatus {
+        switch self {
+        case .studentReportMarkdown, .studentReportPDF:
+            return .studentFacing
+        default:
+            return .teacherOnly
+        }
+    }
+
     var sections: [ExportDisclosureSection] {
         switch self {
-        case .studentReportPDF:
+        case .studentReportMarkdown, .studentReportPDF:
             return [
                 ExportDisclosureSection(title: "INCLUDED", systemImage: "checkmark.circle", items: [
                     "Final grade",
@@ -121,7 +167,7 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
                     "Other students' information"
                 ])
             ]
-        case .teacherReviewPDF:
+        case .teacherReviewMarkdown, .teacherReviewPDF:
             return [
                 ExportDisclosureSection(title: "MAY INCLUDE", systemImage: "lock", items: [
                     "Private teacher notes",
@@ -133,7 +179,16 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
                 ])
             ]
         case .fullBackup:
-            return []
+            return [
+                ExportDisclosureSection(title: "MAY INCLUDE", systemImage: "lock", items: [
+                    "All local assignment records",
+                    "Class, student, and roster records",
+                    "Reviewed student text and original files",
+                    "Rubrics, answer keys, exemplars, and teacher instructions",
+                    "Private teacher notes",
+                    "Export records and review history"
+                ])
+            ]
         case .teacherArchive:
             return [
                 ExportDisclosureSection(title: "MAY INCLUDE", systemImage: "lock", items: [
@@ -158,10 +213,82 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
     }
 }
 
+enum ExportConfirmationStep: Equatable {
+    case warning
+    case preview
+    case finalConfirm
+}
+
 struct ExportConfirmationSheet: View {
     var kind: ExportConfirmationKind
+    var assignment: AssignmentRecord
+    var allAssignments: [AssignmentRecord]
     var onCancel: () -> Void
     var onConfirm: () -> Void
+
+    @State private var acknowledgedWarningIDs: Set<String> = []
+    @State private var previewConfirmed = false
+    @State private var step: ExportConfirmationStep = .warning
+
+    private var riskSummary: ExportRiskSummary {
+        ExportRiskSummary(kind: kind, assignment: assignment, allAssignments: allAssignments)
+    }
+
+    private var warningDefinitions: [ExportWarningDefinition] {
+        var definitions: [ExportWarningDefinition] = []
+        func append(_ warning: ExportWarningDefinition?) {
+            guard let warning, !definitions.contains(where: { $0.id == warning.id }) else { return }
+            definitions.append(warning)
+        }
+        append(ExportWarningCatalog.warning(id: "global-export-warning"))
+        kind.baseWarnings.forEach { append($0) }
+        if riskSummary.includesPrivateNotes { append(ExportWarningCatalog.warning(id: "teacher-notes-inclusion-warning")) }
+        if riskSummary.includesDraftContent { append(ExportWarningCatalog.warning(id: "draft-grade-export-warning")) }
+        return definitions
+    }
+
+    private var acknowledgementWarnings: [ExportWarningDefinition] {
+        warningDefinitions.filter(\.requiresAcknowledgement)
+    }
+
+    private var requiresPreview: Bool {
+        warningDefinitions.contains { $0.postPreviewConfirmation != nil } || kind.requiresPreviewBeforeExport
+    }
+
+    private var canAdvanceFromWarnings: Bool {
+        acknowledgementWarnings.allSatisfy { acknowledgedWarningIDs.contains($0.id) }
+    }
+
+    private var canConfirm: Bool {
+        canAdvanceFromWarnings && (!requiresPreview || previewConfirmed)
+    }
+
+    private var primaryButtonTitle: String {
+        switch step {
+        case .warning:
+            if requiresPreview { return warningDefinitions.first(where: { $0.postPreviewConfirmation != nil })?.primaryButton ?? "Preview Export" }
+            return warningDefinitions.first?.finalButton ?? kind.confirmTitle
+        case .preview:
+            return warningDefinitions.first(where: { $0.finalButton != nil })?.finalButton ?? kind.confirmTitle
+        case .finalConfirm:
+            return warningDefinitions.first(where: { $0.finalButton != nil })?.finalButton ?? kind.confirmTitle
+        }
+    }
+
+    private var previewText: String {
+        switch kind {
+        case .studentReportMarkdown, .studentReportPDF:
+            return MarkdownReportBuilder.studentMarkdown(for: assignment)
+        case .teacherReviewMarkdown, .teacherReviewPDF:
+            return MarkdownReportBuilder.teacherAuditMarkdown(for: assignment, generatedForExportKind: kind.exportKind)
+        case .teacherArchive:
+            return archiveInventory(title: "Teacher archive inventory", assignments: [assignment])
+        case .fullBackup:
+            return archiveInventory(title: "Full backup inventory", assignments: allAssignments.isEmpty ? [assignment] : allAssignments)
+        case .gradebookArchive:
+            return archiveInventory(title: "Gradebook CSV inventory", assignments: allAssignments.isEmpty ? [assignment] : allAssignments)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -174,21 +301,15 @@ struct ExportConfirmationSheet: View {
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    ForEach(kind.sections, id: \.title) { section in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(section.title)
-                                .font(.headline)
-                            ForEach(section.items, id: \.self) { item in
-                                Label(item, systemImage: section.systemImage)
-                                    .font(.subheadline)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
+
+                    switch step {
+                    case .warning:
+                        warningStep
+                    case .preview:
+                        previewStep
+                    case .finalConfirm:
+                        finalConfirmStep
                     }
-                    if kind == .fullBackup {
-                        WarningBanner(title: "Full Backup", message: "This backup includes all GradeDraft data stored on this device, including student work, original files, reviewed text, rubrics, evidence links, private notes, exports, and teacher-only review records. Store securely.", status: .teacherOnly)
-                    }
-                    PrimaryActionButton(title: kind.confirmTitle, systemImage: "square.and.arrow.up", action: onConfirm)
                 }
                 .padding(GradeDraftLayout.screenPadding)
             }
@@ -200,6 +321,215 @@ struct ExportConfirmationSheet: View {
                 }
             }
         }
+    }
+
+    private var warningStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            ForEach(warningDefinitions) { warning in
+                warningCard(warning)
+            }
+            ForEach(kind.sections, id: \.title) { section in
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(section.title)
+                        .font(.headline)
+                    ForEach(section.items, id: \.self) { item in
+                        Label(item, systemImage: section.systemImage)
+                            .font(.subheadline)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            if riskSummary.affectedAssignmentCount > 1 {
+                BlockingIssueRow(
+                    title: "Export scope",
+                    detail: "This export may include records for \(riskSummary.affectedAssignmentCount) assignment(s).",
+                    status: .teacherOnly
+                )
+            }
+            ForEach(acknowledgementWarnings) { warning in
+                Toggle(isOn: binding(for: warning.id)) {
+                    Text(warning.acknowledgementText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "I understand: \(warning.title.trimmingCharacters(in: .whitespacesAndNewlines))" : warning.acknowledgementText.trimmingCharacters(in: .whitespacesAndNewlines))
+                        .font(.subheadline.weight(.semibold))
+                }
+                .toggleStyle(.switch)
+            }
+            PrimaryActionButton(
+                title: primaryButtonTitle,
+                systemImage: requiresPreview ? "doc.text.magnifyingglass" : "square.and.arrow.up",
+                action: advanceOrConfirm,
+                disabled: !canAdvanceFromWarnings
+            )
+        }
+    }
+
+    private var previewStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Preview before export")
+                .font(.headline)
+            Text(previewInstruction)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Text(previewText)
+                .font(.caption.monospaced())
+                .textSelection(.enabled)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+            Toggle(isOn: $previewConfirmed) {
+                Text(previewConfirmationText)
+                    .font(.subheadline.weight(.semibold))
+            }
+            .toggleStyle(.switch)
+            PrimaryActionButton(title: primaryButtonTitle, systemImage: "square.and.arrow.up", action: onConfirm, disabled: !canConfirm)
+        }
+    }
+
+    private var finalConfirmStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            ForEach(warningDefinitions) { warning in warningCard(warning) }
+            PrimaryActionButton(title: primaryButtonTitle, systemImage: "square.and.arrow.up", action: onConfirm, disabled: !canConfirm)
+        }
+    }
+
+    private var previewInstruction: String {
+        warningDefinitions.compactMap(\.postPreviewConfirmation).first ?? "Review the export content before creating the file."
+    }
+
+    private var previewConfirmationText: String {
+        warningDefinitions.compactMap(\.postPreviewConfirmation).first ?? "I reviewed this export preview."
+    }
+
+    private func warningCard(_ warning: ExportWarningDefinition) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            WarningBanner(
+                title: warning.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                message: warning.body.trimmingCharacters(in: .whitespacesAndNewlines),
+                status: kind.warningStatus
+            )
+            if let warningLine = warning.warningLine, !warningLine.isEmpty {
+                Label(warningLine, systemImage: "exclamationmark.triangle")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.orange)
+            }
+            if let securityNote = warning.securityNote, !securityNote.isEmpty {
+                Label(securityNote, systemImage: "lock.shield")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            if !warning.checklist.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Checklist")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(warning.checklist, id: \.self) { item in
+                        Label(item, systemImage: "checkmark.circle")
+                            .font(.caption)
+                    }
+                }
+            }
+        }
+    }
+
+    private func binding(for warningID: String) -> Binding<Bool> {
+        Binding(
+            get: { acknowledgedWarningIDs.contains(warningID) },
+            set: { newValue in
+                if newValue { acknowledgedWarningIDs.insert(warningID) }
+                else { acknowledgedWarningIDs.remove(warningID) }
+            }
+        )
+    }
+
+    private func advanceOrConfirm() {
+        if requiresPreview {
+            step = .preview
+        } else {
+            onConfirm()
+        }
+    }
+
+    private func archiveInventory(title: String, assignments: [AssignmentRecord]) -> String {
+        let records = assignments.isEmpty ? [assignment] : assignments
+        let draftCount = records.filter(\.containsDraftGradingContent).count
+        let sourceCount = records.reduce(0) { $0 + $1.sourceInputs.count }
+        return """
+        \(title)
+        Assignment records: \(records.count)
+        Assignments with draft or stale grading content: \(draftCount)
+        Source file references: \(sourceCount)
+        Includes private teacher notes: \(riskSummary.includesPrivateNotes ? "Yes" : "No")
+        Includes original-source references: \(riskSummary.includesOriginalSources ? "Yes" : "No")
+        """
+    }
+}
+
+private extension ExportConfirmationKind {
+    var requiresPreviewBeforeExport: Bool {
+        switch self {
+        case .studentReportMarkdown, .studentReportPDF, .teacherReviewPDF, .fullBackup, .teacherArchive:
+            return true
+        case .teacherReviewMarkdown, .gradebookArchive:
+            return false
+        }
+    }
+}
+
+private extension ExportRiskSummary {
+    init(kind: ExportConfirmationKind, assignment: AssignmentRecord, allAssignments: [AssignmentRecord]) {
+        let scopedAssignments: [AssignmentRecord]
+        switch kind {
+        case .fullBackup, .gradebookArchive:
+            scopedAssignments = allAssignments.isEmpty ? [assignment] : allAssignments
+        default:
+            scopedAssignments = [assignment]
+        }
+
+        let includesDraft: Bool
+        switch kind {
+        case .studentReportMarkdown, .studentReportPDF:
+            includesDraft = false
+        case .gradebookArchive:
+            includesDraft = scopedAssignments.contains { $0.gradebookExportContainsDraftState }
+        case .teacherReviewMarkdown, .teacherReviewPDF, .teacherArchive, .fullBackup:
+            includesDraft = scopedAssignments.contains { $0.containsDraftGradingContent }
+        }
+
+        let includesPrivate: Bool
+        switch kind {
+        case .studentReportMarkdown, .studentReportPDF:
+            includesPrivate = false
+        case .teacherReviewMarkdown, .teacherReviewPDF, .fullBackup, .teacherArchive:
+            includesPrivate = true
+        case .gradebookArchive:
+            includesPrivate = false
+        }
+
+        let includesSources: Bool
+        switch kind {
+        case .teacherArchive, .fullBackup:
+            includesSources = scopedAssignments.contains { !$0.sourceInputs.isEmpty }
+        default:
+            includesSources = false
+        }
+
+        self.init(
+            includesDraftContent: includesDraft,
+            includesPrivateNotes: includesPrivate,
+            includesOriginalSources: includesSources,
+            affectedAssignmentCount: scopedAssignments.count
+        )
+    }
+}
+
+private extension AssignmentRecord {
+    var containsDraftGradingContent: Bool {
+        latestDraft != nil || (finalReview.map { $0.status != .approved } ?? false) || finalReviewIsStale
+    }
+
+    var gradebookExportContainsDraftState: Bool {
+        if finalReview == nil, latestDraft != nil { return true }
+        if let finalReview, finalReview.status != .approved { return true }
+        return finalReviewIsStale
     }
 }
 

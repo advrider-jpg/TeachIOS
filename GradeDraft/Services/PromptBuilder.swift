@@ -1,139 +1,109 @@
 import Foundation
 
+enum PromptTemplateRenderer {
+    static func render(_ template: String, replacements: [String: String]) -> String {
+        var output = ""
+        var index = template.startIndex
+        while let range = template[index...].range(of: #"\{\{[A-Za-z0-9_]+\}\}"#, options: .regularExpression) {
+            output += template[index..<range.lowerBound]
+            let token = String(template[range])
+            output += replacements[token] ?? token
+            index = range.upperBound
+        }
+        output += template[index...]
+        return output
+    }
+}
+
 enum PromptBuilder {
     static func gradingPrompt(input: GradingInput) -> String {
-        let missingEvidenceMarker = "No supporting evidence found."
-        let ocrWarning: String
-        if input.ocrQualitySummary.requiresTeacherOCRReview {
-            ocrWarning = "Scanned text quality warning: \(input.ocrQualitySummary.displaySummary) Treat unclear or garbled text as an uncertainty flag."
+        let packet = input.plannedContentGradingPacket ?? GradingPacketBuilder.packet(from: input)
+        return gradingPrompt(packet: packet, fallbackInput: input)
+    }
+
+    static func gradingPrompt(packet: GradingPacket, fallbackInput: GradingInput? = nil) -> String {
+        let assignment = packet.assignment
+        let evidence = packet.studentEvidence
+        let reviewedText = preferredReviewedText(
+            reviewedWithRefs: evidence.reviewedTextWithSourceRefs,
+            reviewedText: evidence.reviewedText
+        )
+        let ocrQualityText: String
+        if let fallbackInput {
+            ocrQualityText = fallbackInput.ocrQualitySummary.requiresTeacherOCRReview
+                ? "Scanned text quality warning: \(fallbackInput.ocrQualitySummary.displaySummary) Treat unclear or garbled text as an uncertainty flag."
+                : fallbackInput.ocrQualitySummary.displaySummary
         } else {
-            ocrWarning = "Scanned text quality summary: \(input.ocrQualitySummary.displaySummary)"
+            ocrQualityText = evidence.ocrQualitySummary
         }
 
-        let structuredCriteria: String
-        if input.parsedRubric.criteria.isEmpty {
-            structuredCriteria = "No structured point-bearing criteria were detected. Use the raw rubric text and mark teacherReviewRequired true for every criterion."
-        } else {
-            structuredCriteria = input.parsedRubric.criteria.map { criterion in
-                "- id: \(criterion.id); title: \(criterion.title); maxPoints: \(GradeTotals.formatted(criterion.maxPoints)); descriptor: \(criterion.descriptor)"
-            }.joined(separator: "\n")
+        let teacherInstructions = packet.teacherInstructions
+            .map(\.text)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .joined(separator: "\n\n")
+
+        let replacements: [String: String] = [
+            "{{assignmentTitle}}": assignment.title,
+            "{{promptOrNone}}": notSupplied(assignment.prompt),
+            "{{studentDisplayNameOrNotSpecified}}": notSpecified(assignment.studentDisplayName),
+            "{{classNameOrNotSpecified}}": notSpecified(assignment.className),
+            "{{subjectOrNotSpecified}}": notSpecified(assignment.subject),
+            "{{gradeLevelOrNotSpecified}}": notSpecified(assignment.gradeLevel),
+            "{{assignmentTypeDisplayName}}": assignment.assignmentType.displayName,
+            "{{assessmentPurpose}}": assignment.assessmentPurpose.rawValue,
+            "{{sourceInputCount}}": "\(evidence.sourceInputCount)",
+            "{{ocrReviewStatus}}": evidence.ocrReviewStatus.displayName,
+            "{{ocrQualitySummary}}": ocrQualityText,
+            "{{packetVersion}}": packet.packetVersion,
+            "{{curriculumReferenceSection}}": optionalTripleQuotedSection(title: "Curriculum reference", body: packet.curriculumReference?.rawText ?? ""),
+            "{{structuredRubricCriteria}}": structuredCriteriaText(from: packet.rubric.criteria),
+            "{{rubricText}}": notSupplied(packet.rubric.rawText),
+            "{{customInstructionsSection}}": optionalTripleQuotedSection(title: "Custom teacher instructions", body: teacherInstructions),
+            "{{formativeFocusSection}}": optionalTripleQuotedSection(title: "Formative focus", body: packet.formativeFocus?.rawText ?? ""),
+            "{{answerKeySection}}": optionalTripleQuotedSection(title: "Answer key", body: packet.answerKey?.rawText ?? ""),
+            "{{exemplarSection}}": optionalTripleQuotedSection(title: "Exemplar response", body: packet.exemplar?.rawText ?? ""),
+            "{{reviewedStudentText}}": reviewedText
+        ]
+
+        return PromptTemplateRenderer.render(
+            GradeDraftCopyCatalog.SourceOfTruth.canonicalPromptTemplate,
+            replacements: replacements
+        )
+    }
+
+    private static func structuredCriteriaText(from criteria: [GradingPacketRubricCriterion]) -> String {
+        guard !criteria.isEmpty else {
+            return "No structured point-bearing criteria were detected. Use the raw rubric text and mark teacherReviewRequired true for every criterion."
         }
+        return criteria.map { criterion in
+            let group = criterion.groupTitle.map { "; group: \($0)" } ?? ""
+            return "- criterionId: \(criterion.id); title: \(criterion.title); maxPoints: \(GradeTotals.formatted(criterion.maxPoints)); descriptor: \(criterion.descriptor)\(group)"
+        }.joined(separator: "\n")
+    }
 
-        let rubricText = input.rubricText.isEmpty ? "Not supplied." : input.rubricText
-        let answerKeySection = input.answerKeyText.isEmpty
-            ? ""
-            : """
+    private static func preferredReviewedText(reviewedWithRefs: String, reviewedText: String) -> String {
+        let withRefs = reviewedWithRefs.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !withRefs.isEmpty { return reviewedWithRefs }
+        return reviewedText
+    }
 
-        Answer key:
-        \"\"\"
-        \(input.answerKeyText)
-        \"\"\"
-        """
-        let exemplarSection = input.exemplarText.isEmpty
-            ? ""
-            : """
-
-        Exemplar response:
-        \"\"\"
-        \(input.exemplarText)
-        \"\"\"
-        """
-        let customInstructionsSection = input.customInstructions.isEmpty
-            ? "\n\nCustom teacher instructions:\nNo custom instructions provided."
-            : """
-
-        Custom teacher instructions:
-        \"\"\"
-        \(input.customInstructions)
-        \"\"\"
-        """
-        let curriculumSection = input.curriculumReference.isEmpty
-            ? "\n\nCurriculum/reference material: None."
-            : """
-
-        Curriculum/reference material:
-        \(input.curriculumReference)
-        """
-
+    private static func optionalTripleQuotedSection(title: String, body: String) -> String {
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
         return """
-        You are a local-only GradeDraft assistant for a teacher. You are not the final grader.
-        The teacher provides the rubric/criteria, reviewed student text, answer key, and exemplar.
-        Propose evidence-linked criterion suggestions only and always preserve the teacher final-review role.
-
-        Mandatory rules:
-        - Grade only from the reviewed student text and the grading packet supplied here.
-        - Do not infer effort, intent, motivation, behavior, personality, ability, disability, EAL/D status, demographic traits, giftedness, support level, or laziness.
-        - Do not invent evidence. Every criterion must cite direct evidence from the reviewed student text or use this exact marker: \(missingEvidenceMarker)
-        - When source reference tags like [p1-l2-abcdef12] are present, include matching evidenceSourceRefs for cited quotes.
-        - Do not invent curriculum references, official standards, answer-key elements, source facts, or exemplar content.
-        - If the rubric is ambiguous, apply the most conservative reasonable score and add an uncertainty flag.
-        - If scanned text quality is uncertain, mark teacherReviewRequired true for affected criteria.
-        - If the response is weak, unclear, or relies on unsupported source/diagram/math/notation/handwriting, mark teacherReviewRequired true and explain the limitation.
-        - Return one JSON object only. Do not wrap it in markdown.
-        - Use numeric proposedPoints and maxPoints. Do not include totalScore or maxScore; the app calculates totals.
-        - If structured criteria are listed, return one and only one score for each criterionId.
-        - Keep student feedback constructive, specific, and concise.
-        - Keep teacherNotes private and use them for ambiguity, scanned-text concerns, evidence concerns, or grading calls.
-        - Do not present the response as a final grade. Every criterion needs to remain teacher-reviewable.
-        - No cloud model fallback exists in this app.
-
-        Assignment metadata:
-        - Title: \(input.assignmentTitle)
-        - Prompt: \(input.prompt.isEmpty ? "Not supplied." : input.prompt)
-        - Student: \(input.studentDisplayName.isEmpty ? "Not specified" : input.studentDisplayName)
-        - Class: \(input.className.isEmpty ? "Not specified" : input.className)
-        - Subject: \(input.subject.isEmpty ? "Not specified" : input.subject)
-        - Grade level: \(input.gradeLevel.isEmpty ? "Not specified" : input.gradeLevel)
-        - Assignment type: \(input.assignmentType.displayName)
-        - Assessment purpose: \(input.assessmentPurpose.rawValue)
-        - Source input count: \(input.sourceInputCount)
-        - Scanned-text review status: \(input.ocrReviewStatus.displayName)
-        - Scanned text quality summary: \(input.ocrQualitySummary.displaySummary)
-        - \(ocrWarning)
-
-        \(curriculumSection)
-
-        Structured rubric criteria:
-        \(structuredCriteria)
-
-        Raw rubric / answer key / grading criteria:
+        \(title):
         \"\"\"
-        \(rubricText)
+        \(trimmed)
         \"\"\"
 
-        \(customInstructionsSection)
-        \(answerKeySection)
-        \(exemplarSection)
-
-        Reviewed student text with source references:
-        \"\"\"
-        \(input.reviewedTextWithSourceRefs.isEmpty ? input.reviewedStudentText : input.reviewedTextWithSourceRefs)
-        \"\"\"
-
-        Required JSON schema:
-        {
-          "studentResponseSummary": "one or two factual sentences about what the student wrote",
-          "criteria": [
-            {
-              "criterionId": "criterion id from the structured rubric list when available",
-              "criterion": "criterion name exactly or nearly exactly from the rubric",
-              "rating": "rubric level or short label",
-              "proposedPoints": 0,
-              "maxPoints": 0,
-              "evidence": ["quote from reviewed student text, or No supporting evidence found."],
-              "evidenceSourceRefs": [],
-              "explanation": "specific rubric-based explanation",
-              "nextStep": "specific improvement suggestion when appropriate",
-              "confidence": "high | medium | low",
-              "uncertaintyFlags": ["evidence gap", "inference caution", "ocr reliability concern"],
-              "teacherReviewRequired": true
-            }
-          ],
-          "studentFeedback": "student-facing feedback that is specific, constructive, and concise",
-          "teacherNotes": "private notes about ambiguity, grading calls, or scanned-text concerns",
-          "uncertaintyFlags": ["issues the teacher should review"],
-          "complianceFlags": ["ways you constrained the draft to the rubric and evidence"]
-        }
         """
+    }
+
+    private static func notSupplied(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Not supplied." : text
+    }
+
+    private static func notSpecified(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Not specified" : text
     }
 }
