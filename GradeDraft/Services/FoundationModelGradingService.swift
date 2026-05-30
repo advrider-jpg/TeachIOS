@@ -5,6 +5,12 @@ import FoundationModels
 #endif
 
 final class FoundationModelGradingService: GradingServicing, CapabilityChecking, Sendable {
+    private let budgeter: GradingPromptBudgeting
+
+    init(budgeter: GradingPromptBudgeting = GradingPromptBudgeter()) {
+        self.budgeter = budgeter
+    }
+
     var localAIStatus: LocalAIStatus {
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
@@ -36,11 +42,19 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
                 throw GradeDraftError.localModelUnavailable("The on-device language model is unavailable.")
             }
 
-            let session = LanguageModelSession()
-            let response = try await session.respond(to: PromptBuilder.gradingPrompt(input: input))
-            let raw = response.content
-            let parsed = try ModelGradeDraftResponse.parse(rawModelResponse: raw)
-            return try GradeDraftValidator.normalizeAndValidate(parsed, input: input)
+            let plan = try await budgeter.plan(input: input)
+            do {
+                switch plan.mode {
+                case .fullPacket, .compactFullPacket:
+                    return try await generateFullPacketDraft(input: input, plan: plan)
+                case .perCriterion:
+                    return try await generatePerCriterionDraft(input: input, plan: plan)
+                case .unavailable:
+                    throw GradeDraftError.localModelUnavailable("The on-device language model is unavailable.")
+                }
+            } catch {
+                throw FoundationModelErrorMapper.map(error)
+            }
         } else {
             throw GradeDraftError.localModelUnavailable("Foundation Models requires a newer operating system.")
         }
@@ -49,7 +63,88 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
         #endif
     }
 
+    func prewarmIfAvailable() {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *), localAIStatus == .available {
+            let session = LanguageModelSession(instructions: PromptBuilder.gradingInstructions(input: Self.prewarmInput))
+            session.prewarm()
+        }
+        #endif
+    }
+
     #if canImport(FoundationModels)
+    @available(iOS 26.0, *)
+    private func generateFullPacketDraft(input: GradingInput, plan: PromptBudgetPlan) async throws -> GradeDraftResult {
+        let mode: PromptPacketMode = plan.mode == .compactFullPacket ? .compact : .full
+        let session = LanguageModelSession(instructions: PromptBuilder.gradingInstructions(input: input))
+        let response = try await session.respond(
+            to: PromptBuilder.fullPacketPrompt(input: input, mode: mode),
+            generating: FoundationModelGradeProposalSchema.GradeDraftProposal.self,
+            includeSchemaInPrompt: false
+        )
+        let audit = LocalModelDraftAudit.make(input: input, plan: plan, generatedCriteriaCount: response.content.criteria.count)
+        let draft = response.content.asGradeDraftResult(input: input, audit: audit)
+        return try GradeDraftValidator.normalizeAndValidate(draft, input: input)
+    }
+
+    @available(iOS 26.0, *)
+    private func generatePerCriterionDraft(input: GradingInput, plan: PromptBudgetPlan) async throws -> GradeDraftResult {
+        guard !input.parsedRubric.criteria.isEmpty else {
+            throw GradeDraftError.promptTooLargeForLocalModel(GradingPromptBudgeter.tooLargeMessage)
+        }
+
+        var criteria: [CriterionScore] = []
+        for rubricCriterion in input.parsedRubric.criteria {
+            let session = LanguageModelSession(instructions: PromptBuilder.gradingInstructions(input: input))
+            let response = try await session.respond(
+                to: PromptBuilder.singleCriterionPrompt(input: input, criterion: rubricCriterion, mode: .compact),
+                generating: FoundationModelGradeProposalSchema.SingleCriterionDraft.self,
+                includeSchemaInPrompt: false
+            )
+            criteria.append(response.content.criterion.asCriterionScore())
+        }
+
+        let summary = try await maybeGenerateSummaryFeedback(input: input, criteria: criteria)
+        let extraWarnings = summary.generatedByModel ? [] : ["Student feedback summary was generated deterministically because the packet was too large for a summary generation pass."]
+        let audit = LocalModelDraftAudit.make(input: input, plan: plan, generatedCriteriaCount: criteria.count, extraWarnings: extraWarnings)
+        let draft = GradeDraftResult(
+            packetFingerprint: input.packetFingerprint,
+            status: .teacherReviewRequired,
+            studentResponseSummary: summary.studentResponseSummary,
+            criteria: criteria,
+            totalScore: criteria.reduce(0) { $0 + $1.proposedPoints },
+            maxScore: criteria.reduce(0) { $0 + $1.maxPoints },
+            studentFeedback: summary.studentFeedback,
+            teacherNotes: summary.teacherNotes,
+            uncertaintyFlags: summary.uncertaintyFlags + ["Generated criterion-by-criterion because the full grading packet was too large for one local model request."],
+            complianceFlags: summary.complianceFlags,
+            rawModelResponse: nil,
+            localModelAudit: audit
+        )
+        return try GradeDraftValidator.normalizeAndValidate(draft, input: input)
+    }
+
+    @available(iOS 26.0, *)
+    private func maybeGenerateSummaryFeedback(input: GradingInput, criteria: [CriterionScore]) async throws -> SummaryFeedbackResult {
+        guard await budgeter.summaryFits(input: input, criteria: criteria) else {
+            return SummaryFeedbackResult.deterministic(criteria: criteria)
+        }
+        let session = LanguageModelSession(instructions: PromptBuilder.gradingInstructions(input: input))
+        let response = try await session.respond(
+            to: PromptBuilder.summaryFeedbackPrompt(input: input, criteria: criteria),
+            generating: FoundationModelGradeProposalSchema.DraftSummaryFeedback.self,
+            includeSchemaInPrompt: false
+        )
+        return SummaryFeedbackResult(
+            studentResponseSummary: response.content.studentResponseSummary,
+            studentFeedback: response.content.studentFeedback,
+            teacherNotes: response.content.teacherNotes,
+            uncertaintyFlags: response.content.uncertaintyFlags,
+            complianceFlags: response.content.complianceFlags,
+            generatedByModel: true
+        )
+    }
+
     @available(iOS 26.0, *)
     private static func message(for reason: SystemLanguageModel.Availability.UnavailableReason) -> String {
         switch reason {
@@ -64,244 +159,49 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
         }
     }
     #endif
-}
 
-private struct ModelGradeDraftResponse: Decodable {
-    var studentResponseSummary: String
-    var criteria: [ModelCriterionScore]
-    var studentFeedback: String
-    var teacherNotes: String
-    var uncertaintyFlags: [String]
-    var complianceFlags: [String]?
+    private struct SummaryFeedbackResult {
+        var studentResponseSummary: String
+        var studentFeedback: String
+        var teacherNotes: String
+        var uncertaintyFlags: [String]
+        var complianceFlags: [String]
+        var generatedByModel: Bool
 
-    enum CodingKeys: String, CodingKey {
-        case studentResponseSummary
-        case studentResponseSummarySnake = "student_response_summary"
-        case criteria
-        case studentFeedback
-        case studentFeedbackSnake = "student_feedback"
-        case teacherNotes
-        case teacherNotesSnake = "teacher_notes"
-        case uncertaintyFlags
-        case uncertaintyFlagsSnake = "uncertainty_flags"
-        case complianceFlags
-        case complianceFlagsSnake = "compliance_flags"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        studentResponseSummary = try container.decodeFlexibleString(forKeys: [.studentResponseSummary, .studentResponseSummarySnake], defaultValue: "")
-        criteria = try container.decode([ModelCriterionScore].self, forKey: .criteria)
-        studentFeedback = try container.decodeFlexibleString(forKeys: [.studentFeedback, .studentFeedbackSnake], defaultValue: "")
-        teacherNotes = try container.decodeFlexibleString(forKeys: [.teacherNotes, .teacherNotesSnake], defaultValue: "")
-        uncertaintyFlags = try container.decodeFlexibleStringArray(forKeys: [.uncertaintyFlags, .uncertaintyFlagsSnake], defaultValue: [])
-        complianceFlags = try container.decodeFlexibleStringArray(forKeys: [.complianceFlags, .complianceFlagsSnake], defaultValue: [])
-    }
-
-    static func parse(rawModelResponse raw: String) throws -> GradeDraftResult {
-        let jsonText = JSONExtractor.extractFirstJSONObject(from: raw)
-        guard let data = jsonText.data(using: .utf8) else {
-            throw GradeDraftError.malformedModelResponse("The response was not valid UTF-8 text.")
-        }
-
-        do {
-            let decoded = try JSONDecoder().decode(ModelGradeDraftResponse.self, from: data)
-            let criteria = decoded.criteria.map {
-                CriterionScore(
-                    criterionID: $0.criterionID,
-                    criterion: $0.criterion,
-                    rating: $0.rating,
-                    proposedPoints: $0.proposedPoints,
-                    maxPoints: $0.maxPoints,
-                    evidence: $0.evidence,
-                    evidenceSourceRefs: $0.evidenceSourceRefs,
-                    explanation: $0.explanation,
-                    teacherReviewRequired: $0.teacherReviewRequired,
-                    nextStep: $0.nextStep,
-                    confidence: $0.confidence,
-                    criterionUncertaintyFlags: $0.criterionUncertaintyFlags
-                )
-            }
-
-            return GradeDraftResult(
-                studentResponseSummary: decoded.studentResponseSummary,
-                criteria: criteria,
-                totalScore: 0,
-                maxScore: 0,
-                studentFeedback: decoded.studentFeedback,
-                teacherNotes: decoded.teacherNotes,
-                uncertaintyFlags: decoded.uncertaintyFlags,
-                complianceFlags: decoded.complianceFlags ?? [],
-                rawModelResponse: raw
+        static func deterministic(criteria: [CriterionScore]) -> SummaryFeedbackResult {
+            let reviewRequired = criteria.filter(\.teacherReviewRequired).map(\.criterion)
+            let status = reviewRequired.isEmpty
+                ? "Review the criterion evidence, edit feedback, and approve only after confirming the draft against the full student response and rubric."
+                : "Review required for: \(reviewRequired.joined(separator: ", "))."
+            return SummaryFeedbackResult(
+                studentResponseSummary: "Draft generated criterion-by-criterion from reviewed text and teacher-supplied grading materials.",
+                studentFeedback: "Draft generated criterion-by-criterion. Review the criterion evidence, edit feedback, and approve only after confirming the draft against the full student response and rubric.",
+                teacherNotes: "\(status) The summary was assembled without an additional model pass because the grading packet was too large for a safe summary request.",
+                uncertaintyFlags: ["Criterion-by-criterion generation requires careful teacher synthesis before approval."],
+                complianceFlags: ["No reviewed student text was truncated for local model generation."],
+                generatedByModel: false
             )
-        } catch {
-            throw GradeDraftError.malformedModelResponse(error.localizedDescription)
         }
     }
-}
 
-private struct ModelCriterionScore: Decodable {
-    var criterionID: String?
-    var criterion: String
-    var rating: String
-    var proposedPoints: Double
-    var maxPoints: Double
-    var evidence: [String]
-    var evidenceSourceRefs: [String]
-    var explanation: String
-    var teacherReviewRequired: Bool
-    var nextStep: String
-    var confidence: String
-    var criterionUncertaintyFlags: [String]
-
-    enum CodingKeys: String, CodingKey {
-        case criterionID
-        case criterionId
-        case criterionIDSnake = "criterion_id"
-        case criterion
-        case rating
-        case proposedPoints
-        case proposedPointsSnake = "proposed_points"
-        case maxPoints
-        case maxPointsSnake = "max_points"
-        case evidence
-        case evidenceSourceRefs
-        case evidenceSourceRefsSnake = "evidence_source_refs"
-        case explanation
-        case nextStep
-        case confidence
-        case teacherReviewRequired
-        case teacherReviewRequiredSnake = "teacher_review_required"
-        case criterionUncertaintyFlags
-        case criterionUncertaintyFlagsSnake = "criterion_uncertainty_flags"
-        case uncertaintyFlags
-        case uncertaintyFlagsSnake = "uncertainty_flags"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        criterionID = try container.decodeFlexibleOptionalString(forKeys: [.criterionID, .criterionId, .criterionIDSnake])
-        criterion = try container.decodeFlexibleString(forKeys: [.criterion], defaultValue: "")
-        rating = try container.decodeFlexibleString(forKeys: [.rating], defaultValue: "")
-        proposedPoints = try container.decodeFlexibleDouble(forKeys: [.proposedPoints, .proposedPointsSnake], defaultValue: 0)
-        maxPoints = try container.decodeFlexibleDouble(forKeys: [.maxPoints, .maxPointsSnake], defaultValue: 0)
-        evidence = try container.decodeFlexibleStringArray(forKeys: [.evidence], defaultValue: [])
-        evidenceSourceRefs = try container.decodeFlexibleStringArray(forKeys: [.evidenceSourceRefs, .evidenceSourceRefsSnake], defaultValue: [])
-        explanation = try container.decodeFlexibleString(forKeys: [.explanation], defaultValue: "")
-        nextStep = try container.decodeFlexibleString(forKeys: [.nextStep], defaultValue: "")
-        confidence = try container.decodeFlexibleString(forKeys: [.confidence], defaultValue: "medium")
-        criterionUncertaintyFlags = try container.decodeFlexibleStringArray(
-            forKeys: [.criterionUncertaintyFlags, .criterionUncertaintyFlagsSnake, .uncertaintyFlags, .uncertaintyFlagsSnake],
-            defaultValue: []
-        )
-        teacherReviewRequired = try container.decodeFlexibleBool(forKeys: [.teacherReviewRequired, .teacherReviewRequiredSnake], defaultValue: true)
-    }
-}
-
-private extension KeyedDecodingContainer {
-    func decodeFlexibleString(forKeys keys: [Key], defaultValue: String) throws -> String {
-        for key in keys where contains(key) {
-            if let value = try? decode(String.self, forKey: key) {
-                return value
-            }
-            if let value = try? decode(Int.self, forKey: key) {
-                return String(value)
-            }
-            if let value = try? decode(Double.self, forKey: key) {
-                return String(value)
-            }
-        }
-        return defaultValue
-    }
-
-    func decodeFlexibleOptionalString(forKeys keys: [Key]) throws -> String? {
-        let value = try decodeFlexibleString(forKeys: keys, defaultValue: "")
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    func decodeFlexibleStringArray(forKeys keys: [Key], defaultValue: [String]) throws -> [String] {
-        for key in keys where contains(key) {
-            if let value = try? decode([String].self, forKey: key) {
-                return value
-            }
-            if let value = try? decode(String.self, forKey: key) {
-                return [value]
-            }
-        }
-        return defaultValue
-    }
-
-    func decodeFlexibleDouble(forKeys keys: [Key], defaultValue: Double) throws -> Double {
-        for key in keys where contains(key) {
-            if let value = try? decode(Double.self, forKey: key) {
-                return value
-            }
-            if let value = try? decode(Int.self, forKey: key) {
-                return Double(value)
-            }
-            if let value = try? decode(String.self, forKey: key), let parsed = Double(value) {
-                return parsed
-            }
-        }
-        return defaultValue
-    }
-
-    func decodeFlexibleBool(forKeys keys: [Key], defaultValue: Bool) throws -> Bool {
-        for key in keys where contains(key) {
-            if let value = try? decode(Bool.self, forKey: key) {
-                return value
-            }
-            if let value = try? decode(String.self, forKey: key) {
-                switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-                case "true", "yes", "1":
-                    return true
-                case "false", "no", "0":
-                    return false
-                default:
-                    break
-                }
-            }
-        }
-        return defaultValue
-    }
-}
-
-enum JSONExtractor {
-    static func extractFirstJSONObject(from text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let start = trimmed.firstIndex(of: "{") else {
-            return trimmed
-        }
-
-        var depth = 0
-        var isInsideString = false
-        var isEscaped = false
-        var index = start
-
-        while index < trimmed.endIndex {
-            let character = trimmed[index]
-
-            if isEscaped {
-                isEscaped = false
-            } else if character == "\\" {
-                isEscaped = true
-            } else if character == "\"" {
-                isInsideString.toggle()
-            } else if !isInsideString {
-                if character == "{" {
-                    depth += 1
-                } else if character == "}" {
-                    depth -= 1
-                    if depth == 0 {
-                        return String(trimmed[start...index])
-                    }
-                }
-            }
-
-            index = trimmed.index(after: index)
-        }
-
-        return trimmed
-    }
+    private static let prewarmInput = GradingInput(
+        assignmentID: UUID(uuidString: "00000000-0000-0000-0000-000000000000") ?? UUID(),
+        assignmentTitle: "Prewarm",
+        prompt: "",
+        subject: "",
+        gradeLevel: "",
+        className: "",
+        studentDisplayName: "",
+        assignmentType: .shortAnswer,
+        rubricText: "Prewarm: 0-1 points",
+        parsedRubric: RubricParser.parse("Prewarm: 0-1 points"),
+        customInstructions: "",
+        reviewedStudentText: "Prewarm text.",
+        reviewedTextWithSourceRefs: "Prewarm text.",
+        ocrQualitySummary: OCRQualitySummary(),
+        ocrReviewStatus: .notNeeded,
+        sourceInputCount: 0,
+        packetFingerprint: "prewarm",
+        hasGradingStandard: true
+    )
 }

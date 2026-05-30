@@ -58,6 +58,15 @@ enum GradeDraftValidator {
             throw GradeDraftError.invalidModelGrade("The model output included prohibited inference language.")
         }
 
+        if containsFinalGradeLanguage(draft.studentResponseSummary) || containsFinalGradeLanguage(draft.studentFeedback) {
+            throw GradeDraftError.invalidModelGrade("The model output presented the draft as a final grade.")
+        }
+
+        if containsFinalGradeLanguage(draft.teacherNotes) {
+            uncertaintyFlags.append("Teacher notes used final-grade language; teacher review is required.")
+            complianceFlags.append("Flagged final-grade language in private teacher notes for teacher review.")
+        }
+
         if input.ocrQualitySummary.requiresTeacherOCRReview {
             uncertaintyFlags.append("Scanned text quality is uncertain; teacher review is required.")
         }
@@ -75,6 +84,10 @@ enum GradeDraftValidator {
                     && !containsProhibitedInference(criterion.nextStep)
                     && !containsProhibitedInference(criterion.criterionUncertaintyFlags.joined(separator: " ")) else {
                 throw GradeDraftError.invalidModelGrade("The model output included prohibited inference language.")
+            }
+
+            if containsFinalGradeLanguage(criterion.explanation) || containsFinalGradeLanguage(criterion.nextStep) {
+                throw GradeDraftError.invalidModelGrade("The model output presented a criterion suggestion as a final grade.")
             }
 
             let trimmedName = criterion.criterion.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -139,6 +152,30 @@ enum GradeDraftValidator {
                 complianceFlags.append("\(resolvedName) included evidence not present in the reviewed text.")
             }
 
+            let availableSourceRefs = Set(sourceReferenceTags(in: input.reviewedTextWithSourceRefs))
+            let citedEvidence = evidence.filter { !isMissingEvidenceMarker($0) }
+            let normalizedEvidenceSourceRefs = criterion.evidenceSourceRefs
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if !availableSourceRefs.isEmpty && !citedEvidence.isEmpty {
+                if normalizedEvidenceSourceRefs.isEmpty {
+                    needsReview = true
+                    let sourceFlag = "\(resolvedName): evidence source reference missing or unsupported; teacher review required."
+                    criteriaUncertainty.append(sourceFlag)
+                    uncertaintyFlags.append(sourceFlag)
+                    complianceFlags.append("\(resolvedName) cited source-tagged text without matching source references.")
+                } else {
+                    let unsupportedRefs = normalizedEvidenceSourceRefs.filter { !availableSourceRefs.contains($0) }
+                    if !unsupportedRefs.isEmpty {
+                        needsReview = true
+                        let sourceFlag = "\(resolvedName): evidence source reference missing or unsupported; teacher review required."
+                        criteriaUncertainty.append(sourceFlag)
+                        uncertaintyFlags.append(sourceFlag)
+                        complianceFlags.append("\(resolvedName) cited unsupported source references: \(unsupportedRefs.joined(separator: ", ")).")
+                    }
+                }
+            }
+
             if criterion.teacherReviewRequired && !needsReview {
                 needsReview = true
             }
@@ -169,7 +206,7 @@ enum GradeDraftValidator {
                     proposedPoints: clampedPoints,
                     maxPoints: rubricMax,
                     evidence: evidence,
-                    evidenceSourceRefs: criterion.evidenceSourceRefs,
+                    evidenceSourceRefs: normalizedEvidenceSourceRefs,
                     explanation: criterion.explanation.trimmingCharacters(in: .whitespacesAndNewlines),
                     teacherReviewRequired: needsReview,
                     nextStep: normalizedNextStep,
@@ -192,7 +229,7 @@ enum GradeDraftValidator {
             }
         }
 
-        var complianceList = Array(Set(complianceFlags)).sorted()
+        let complianceList = Array(Set(complianceFlags)).sorted()
         let finalUncertaintyFlags = Array(Set(uncertaintyFlags + input.parsedRubric.issues)).sorted()
 
         let status: DraftStatus = normalizedCriteria.contains { $0.teacherReviewRequired } ? .teacherReviewRequired : .generated
@@ -210,7 +247,8 @@ enum GradeDraftValidator {
             teacherNotes: draft.teacherNotes.trimmingCharacters(in: .whitespacesAndNewlines),
             uncertaintyFlags: finalUncertaintyFlags,
             complianceFlags: complianceList,
-            rawModelResponse: draft.rawModelResponse
+            rawModelResponse: draft.rawModelResponse,
+            localModelAudit: draft.localModelAudit
         )
 
         return GradeTotals.applyingDeterministicTotals(to: withNormalizedCriteria)
@@ -250,28 +288,72 @@ enum GradeDraftValidator {
         }
     }
 
-    private static let prohibitedInferenceTokens: [String] = [
-        "effort",
-        "intent",
-        "motivation",
-        "behavior",
-        "personality",
-        "ability",
-        "disability",
-        "eal",
-        "eal/d",
-        "giftedness",
-        "demographic",
-        "support level",
-        "intelligence",
-        "diligence",
-        "laziness"
+    private static let prohibitedInferencePatterns: [String] = [
+        #"\beffort\b"#,
+        #"\bno effort\b"#,
+        #"\btried hard\b"#,
+        #"\bdid not try\b"#,
+        #"\bintent\b"#,
+        #"\bmotivat(?:ed|ion|ional|e|ed)\b"#,
+        #"\bunmotivated\b"#,
+        #"\bbehavior\b"#,
+        #"\battitude\b"#,
+        #"\bpersonality\b"#,
+        #"\blazy\b"#,
+        #"\blaziness\b"#,
+        #"\bcareless(?:ness)?\b"#,
+        #"\b(?:low|high) ability\b"#,
+        #"\bability level\b"#,
+        #"\bdisab(?:ility|led)\b"#,
+        #"\bimpairment\b"#,
+        #"\bspecial needs\b"#,
+        #"\beal/d\b"#,
+        #"\beald\b"#,
+        #"\besl\b"#,
+        #"\blanguage background\b"#,
+        #"\bdemographic\b"#,
+        #"\bgifted(?:ness)?\b"#,
+        #"\bhome support\b"#,
+        #"\bfamily support\b"#,
+        #"\bparent(?:al)? support\b"#,
+        #"\bfuture performance\b"#,
+        #"\bwill never\b"#,
+        #"\balways will\b"#,
+        #"\bintelligence\b"#,
+        #"\bdiligence\b"#
+    ]
+
+    private static let finalGradeLanguagePatterns: [String] = [
+        #"\bfinal grade\b"#,
+        #"\bofficial grade\b"#,
+        #"\bcertified score\b"#,
+        #"\bthe student receives\b"#,
+        #"\bi have graded\b"#
     ]
 
     private static func containsProhibitedInference(_ text: String) -> Bool {
-        let normalized = text.lowercased()
-        return prohibitedInferenceTokens.contains { token in
-            normalized.contains(token)
+        prohibitedInferencePatterns.contains { pattern in
+            text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+        }
+    }
+
+    private static func containsFinalGradeLanguage(_ text: String) -> Bool {
+        var normalized = text.lowercased()
+        normalized = normalized.replacingOccurrences(of: "not a final grade", with: "")
+        normalized = normalized.replacingOccurrences(of: "not final grade", with: "")
+        normalized = normalized.replacingOccurrences(of: "not the final grade", with: "")
+        return finalGradeLanguagePatterns.contains { pattern in
+            normalized.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+        }
+    }
+
+    private static func sourceReferenceTags(in text: String) -> [String] {
+        let pattern = #"\[p\d+-l\d+-[A-Fa-f0-9-]+\]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.matches(in: text, range: nsRange).compactMap { match in
+            guard let range = Range(match.range, in: text) else { return nil }
+            return String(text[range])
         }
     }
 }

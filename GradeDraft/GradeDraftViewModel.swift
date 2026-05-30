@@ -98,6 +98,14 @@ final class GradeDraftViewModel: ObservableObject {
         gradingService.localAIStatus
     }
 
+    var selectedAIConstraintTemplates: [GradingConstraintTemplate] {
+        GradingConstraintTemplates.templates(for: assignment.selectedInstructionTemplateIDs)
+    }
+
+    var recommendedAIConstraintTemplates: [GradingConstraintTemplate] {
+        GradingConstraintTemplates.templates(for: GradingConstraintTemplates.recommendedIDs(for: assignment))
+    }
+
     var hasLowConfidenceOCR: Bool {
         assignment.ocrDocument?.hasLowConfidenceText == true
     }
@@ -296,6 +304,7 @@ final class GradeDraftViewModel: ObservableObject {
         switch gradingService.localAIStatus {
         case .available:
             statusMessage = "Local AI is available on this device. Student work stays on device."
+            (gradingService as? FoundationModelGradingService)?.prewarmIfAvailable()
         case .unavailable(let message):
             statusMessage = message
         }
@@ -422,6 +431,40 @@ final class GradeDraftViewModel: ObservableObject {
         }
         persistOrSurfaceError()
         statusMessage = "Formative focus template appended locally."
+    }
+
+    func toggleAIConstraintTemplate(_ templateID: String) {
+        updateAssignment { assignment in
+            if assignment.selectedInstructionTemplateIDs.contains(templateID) {
+                assignment.selectedInstructionTemplateIDs.removeAll { $0 == templateID }
+            } else {
+                assignment.selectedInstructionTemplateIDs.append(templateID)
+            }
+            assignment.selectedInstructionTemplateIDs = GradingConstraintTemplates.builtIn
+                .map(\.id)
+                .filter { assignment.selectedInstructionTemplateIDs.contains($0) }
+            assignment.appendAuditEvent(.inputChanged, detail: "AI constraint template selection changed.")
+        }
+        persistOrSurfaceError()
+        statusMessage = "AI constraint templates updated. Regenerate any stale draft before final review."
+    }
+
+    func applyRecommendedAIConstraintTemplates() {
+        updateAssignment { assignment in
+            assignment.selectedInstructionTemplateIDs = GradingConstraintTemplates.recommendedIDs(for: assignment)
+            assignment.appendAuditEvent(.inputChanged, detail: "Recommended AI constraint templates applied.")
+        }
+        persistOrSurfaceError()
+        statusMessage = "Recommended AI constraint templates applied. Sensitive templates were not selected automatically."
+    }
+
+    func clearAIConstraintTemplates() {
+        updateAssignment { assignment in
+            assignment.selectedInstructionTemplateIDs = []
+            assignment.appendAuditEvent(.inputChanged, detail: "AI constraint templates cleared.")
+        }
+        persistOrSurfaceError()
+        statusMessage = "AI constraint templates cleared."
     }
 
     func applyPastedStudentText(_ text: String) {
@@ -551,7 +594,11 @@ final class GradeDraftViewModel: ObservableObject {
                 assignment.finalReview = nil
                 assignment.appendAuditEvent(.draftGenerated, detail: "Local grading draft generated from packet \(input.packetFingerprint).")
             }
-            statusMessage = "Draft feedback suggestion generated locally. Start teacher final review before using it."
+            if result.localModelAudit?.generationMode == .perCriterion {
+                statusMessage = "Draft generated locally criterion-by-criterion because the full packet was too large. Review every criterion carefully before approval."
+            } else {
+                statusMessage = "Draft feedback suggestion generated locally using Apple Foundation Models. Start teacher final review before using it."
+            }
             try saveCurrentAssignment()
         } catch {
             errorMessage = error.localizedDescription
@@ -560,6 +607,14 @@ final class GradeDraftViewModel: ObservableObject {
 
     func startFinalReviewFromLatestDraft() {
         guard let draft = assignment.latestDraft else { return }
+        guard !assignment.latestDraftIsStale else {
+            errorMessage = "The latest local AI draft is stale because the grading packet changed. Generate a new draft or start manual final review."
+            return
+        }
+        guard draft.packetFingerprint == assignment.gradingPacketFingerprint else {
+            errorMessage = "The latest local AI draft does not match the current grading packet. Generate a new draft or start manual final review."
+            return
+        }
         let final = FinalGradeReview(
             packetFingerprint: draft.packetFingerprint,
             status: .inProgress,

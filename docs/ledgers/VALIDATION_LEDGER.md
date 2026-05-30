@@ -31,3 +31,23 @@ The patch adds or updates tests for:
 ## Runtime validation still required
 
 Xcode or equivalent Apple SDK tooling must validate app/test target compilation, XCTest execution, UIKit/PDFKit PDF rendering and import, Vision/VisionKit OCR capture, Foundation Models API compatibility, SwiftUI file import/share-sheet behavior, and simulator/device smoke flows.
+
+## 2026-05-30 — Apple Intelligence typed grading patch validation
+
+Available in this environment:
+
+```bash
+python3 scripts/no_network_scan.py
+python3 scripts/repo_health.py
+```
+
+Required outside this environment:
+
+```bash
+xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft
+swiftlint lint --config .swiftlint.yml
+xcodebuild test -project GradeDraft.xcodeproj -scheme GradeDraft -destination 'platform=iPhone Simulator,name=<available iPhone simulator destination>'
+RUN_FOUNDATION_MODEL_DEVICE_TESTS=1 xcodebuild test -project GradeDraft.xcodeproj -scheme GradeDraft -destination 'platform=iOS,name=<connected Apple Intelligence device name>'
+```
+
+Xcode, simulator, and real-device Foundation Models validation were not run in this environment (Windows).

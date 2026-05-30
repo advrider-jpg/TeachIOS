@@ -165,9 +165,14 @@ extension AssignmentRecord {
 
     var gradingPacketFingerprintVersion: String { "v4-content-suite" }
 
-    /// Deterministic local app-state fingerprint for the typed packet. This is not a security claim.
+    /// Deterministic local app-state fingerprint for the typed packet and AI constraint templates. This is not a security claim.
     var gradingPacketFingerprint: String {
-        StableFingerprint.fingerprint(encodedGradingPacket)
+        let packetFP = StableFingerprint.fingerprint(encodedGradingPacket)
+        let templateFP = GradingConstraintTemplates.fingerprint(for: selectedInstructionTemplateIDs)
+        if selectedInstructionTemplateIDs.isEmpty {
+            return packetFP
+        }
+        return StableFingerprint.fingerprint([packetFP, templateFP])
     }
 
     /// Backwards-compatible API name retained for existing callers.

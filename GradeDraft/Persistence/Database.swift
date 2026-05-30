@@ -266,14 +266,15 @@ final class GradeDraftDatabase {
         try db.execute(sql: """
         INSERT INTO grade_draft_assignments (
             id, class_group_id, student_id, title, prompt, subject, grade_level, class_name, student_display_name,
-            assignment_type, assessment_purpose, curriculum_reference, rubric_text, custom_instructions, answer_key_text,
+            assignment_type, assessment_purpose, curriculum_reference, rubric_text, custom_instructions, selected_instruction_template_ids_json, answer_key_text,
             exemplar_text, formative_focus_text, reviewed_student_text, ocr_review_status, ocr_reviewed_at, grading_packet_fingerprint,
             applied_templates_json, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET class_group_id = excluded.class_group_id, student_id = excluded.student_id, title = excluded.title,
         prompt = excluded.prompt, subject = excluded.subject, grade_level = excluded.grade_level, class_name = excluded.class_name,
         student_display_name = excluded.student_display_name, assignment_type = excluded.assignment_type, assessment_purpose = excluded.assessment_purpose,
         curriculum_reference = excluded.curriculum_reference, rubric_text = excluded.rubric_text, custom_instructions = excluded.custom_instructions,
+        selected_instruction_template_ids_json = excluded.selected_instruction_template_ids_json,
         answer_key_text = excluded.answer_key_text, exemplar_text = excluded.exemplar_text, formative_focus_text = excluded.formative_focus_text,
         reviewed_student_text = excluded.reviewed_student_text, ocr_review_status = excluded.ocr_review_status,
         ocr_reviewed_at = excluded.ocr_reviewed_at, grading_packet_fingerprint = excluded.grading_packet_fingerprint,
@@ -282,7 +283,8 @@ final class GradeDraftDatabase {
             id, assignment.classGroupID?.uuidString, assignment.studentID?.uuidString, assignment.title, assignment.prompt ?? "",
             assignment.subject, assignment.gradeLevel, assignment.className, assignment.studentDisplayName, assignment.assignmentType.rawValue,
             assignment.assessmentPurpose.rawValue, assignment.curriculumReference, assignment.rubricText, assignment.customInstructions,
-            assignment.answerKeyText, assignment.exemplarText, assignment.formativeFocusText, assignment.reviewedStudentText,
+            try jsonString(assignment.selectedInstructionTemplateIDs), assignment.answerKeyText, assignment.exemplarText,
+            assignment.formativeFocusText, assignment.reviewedStudentText,
             assignment.ocrReviewStatus.rawValue, assignment.ocrReviewedAt.map { iso8601.string(from: $0) }, assignment.gradingPacketFingerprint,
             try jsonString(assignment.appliedTemplates), iso8601.string(from: assignment.createdAt), iso8601.string(from: assignment.updatedAt)
         ])
@@ -321,9 +323,9 @@ final class GradeDraftDatabase {
 
     private func saveDraftRows(_ draft: GradeDraftResult, assignmentID: String, in db: Database) throws {
         try db.execute(sql: """
-        INSERT INTO grade_draft_drafts (id, assignment_id, packet_fingerprint, status, total_score, max_score, student_feedback, teacher_notes, raw_model_response, generated_at, student_response_summary, uncertainty_flags_json, compliance_flags_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, arguments: [draft.id.uuidString, assignmentID, draft.packetFingerprint, draft.status.rawValue, draft.totalScore, draft.maxScore, draft.studentFeedback, draft.teacherNotes, draft.rawModelResponse, iso8601.string(from: draft.generatedAt), draft.studentResponseSummary, try jsonString(draft.uncertaintyFlags), try jsonString(draft.complianceFlags)])
+        INSERT INTO grade_draft_drafts (id, assignment_id, packet_fingerprint, status, total_score, max_score, student_feedback, teacher_notes, raw_model_response, generated_at, student_response_summary, uncertainty_flags_json, compliance_flags_json, local_model_audit_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, arguments: [draft.id.uuidString, assignmentID, draft.packetFingerprint, draft.status.rawValue, draft.totalScore, draft.maxScore, draft.studentFeedback, draft.teacherNotes, draft.rawModelResponse, iso8601.string(from: draft.generatedAt), draft.studentResponseSummary, try jsonString(draft.uncertaintyFlags), try jsonString(draft.complianceFlags), draft.localModelAudit.map { try jsonString($0) }])
         for criterion in draft.criteria {
             try db.execute(sql: """
             INSERT INTO grade_draft_draft_criteria (id, assignment_id, draft_id, criterion_id, criterion, rating, proposed_points, max_points, evidence_json, evidence_refs_json, explanation, teacher_review_required, next_step, confidence, criterion_uncertainty_flags_json)
@@ -395,6 +397,7 @@ final class GradeDraftDatabase {
                 assignmentType: AssignmentType(rawValue: text(row, "assignment_type")) ?? .shortAnswer,
                 rubricText: text(row, "rubric_text"),
                 customInstructions: text(row, "custom_instructions"),
+                selectedInstructionTemplateIDs: decodeJSONString(text(row, "selected_instruction_template_ids_json", defaultValue: "[]"), defaultValue: [String]()),
                 answerKeyText: text(row, "answer_key_text"),
                 exemplarText: text(row, "exemplar_text"),
                 formativeFocusText: text(row, "formative_focus_text"),
@@ -505,7 +508,8 @@ final class GradeDraftDatabase {
             teacherNotes: text(row, "teacher_notes"),
             uncertaintyFlags: decodeJSONString(text(row, "uncertainty_flags_json"), defaultValue: [String]()),
             complianceFlags: decodeJSONString(text(row, "compliance_flags_json"), defaultValue: [String]()),
-            rawModelResponse: optionalText(row, "raw_model_response")
+            rawModelResponse: optionalText(row, "raw_model_response"),
+            localModelAudit: optionalText(row, "local_model_audit_json").flatMap { decodeJSONString($0, defaultValue: Optional<LocalModelDraftAudit>.none) }
         )
     }
 
@@ -647,6 +651,12 @@ final class GradeDraftDatabase {
             try self.addColumnIfNeeded(db, table: "class_groups", column: "is_archived", definition: "BOOLEAN NOT NULL DEFAULT 0")
             try self.migrateLegacyPayloads(in: db)
         }
+        migrator.registerMigration("007_local_ai_constraint_templates_and_audit") { db in
+            try self.createCoreTables(in: db)
+            try self.addColumnIfNeeded(db, table: "grade_draft_assignments", column: "selected_instruction_template_ids_json", definition: "TEXT NOT NULL DEFAULT '[]'")
+            try self.addColumnIfNeeded(db, table: "grade_draft_drafts", column: "local_model_audit_json", definition: "TEXT")
+            try self.migrateLegacyPayloads(in: db)
+        }
     }
 
     private func createCoreTables(in db: Database) throws {
@@ -656,14 +666,14 @@ final class GradeDraftDatabase {
             id TEXT PRIMARY KEY, class_group_id TEXT, student_id TEXT, title TEXT NOT NULL, prompt TEXT NOT NULL DEFAULT '',
             subject TEXT NOT NULL, grade_level TEXT NOT NULL, class_name TEXT NOT NULL DEFAULT '', student_display_name TEXT NOT NULL DEFAULT '',
             assignment_type TEXT NOT NULL, assessment_purpose TEXT NOT NULL DEFAULT 'summative', curriculum_reference TEXT NOT NULL DEFAULT '',
-            rubric_text TEXT NOT NULL DEFAULT '', custom_instructions TEXT NOT NULL DEFAULT '', answer_key_text TEXT NOT NULL DEFAULT '',
+            rubric_text TEXT NOT NULL DEFAULT '', custom_instructions TEXT NOT NULL DEFAULT '', selected_instruction_template_ids_json TEXT NOT NULL DEFAULT '[]', answer_key_text TEXT NOT NULL DEFAULT '',
             exemplar_text TEXT NOT NULL DEFAULT '', formative_focus_text TEXT NOT NULL DEFAULT '', reviewed_student_text TEXT NOT NULL DEFAULT '',
             ocr_review_status TEXT NOT NULL DEFAULT 'notNeeded', ocr_reviewed_at TEXT, grading_packet_fingerprint TEXT NOT NULL DEFAULT '',
             applied_templates_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS grade_draft_source_inputs (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, source_type TEXT NOT NULL, page_index INTEGER, local_relative_path TEXT, file_name TEXT, mime_type TEXT, content_digest TEXT, digest_algorithm TEXT, image_width REAL, image_height REAL, pdf_page_count INTEGER, teacher_included_in_export BOOLEAN NOT NULL, created_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS grade_draft_ocr_lines (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, page_id TEXT NOT NULL, source_input_id TEXT, page_index INTEGER NOT NULL, raw_text TEXT NOT NULL, corrected_text TEXT, confidence REAL NOT NULL, bbox_x REAL NOT NULL, bbox_y REAL NOT NULL, bbox_width REAL NOT NULL, bbox_height REAL NOT NULL, teacher_confirmed BOOLEAN NOT NULL, is_rejected BOOLEAN NOT NULL DEFAULT 0);
-        CREATE TABLE IF NOT EXISTS grade_draft_drafts (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, packet_fingerprint TEXT NOT NULL, status TEXT NOT NULL, total_score REAL NOT NULL, max_score REAL NOT NULL, student_feedback TEXT NOT NULL, teacher_notes TEXT NOT NULL, raw_model_response TEXT, generated_at TEXT NOT NULL, student_response_summary TEXT NOT NULL DEFAULT '', uncertainty_flags_json TEXT NOT NULL DEFAULT '[]', compliance_flags_json TEXT NOT NULL DEFAULT '[]');
+        CREATE TABLE IF NOT EXISTS grade_draft_drafts (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, packet_fingerprint TEXT NOT NULL, status TEXT NOT NULL, total_score REAL NOT NULL, max_score REAL NOT NULL, student_feedback TEXT NOT NULL, teacher_notes TEXT NOT NULL, raw_model_response TEXT, generated_at TEXT NOT NULL, student_response_summary TEXT NOT NULL DEFAULT '', uncertainty_flags_json TEXT NOT NULL DEFAULT '[]', compliance_flags_json TEXT NOT NULL DEFAULT '[]', local_model_audit_json TEXT);
         CREATE TABLE IF NOT EXISTS grade_draft_draft_criteria (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, draft_id TEXT NOT NULL, criterion_id TEXT, criterion TEXT NOT NULL, rating TEXT NOT NULL, proposed_points REAL NOT NULL, max_points REAL NOT NULL, evidence_json TEXT NOT NULL, evidence_refs_json TEXT NOT NULL, explanation TEXT NOT NULL, teacher_review_required BOOLEAN NOT NULL, next_step TEXT NOT NULL DEFAULT '', confidence TEXT NOT NULL DEFAULT '', criterion_uncertainty_flags_json TEXT NOT NULL DEFAULT '[]');
         CREATE TABLE IF NOT EXISTS grade_draft_final_reviews (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, packet_fingerprint TEXT NOT NULL, status TEXT NOT NULL, total_score REAL NOT NULL, max_score REAL NOT NULL, student_feedback TEXT NOT NULL, private_teacher_notes TEXT NOT NULL, teacher_edited BOOLEAN NOT NULL, created_at TEXT NOT NULL, finalized_at TEXT);
         CREATE TABLE IF NOT EXISTS grade_draft_final_criteria (id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, final_review_id TEXT NOT NULL, criterion_id TEXT, criterion TEXT NOT NULL, rating TEXT NOT NULL, proposed_points REAL NOT NULL, final_points REAL NOT NULL, max_points REAL NOT NULL, evidence_json TEXT NOT NULL, evidence_refs_json TEXT NOT NULL, explanation TEXT NOT NULL, teacher_approved BOOLEAN NOT NULL, teacher_rationale TEXT NOT NULL);
