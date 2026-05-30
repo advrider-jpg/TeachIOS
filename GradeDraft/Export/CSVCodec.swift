@@ -21,14 +21,18 @@ enum CSVParser {
     }
 
     static func parseRows(_ csvText: String) throws -> [[String]] {
-        guard !csvText.isEmpty else { return [] }
+        let normalizedCSVText = csvText
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+
+        guard !normalizedCSVText.isEmpty else { return [] }
 
         var rows: [[String]] = []
         var row: [String] = []
         var field = ""
         var inQuotes = false
         var fieldStartedWithQuote = false
-        var index = csvText.startIndex
+        var index = normalizedCSVText.startIndex
 
         func appendField() {
             row.append(field)
@@ -42,15 +46,15 @@ enum CSVParser {
             row = []
         }
 
-        while index < csvText.endIndex {
-            let character = csvText[index]
-            let nextIndex = csvText.index(after: index)
+        while index < normalizedCSVText.endIndex {
+            let character = normalizedCSVText[index]
+            let nextIndex = normalizedCSVText.index(after: index)
 
             if inQuotes {
                 if character == "\"" {
-                    if nextIndex < csvText.endIndex, csvText[nextIndex] == "\"" {
+                    if nextIndex < normalizedCSVText.endIndex, normalizedCSVText[nextIndex] == "\"" {
                         field.append("\"")
-                        index = csvText.index(after: nextIndex)
+                        index = normalizedCSVText.index(after: nextIndex)
                     } else {
                         inQuotes = false
                         index = nextIndex
@@ -79,8 +83,8 @@ enum CSVParser {
                 index = nextIndex
             case "\r":
                 appendRow()
-                if nextIndex < csvText.endIndex, csvText[nextIndex] == "\n" {
-                    index = csvText.index(after: nextIndex)
+                if nextIndex < normalizedCSVText.endIndex, normalizedCSVText[nextIndex] == "\n" {
+                    index = normalizedCSVText.index(after: nextIndex)
                 } else {
                     index = nextIndex
                 }
@@ -94,7 +98,7 @@ enum CSVParser {
             throw ParseError(message: "CSV contains an unterminated quoted field.")
         }
 
-        if !field.isEmpty || !row.isEmpty || fieldStartedWithQuote || csvText.hasSuffix(",") {
+        if !field.isEmpty || !row.isEmpty || fieldStartedWithQuote || normalizedCSVText.hasSuffix(",") {
             appendField()
             rows.append(row)
         }

@@ -395,7 +395,7 @@ final class GradeDraftViewModel: ObservableObject {
 
     func applyTemplate(_ template: RubricTemplate) {
         updateAssignment { assignment in
-            assignment = GradeDraftTemplateApplication.applyingRubricTemplate(template, to: assignment, resetDrafts: false)
+            assignment = GradeDraftTemplateApplication.applyingRubricTemplate(template, to: assignment, resetDrafts: true)
         }
         persistOrSurfaceError()
         statusMessage = "Rubric template applied locally. Review before drafting feedback."
@@ -446,7 +446,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.appendAuditEvent(.inputChanged, detail: "AI constraint template selection changed.")
         }
         persistOrSurfaceError()
-        statusMessage = "AI constraint templates updated. Regenerate any stale draft before final review."
+        statusMessage = "AI constraint templates updated. Regenerate any outdated draft before final review."
     }
 
     func applyRecommendedAIConstraintTemplates() {
