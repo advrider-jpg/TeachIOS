@@ -292,6 +292,11 @@ enum MarkdownReportBuilder {
         output.append("- Draft status: \(draftStatusLabel(draft.status))\n")
         output.append("- Score: \(GradeTotals.formatted(draft.totalScore)) / \(GradeTotals.formatted(draft.maxScore))\n")
         output.append("- Local review detail: \(draft.packetFingerprint)\n")
+        output.append("\n### Draft student feedback\n")
+        output.append(draft.studentFeedback.isEmpty ? "No draft student feedback provided.\n" : "\(draft.studentFeedback)\n")
+        if !draft.teacherNotes.isEmpty {
+            output.append("\n### Draft teacher notes\n\(draft.teacherNotes)\n")
+        }
         if let audit = draft.localModelAudit {
             appendLocalModelAudit(audit, to: &output)
         }
