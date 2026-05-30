@@ -856,8 +856,14 @@ final class GradeDraftViewModel: ObservableObject {
             return
         }
 
+        // Use the displayed class name from the UI (className param) when the CSV has no
+        // explicit class column, rather than falling back to the currently-selected assignment.
+        let resolvedClassName = preview.className.nilIfBlank
+            ?? className?.nilIfBlank
+            ?? assignment.className.nilIfBlank
+            ?? "Untitled class"
         var classGroup = ClassGroupRecord(
-            name: preview.className.isEmpty ? (assignment.className.isEmpty ? "Untitled class" : assignment.className) : preview.className,
+            name: resolvedClassName,
             schoolYear: "",
             term: "",
             subject: assignment.subject,
