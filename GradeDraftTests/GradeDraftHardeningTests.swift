@@ -483,7 +483,7 @@ final class SpreadsheetSafetyHardeningTests: XCTestCase {
     }
 
     func testEscapesTabThenFormula() {
-        XCTAssertEqual(SpreadsheetSafety.sanitizedCell("\t=SUM(A1)"), "\t=SUM(A1)")
+        XCTAssertEqual(SpreadsheetSafety.sanitizedCell("\t=SUM(A1)"), "'\t=SUM(A1)")
     }
 
     func testNegativeDecimalPreserved() {
@@ -523,11 +523,13 @@ final class CSVExportServiceHardeningTests: XCTestCase {
         XCTAssertEqual(rows.count, 3, "Header + 2 data rows")
     }
 
-    func testCSVOutputHasCorrectHeaderColumns() {
+    func testCSVOutputHasCorrectHeaderColumns() throws {
         let csv = CSVExportService.exportedCSV(from: [])
-        XCTAssertTrue(csv.hasPrefix("assignment_id"))
-        XCTAssertTrue(csv.contains("final_status"))
-        XCTAssertTrue(csv.contains("ocr_status"))
+        let rows = try CSVParser.parseRows(csv)
+        XCTAssertEqual(rows.first?.first, "assignment_id")
+        XCTAssertTrue(rows.first?.contains("final_status") == true)
+        XCTAssertTrue(rows.first?.contains("ocr_status") == true)
+        XCTAssertTrue(csv.hasPrefix("\"assignment_id\""))
     }
 
     func testCSVNoPrivateNotesExposed() {
@@ -2191,7 +2193,7 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
         let zipURL = tempRoot.appendingPathComponent("backup.zip")
         let written = try BundleExportService.writeFullBackup(assignments: [assignment], sourceFiles: [sourceFile], to: zipURL, classGroups: [classGroup], students: [student], rosterEntries: [rosterEntry])
         let archive = try openArchive(written)
-        let expectedEntries = ["manifest.json", "schema_version.json", "database_export.json", "assignments.json", "class_groups.json", "students.json", "assignment_roster_entries.json", "source_inputs.json", "evidence_refs.json", "audit_events.json", "export_records.json", "curriculum_mappings.json", "ocr_documents.json"]
+        let expectedEntries = ["manifest.json", "schema_version.json", "database_export.json", "assignments.json", "class_groups.json", "students.json", "assignment_roster_entries.json", "source_inputs.json", "evidence_refs.json", "audit_events.json", "export_records.json", "curriculum_mappings.json", "ocr_documents.json", "archive_inventory.json"]
         for path in expectedEntries { XCTAssertNotNil(archive[path], "Missing archive entry: \(path)") }
         XCTAssertTrue(archive.contains { $0.path == "sources/Sources/assignment-1/page-1.png" })
         XCTAssertFalse(archive.contains { $0.path.contains("..") })

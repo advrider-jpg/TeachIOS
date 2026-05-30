@@ -58,7 +58,8 @@ struct BundleExportService {
         let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let root = documents.appendingPathComponent("GradeDraftExports", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return root.appendingPathComponent("GradeDraft-Archive-\(assignmentID.uuidString).zip", isDirectory: false)
+        let filename = ExportFilenameBuilder.filename(kind: .zipArchive, assignmentID: assignmentID, extension: "zip")
+        return root.appendingPathComponent(filename, isDirectory: false)
     }
 
     static func writeBundle(assignment: AssignmentRecord, sourceFiles: [URL], to destination: URL) throws -> URL {
@@ -67,39 +68,43 @@ struct BundleExportService {
 
     static func writeTeacherAuditArchive(assignment: AssignmentRecord, sourceFiles: [URL], to destination: URL) throws -> URL {
         try prepareDestination(destination)
+        let existingSourceFiles = sourceFiles.filter { FileManager.default.fileExists(atPath: $0.path) }
         do {
             guard let archive = Archive(url: destination, accessMode: .create) else {
                 throw BundleExportError.archiveFailed("Could not create ZIP archive at \(destination.lastPathComponent).")
             }
+            var inventory: [ExportArchiveInventoryItem] = []
             let manifest = BackupArchiveManifest(
                 archiveKind: GradeDraftArchiveKind.teacherAuditArchive.rawValue,
                 includesPrivateTeacherNotes: true,
-                includesOriginalSources: !sourceFiles.isEmpty,
-                sourceFileCount: sourceFiles.count,
+                includesOriginalSources: !existingSourceFiles.isEmpty,
+                sourceFileCount: existingSourceFiles.count,
                 recordCounts: recordCounts(for: [assignment], classGroups: [], students: []),
-                contentHashes: contentHashes(for: [assignment], extraFiles: sourceFiles)
+                contentHashes: contentHashes(for: [assignment], extraFiles: existingSourceFiles)
             )
-            try addCodable(manifest, named: "manifest.json", to: archive)
-            try addData(MarkdownReportBuilder.studentMarkdown(for: assignment).data(using: .utf8) ?? Data(), named: "student_report.md", to: archive)
-            try addData(MarkdownReportBuilder.teacherAuditMarkdown(for: assignment).data(using: .utf8) ?? Data(), named: "teacher_audit_report.md", to: archive)
+            try addCodable(manifest, named: "manifest.json", category: "manifest", sensitivity: .internalMetadata, description: "Archive manifest and restore compatibility metadata.", inventory: &inventory, to: archive)
+            try addData(MarkdownReportBuilder.studentMarkdown(for: assignment).data(using: .utf8) ?? Data(), named: "student_report.md", category: "studentReport", sensitivity: .studentReport, description: "Final-only student-facing report content.", inventory: &inventory, to: archive)
+            try addData(MarkdownReportBuilder.teacherAuditMarkdown(for: assignment).data(using: .utf8) ?? Data(), named: "teacher_audit_report.md", category: "teacherAuditReport", sensitivity: .teacherAudit, description: "Teacher-only audit report with private notes and provenance.", inventory: &inventory, to: archive)
             let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftArchivePDFs", isDirectory: true)
             try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-            let studentPDF = try PDFExportService.studentReportPDF(for: assignment, destination: tempRoot.appendingPathComponent("student_report-\(assignment.id.uuidString).pdf"))
-            let auditPDF = try PDFExportService.teacherAuditPDF(for: assignment, destination: tempRoot.appendingPathComponent("teacher_audit_report-\(assignment.id.uuidString).pdf"))
-            try archive.addEntry(with: "student_report.pdf", fileURL: studentPDF)
-            try archive.addEntry(with: "teacher_audit_report.pdf", fileURL: auditPDF)
-            try addData(CSVExportService.exportedCSV(from: [assignment]).data(using: .utf8) ?? Data(), named: "grade_summary.csv", to: archive)
-            try addCodable(assignment, named: "assignment.json", to: archive)
-            try addCodable(assignment.parsedRubric.criteria, named: "rubric.json", to: archive)
-            try addCodable(assignment.sourceInputs, named: "source_metadata.json", to: archive)
-            try addCodable(assignment.ocrDocument, named: "ocr_document.json", to: archive)
-            try addCodable(assignment.evidenceReferences, named: "evidence_refs.json", to: archive)
-            try addCodable(assignment.latestDraft, named: "grade_proposal.json", to: archive)
-            try addCodable(assignment.finalReview, named: "final_review.json", to: archive)
-            try addCodable(assignment.auditEvents, named: "audit_events.json", to: archive)
-            try addCodable(assignment.exportRecords, named: "export_records.json", to: archive)
-            try addCodable(assignment.curriculumMappings, named: "curriculum_mappings.json", to: archive)
-            try addSources(sourceFiles, to: archive)
+            let studentPDF = try PDFExportService.studentReportPDF(for: assignment, destination: tempRoot.appendingPathComponent(ExportFilenameBuilder.filename(kind: .studentPDF, assignmentID: assignment.id, extension: "pdf")))
+            let auditPDF = try PDFExportService.teacherAuditPDF(for: assignment, destination: tempRoot.appendingPathComponent(ExportFilenameBuilder.filename(kind: .teacherAuditPDF, assignmentID: assignment.id, extension: "pdf")))
+            try addFile(studentPDF, named: "student_report.pdf", category: "studentReport", sensitivity: .studentReport, description: "PDF generated from final-only student-facing report content.", inventory: &inventory, to: archive)
+            try addFile(auditPDF, named: "teacher_audit_report.pdf", category: "teacherAuditReport", sensitivity: .teacherAudit, description: "PDF generated from teacher-only audit report content.", inventory: &inventory, to: archive)
+            try addData(CSVExportService.exportedCSV(from: [assignment]).data(using: .utf8) ?? Data(), named: "grade_summary.csv", category: "gradebook", sensitivity: .gradebook, description: "Quoted and formula-neutralized grade summary CSV.", inventory: &inventory, to: archive)
+            try addCodable(assignment, named: "assignment.json", category: "assignmentRecord", sensitivity: .teacherAudit, description: "Complete assignment record.", inventory: &inventory, to: archive)
+            try addCodable(assignment.parsedRubric.criteria, named: "rubric.json", category: "rubric", sensitivity: .studentDataInternal, description: "Parsed rubric criteria.", inventory: &inventory, to: archive)
+            try addCodable(assignment.sourceInputs, named: "source_metadata.json", category: "sourceMetadata", sensitivity: .sourceMetadata, description: "Original source metadata and local source references.", inventory: &inventory, to: archive)
+            try addCodable(assignment.ocrDocument, named: "ocr_document.json", category: "ocrDocument", sensitivity: .teacherAudit, description: "OCR document and review state.", inventory: &inventory, to: archive)
+            try addCodable(assignment.evidenceReferences, named: "evidence_refs.json", category: "evidence", sensitivity: .teacherAudit, description: "Evidence references and bounding boxes.", inventory: &inventory, to: archive)
+            try addCodable(assignment.latestDraft, named: "grade_proposal.json", category: "gradeProposal", sensitivity: .teacherAudit, description: "Draft grading proposal for teacher review.", inventory: &inventory, to: archive)
+            try addCodable(assignment.finalReview, named: "final_review.json", category: "finalReview", sensitivity: .teacherAudit, description: "Teacher final review record.", inventory: &inventory, to: archive)
+            try addCodable(assignment.auditEvents, named: "audit_events.json", category: "auditEvents", sensitivity: .teacherAudit, description: "Audit events recorded for the assignment.", inventory: &inventory, to: archive)
+            try addCodable(assignment.exportRecords, named: "export_records.json", category: "exportRecords", sensitivity: .internalMetadata, description: "Prior export records and fingerprints.", inventory: &inventory, to: archive)
+            try addCodable(assignment.curriculumMappings, named: "curriculum_mappings.json", category: "curriculumMappings", sensitivity: .internalMetadata, description: "Local curriculum mapping records.", inventory: &inventory, to: archive)
+            try addSources(existingSourceFiles, to: archive, inventory: &inventory)
+            try writeInventory(&inventory, to: archive)
+            ExportFileHardening.applyBestEffortProtection(to: destination)
             return destination
         } catch {
             throw BundleExportError.archiveFailed(error.localizedDescription)
@@ -108,30 +113,34 @@ struct BundleExportService {
 
     static func writeAssignmentArchive(assignments: [AssignmentRecord], sourceFiles: [URL], to destination: URL) throws -> URL {
         try prepareDestination(destination)
+        let existingSourceFiles = sourceFiles.filter { FileManager.default.fileExists(atPath: $0.path) }
         do {
             guard let archive = Archive(url: destination, accessMode: .create) else {
                 throw BundleExportError.archiveFailed("Could not create ZIP archive at \(destination.lastPathComponent).")
             }
+            var inventory: [ExportArchiveInventoryItem] = []
             let manifest = BackupArchiveManifest(
                 archiveKind: GradeDraftArchiveKind.assignmentGradebookArchive.rawValue,
                 includesPrivateTeacherNotes: true,
-                includesOriginalSources: !sourceFiles.isEmpty,
-                sourceFileCount: sourceFiles.count,
+                includesOriginalSources: !existingSourceFiles.isEmpty,
+                sourceFileCount: existingSourceFiles.count,
                 recordCounts: recordCounts(for: assignments, classGroups: [], students: []),
-                contentHashes: contentHashes(for: assignments, extraFiles: sourceFiles)
+                contentHashes: contentHashes(for: assignments, extraFiles: existingSourceFiles)
             )
-            try addCodable(manifest, named: "manifest.json", to: archive)
-            try addData(CSVExportService.exportedCSV(from: assignments).data(using: .utf8) ?? Data(), named: "gradebook.csv", to: archive)
-            try addCodable(assignments, named: "assignments.json", to: archive)
+            try addCodable(manifest, named: "manifest.json", category: "manifest", sensitivity: .internalMetadata, description: "Archive manifest and restore compatibility metadata.", inventory: &inventory, to: archive)
+            try addData(CSVExportService.exportedCSV(from: assignments).data(using: .utf8) ?? Data(), named: "gradebook.csv", category: "gradebook", sensitivity: .gradebook, description: "Quoted and formula-neutralized gradebook CSV.", inventory: &inventory, to: archive)
+            try addCodable(assignments, named: "assignments.json", category: "assignmentRecord", sensitivity: .teacherAudit, description: "Complete assignment records.", inventory: &inventory, to: archive)
             for assignment in assignments {
                 let root = "student_work/\(assignment.id.uuidString)"
-                try addData(MarkdownReportBuilder.studentMarkdown(for: assignment).data(using: .utf8) ?? Data(), named: "\(root)/student_report.md", to: archive)
-                try addData(MarkdownReportBuilder.teacherAuditMarkdown(for: assignment).data(using: .utf8) ?? Data(), named: "\(root)/teacher_audit_report.md", to: archive)
-                try addCodable(assignment.finalReview, named: "\(root)/final_review.json", to: archive)
-                try addCodable(assignment.evidenceReferences, named: "\(root)/evidence_refs.json", to: archive)
-                try addCodable(assignment.ocrDocument, named: "\(root)/ocr_document.json", to: archive)
+                try addData(MarkdownReportBuilder.studentMarkdown(for: assignment).data(using: .utf8) ?? Data(), named: "\(root)/student_report.md", category: "studentReport", sensitivity: .studentReport, description: "Final-only student-facing report content.", inventory: &inventory, to: archive)
+                try addData(MarkdownReportBuilder.teacherAuditMarkdown(for: assignment).data(using: .utf8) ?? Data(), named: "\(root)/teacher_audit_report.md", category: "teacherAuditReport", sensitivity: .teacherAudit, description: "Teacher-only audit report with private notes and provenance.", inventory: &inventory, to: archive)
+                try addCodable(assignment.finalReview, named: "\(root)/final_review.json", category: "finalReview", sensitivity: .teacherAudit, description: "Teacher final review record.", inventory: &inventory, to: archive)
+                try addCodable(assignment.evidenceReferences, named: "\(root)/evidence_refs.json", category: "evidence", sensitivity: .teacherAudit, description: "Evidence references and bounding boxes.", inventory: &inventory, to: archive)
+                try addCodable(assignment.ocrDocument, named: "\(root)/ocr_document.json", category: "ocrDocument", sensitivity: .teacherAudit, description: "OCR document and review state.", inventory: &inventory, to: archive)
             }
-            try addSources(sourceFiles, to: archive)
+            try addSources(existingSourceFiles, to: archive, inventory: &inventory)
+            try writeInventory(&inventory, to: archive)
+            ExportFileHardening.applyBestEffortProtection(to: destination)
             return destination
         } catch {
             throw BundleExportError.archiveFailed(error.localizedDescription)
@@ -147,33 +156,37 @@ struct BundleExportService {
         rosterEntries: [AssignmentRosterEntry] = []
     ) throws -> URL {
         try prepareDestination(destination)
+        let existingSourceFiles = sourceFiles.filter { FileManager.default.fileExists(atPath: $0.path) }
         do {
             guard let archive = Archive(url: destination, accessMode: .create) else {
                 throw BundleExportError.archiveFailed("Could not create ZIP archive at \(destination.lastPathComponent).")
             }
+            var inventory: [ExportArchiveInventoryItem] = []
             let manifest = BackupArchiveManifest(
                 archiveKind: GradeDraftArchiveKind.fullLocalBackup.rawValue,
                 includesPrivateTeacherNotes: true,
-                includesOriginalSources: !sourceFiles.isEmpty,
-                sourceFileCount: sourceFiles.count,
+                includesOriginalSources: !existingSourceFiles.isEmpty,
+                sourceFileCount: existingSourceFiles.count,
                 recordCounts: recordCounts(for: assignments, classGroups: classGroups, students: students, rosterEntries: rosterEntries),
-                contentHashes: contentHashes(for: assignments, extraFiles: sourceFiles)
+                contentHashes: contentHashes(for: assignments, extraFiles: existingSourceFiles)
             )
             let databaseExport = BackupDatabaseExport(assignments: assignments, classGroups: classGroups, students: students, rosterEntries: rosterEntries)
-            try addCodable(manifest, named: "manifest.json", to: archive)
-            try addCodable(["schemaVersion": manifest.schemaVersion], named: "schema_version.json", to: archive)
-            try addCodable(databaseExport, named: "database_export.json", to: archive)
-            try addCodable(assignments, named: "assignments.json", to: archive)
-            try addCodable(classGroups, named: "class_groups.json", to: archive)
-            try addCodable(students, named: "students.json", to: archive)
-            try addCodable(rosterEntries, named: "assignment_roster_entries.json", to: archive)
-            try addCodable(assignments.flatMap(\.sourceInputs), named: "source_inputs.json", to: archive)
-            try addCodable(assignments.flatMap(\.evidenceReferences), named: "evidence_refs.json", to: archive)
-            try addCodable(assignments.flatMap(\.auditEvents), named: "audit_events.json", to: archive)
-            try addCodable(assignments.flatMap(\.exportRecords), named: "export_records.json", to: archive)
-            try addCodable(assignments.flatMap(\.curriculumMappings), named: "curriculum_mappings.json", to: archive)
-            try addCodable(assignments.compactMap(\.ocrDocument), named: "ocr_documents.json", to: archive)
-            try addSources(sourceFiles, to: archive)
+            try addCodable(manifest, named: "manifest.json", category: "manifest", sensitivity: .internalMetadata, description: "Backup manifest and restore compatibility metadata.", inventory: &inventory, to: archive)
+            try addCodable(["schemaVersion": manifest.schemaVersion], named: "schema_version.json", category: "schema", sensitivity: .internalMetadata, description: "Backup schema marker.", inventory: &inventory, to: archive)
+            try addCodable(databaseExport, named: "database_export.json", category: "databaseExport", sensitivity: .teacherAudit, description: "Complete local database export.", inventory: &inventory, to: archive)
+            try addCodable(assignments, named: "assignments.json", category: "assignmentRecord", sensitivity: .teacherAudit, description: "Complete assignment records.", inventory: &inventory, to: archive)
+            try addCodable(classGroups, named: "class_groups.json", category: "classGroups", sensitivity: .studentDataInternal, description: "Class group records.", inventory: &inventory, to: archive)
+            try addCodable(students, named: "students.json", category: "students", sensitivity: .studentDataInternal, description: "Student records.", inventory: &inventory, to: archive)
+            try addCodable(rosterEntries, named: "assignment_roster_entries.json", category: "rosterEntries", sensitivity: .studentDataInternal, description: "Assignment roster entries.", inventory: &inventory, to: archive)
+            try addCodable(assignments.flatMap(\.sourceInputs), named: "source_inputs.json", category: "sourceMetadata", sensitivity: .sourceMetadata, description: "Source input metadata.", inventory: &inventory, to: archive)
+            try addCodable(assignments.flatMap(\.evidenceReferences), named: "evidence_refs.json", category: "evidence", sensitivity: .teacherAudit, description: "Evidence references and bounding boxes.", inventory: &inventory, to: archive)
+            try addCodable(assignments.flatMap(\.auditEvents), named: "audit_events.json", category: "auditEvents", sensitivity: .teacherAudit, description: "Assignment audit events.", inventory: &inventory, to: archive)
+            try addCodable(assignments.flatMap(\.exportRecords), named: "export_records.json", category: "exportRecords", sensitivity: .internalMetadata, description: "Export records and fingerprints.", inventory: &inventory, to: archive)
+            try addCodable(assignments.flatMap(\.curriculumMappings), named: "curriculum_mappings.json", category: "curriculumMappings", sensitivity: .internalMetadata, description: "Local curriculum mappings.", inventory: &inventory, to: archive)
+            try addCodable(assignments.compactMap(\.ocrDocument), named: "ocr_documents.json", category: "ocrDocument", sensitivity: .teacherAudit, description: "OCR documents and review state.", inventory: &inventory, to: archive)
+            try addSources(existingSourceFiles, to: archive, inventory: &inventory)
+            try writeInventory(&inventory, to: archive)
+            ExportFileHardening.applyBestEffortProtection(to: destination)
             return destination
         } catch {
             throw BundleExportError.archiveFailed(error.localizedDescription)
@@ -277,6 +290,11 @@ struct BundleExportService {
         return restored
     }
 
+    static func safeRestoreDestination(for archiveEntryPath: String, applicationSupportDirectory: URL) throws -> URL? {
+        guard let relative = try safeRelativeSourcePath(fromArchiveEntryPath: archiveEntryPath) else { return nil }
+        return try safeDestination(forRelativeSourcePath: relative, applicationSupportDirectory: applicationSupportDirectory)
+    }
+
     private static func prepareDestination(_ destination: URL) throws {
         let directory = destination.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -302,23 +320,17 @@ struct BundleExportService {
         var hashes = Dictionary(uniqueKeysWithValues: assignments.map { ($0.id.uuidString, $0.gradingPacketFingerprint) })
         for file in extraFiles where FileManager.default.fileExists(atPath: file.path) {
             if let data = try? Data(contentsOf: file) {
-                hashes["source:\(file.lastPathComponent)"] = StableFingerprint.fingerprint(data)
+                hashes["source:\(StableFingerprint.fingerprint([file.path]))"] = StableFingerprint.fingerprint(data)
             }
         }
         return hashes
     }
 
-    private static func addSources(_ sourceFiles: [URL], to archive: Archive) throws {
+    private static func addSources(_ sourceFiles: [URL], to archive: Archive, inventory: inout [ExportArchiveInventoryItem]) throws {
+        var usedNames: Set<String> = []
         for sourceURL in sourceFiles where FileManager.default.fileExists(atPath: sourceURL.path) {
-            let safeLastPath = sourceURL.lastPathComponent.replacingOccurrences(of: "..", with: "_")
-            let entryName: String
-            if let relativeRange = sourceURL.path.range(of: "/Sources/") {
-                let relative = String(sourceURL.path[relativeRange.upperBound...])
-                entryName = safeArchivePath("sources/Sources/\(relative)")
-            } else {
-                entryName = safeArchivePath("sources/\(safeLastPath)")
-            }
-            try archive.addEntry(with: entryName, fileURL: sourceURL)
+            let entryName = sourceArchivePath(for: sourceURL, usedNames: &usedNames)
+            try addFile(sourceURL, named: entryName, category: "sourceFile", sensitivity: .sourceFile, description: "Original source file included by the teacher.", inventory: &inventory, to: archive)
         }
     }
 
@@ -330,10 +342,14 @@ struct BundleExportService {
         copyAssignmentIDs: [String: String] = [:]
     ) throws {
         let fileManager = FileManager.default
-        for entry in archive where entry.path.hasPrefix("sources/") {
-            guard !entry.path.contains("..") else { throw BundleExportError.restoreFailed("Archive source entry contains an unsafe path: \(entry.path).") }
-            var relative = String(entry.path.dropFirst("sources/".count))
-            guard !relative.isEmpty else { continue }
+        for entry in archive {
+            if entry.path.hasPrefix("/") || entry.path.contains("\\") {
+                if entry.path.contains("sources") {
+                    throw BundleExportError.restoreFailed("Archive source entry contains an unsafe path: \(entry.path).")
+                }
+                continue
+            }
+            guard var relative = try safeRelativeSourcePath(fromArchiveEntryPath: entry.path) else { continue }
             if conflictResolution == .restoreAsCopy,
                let remapped = remappedSourcePath(relative, using: copyAssignmentIDs) {
                 relative = remapped
@@ -341,10 +357,11 @@ struct BundleExportService {
                       conflictingAssignmentIDs.contains(where: { sourcePath(relative, belongsTo: $0) }) {
                 continue
             }
-            let destination = applicationSupportDirectory.appendingPathComponent(relative)
+            let destination = try safeDestination(forRelativeSourcePath: relative, applicationSupportDirectory: applicationSupportDirectory)
             try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
             if fileManager.fileExists(atPath: destination.path) { try fileManager.removeItem(at: destination) }
             _ = try archive.extract(entry, to: destination)
+            ExportFileHardening.applyBestEffortProtection(to: destination)
         }
     }
 
@@ -369,11 +386,19 @@ struct BundleExportService {
         path.hasPrefix("Sources/\(assignmentID)/") || path.contains("/Sources/\(assignmentID)/")
     }
 
-    private static func addCodable<T: Encodable>(_ value: T, named name: String, to archive: Archive) throws {
+    private static func addCodable<T: Encodable>(
+        _ value: T,
+        named name: String,
+        category: String,
+        sensitivity: ExportInventorySensitivity,
+        description: String,
+        inventory: inout [ExportArchiveInventoryItem],
+        to archive: Archive
+    ) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        try addData(try encoder.encode(value), named: name, to: archive)
+        try addData(try encoder.encode(value), named: name, category: category, sensitivity: sensitivity, description: description, inventory: &inventory, to: archive)
     }
 
     private static func readCodable<T: Decodable>(_ type: T.Type, entry: Entry, archive: Archive) throws -> T {
@@ -384,7 +409,50 @@ struct BundleExportService {
         return try decoder.decode(type, from: data)
     }
 
-    private static func addData(_ data: Data, named name: String, to archive: Archive) throws {
+    private static func addData(
+        _ data: Data,
+        named name: String,
+        category: String,
+        sensitivity: ExportInventorySensitivity,
+        description: String,
+        inventory: inout [ExportArchiveInventoryItem],
+        to archive: Archive
+    ) throws {
+        let safeName = safeArchivePath(name)
+        try addDataWithoutInventory(data, named: safeName, to: archive)
+        inventory.append(sensitivity.inventoryItem(path: safeName, category: category, description: description))
+    }
+
+    private static func addFile(
+        _ fileURL: URL,
+        named name: String,
+        category: String,
+        sensitivity: ExportInventorySensitivity,
+        description: String,
+        inventory: inout [ExportArchiveInventoryItem],
+        to archive: Archive
+    ) throws {
+        let safeName = safeArchivePath(name)
+        try archive.addEntry(with: safeName, fileURL: fileURL)
+        inventory.append(sensitivity.inventoryItem(path: safeName, category: category, description: description))
+    }
+
+    private static func writeInventory(_ inventory: inout [ExportArchiveInventoryItem], to archive: Archive) throws {
+        let inventoryPath = "archive_inventory.json"
+        inventory.append(
+            ExportInventorySensitivity.inventory.inventoryItem(
+                path: inventoryPath,
+                category: "inventory",
+                description: "Machine-readable inventory for this export archive."
+            )
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        try addDataWithoutInventory(try encoder.encode(inventory), named: inventoryPath, to: archive)
+    }
+
+    private static func addDataWithoutInventory(_ data: Data, named name: String, to archive: Archive) throws {
         let safeName = safeArchivePath(name)
         let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftArchiveData-\(UUID().uuidString).data")
         try data.write(to: scratch, options: [.atomic])
@@ -393,9 +461,118 @@ struct BundleExportService {
     }
 
     private static func safeArchivePath(_ name: String) -> String {
-        name.split(separator: "/").map { part in
-            part == ".." ? "_" : part.replacingOccurrences(of: "\\", with: "_")
-        }.joined(separator: "/")
+        let normalized = name.replacingOccurrences(of: "\\", with: "_")
+        let components = normalized
+            .split(separator: "/", omittingEmptySubsequences: false)
+            .map { sanitizedPathComponent(String($0)) }
+            .filter { !$0.isEmpty }
+        return components.isEmpty ? "file" : components.joined(separator: "/")
+    }
+
+    private static func sanitizedPathComponent(_ component: String) -> String {
+        var sanitized = component.replacingOccurrences(of: "[^A-Za-z0-9._-]+", with: "_", options: .regularExpression)
+        while sanitized.contains("..") {
+            sanitized = sanitized.replacingOccurrences(of: "..", with: "_")
+        }
+        if sanitized.isEmpty || sanitized == "." || sanitized == ".." { return "_" }
+        return sanitized
+    }
+
+    private static func sourceArchivePath(for sourceURL: URL, usedNames: inout Set<String>) -> String {
+        let standardizedPath = sourceURL.standardizedFileURL.path
+        let base: String
+        if let relativeRange = standardizedPath.range(of: "/Sources/") {
+            let relative = String(standardizedPath[relativeRange.upperBound...])
+            let components = relative.split(separator: "/", omittingEmptySubsequences: false).map { sanitizedPathComponent(String($0)) }.filter { !$0.isEmpty }
+            base = "sources/Sources/\(components.isEmpty ? sanitizedPathComponent(sourceURL.lastPathComponent) : components.joined(separator: "/"))"
+        } else {
+            let digest = StableFingerprint.fingerprint([standardizedPath]).replacingOccurrences(of: "fnv1a64-", with: "")
+            base = "sources/imported/\(String(digest.prefix(12)))-\(sanitizedPathComponent(sourceURL.lastPathComponent))"
+        }
+        return uniqueArchivePath(base, usedNames: &usedNames)
+    }
+
+    private static func uniqueArchivePath(_ proposed: String, usedNames: inout Set<String>) -> String {
+        let safe = safeArchivePath(proposed)
+        guard usedNames.contains(safe) else {
+            usedNames.insert(safe)
+            return safe
+        }
+
+        let slashIndex = safe.lastIndex(of: "/")
+        let directory = slashIndex.map { String(safe[..<$0]) } ?? ""
+        let fileName = slashIndex.map { String(safe[safe.index(after: $0)...]) } ?? safe
+        let nsFileName = fileName as NSString
+        let ext = nsFileName.pathExtension
+        let stem = ext.isEmpty ? fileName : nsFileName.deletingPathExtension
+        var counter = 2
+        while true {
+            let candidateStem = "\(stem)-\(counter)"
+            let candidateName = ext.isEmpty ? candidateStem : "\(candidateStem).\(ext)"
+            let candidate = directory.isEmpty ? candidateName : "\(directory)/\(candidateName)"
+            if !usedNames.contains(candidate) {
+                usedNames.insert(candidate)
+                return candidate
+            }
+            counter += 1
+        }
+    }
+
+    private static func safeRelativeSourcePath(fromArchiveEntryPath archiveEntryPath: String) throws -> String? {
+        guard archiveEntryPath.hasPrefix("sources/") else { return nil }
+        let relative = String(archiveEntryPath.dropFirst("sources/".count))
+        guard !relative.isEmpty else { throw BundleExportError.restoreFailed("Archive source entry contains an empty source path: \(archiveEntryPath).") }
+        guard !relative.hasPrefix("/") else { throw BundleExportError.restoreFailed("Archive source entry contains an absolute path: \(archiveEntryPath).") }
+        guard !relative.contains("\\") else { throw BundleExportError.restoreFailed("Archive source entry contains an unsafe path separator: \(archiveEntryPath).") }
+        let components = relative.split(separator: "/", omittingEmptySubsequences: false)
+        guard components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
+            throw BundleExportError.restoreFailed("Archive source entry contains an unsafe path: \(archiveEntryPath).")
+        }
+        return relative
+    }
+
+    private static func safeDestination(forRelativeSourcePath relative: String, applicationSupportDirectory: URL) throws -> URL {
+        guard !relative.isEmpty, !relative.hasPrefix("/"), !relative.contains("\\") else {
+            throw BundleExportError.restoreFailed("Archive source entry contains an unsafe path: \(relative).")
+        }
+        let components = relative.split(separator: "/", omittingEmptySubsequences: false)
+        guard components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
+            throw BundleExportError.restoreFailed("Archive source entry contains an unsafe path: \(relative).")
+        }
+        let root = applicationSupportDirectory.standardizedFileURL
+        let destination = root.appendingPathComponent(relative).standardizedFileURL
+        guard destination.path == root.path || destination.path.hasPrefix(root.path + "/") else {
+            throw BundleExportError.restoreFailed("Archive source entry escapes local storage: \(relative).")
+        }
+        return destination
+    }
+}
+
+private struct ExportInventorySensitivity {
+    var includesStudentData: Bool
+    var includesPrivateTeacherNotes: Bool
+    var includesOriginalSources: Bool
+    var includesInternalMetadata: Bool
+
+    static let studentReport = ExportInventorySensitivity(includesStudentData: true, includesPrivateTeacherNotes: false, includesOriginalSources: false, includesInternalMetadata: false)
+    static let gradebook = ExportInventorySensitivity(includesStudentData: true, includesPrivateTeacherNotes: false, includesOriginalSources: false, includesInternalMetadata: true)
+    static let studentDataInternal = ExportInventorySensitivity(includesStudentData: true, includesPrivateTeacherNotes: false, includesOriginalSources: false, includesInternalMetadata: true)
+    static let sourceMetadata = ExportInventorySensitivity(includesStudentData: true, includesPrivateTeacherNotes: false, includesOriginalSources: false, includesInternalMetadata: true)
+    static let sourceFile = ExportInventorySensitivity(includesStudentData: true, includesPrivateTeacherNotes: false, includesOriginalSources: true, includesInternalMetadata: false)
+    static let teacherAudit = ExportInventorySensitivity(includesStudentData: true, includesPrivateTeacherNotes: true, includesOriginalSources: false, includesInternalMetadata: true)
+    static let internalMetadata = ExportInventorySensitivity(includesStudentData: true, includesPrivateTeacherNotes: false, includesOriginalSources: false, includesInternalMetadata: true)
+    static let inventory = ExportInventorySensitivity(includesStudentData: false, includesPrivateTeacherNotes: false, includesOriginalSources: false, includesInternalMetadata: true)
+
+    func inventoryItem(path: String, category: String, description: String) -> ExportArchiveInventoryItem {
+        ExportArchiveInventoryItem(
+            path: path,
+            category: category,
+            includesStudentData: includesStudentData,
+            includesPrivateTeacherNotes: includesPrivateTeacherNotes,
+            includesOriginalSources: includesOriginalSources,
+            includesInternalMetadata: includesInternalMetadata,
+            description: description
+        )
     }
 }
 // swiftlint:enable type_body_length

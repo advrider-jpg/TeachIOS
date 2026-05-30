@@ -35,13 +35,33 @@ The XCTest files cover the full v3 source-implemented feature set:
 Run in the repository root:
 
 ```bash
-python3 scripts/repo_health.py
 python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/repo_health.py
 # Run the required unresolved-completion-language search from the project prompt.
 # Any matches should be limited to canonical source/research materials that discuss scope boundaries.
 ```
 
 Remaining bad-string matches should be limited to canonical source-of-truth/research/source-material documents that discuss out-of-scope product boundaries, not unimplemented status for the 11 v3 features.
+
+
+## Export hardening coverage
+
+The dedicated export-hardening test layer covers:
+
+- strict final-only student report rendering for Markdown/PDF content sources;
+- privacy separation between student-facing reports and teacher-only audit/archive outputs;
+- CSV writer/parser behavior for quoted cells, escaped quotes, embedded commas, embedded newlines, CRLF input, empty cells, and round trips;
+- spreadsheet formula-injection neutralization for text fields with dangerous first non-whitespace characters while preserving true numeric values;
+- shared CSV parsing for roster import, including quoted commas, escaped quotes, malformed quoted fields, duplicate identifiers, and headerless rosters;
+- central `ExportPolicy` behavior for every `ExportKind`, including sensitivity flags, inclusion summaries, student-facing/teacher-only classification, final-review gates, and local-authentication policy flags;
+- safe export filenames that omit assignment titles, student names, class names, and prompts;
+- best-effort export-file protection helper behavior in the test environment;
+- `archive_inventory.json` presence and content for teacher archives, assignment gradebook archives, and full backups;
+- archive source-file path normalization, collision resistance, source-file manifest counts, and source-content hash presence;
+- restore path traversal rejection for absolute, backslash, empty, `.`, and `..` source paths, plus safe restore-as-copy, keep-local, and replace-local source remapping;
+- export record fingerprints based on the actual exported content or file data; and
+- static export guardrails in `scripts/export_hardening_scan.py`.
 
 ## Required Xcode validation
 

@@ -370,41 +370,24 @@ enum MarkdownReportBuilder {
     }
 
     private static func writeTemporaryReport(for assignment: AssignmentRecord, kind: ExportKind, content: String) throws -> URL {
-        let safeTitle = assignment.title
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "[^A-Za-z0-9_-]+", with: "-", options: .regularExpression)
-        let suffix: String
         let filenameExtension: String
         switch kind {
-        case .studentMarkdown:
-            suffix = "Student"
+        case .studentMarkdown, .teacherAuditMarkdown:
             filenameExtension = "md"
-        case .teacherAuditMarkdown:
-            suffix = "TeacherReview"
-            filenameExtension = "md"
-        case .studentPDF:
-            suffix = "Student"
-            filenameExtension = "pdf"
-        case .teacherAuditPDF:
-            suffix = "TeacherReview"
+        case .studentPDF, .teacherAuditPDF:
             filenameExtension = "pdf"
         case .csvGradebook:
-            suffix = "CSV"
             filenameExtension = "csv"
-        case .zipArchive:
-            suffix = "Archive"
-            filenameExtension = "zip"
-        case .fullBackupArchive:
-            suffix = "FullBackup"
+        case .zipArchive, .fullBackupArchive:
             filenameExtension = "zip"
         case .backupJSON:
-            suffix = "Backup"
             filenameExtension = "json"
         }
-        let filename = "GradeDraft-\(suffix)-\(safeTitle.isEmpty ? assignment.id.uuidString : safeTitle).\(filenameExtension)"
+        let filename = ExportFilenameBuilder.filename(kind: kind, assignmentID: assignment.id, extension: filenameExtension)
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         do {
             try content.write(to: url, atomically: true, encoding: .utf8)
+            ExportFileHardening.applyBestEffortProtection(to: url)
             return url
         } catch {
             throw GradeDraftError.exportFailed(error.localizedDescription)

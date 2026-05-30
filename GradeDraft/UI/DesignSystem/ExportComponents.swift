@@ -79,6 +79,8 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
         }
     }
 
+    var policy: ExportContentPolicy { exportKind.contentPolicy }
+
     var title: String {
         switch self {
         case .studentReportMarkdown:
@@ -219,6 +221,25 @@ enum ExportConfirmationStep: Equatable {
     case finalConfirm
 }
 
+
+struct ExportPolicySummaryView: View {
+    var policy: ExportContentPolicy
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("What this export includes")
+                .font(.headline)
+            ForEach(policy.inclusionSummaryLines, id: \.self) { line in
+                Label(line, systemImage: policy.isStudentFacing ? "checkmark.circle" : "lock")
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
 struct ExportConfirmationSheet: View {
     var kind: ExportConfirmationKind
     var assignment: AssignmentRecord
@@ -328,6 +349,7 @@ struct ExportConfirmationSheet: View {
             ForEach(warningDefinitions) { warning in
                 warningCard(warning)
             }
+            ExportPolicySummaryView(policy: kind.policy)
             ForEach(kind.sections, id: \.title) { section in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(section.title)

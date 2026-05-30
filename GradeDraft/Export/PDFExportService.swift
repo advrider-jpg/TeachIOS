@@ -98,6 +98,7 @@ struct PDFExportService {
                     cursorY += height
                 }
             }
+            ExportFileHardening.applyBestEffortProtection(to: destination)
             return destination
         } catch {
             throw PDFExportError.renderFailed("Could not create PDF export: \(error.localizedDescription)")
