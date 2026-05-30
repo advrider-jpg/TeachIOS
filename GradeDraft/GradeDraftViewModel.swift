@@ -1682,13 +1682,19 @@ final class GradeDraftViewModel: ObservableObject {
                 errorMessage = "Backup contained no assignments."
                 return
             }
+            let archiveAssignmentIDMap: [UUID: UUID] = restoredDatabaseExport.map { databaseExport in
+                Dictionary(uniqueKeysWithValues: zip(databaseExport.assignments, restored).compactMap { original, restoredRecord in
+                    original.id == restoredRecord.id ? nil : (original.id, restoredRecord.id)
+                })
+            } ?? [:]
             let mergeResult = mergeRestoredAssignments(restored, resolution: backupConflictResolution)
             assignments = mergeResult.assignments.sorted { $0.updatedAt > $1.updatedAt }
             refreshAssignmentRosterEntries()
             if let restoredDatabaseExport {
                 mergeRestoredClassGroups(restoredDatabaseExport.classGroups)
                 mergeRestoredStudents(restoredDatabaseExport.students)
-                mergeRestoredRosterEntries(restoredDatabaseExport.rosterEntries, assignmentIDMap: mergeResult.idMap, conflictResolution: backupConflictResolution)
+                let rosterAssignmentIDMap = archiveAssignmentIDMap.merging(mergeResult.idMap) { _, viewModelRemappedID in viewModelRemappedID }
+                mergeRestoredRosterEntries(restoredDatabaseExport.rosterEntries, assignmentIDMap: rosterAssignmentIDMap, conflictResolution: backupConflictResolution)
             }
             selectedAssignmentID = assignments.first?.id
             try store.saveAssignments(assignments)

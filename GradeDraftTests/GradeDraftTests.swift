@@ -420,6 +420,7 @@ final class GradeDraftTests: XCTestCase {
             reviewedStudentText: "Reviewed text",
             ocrReviewStatus: .reviewed,
             latestDraft: GradeDraftResult(
+                generatedAt: oldDate,
                 studentResponseSummary: "Summary",
                 criteria: [
                     CriterionScore(
