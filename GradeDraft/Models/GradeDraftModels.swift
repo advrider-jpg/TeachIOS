@@ -156,6 +156,14 @@ struct LocalModelDraftAudit: Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - Rubric import mode
+
+enum RubricImportMode: String, Codable, Equatable {
+    case automatic
+    case structuredConfirmed
+    case rawTextOnly
+}
+
 // MARK: - Assignment and classroom records
 
 struct AssignmentRecord: Identifiable, Equatable {
@@ -174,6 +182,8 @@ struct AssignmentRecord: Identifiable, Equatable {
     var studentDisplayName: String
     var assignmentType: AssignmentType
     var rubricText: String
+    var rubricImportMode: RubricImportMode
+    var confirmedParsedRubric: ParsedRubric?
     var customInstructions: String
     var selectedInstructionTemplateIDs: [String]
     var answerKeyText: String
@@ -208,6 +218,8 @@ struct AssignmentRecord: Identifiable, Equatable {
         studentDisplayName: String = "",
         assignmentType: AssignmentType = .shortAnswer,
         rubricText: String = "",
+        rubricImportMode: RubricImportMode = .automatic,
+        confirmedParsedRubric: ParsedRubric? = nil,
         customInstructions: String = "",
         selectedInstructionTemplateIDs: [String] = GradingConstraintTemplates.defaultSelectedIDs,
         answerKeyText: String = "",
@@ -241,6 +253,8 @@ struct AssignmentRecord: Identifiable, Equatable {
         self.studentDisplayName = studentDisplayName
         self.assignmentType = assignmentType
         self.rubricText = rubricText
+        self.rubricImportMode = rubricImportMode
+        self.confirmedParsedRubric = confirmedParsedRubric
         self.customInstructions = customInstructions
         self.selectedInstructionTemplateIDs = selectedInstructionTemplateIDs
         self.answerKeyText = answerKeyText
@@ -266,7 +280,8 @@ struct AssignmentRecord: Identifiable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case id, classGroupID, studentID, title, prompt, subject, gradeLevel, assessmentPurpose, curriculumReference
-        case className, studentDisplayName, assignmentType, rubricText, customInstructions, selectedInstructionTemplateIDs
+        case className, studentDisplayName, assignmentType, rubricText, rubricImportMode, confirmedParsedRubric
+        case customInstructions, selectedInstructionTemplateIDs
         case answerKeyText, exemplarText, formativeFocusText, reviewedStudentText, sourceInputs, ocrDocument
         case ocrReviewStatus, ocrReviewedAt, latestDraft, finalReview
         case exportRecords, auditEvents, evidenceReferences, curriculumMappings, appliedTemplates, createdAt, updatedAt
@@ -289,6 +304,8 @@ extension AssignmentRecord: Codable {
         studentDisplayName = try container.decode(String.self, forKey: .studentDisplayName)
         assignmentType = try container.decode(AssignmentType.self, forKey: .assignmentType)
         rubricText = try container.decode(String.self, forKey: .rubricText)
+        rubricImportMode = (try? container.decode(RubricImportMode.self, forKey: .rubricImportMode)) ?? .automatic
+        confirmedParsedRubric = try container.decodeIfPresent(ParsedRubric.self, forKey: .confirmedParsedRubric)
         customInstructions = try container.decode(String.self, forKey: .customInstructions)
         selectedInstructionTemplateIDs = (try? container.decode([String].self, forKey: .selectedInstructionTemplateIDs)) ?? []
         answerKeyText = try container.decode(String.self, forKey: .answerKeyText)
@@ -325,6 +342,8 @@ extension AssignmentRecord: Codable {
         try container.encode(studentDisplayName, forKey: .studentDisplayName)
         try container.encode(assignmentType, forKey: .assignmentType)
         try container.encode(rubricText, forKey: .rubricText)
+        try container.encode(rubricImportMode, forKey: .rubricImportMode)
+        try container.encodeIfPresent(confirmedParsedRubric, forKey: .confirmedParsedRubric)
         try container.encode(customInstructions, forKey: .customInstructions)
         try container.encode(selectedInstructionTemplateIDs, forKey: .selectedInstructionTemplateIDs)
         try container.encode(answerKeyText, forKey: .answerKeyText)
@@ -357,7 +376,18 @@ extension AssignmentRecord: Codable {
     }
 
     var parsedRubric: ParsedRubric {
-        RubricParser.parse(rubricText)
+        switch rubricImportMode {
+        case .structuredConfirmed:
+            return confirmedParsedRubric ?? RubricParser.parse(rubricText)
+        case .rawTextOnly:
+            return ParsedRubric(
+                criteria: [],
+                issues: rubricText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : ["Rubric was saved as raw text; structured criteria were not teacher-confirmed."],
+                groups: []
+            )
+        case .automatic:
+            return RubricParser.parse(rubricText)
+        }
     }
 
     var latestDraftIsStale: Bool {
@@ -536,6 +566,7 @@ enum AssignmentRosterStatus: String, CaseIterable, Codable, Equatable, Identifia
     case readyForGrading
     case draftGenerated
     case finalReviewInProgress
+    case needsRecheck
     case approved
     case exported
 
@@ -549,6 +580,7 @@ enum AssignmentRosterStatus: String, CaseIterable, Codable, Equatable, Identifia
         case .readyForGrading: return "Ready for teacher review"
         case .draftGenerated: return "Review final grade"
         case .finalReviewInProgress: return "Review final grade"
+        case .needsRecheck: return "Needs recheck"
         case .approved: return "Approved"
         case .exported: return "Exported"
         }
@@ -1840,6 +1872,7 @@ enum ExportKind: String, Codable, Equatable, Hashable, Identifiable {
     case zipArchive
     case fullBackupArchive
     case backupJSON
+    case assignmentGradebookArchive
 
     var id: String { rawValue }
 
@@ -1854,13 +1887,15 @@ enum ExportKind: String, Codable, Equatable, Hashable, Identifiable {
         case .teacherAuditPDF:
             return "Teacher Review PDF"
         case .csvGradebook:
-            return "Gradebook Archive"
+            return "Gradebook CSV"
         case .zipArchive:
             return "Teacher Archive"
         case .fullBackupArchive:
             return "Full Backup"
         case .backupJSON:
             return "Full Backup"
+        case .assignmentGradebookArchive:
+            return "Gradebook Archive"
         }
     }
 }

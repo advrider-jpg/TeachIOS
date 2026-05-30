@@ -159,6 +159,8 @@ extension AssignmentRosterStatus {
             return .readyForTeacherReview
         case .draftGenerated, .finalReviewInProgress:
             return .reviewFinalGrade
+        case .needsRecheck:
+            return .needsRecheck
         case .approved:
             return .approved
         case .exported:
@@ -210,13 +212,15 @@ extension ExportKind {
         case .teacherAuditPDF:
             return "Teacher Review PDF"
         case .csvGradebook:
-            return "Gradebook Archive"
+            return "Gradebook CSV"
         case .zipArchive:
             return "Teacher Archive"
         case .fullBackupArchive:
             return "Full Backup"
         case .backupJSON:
             return "Full Backup"
+        case .assignmentGradebookArchive:
+            return "Gradebook Archive"
         }
     }
 
@@ -224,7 +228,7 @@ extension ExportKind {
         switch self {
         case .studentMarkdown, .studentPDF:
             return .studentFacing
-        case .teacherAuditMarkdown, .teacherAuditPDF, .csvGradebook, .zipArchive, .fullBackupArchive, .backupJSON:
+        case .teacherAuditMarkdown, .teacherAuditPDF, .csvGradebook, .zipArchive, .fullBackupArchive, .backupJSON, .assignmentGradebookArchive:
             return .teacherOnly
         }
     }

@@ -4,26 +4,42 @@ import ZIPFoundation
 
 final class InMemoryAssignmentStore: AssignmentStoring {
     private(set) var assignments: [AssignmentRecord]
+    private(set) var classGroups: [ClassGroupRecord] = []
+    private(set) var students: [StudentRecord] = []
+    private(set) var rosterEntries: [AssignmentRosterEntry] = []
 
     init(assignments: [AssignmentRecord] = []) {
         self.assignments = assignments
     }
 
-    func loadAssignments() throws -> [AssignmentRecord] {
-        assignments
+    func loadAssignments() throws -> [AssignmentRecord] { assignments }
+    func saveAssignments(_ assignments: [AssignmentRecord]) throws { self.assignments = assignments }
+    func deleteAssignment(id: UUID) throws { assignments.removeAll { $0.id == id } }
+    func applicationSupportDirectory() throws -> URL { FileManager.default.temporaryDirectory }
+    func loadClassGroups() throws -> [ClassGroupRecord] { classGroups }
+    func saveClassGroup(_ classGroup: ClassGroupRecord) throws {
+        if let idx = classGroups.firstIndex(where: { $0.id == classGroup.id }) { classGroups[idx] = classGroup } else { classGroups.append(classGroup) }
     }
+    func deleteClassGroup(id: UUID) throws { classGroups.removeAll { $0.id == id } }
+    func loadStudents() throws -> [StudentRecord] { students }
+    func saveStudent(_ student: StudentRecord) throws {
+        if let idx = students.firstIndex(where: { $0.id == student.id }) { students[idx] = student } else { students.append(student) }
+    }
+    func deleteStudent(id: UUID) throws { students.removeAll { $0.id == id } }
+    func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] {
+        rosterEntries.filter { $0.assignmentID == assignmentID }
+    }
+    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws { self.rosterEntries = entries }
+    func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws {}
+    func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws {}
+    func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws {}
+    func saveEvidenceReferences(_ references: [EvidenceReference], assignmentID: UUID) throws {}
+    func loadFullAssignmentGraph(id: UUID) throws -> AssignmentRecord? { assignments.first { $0.id == id } }
+}
 
-    func saveAssignments(_ assignments: [AssignmentRecord]) throws {
-        self.assignments = assignments
-    }
-
-    func deleteAssignment(id: UUID) throws {
-        assignments.removeAll { $0.id == id }
-    }
-
-    func applicationSupportDirectory() throws -> URL {
-        FileManager.default.temporaryDirectory
-    }
+struct StubExportAuthenticationService: ExportAuthenticationServicing {
+    var result: ExportAuthenticationResult
+    func authenticateForSensitiveExport(reason: String) async -> ExportAuthenticationResult { result }
 }
 
 final class GradeDraftTests: XCTestCase {
@@ -1565,6 +1581,384 @@ final class GradeDraftTests: XCTestCase {
         XCTAssertEqual(source.fileName, "work.pdf")
         XCTAssertEqual(source.mimeType, "application/pdf")
         XCTAssertEqual(source.pdfPageCount, 2)
+    }
+
+    // MARK: - Change 1: Export authentication gate tests
+
+    @MainActor
+    func testStudentReportDoesNotRequireAuthentication() async {
+        let alwaysDeny = StubExportAuthenticationService(result: ExportAuthenticationResult(allowed: false, authenticationPerformed: true, message: "Denied"))
+        let assignment = AssignmentRecord(title: "Test")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store, exportAuthenticationService: alwaysDeny)
+        let allowed = await vm.authenticateForExportIfNeeded(.studentMarkdown)
+        XCTAssertTrue(allowed, "Student-facing exports must not require authentication")
+        XCTAssertNil(vm.lastExportAuthenticationResult, "No auth result should be set for student exports")
+    }
+
+    @MainActor
+    func testTeacherAuditExportBlockedWhenAuthFails() async {
+        let alwaysDeny = StubExportAuthenticationService(result: ExportAuthenticationResult(allowed: false, authenticationPerformed: true, message: "Denied"))
+        let assignment = AssignmentRecord(title: "Test")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store, exportAuthenticationService: alwaysDeny)
+        let allowed = await vm.authenticateForExportIfNeeded(.teacherAuditMarkdown)
+        XCTAssertFalse(allowed, "Teacher-only export must be blocked when auth fails")
+        XCTAssertNil(vm.exportURL, "exportURL must be nil after auth failure")
+    }
+
+    @MainActor
+    func testGradebookCSVBlockedWhenAuthFails() async {
+        let alwaysDeny = StubExportAuthenticationService(result: ExportAuthenticationResult(allowed: false, authenticationPerformed: true, message: nil))
+        let assignment = AssignmentRecord(title: "Test")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store, exportAuthenticationService: alwaysDeny)
+        await vm.performConfirmedExport(.gradebookCSV)
+        XCTAssertNil(vm.exportURL, "Gradebook CSV must not be created when auth fails")
+    }
+
+    @MainActor
+    func testGradebookArchiveBlockedWhenAuthFails() async {
+        let alwaysDeny = StubExportAuthenticationService(result: ExportAuthenticationResult(allowed: false, authenticationPerformed: true, message: nil))
+        let assignment = AssignmentRecord(title: "Test")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store, exportAuthenticationService: alwaysDeny)
+        await vm.performConfirmedExport(.gradebookArchive)
+        XCTAssertNil(vm.exportURL, "Gradebook Archive must not be created when auth fails")
+    }
+
+    @MainActor
+    func testFullBackupBlockedWhenAuthFails() async {
+        let alwaysDeny = StubExportAuthenticationService(result: ExportAuthenticationResult(allowed: false, authenticationPerformed: true, message: nil))
+        let assignment = AssignmentRecord(title: "Test")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store, exportAuthenticationService: alwaysDeny)
+        await vm.performConfirmedExport(.fullBackup)
+        XCTAssertNil(vm.exportURL, "Full backup must not be created when auth fails")
+    }
+
+    @MainActor
+    func testAuthUnavailableAllowsExportAndSetsStatusMessage() async {
+        let unavailableResult = ExportAuthenticationResult(allowed: true, authenticationPerformed: false, message: "Device authentication is unavailable on this platform.")
+        let unavailable = StubExportAuthenticationService(result: unavailableResult)
+        let assignment = AssignmentRecord(title: "Test")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store, exportAuthenticationService: unavailable)
+        let allowed = await vm.authenticateForExportIfNeeded(.teacherAuditMarkdown)
+        XCTAssertTrue(allowed, "Export should proceed when auth is unavailable but policy allows it")
+        XCTAssertNotNil(vm.lastExportAuthenticationResult)
+        XCTAssertFalse(vm.lastExportAuthenticationResult?.authenticationPerformed ?? true)
+    }
+
+    // MARK: - Change 2: Gradebook CSV and Gradebook Archive tests
+
+    @MainActor
+    func testGradebookCSVExportsAllAssignments() {
+        let a1 = AssignmentRecord(title: "Assign 1", studentDisplayName: "Alice")
+        let a2 = AssignmentRecord(title: "Assign 2", studentDisplayName: "Bob")
+        let store = InMemoryAssignmentStore(assignments: [a1, a2])
+        let vm = GradeDraftViewModel(assignments: [a1, a2], store: store)
+        vm.exportCSVGradebook()
+        // The CSV file should reference both students
+        if let url = vm.exportURL, let content = try? String(contentsOf: url, encoding: .utf8) {
+            XCTAssertTrue(content.contains("Alice") || content.contains("Assign 1"), "CSV must include first assignment")
+            XCTAssertTrue(content.contains("Bob") || content.contains("Assign 2"), "CSV must include second assignment")
+        } else {
+            XCTFail("exportURL not set after exportCSVGradebook")
+        }
+        XCTAssertEqual(vm.exportKind, .csvGradebook)
+    }
+
+    @MainActor
+    func testGradebookArchiveWritesZIP() throws {
+        let assignment = AssignmentRecord(title: "Archive Test")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+        vm.exportGradebookArchive()
+        guard let url = vm.exportURL else {
+            XCTFail("exportURL not set after exportGradebookArchive")
+            return
+        }
+        XCTAssertEqual(url.pathExtension, "zip", "Gradebook archive must be a ZIP file")
+        XCTAssertEqual(vm.exportKind, .assignmentGradebookArchive)
+    }
+
+    // MARK: - Change 3: Two-phase backup restore tests
+
+    @MainActor
+    func testPreviewBackupRestoreDoesNotMutateAssignments() throws {
+        let local = AssignmentRecord(title: "Local")
+        let store = InMemoryAssignmentStore(assignments: [local])
+        let vm = GradeDraftViewModel(assignments: [local], store: store)
+        let initialCount = vm.assignments.count
+
+        // Build a minimal backup JSON
+        let backup = [AssignmentRecord(title: "From Backup")]
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(backup)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("test-backup-\(UUID()).json")
+        try data.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        vm.previewBackupRestore(from: url)
+
+        XCTAssertEqual(vm.assignments.count, initialCount, "Preview must not mutate assignments")
+        XCTAssertNotNil(vm.pendingRestorePreview, "Pending restore preview must be set")
+        XCTAssertNotNil(vm.pendingRestoreFileURL, "Pending restore file URL must be staged")
+    }
+
+    @MainActor
+    func testCancelPendingRestoreDoesNotMutate() throws {
+        let local = AssignmentRecord(title: "Local")
+        let store = InMemoryAssignmentStore(assignments: [local])
+        let vm = GradeDraftViewModel(assignments: [local], store: store)
+        let initialCount = vm.assignments.count
+
+        let backup = [AssignmentRecord(title: "From Backup")]
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(backup)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("test-cancel-\(UUID()).json")
+        try data.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        vm.previewBackupRestore(from: url)
+        vm.cancelPendingRestore()
+
+        XCTAssertEqual(vm.assignments.count, initialCount, "Cancel must not mutate assignments")
+        XCTAssertNil(vm.pendingRestorePreview, "Pending restore preview must be cleared")
+        XCTAssertNil(vm.pendingRestoreFileURL, "Pending restore file URL must be cleared")
+    }
+
+    @MainActor
+    func testConfirmPendingRestoreMutatesAssignments() throws {
+        let local = AssignmentRecord(title: "Local")
+        let store = InMemoryAssignmentStore(assignments: [local])
+        let vm = GradeDraftViewModel(assignments: [local], store: store)
+
+        let backup = [AssignmentRecord(title: "New From Backup")]
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(backup)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("test-confirm-\(UUID()).json")
+        try data.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        vm.backupConflictResolution = .restoreAsCopy
+        vm.previewBackupRestore(from: url)
+        XCTAssertEqual(vm.assignments.count, 1, "Before confirm, assignments unchanged")
+        vm.confirmPendingRestore()
+        XCTAssertTrue(vm.assignments.contains { $0.title.contains("Backup") || $0.title == "New From Backup" }, "After confirm, backup assignment should exist")
+    }
+
+    // MARK: - Change 5: Stale status tests
+
+    func testAssignmentRosterStatusStaleReviewBeatsExported() {
+        var record = AssignmentRecord(title: "Stale")
+        record.rubricText = "Claim: 0-4 points"
+        let finalReview = FinalGradeReview(
+            packetFingerprint: "OLD-STALE-FINGERPRINT",
+            status: .approved,
+            criteria: [FinalCriterionScore(criterionID: "c1", criterion: "Claim", rating: "Proficient", proposedPoints: 4, finalPoints: 4, maxPoints: 4, evidence: [], explanation: "Good", teacherApproved: true)],
+            totalScore: 4, maxScore: 4, studentFeedback: "Good job", privateTeacherNotes: "", teacherEdited: true
+        )
+        record.finalReview = finalReview
+        record.exportRecords = [ExportRecord(exportKind: .studentPDF, contentFingerprint: "fp", includesPrivateTeacherNotes: false, includesOriginalSources: false)]
+
+        // finalReview.packetFingerprint won't match gradingPacketFingerprint
+        // so finalReviewIsStale = true => should return .needsRecheck
+        let store = InMemoryAssignmentStore(assignments: [record])
+        let vm = GradeDraftViewModel(assignments: [record], store: store)
+        let status = vm.assignmentRosterStatus(for: vm.assignment)
+        XCTAssertEqual(status, .needsRecheck, "Stale final review must produce needsRecheck, not exported")
+    }
+
+    func testAssignmentRosterStatusNeedsRecheckDisplayName() {
+        XCTAssertEqual(AssignmentRosterStatus.needsRecheck.displayName, "Needs recheck")
+    }
+
+    func testAssignmentRosterStatusNeedsRecheckV6Status() {
+        XCTAssertEqual(AssignmentRosterStatus.needsRecheck.v6Status, .needsRecheck)
+    }
+
+    // MARK: - Change 6: Rubric import mode tests
+
+    @MainActor
+    func testConfirmStructuredImportSetsMode() {
+        let assignment = AssignmentRecord(title: "Test")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+        let preview = MarkdownRubricParser.preview("| Criterion | Max | Level | Points |\n|---|---|---|---|\n| Claim | 4 | Good | 4 |")
+        vm.confirmMarkdownRubricImport(preview, useStructuredImport: true)
+        XCTAssertEqual(vm.assignment.rubricImportMode, .structuredConfirmed)
+        XCTAssertNotNil(vm.assignment.confirmedParsedRubric)
+    }
+
+    @MainActor
+    func testConfirmRawTextImportSetsRawMode() {
+        let assignment = AssignmentRecord(title: "Test")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+        let preview = MarkdownRubricParser.preview("Some rubric text without table")
+        vm.confirmMarkdownRubricImport(preview, useStructuredImport: false)
+        XCTAssertEqual(vm.assignment.rubricImportMode, .rawTextOnly)
+        XCTAssertNil(vm.assignment.confirmedParsedRubric)
+    }
+
+    @MainActor
+    func testRawTextImportDoesNotUseParsedCriteria() {
+        let assignment = AssignmentRecord(title: "Test")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+        let preview = MarkdownRubricParser.preview("| Criterion | Max | Level | Points |\n|---|---|---|---|\n| Claim | 4 | Good | 4 |")
+        vm.confirmMarkdownRubricImport(preview, useStructuredImport: false)
+        XCTAssertTrue(vm.assignment.parsedRubric.criteria.isEmpty, "Raw-text mode must produce empty parsed criteria")
+    }
+
+    @MainActor
+    func testManualEditResetsToAutomatic() {
+        var assignment = AssignmentRecord(title: "Test")
+        assignment.rubricImportMode = .structuredConfirmed
+        assignment.confirmedParsedRubric = ParsedRubric(criteria: [], issues: [], groups: [])
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+        vm.updateRubricText("New rubric text")
+        XCTAssertEqual(vm.assignment.rubricImportMode, .automatic)
+        XCTAssertNil(vm.assignment.confirmedParsedRubric)
+    }
+
+    func testRubricImportModeCodableRoundTrip() throws {
+        var assignment = AssignmentRecord(title: "Round trip")
+        assignment.rubricImportMode = .structuredConfirmed
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(assignment)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(AssignmentRecord.self, from: data)
+        XCTAssertEqual(decoded.rubricImportMode, .structuredConfirmed)
+    }
+
+    // MARK: - Change 7: Delete assignment removes roster entries
+
+    @MainActor
+    func testDeleteCurrentAssignmentRemovesRosterEntries() {
+        let student = StudentRecord(displayName: "Alice")
+        var assignment = AssignmentRecord(title: "To delete")
+        assignment.studentID = student.id
+        assignment.studentDisplayName = student.displayName
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+        vm.students = [student]
+
+        // Manually add a roster entry for this assignment
+        let entry = AssignmentRosterEntry(assignmentID: assignment.id, studentID: student.id, studentDisplayName: "Alice")
+        vm.assignmentRosterEntries = [entry]
+
+        vm.deleteCurrentAssignment()
+        XCTAssertFalse(vm.assignmentRosterEntries.contains { $0.assignmentID == assignment.id }, "Roster entries for deleted assignment must be removed")
+    }
+
+    // MARK: - Change 8: OCR centralized state tests
+
+    @MainActor
+    func testRejectLastOCRLineSetsDocumentAndAssignmentReviewed() {
+        let line = OCRLine(text: "hello", confidence: 0.9, boundingBox: .zero, teacherConfirmed: false)
+        let page = OCRPage(pageIndex: 0, lines: [line])
+        var doc = OCRDocument(pages: [page])
+        var assignment = AssignmentRecord(title: "OCR Test", ocrReviewStatus: .needsReview)
+        assignment.ocrDocument = doc
+
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        vm.rejectOCRLine(pageID: page.id, lineID: line.id)
+
+        XCTAssertEqual(vm.assignment.ocrReviewStatus, .reviewed, "Assignment OCR status must be reviewed after last line resolved")
+        XCTAssertEqual(vm.assignment.ocrDocument?.reviewStatus, .reviewed, "Document reviewStatus must match assignment")
+        XCTAssertNotNil(vm.assignment.ocrDocument?.reviewedAt, "Document reviewedAt must be set")
+        XCTAssertNotNil(vm.assignment.ocrReviewedAt, "Assignment ocrReviewedAt must be set")
+    }
+
+    @MainActor
+    func testEditOCRLineAfterReviewResetsToNeedsReview() {
+        let line = OCRLine(text: "hello", confidence: 0.9, boundingBox: .zero, teacherConfirmed: true)
+        let page = OCRPage(pageIndex: 0, lines: [line])
+        var doc = OCRDocument(pages: [page])
+        doc.reviewStatus = .reviewed
+        doc.reviewedAt = Date()
+        var assignment = AssignmentRecord(title: "OCR Edit", ocrReviewStatus: .reviewed)
+        assignment.ocrDocument = doc
+        assignment.ocrReviewedAt = Date()
+
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        vm.updateOCRLine(pageID: page.id, lineID: line.id, correctedText: "world")
+
+        XCTAssertEqual(vm.assignment.ocrReviewStatus, .needsReview, "Editing line must reset assignment to needsReview")
+        XCTAssertEqual(vm.assignment.ocrDocument?.reviewStatus, .needsReview, "Editing line must reset document to needsReview")
+        XCTAssertNil(vm.assignment.ocrDocument?.reviewedAt, "Document reviewedAt must be cleared after edit")
+        XCTAssertNil(vm.assignment.ocrReviewedAt, "Assignment ocrReviewedAt must be cleared after edit")
+    }
+
+    // MARK: - Change 9: Source path safety tests
+
+    func testSanitizedLocalSourcePathAcceptsValidPath() {
+        XCTAssertEqual(SourcePathSafety.sanitizedLocalSourcePath("Sources/abc123/page.png"), "Sources/abc123/page.png")
+    }
+
+    func testSanitizedLocalSourcePathRejectsAbsolutePath() {
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("/absolute/path.png"))
+    }
+
+    func testSanitizedLocalSourcePathRejectsDotDot() {
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("Sources/../escape.png"))
+    }
+
+    func testSanitizedLocalSourcePathRejectsDotDotAfterPrefix() {
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("Sources/abc/../escape.png"))
+    }
+
+    func testSanitizedLocalSourcePathRejectsBackslash() {
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("Sources\\bad.png"))
+    }
+
+    func testSanitizedLocalSourcePathRejectsNil() {
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath(nil))
+    }
+
+    func testSanitizedLocalSourcePathRejectsNonSourcesPrefix() {
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("Documents/file.png"))
+    }
+
+    @MainActor
+    func testLegacyJSONRestoreSanitizesUnsafeSourcePaths() throws {
+        let unsafeSource = SourceInputRef(
+            sourceType: .image,
+            localRelativePath: "/absolute/bad.png",
+            fileName: "bad.png"
+        )
+        var backupRecord = AssignmentRecord(title: "From Backup")
+        backupRecord.sourceInputs = [unsafeSource]
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode([backupRecord])
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("legacy-test-\(UUID()).json")
+        try data.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = InMemoryAssignmentStore(assignments: [])
+        let vm = GradeDraftViewModel(assignments: [], store: store)
+        vm.previewBackupRestore(from: url)
+        vm.confirmPendingRestore()
+
+        let restored = vm.assignments.first { $0.title == "From Backup" }
+        XCTAssertNotNil(restored, "Backup assignment should be restored")
+        let paths = restored?.sourceInputs.map { $0.localRelativePath }
+        XCTAssertTrue(paths?.allSatisfy { $0 == nil } ?? false, "Unsafe source path must be stripped")
     }
 
     // MARK: - Private helpers
