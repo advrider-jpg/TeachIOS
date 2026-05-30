@@ -1581,7 +1581,7 @@ final class EnumDisplayNameTests: XCTestCase {
     }
 
     func testExportKindDisplayNames() {
-        let allKinds: [ExportKind] = [.studentMarkdown, .teacherAuditMarkdown, .studentPDF, .teacherAuditPDF, .csvGradebook, .zipArchive, .fullBackupArchive, .backupJSON]
+        let allKinds: [ExportKind] = [.studentMarkdown, .teacherAuditMarkdown, .studentPDF, .teacherAuditPDF, .csvGradebook, .zipArchive, .fullBackupArchive, .backupJSON, .assignmentGradebookArchive]
         for kind in allKinds {
             XCTAssertFalse(kind.displayName.isEmpty, "\(kind.rawValue) should have a display name")
         }
@@ -2024,6 +2024,7 @@ private enum V3ArchiveTestError: Error {
 
 private final class V3TempAssignmentStore: AssignmentStoring {
     private(set) var assignments: [AssignmentRecord]
+    private(set) var rosterEntries: [AssignmentRosterEntry] = []
     private let root: URL
 
     init(assignments: [AssignmentRecord] = [], root: URL) {
@@ -2038,6 +2039,19 @@ private final class V3TempAssignmentStore: AssignmentStoring {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         return root
     }
+    func loadClassGroups() throws -> [ClassGroupRecord] { [] }
+    func saveClassGroup(_ classGroup: ClassGroupRecord) throws {}
+    func deleteClassGroup(id: UUID) throws {}
+    func loadStudents() throws -> [StudentRecord] { [] }
+    func saveStudent(_ student: StudentRecord) throws {}
+    func deleteStudent(id: UUID) throws {}
+    func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] { rosterEntries.filter { $0.assignmentID == assignmentID } }
+    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws { self.rosterEntries = entries }
+    func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws {}
+    func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws {}
+    func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws {}
+    func saveEvidenceReferences(_ references: [EvidenceReference], assignmentID: UUID) throws {}
+    func loadFullAssignmentGraph(id: UUID) throws -> AssignmentRecord? { assignments.first { $0.id == id } }
 }
 
 final class AllFeaturesCompletionV3Tests: XCTestCase {

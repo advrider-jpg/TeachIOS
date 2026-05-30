@@ -12,12 +12,15 @@ final class GradeDraftViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var exportURL: URL?
     @Published var exportKind: ExportKind?
+    @Published var lastExportAuthenticationResult: ExportAuthenticationResult?
     @Published var classGroups: [ClassGroupRecord] = []
     @Published var students: [StudentRecord] = []
     @Published var assignmentRosterEntries: [AssignmentRosterEntry] = []
     @Published var latestRosterPreview: RosterImportPreview?
     @Published var latestRubricPreview: RubricImportPreview?
     @Published var latestRestorePreview: BackupRestorePreview?
+    @Published var pendingRestorePreview: BackupRestorePreview?
+    @Published var pendingRestoreFileURL: URL?
     @Published var backupConflictResolution: BackupConflictResolution = .restoreAsCopy
     @Published var curriculumCatalog: CurriculumCatalog = CurriculumCatalogService.localCatalog
     @Published var curriculumSearchText = ""
@@ -29,6 +32,7 @@ final class GradeDraftViewModel: ObservableObject {
     private let gradingService: GradingServicing & CapabilityChecking
     private let store: AssignmentStoring
     private let fileManager: FileManager
+    private let exportAuthenticationService: ExportAuthenticationServicing
     @Published private(set) var persistenceMode: String
 
     init(
@@ -36,10 +40,12 @@ final class GradeDraftViewModel: ObservableObject {
         ocrService: OCRServicing = VisionOCRService(),
         gradingService: GradingServicing & CapabilityChecking = FoundationModelGradingService(),
         store: AssignmentStoring? = nil,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        exportAuthenticationService: ExportAuthenticationServicing = LocalExportAuthenticationService()
     ) {
         self.ocrService = ocrService
         self.gradingService = gradingService
+        self.exportAuthenticationService = exportAuthenticationService
         let resolvedStore: AssignmentStoring
         let resolvedMode: String
         if let store {
@@ -275,8 +281,12 @@ final class GradeDraftViewModel: ObservableObject {
     }
 
     func assignmentRosterStatus(for record: AssignmentRecord) -> AssignmentRosterStatus {
-        if record.exportRecords.contains(where: { $0.exportKind == .studentPDF || $0.exportKind == .zipArchive }) { return .exported }
-        if record.finalReview?.status == .approved && !record.finalReviewIsStale { return .approved }
+        if record.finalReviewIsStale || record.latestDraftIsStale { return .needsRecheck }
+        if record.finalReview?.status == .approved,
+           record.exportRecords.contains(where: { $0.exportKind == .studentPDF || $0.exportKind == .studentMarkdown }) {
+            return .exported
+        }
+        if record.finalReview?.status == .approved { return .approved }
         if record.finalReview != nil { return .finalReviewInProgress }
         if record.latestDraft != nil && !record.latestDraftIsStale { return .draftGenerated }
         if record.ocrReviewStatus.blocksGrading { return .ocrReviewNeeded }
@@ -351,6 +361,7 @@ final class GradeDraftViewModel: ObservableObject {
         guard let selectedAssignmentID else { return }
         let assignmentToDelete = assignments.first { $0.id == selectedAssignmentID }
         assignments.removeAll { $0.id == selectedAssignmentID }
+        assignmentRosterEntries.removeAll { $0.assignmentID == selectedAssignmentID }
         if assignments.isEmpty {
             assignments = [AssignmentRecord()]
         }
@@ -358,7 +369,9 @@ final class GradeDraftViewModel: ObservableObject {
         do {
             try store.deleteAssignment(id: selectedAssignmentID)
             try store.saveAssignments(assignments)
-            // Delete source image files for this assignment if present.
+            if !assignmentRosterEntries.isEmpty {
+                try? store.saveAssignmentRoster(assignmentRosterEntries)
+            }
             if let appDir = try? store.applicationSupportDirectory(),
                let toDelete = assignmentToDelete,
                !toDelete.sourceInputs.isEmpty {
@@ -564,9 +577,8 @@ final class GradeDraftViewModel: ObservableObject {
     func markOCRReviewed() {
         guard assignment.ocrDocument != nil else { return }
         updateAssignment { assignment in
-            assignment.ocrDocument = assignment.ocrDocument?.markingAllLinesConfirmed()
-            assignment.ocrReviewStatus = .reviewed
-            assignment.ocrReviewedAt = Date()
+            guard var document = assignment.ocrDocument?.markingAllLinesConfirmed() else { return }
+            applyOCRReviewState(&document, to: &assignment)
             assignment.latestDraft = nil
             assignment.finalReview = nil
             assignment.appendAuditEvent(.ocrReviewed, detail: "Teacher marked scanned text reviewed. Reviewed text is now eligible for grading.")
@@ -764,6 +776,49 @@ final class GradeDraftViewModel: ObservableObject {
         }
     }
 
+    func authenticateForExportIfNeeded(_ exportKind: ExportKind) async -> Bool {
+        guard exportKind.contentPolicy.requiresLocalAuthenticationWhenAvailable else {
+            lastExportAuthenticationResult = nil
+            return true
+        }
+        let reason = "Authenticate to create \(exportKind.displayName). This export may contain student records or teacher-only review data."
+        let result = await exportAuthenticationService.authenticateForSensitiveExport(reason: reason)
+        lastExportAuthenticationResult = result
+        guard result.allowed else {
+            exportURL = nil
+            self.exportKind = nil
+            errorMessage = result.message ?? "Export canceled because device authentication was not completed."
+            return false
+        }
+        if let message = result.message, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            statusMessage = message
+        }
+        return true
+    }
+
+    func performConfirmedExport(_ confirmationKind: ExportConfirmationKind) async {
+        let exportKind = confirmationKind.exportKind
+        guard await authenticateForExportIfNeeded(exportKind) else { return }
+        switch confirmationKind {
+        case .studentReportMarkdown:
+            exportStudentReport()
+        case .teacherReviewMarkdown:
+            exportTeacherAuditReport()
+        case .studentReportPDF:
+            exportStudentPDF()
+        case .teacherReviewPDF:
+            exportTeacherAuditPDF()
+        case .teacherArchive:
+            exportArchiveBundle()
+        case .gradebookCSV:
+            exportCSVGradebook()
+        case .gradebookArchive:
+            exportGradebookArchive()
+        case .fullBackup:
+            exportBackupJSON()
+        }
+    }
+
     func exportStudentReport() {
         guard canExportStudentReport else {
             errorMessage = "Student-facing export is blocked until the teacher approves the final grade."
@@ -796,14 +851,31 @@ final class GradeDraftViewModel: ObservableObject {
 
     func exportCSVGradebook() {
         do {
-            let csv = CSVExportService.exportedCSV(from: [assignment])
-            let destination = temporaryExportURL(kind: .csvGradebook, extension: "csv")
+            let records = gradebookAssignments.isEmpty ? [assignment] : gradebookAssignments
+            let csv = CSVExportService.exportedCSV(from: records)
+            let destination = temporaryExportURL(kind: .csvGradebook, extension: "csv", assignmentID: nil)
             try csv.write(to: destination, atomically: true, encoding: .utf8)
             ExportFileHardening.applyBestEffortProtection(to: destination)
             exportURL = destination
             exportKind = .csvGradebook
             recordExport(kind: .csvGradebook, content: csv, includesPrivateNotes: false, includesOriginalSources: false)
-            statusMessage = "CSV grade summary is ready to share."
+            statusMessage = "Gradebook CSV is ready to share. Treat it as a teacher-only record."
+        } catch {
+            handleExportFailure(error)
+        }
+    }
+
+    func exportGradebookArchive() {
+        do {
+            let records = gradebookAssignments.isEmpty ? [assignment] : gradebookAssignments
+            let archiveSourceFiles = records.flatMap { sourceFiles(for: $0) }
+            let destination = temporaryExportURL(kind: .assignmentGradebookArchive, extension: "zip", assignmentID: nil)
+            exportURL = try BundleExportService.writeAssignmentArchive(assignments: records, sourceFiles: archiveSourceFiles, to: destination)
+            exportKind = .assignmentGradebookArchive
+            if let exportURL {
+                recordExport(kind: .assignmentGradebookArchive, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: !archiveSourceFiles.isEmpty)
+            }
+            statusMessage = "Gradebook archive ZIP is ready to share. Treat it as sensitive teacher-only student data."
         } catch {
             handleExportFailure(error)
         }
@@ -903,14 +975,32 @@ final class GradeDraftViewModel: ObservableObject {
     func confirmMarkdownRubricImport(_ preview: RubricImportPreview, useStructuredImport: Bool = true) {
         updateAssignment { assignment in
             assignment.rubricText = preview.rawMarkdown
-            let criterionCount = useStructuredImport ? preview.detectedCriteria.count : 0
+            if useStructuredImport {
+                assignment.rubricImportMode = .structuredConfirmed
+                assignment.confirmedParsedRubric = preview.parsedRubric
+            } else {
+                assignment.rubricImportMode = .rawTextOnly
+                assignment.confirmedParsedRubric = nil
+            }
             assignment.latestDraft = nil
             assignment.finalReview = nil
+            let criterionCount = useStructuredImport ? preview.detectedCriteria.count : 0
             assignment.appendAuditEvent(.inputChanged, detail: "Confirmed rubric import with \(criterionCount) structured criterion/criteria and \(preview.issues.count) item(s) needing attention.")
         }
         persistOrSurfaceError()
         latestRubricPreview = nil
-        statusMessage = preview.detectedCriteria.isEmpty ? "Rubric text saved for teacher review." : "Rubric imported with a teacher-confirmed structured preview."
+        statusMessage = useStructuredImport ? "Rubric imported with a teacher-confirmed structured preview." : "Rubric text saved as raw text for teacher review."
+    }
+
+    func updateRubricText(_ text: String) {
+        updateAssignment { assignment in
+            assignment.rubricText = text
+            assignment.rubricImportMode = .automatic
+            assignment.confirmedParsedRubric = nil
+            assignment.latestDraft = nil
+            assignment.finalReview = nil
+        }
+        persistOrSurfaceError()
     }
 
     func importMarkdownRubric(from url: URL) {
@@ -1091,6 +1181,22 @@ final class GradeDraftViewModel: ObservableObject {
         statusMessage = "Created \(created.count) roster assignment(s) locally; \(preview.rejectedRows.count) invalid row(s) were rejected."
     }
 
+    private func applyOCRReviewState(_ document: inout OCRDocument, to assignment: inout AssignmentRecord, reviewedAt now: Date = Date()) {
+        if document.hasUnconfirmedLines {
+            document.reviewStatus = .needsReview
+            document.reviewedAt = nil
+            assignment.ocrReviewStatus = .needsReview
+            assignment.ocrReviewedAt = nil
+        } else {
+            document.reviewStatus = .reviewed
+            document.reviewedAt = now
+            assignment.ocrReviewStatus = .reviewed
+            assignment.ocrReviewedAt = now
+        }
+        assignment.ocrDocument = document
+        assignment.reviewedStudentText = document.combinedText
+    }
+
     func updateOCRLine(pageID: UUID, lineID: UUID, correctedText: String) {
         updateAssignment { assignment in
             guard var document = assignment.ocrDocument else { return }
@@ -1100,9 +1206,7 @@ final class GradeDraftViewModel: ObservableObject {
                     document.pages[pageIndex].lines[lineIndex].teacherConfirmed = false
                 }
             }
-            assignment.ocrDocument = document
-            assignment.reviewedStudentText = document.combinedText
-            assignment.ocrReviewStatus = .needsReview
+            applyOCRReviewState(&document, to: &assignment)
             assignment.latestDraft = nil
             assignment.finalReview = nil
             assignment.appendAuditEvent(.inputChanged, detail: "Edited scanned text line during teacher review.")
@@ -1118,17 +1222,7 @@ final class GradeDraftViewModel: ObservableObject {
                     document.pages[pageIndex].lines[lineIndex].teacherConfirmed = true
                 }
             }
-            assignment.ocrDocument = document
-            assignment.reviewedStudentText = document.combinedText
-            assignment.ocrReviewStatus = document.hasUnconfirmedLines ? .needsReview : .reviewed
-            if !document.hasUnconfirmedLines {
-                document.reviewStatus = .reviewed
-                document.reviewedAt = Date()
-                assignment.ocrReviewedAt = document.reviewedAt
-            } else {
-                document.reviewStatus = .needsReview
-            }
-            assignment.ocrDocument = document
+            applyOCRReviewState(&document, to: &assignment)
             assignment.latestDraft = nil
             assignment.finalReview = nil
             assignment.appendAuditEvent(.ocrReviewed, detail: "Confirmed scanned text line during teacher review.")
@@ -1145,10 +1239,7 @@ final class GradeDraftViewModel: ObservableObject {
                     document.pages[pageIndex].lines[lineIndex].teacherConfirmed = true
                 }
             }
-            assignment.ocrDocument = document
-            assignment.reviewedStudentText = document.combinedText
-            assignment.ocrReviewStatus = document.hasUnconfirmedLines ? .needsReview : .reviewed
-            if !document.hasUnconfirmedLines { assignment.ocrReviewedAt = Date() }
+            applyOCRReviewState(&document, to: &assignment)
             assignment.latestDraft = nil
             assignment.finalReview = nil
             assignment.appendAuditEvent(.inputChanged, detail: "Rejected scanned text line during teacher review; original file details were preserved and line text was excluded from reviewed text.")
@@ -1164,12 +1255,7 @@ final class GradeDraftViewModel: ObservableObject {
                     document.pages[pageIndex].lines[lineIndex].teacherConfirmed = true
                 }
             }
-            document.reviewStatus = document.hasUnconfirmedLines ? .needsReview : .reviewed
-            document.reviewedAt = document.hasUnconfirmedLines ? nil : Date()
-            assignment.ocrDocument = document
-            assignment.reviewedStudentText = document.combinedText
-            assignment.ocrReviewStatus = document.reviewStatus
-            assignment.ocrReviewedAt = document.reviewedAt
+            applyOCRReviewState(&document, to: &assignment)
             assignment.latestDraft = nil
             assignment.finalReview = nil
             assignment.appendAuditEvent(.ocrReviewed, detail: "Teacher marked a scanned page reviewed after resolving every active line on that page.")
@@ -1314,15 +1400,18 @@ final class GradeDraftViewModel: ObservableObject {
 
     private func sourceFiles(for assignment: AssignmentRecord) -> [URL] {
         guard let appDir = try? store.applicationSupportDirectory() else { return [] }
+        let root = appDir.standardizedFileURL
         return assignment.sourceInputs.compactMap { source in
-            guard let localRelativePath = source.localRelativePath else { return nil }
-            let url = appDir.appendingPathComponent(localRelativePath)
+            guard let relative = SourcePathSafety.sanitizedLocalSourcePath(source.localRelativePath) else { return nil }
+            let url = appDir.appendingPathComponent(relative).standardizedFileURL
+            guard url.path == root.path || url.path.hasPrefix(root.path + "/") else { return nil }
             return fileManager.fileExists(atPath: url.path) ? url : nil
         }
     }
 
-    private func mergeRestoredAssignments(_ restored: [AssignmentRecord], resolution: BackupConflictResolution) -> [AssignmentRecord] {
+    private func mergeRestoredAssignments(_ restored: [AssignmentRecord], resolution: BackupConflictResolution) -> (assignments: [AssignmentRecord], idMap: [UUID: UUID]) {
         var byID = Dictionary(uniqueKeysWithValues: assignments.map { ($0.id, $0) })
+        var idMap: [UUID: UUID] = [:]
         for record in restored {
             if let existing = byID[record.id] {
                 switch resolution {
@@ -1338,6 +1427,7 @@ final class GradeDraftViewModel: ObservableObject {
                     var copy = record
                     let originalID = copy.id
                     copy.id = UUID()
+                    idMap[originalID] = copy.id
                     copy.sourceInputs = copy.sourceInputs.map { source in
                         var sourceCopy = source
                         if let localRelativePath = source.localRelativePath {
@@ -1358,7 +1448,30 @@ final class GradeDraftViewModel: ObservableObject {
                 byID[restoredRecord.id] = restoredRecord
             }
         }
-        return Array(byID.values)
+        return (Array(byID.values), idMap)
+    }
+
+    private func remappedRestoredRosterEntries(
+        _ restored: [AssignmentRosterEntry],
+        assignmentIDMap: [UUID: UUID],
+        conflictResolution: BackupConflictResolution,
+        localConflictAssignmentIDs: Set<UUID>
+    ) -> [AssignmentRosterEntry] {
+        restored.compactMap { entry in
+            if conflictResolution == .keepLocal, localConflictAssignmentIDs.contains(entry.assignmentID) {
+                return nil
+            }
+            var copy = entry
+            if let remappedID = assignmentIDMap[entry.assignmentID] {
+                copy.id = UUID()
+                copy.assignmentID = remappedID
+                copy.updatedAt = Date()
+                if let matched = assignments.first(where: { $0.id == remappedID }) {
+                    copy.status = assignmentRosterStatus(for: matched)
+                }
+            }
+            return copy
+        }
     }
 
     func sourceFilesForCurrentAssignment() -> [URL] {
@@ -1392,6 +1505,19 @@ final class GradeDraftViewModel: ObservableObject {
         var byID = Dictionary(uniqueKeysWithValues: assignmentRosterEntries.map { ($0.id, $0) })
         for entry in restored {
             if byID[entry.id] == nil || backupConflictResolution == .replaceLocal {
+                byID[entry.id] = entry
+            }
+        }
+        assignmentRosterEntries = Array(byID.values).sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private func mergeRestoredRosterEntries(_ restored: [AssignmentRosterEntry], assignmentIDMap: [UUID: UUID], conflictResolution: BackupConflictResolution) {
+        let localConflictIDs = Set(assignmentIDMap.keys)
+        let remapped = remappedRestoredRosterEntries(restored, assignmentIDMap: assignmentIDMap, conflictResolution: conflictResolution, localConflictAssignmentIDs: localConflictIDs)
+        guard !remapped.isEmpty else { return }
+        var byID = Dictionary(uniqueKeysWithValues: assignmentRosterEntries.map { ($0.id, $0) })
+        for entry in remapped {
+            if byID[entry.id] == nil || conflictResolution == .replaceLocal {
                 byID[entry.id] = entry
             }
         }
@@ -1455,10 +1581,75 @@ final class GradeDraftViewModel: ObservableObject {
         }
     }
 
+    func previewBackupRestore(from url: URL) {
+        do {
+            let stagedURL = try stageBackupForRestorePreview(from: url)
+            let preview: BackupRestorePreview
+            if stagedURL.pathExtension.lowercased() == "zip" {
+                preview = try BundleExportService.previewRestore(from: stagedURL, existingAssignments: assignments)
+            } else {
+                preview = try previewLegacyJSONRestore(from: stagedURL)
+            }
+            pendingRestoreFileURL = stagedURL
+            pendingRestorePreview = preview
+            latestRestorePreview = preview
+            statusMessage = "Backup preview is ready. Confirm the import option before restoring records."
+        } catch {
+            pendingRestoreFileURL = nil
+            pendingRestorePreview = nil
+            errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+        }
+    }
+
+    func confirmPendingRestore() {
+        guard let pendingRestoreFileURL else {
+            errorMessage = "Choose and preview a backup before importing."
+            return
+        }
+        restoreBackup(from: pendingRestoreFileURL)
+        self.pendingRestoreFileURL = nil
+        self.pendingRestorePreview = nil
+    }
+
+    func cancelPendingRestore() {
+        if let pendingRestoreFileURL { try? fileManager.removeItem(at: pendingRestoreFileURL) }
+        self.pendingRestoreFileURL = nil
+        self.pendingRestorePreview = nil
+        statusMessage = "Backup import canceled before records were changed."
+    }
+
+    private func stageBackupForRestorePreview(from url: URL) throws -> URL {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let ext = url.pathExtension.isEmpty ? "backup" : url.pathExtension.lowercased()
+        let destination = fileManager.temporaryDirectory
+            .appendingPathComponent("GradeDraft-PendingRestore-\(UUID().uuidString)")
+            .appendingPathExtension(ext)
+        if fileManager.fileExists(atPath: destination.path) { try fileManager.removeItem(at: destination) }
+        try fileManager.copyItem(at: url, to: destination)
+        ExportFileHardening.applyBestEffortProtection(to: destination)
+        return destination
+    }
+
+    private func previewLegacyJSONRestore(from url: URL) throws -> BackupRestorePreview {
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let restored = try decoder.decode([AssignmentRecord].self, from: data)
+        return BackupRestorePreview(
+            archiveKind: "legacy-json",
+            schemaVersion: "legacy-json",
+            assignmentCount: restored.count,
+            classCount: 0,
+            studentCount: 0,
+            sourceFileCount: 0,
+            conflictAssignmentIDs: restored.compactMap { record in assignments.contains(where: { $0.id == record.id }) ? record.id : nil },
+            warnings: ["Legacy JSON backup does not contain original files, classes, students, or backup details."]
+        )
+    }
+
     func restoreBackup(from url: URL) {
         do {
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             let restored: [AssignmentRecord]
             var restoredDatabaseExport: BackupDatabaseExport?
             if url.pathExtension.lowercased() == "zip" {
@@ -1474,7 +1665,8 @@ final class GradeDraftViewModel: ObservableObject {
                 let data = try Data(contentsOf: url)
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
-                restored = try decoder.decode([AssignmentRecord].self, from: data)
+                let rawRestored = try decoder.decode([AssignmentRecord].self, from: data)
+                restored = sanitizedLegacyRestoredAssignments(rawRestored)
                 latestRestorePreview = BackupRestorePreview(
                     archiveKind: "legacy-json",
                     schemaVersion: "legacy-json",
@@ -1482,7 +1674,7 @@ final class GradeDraftViewModel: ObservableObject {
                     classCount: 0,
                     studentCount: 0,
                     sourceFileCount: 0,
-                    conflictAssignmentIDs: restored.compactMap { restoredRecord in assignments.contains(where: { $0.id == restoredRecord.id }) ? restoredRecord.id : nil },
+                    conflictAssignmentIDs: restored.compactMap { record in assignments.contains(where: { $0.id == record.id }) ? record.id : nil },
                     warnings: ["Legacy JSON backup does not contain original files, classes, students, or backup details."]
                 )
             }
@@ -1490,13 +1682,13 @@ final class GradeDraftViewModel: ObservableObject {
                 errorMessage = "Backup contained no assignments."
                 return
             }
-            let merged = mergeRestoredAssignments(restored, resolution: backupConflictResolution)
-            assignments = merged.sorted { $0.updatedAt > $1.updatedAt }
+            let mergeResult = mergeRestoredAssignments(restored, resolution: backupConflictResolution)
+            assignments = mergeResult.assignments.sorted { $0.updatedAt > $1.updatedAt }
             refreshAssignmentRosterEntries()
             if let restoredDatabaseExport {
                 mergeRestoredClassGroups(restoredDatabaseExport.classGroups)
                 mergeRestoredStudents(restoredDatabaseExport.students)
-                mergeRestoredRosterEntries(restoredDatabaseExport.rosterEntries)
+                mergeRestoredRosterEntries(restoredDatabaseExport.rosterEntries, assignmentIDMap: mergeResult.idMap, conflictResolution: backupConflictResolution)
             }
             selectedAssignmentID = assignments.first?.id
             try store.saveAssignments(assignments)
@@ -1506,6 +1698,18 @@ final class GradeDraftViewModel: ObservableObject {
             statusMessage = "Restored \(restored.count) assignment(s) plus related class, student, roster, and original-file records from local backup with \(backupConflictResolution.displayName.lowercased()) handling."
         } catch {
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+        }
+    }
+
+    private func sanitizedLegacyRestoredAssignments(_ records: [AssignmentRecord]) -> [AssignmentRecord] {
+        records.map { record in
+            var copy = record
+            copy.sourceInputs = copy.sourceInputs.map { source in
+                var sourceCopy = source
+                sourceCopy.localRelativePath = SourcePathSafety.sanitizedLocalSourcePath(source.localRelativePath)
+                return sourceCopy
+            }
+            return copy
         }
     }
 
@@ -1534,8 +1738,8 @@ final class GradeDraftViewModel: ObservableObject {
     func exportRiskSummary(for exportKind: ExportKind) -> ExportRiskSummary {
         let scopedAssignments: [AssignmentRecord]
         switch exportKind {
-        case .fullBackupArchive, .backupJSON:
-            scopedAssignments = assignments
+        case .fullBackupArchive, .backupJSON, .csvGradebook, .assignmentGradebookArchive:
+            scopedAssignments = gradebookAssignments.isEmpty ? assignments : gradebookAssignments
         default:
             scopedAssignments = [assignment]
         }
@@ -1543,7 +1747,7 @@ final class GradeDraftViewModel: ObservableObject {
         switch exportKind {
         case .studentMarkdown, .studentPDF:
             includesDraftContent = false
-        case .csvGradebook:
+        case .csvGradebook, .assignmentGradebookArchive:
             includesDraftContent = scopedAssignments.contains { record in
                 record.finalReview == nil || record.finalReview?.status != .approved || record.finalReviewIsStale
             }
@@ -1556,15 +1760,15 @@ final class GradeDraftViewModel: ObservableObject {
         switch exportKind {
         case .studentMarkdown, .studentPDF, .csvGradebook:
             includesPrivateNotes = false
-        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .backupJSON, .fullBackupArchive:
+        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .backupJSON, .fullBackupArchive, .assignmentGradebookArchive:
             includesPrivateNotes = true
         }
         let includesOriginalSources: Bool
         switch exportKind {
         case .zipArchive:
             includesOriginalSources = !sourceFilesForCurrentAssignment().isEmpty
-        case .fullBackupArchive:
-            includesOriginalSources = assignments.contains { !sourceFiles(for: $0).isEmpty }
+        case .fullBackupArchive, .assignmentGradebookArchive:
+            includesOriginalSources = scopedAssignments.contains { !sourceFiles(for: $0).isEmpty }
         default:
             includesOriginalSources = false
         }
@@ -1578,6 +1782,7 @@ final class GradeDraftViewModel: ObservableObject {
 
     private var clipboardTextExportKinds: Set<ExportKind> {
         [.studentMarkdown, .teacherAuditMarkdown, .csvGradebook, .backupJSON]
+        // assignmentGradebookArchive is a ZIP; not clipboard-copyable
     }
 
     private func recordExport(kind: ExportKind, content: String, includesPrivateNotes: Bool, includesOriginalSources: Bool) {

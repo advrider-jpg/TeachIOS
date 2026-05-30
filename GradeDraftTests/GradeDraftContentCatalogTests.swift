@@ -209,6 +209,8 @@ final class GradeDraftContentCatalogTests: XCTestCase {
         XCTAssertEqual(ExportWarningCatalog.warningIDs(for: .zipArchive), ["zip-archive-warning"])
         XCTAssertEqual(ExportWarningCatalog.warningIDs(for: .fullBackupArchive), ["zip-archive-warning", "json-backup-warning"])
         XCTAssertEqual(ExportWarningCatalog.warningIDs(for: .backupJSON), ["json-backup-warning"])
+        XCTAssertTrue(ExportWarningCatalog.warningIDs(for: .assignmentGradebookArchive).contains("zip-archive-warning"))
+        XCTAssertTrue(ExportWarningCatalog.warningIDs(for: .assignmentGradebookArchive).contains("csv-warning"))
         XCTAssertEqual(ExportWarningCatalog.primaryWarning(for: .fullBackupArchive)?.id, "zip-archive-warning")
 
         let teacherPDFWarnings = ExportConfirmationKind.teacherReviewPDF.baseWarnings

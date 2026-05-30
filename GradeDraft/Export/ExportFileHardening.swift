@@ -24,6 +24,7 @@ extension ExportKind {
         case .zipArchive: return "TeacherArchive"
         case .fullBackupArchive: return "FullBackup"
         case .backupJSON: return "BackupJSON"
+        case .assignmentGradebookArchive: return "GradebookArchive"
         }
     }
 }
