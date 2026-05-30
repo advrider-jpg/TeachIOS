@@ -91,6 +91,15 @@
 		C10000000000000000000100 /* GradeDraftContentCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000100 /* GradeDraftContentCatalogTests.swift */; };
 		C10000000000000000000200 /* grade_draft_content_catalog.json in Resources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000200 /* grade_draft_content_catalog.json */; };
 		C10000000000000000000201 /* grade_draft_content_catalog.json in Resources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000200 /* grade_draft_content_catalog.json */; };
+		E00000000000000000000001 /* CSVCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000101 /* CSVCodec.swift */; };
+		E00000000000000000000002 /* ExportPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000102 /* ExportPolicy.swift */; };
+		E00000000000000000000003 /* ExportFileHardening.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000103 /* ExportFileHardening.swift */; };
+		E00000000000000000000004 /* ExportAuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000104 /* ExportAuthenticationService.swift */; };
+		E00000000000000000000011 /* ExportFixtureFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000111 /* ExportFixtureFactory.swift */; };
+		E00000000000000000000012 /* CSVCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000112 /* CSVCodecTests.swift */; };
+		E00000000000000000000013 /* ExportPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000113 /* ExportPolicyTests.swift */; };
+		E00000000000000000000014 /* ExportHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000114 /* ExportHardeningTests.swift */; };
+		E00000000000000000000015 /* ArchiveRestoreSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000115 /* ArchiveRestoreSafetyTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -164,6 +173,15 @@
 		B60000000000000000000029 /* SettingsAboutLocalPrivacyScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutLocalPrivacyScreen.swift; sourceTree = "<group>"; };
 		B60000000000000000000030 /* StudentWorkScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentWorkScreen.swift; sourceTree = "<group>"; };
 		D60000000000000000000001 /* GradeDraftUILanguageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftUILanguageTests.swift; sourceTree = "<group>"; };
+		E00000000000000000000101 /* CSVCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVCodec.swift; sourceTree = "<group>"; };
+		E00000000000000000000102 /* ExportPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportPolicy.swift; sourceTree = "<group>"; };
+		E00000000000000000000103 /* ExportFileHardening.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFileHardening.swift; sourceTree = "<group>"; };
+		E00000000000000000000104 /* ExportAuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportAuthenticationService.swift; sourceTree = "<group>"; };
+		E00000000000000000000111 /* ExportFixtureFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFixtureFactory.swift; sourceTree = "<group>"; };
+		E00000000000000000000112 /* CSVCodecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVCodecTests.swift; sourceTree = "<group>"; };
+		E00000000000000000000113 /* ExportPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportPolicyTests.swift; sourceTree = "<group>"; };
+		E00000000000000000000114 /* ExportHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportHardeningTests.swift; sourceTree = "<group>"; };
+		E00000000000000000000115 /* ArchiveRestoreSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveRestoreSafetyTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -240,6 +258,7 @@
 				A0EC5399AB1F0376FFFF1554 /* PromptBuilder.swift */,
 				9C0011111111111111110002 /* RosterImportService.swift */,
 				9C0011111111111111110004 /* CurriculumCatalogService.swift */,
+				E00000000000000000000104 /* ExportAuthenticationService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -272,6 +291,11 @@
 				9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */,
 				B2C3D4E5F6A7B8C9D0E1F2A3 /* GradeDraftScreenshotTests.swift */,
 				D60000000000000000000001 /* GradeDraftUILanguageTests.swift */,
+				E00000000000000000000111 /* ExportFixtureFactory.swift */,
+				E00000000000000000000112 /* CSVCodecTests.swift */,
+				E00000000000000000000113 /* ExportPolicyTests.swift */,
+				E00000000000000000000114 /* ExportHardeningTests.swift */,
+				E00000000000000000000115 /* ArchiveRestoreSafetyTests.swift */,
 			);
 			path = GradeDraftTests;
 			sourceTree = "<group>";
@@ -299,6 +323,9 @@
 			children = (
 				e5dee6955ae64bbf9feecd7c /* PDFExportService.swift */,
 				e027b94ab7db4d8d96e95435 /* CSVExportService.swift */,
+				E00000000000000000000101 /* CSVCodec.swift */,
+				E00000000000000000000102 /* ExportPolicy.swift */,
+				E00000000000000000000103 /* ExportFileHardening.swift */,
 				4ef318821d8b4bd997e1debc /* BundleExportService.swift */,
 			);
 			path = Export;
@@ -558,6 +585,10 @@
 				b1c2d3e4f5a6b7c8d9e0f1a2 /* GRDBAssignmentStore.swift in Sources */,
 				9C0011111111111111110001 /* RosterImportService.swift in Sources */,
 				9C0011111111111111110003 /* CurriculumCatalogService.swift in Sources */,
+				E00000000000000000000001 /* CSVCodec.swift in Sources */,
+				E00000000000000000000002 /* ExportPolicy.swift in Sources */,
+				E00000000000000000000003 /* ExportFileHardening.swift in Sources */,
+				E00000000000000000000004 /* ExportAuthenticationService.swift in Sources */,
 				); runOnlyForDeploymentPostprocessing = 0; };
 		C2C867FEB507DB914C2126B0 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
 				E92F15694F5C9C14E9C64B87 /* GradeDraftTests.swift in Sources */,
@@ -566,6 +597,11 @@
 				C3D4E5F6A7B8C9D0E1F2A3B4 /* GradeDraftScreenshotTests.swift in Sources */,
 				C10000000000000000000100 /* GradeDraftContentCatalogTests.swift in Sources */,
 				D70000000000000000000001 /* GradeDraftUILanguageTests.swift in Sources */,
+				E00000000000000000000011 /* ExportFixtureFactory.swift in Sources */,
+				E00000000000000000000012 /* CSVCodecTests.swift in Sources */,
+				E00000000000000000000013 /* ExportPolicyTests.swift in Sources */,
+				E00000000000000000000014 /* ExportHardeningTests.swift in Sources */,
+				E00000000000000000000015 /* ArchiveRestoreSafetyTests.swift in Sources */,
 			); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

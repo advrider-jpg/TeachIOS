@@ -39,6 +39,18 @@ GradeDraft is not an autonomous grader. It is a teacher-controlled assistant:
 
 GradeDraft does **not** upload student work, rubrics, prompts, draft grades, or final grades to a server.
 
+
+## Export hardening posture
+
+GradeDraft's export layer is intentionally separated by audience and sensitivity:
+
+- Student-facing Markdown/PDF reports are final-only. They are blocked until a teacher-approved final review exists and the final review is not stale, and the student report builder does not render draft-only grade content.
+- Student-facing reports exclude private teacher notes, teacher rationale, raw model responses, audit events, source file paths, OCR internals, evidence source references, and bounding-box coordinates.
+- CSV gradebook exports quote every cell, escape embedded quotes, preserve commas/newlines as valid CSV content, and neutralize formula-like text values before writing.
+- Teacher audit reports, teacher archive ZIPs, and full local backups are teacher-only sensitive records. Archives include `archive_inventory.json` so teachers and restore tooling can see what categories of data were included.
+- Generated export filenames avoid assignment titles, student names, class names, and prompts by default. Filenames use the GradeDraft prefix, export kind, timestamp, short identifier, and extension.
+- Export files receive best-effort platform file-protection and exclude-from-backup attributes where supported. This does not make files encrypted after they leave the app.
+
 ## Apple framework posture
 
 - OCR: Vision / VisionKit.
@@ -68,6 +80,7 @@ Run the guardrails before committing:
 
 ```bash
 python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
 python3 scripts/repo_health.py
 ```
 

@@ -230,6 +230,12 @@ extension AssignmentRecord: Codable {
         return finalReview.packetFingerprint != gradingPacketFingerprint
     }
 
+    var isStudentFacingExportReady: Bool {
+        guard let finalReview else { return false }
+        guard finalReview.status == .approved else { return false }
+        return !finalReviewIsStale
+    }
+
     var requiresOCRReviewBeforeGrading: Bool {
         ocrReviewStatus == .needsReview || ocrReviewStatus == .blocked
     }
@@ -681,6 +687,17 @@ struct BackupArchiveManifest: Codable, Equatable {
     var recordCounts: [String: Int]
     var contentHashes: [String: String]
     var restoreCompatibility: String = "Compatible with GradeDraft local backup restore v3 when schemaVersion begins with gradedraft-backup-v."
+}
+
+struct ExportArchiveInventoryItem: Codable, Equatable, Identifiable {
+    var id: String { path }
+    var path: String
+    var category: String
+    var includesStudentData: Bool
+    var includesPrivateTeacherNotes: Bool
+    var includesOriginalSources: Bool
+    var includesInternalMetadata: Bool
+    var description: String
 }
 
 enum BackupConflictResolution: String, CaseIterable, Codable, Equatable, Identifiable {

@@ -44,6 +44,17 @@ def main() -> int:
         print(scan.stderr.strip())
         return scan.returncode
 
+    export_scan = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "export_hardening_scan.py")],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    print(export_scan.stdout.strip())
+    if export_scan.returncode != 0:
+        print(export_scan.stderr.strip())
+        return export_scan.returncode
+
     print("Required files present.")
     print("Health check passed. Use Xcode to compile and run unit tests.")
     return 0

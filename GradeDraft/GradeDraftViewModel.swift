@@ -137,13 +137,7 @@ final class GradeDraftViewModel: ObservableObject {
     }
 
     var canExportStudentReport: Bool {
-        guard let finalReview = assignment.finalReview else {
-            return false
-        }
-        if finalReview.status != .approved {
-            return false
-        }
-        return !assignment.finalReviewIsStale
+        assignment.isStudentFacingExportReady
     }
 
     var canApproveFinalReview: Bool {
@@ -725,10 +719,10 @@ final class GradeDraftViewModel: ObservableObject {
             let markdown = MarkdownReportBuilder.studentMarkdown(for: assignment)
             exportURL = try MarkdownReportBuilder.writeTemporaryStudentReport(for: assignment)
             exportKind = .studentMarkdown
-            recordExport(kind: .studentMarkdown, markdown: markdown, includesPrivateNotes: false, includesOriginalSources: false)
+            recordExport(kind: .studentMarkdown, content: markdown, includesPrivateNotes: false, includesOriginalSources: false)
             statusMessage = "Student Markdown report is ready to share."
         } catch {
-            errorMessage = error.localizedDescription
+            handleExportFailure(error)
         }
     }
 
@@ -738,28 +732,25 @@ final class GradeDraftViewModel: ObservableObject {
             let markdown = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment, generatedAt: generatedAt)
             exportURL = try MarkdownReportBuilder.writeTemporaryTeacherAuditReport(for: assignment, generatedAt: generatedAt)
             exportKind = .teacherAuditMarkdown
-            recordExport(kind: .teacherAuditMarkdown, markdown: markdown, includesPrivateNotes: true, includesOriginalSources: false)
+            recordExport(kind: .teacherAuditMarkdown, content: markdown, includesPrivateNotes: true, includesOriginalSources: false)
             statusMessage = "Teacher Review is ready to share. Treat it as sensitive."
         } catch {
-            errorMessage = error.localizedDescription
+            handleExportFailure(error)
         }
     }
 
     func exportCSVGradebook() {
         do {
             let csv = CSVExportService.exportedCSV(from: [assignment])
-            let safeTitle = assignment.title
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .replacingOccurrences(of: "[^A-Za-z0-9_-]+", with: "-", options: .regularExpression)
-            let fileName = "GradeDraft-CSV-\(safeTitle.isEmpty ? assignment.id.uuidString : safeTitle).csv"
-            let destination = fileManager.temporaryDirectory.appendingPathComponent(fileName)
+            let destination = temporaryExportURL(kind: .csvGradebook, extension: "csv")
             try csv.write(to: destination, atomically: true, encoding: .utf8)
+            ExportFileHardening.applyBestEffortProtection(to: destination)
             exportURL = destination
             exportKind = .csvGradebook
-            recordExport(kind: .csvGradebook, markdown: csv, includesPrivateNotes: false, includesOriginalSources: false)
+            recordExport(kind: .csvGradebook, content: csv, includesPrivateNotes: false, includesOriginalSources: false)
             statusMessage = "CSV grade summary is ready to share."
         } catch {
-            errorMessage = error.localizedDescription
+            handleExportFailure(error)
         }
     }
 
@@ -1359,52 +1350,53 @@ final class GradeDraftViewModel: ObservableObject {
             return
         }
         do {
-            let destination = temporaryExportURL(prefix: "GradeDraft-Student", extension: "pdf")
+            let destination = temporaryExportURL(kind: .studentPDF, extension: "pdf")
             exportURL = try PDFExportService.studentReportPDF(for: assignment, destination: destination)
             exportKind = .studentPDF
-            recordExport(kind: .studentPDF, markdown: MarkdownReportBuilder.studentMarkdown(for: assignment), includesPrivateNotes: false, includesOriginalSources: false)
+            if let exportURL { recordExport(kind: .studentPDF, fileURL: exportURL, includesPrivateNotes: false, includesOriginalSources: false) }
             statusMessage = "Student Report PDF is ready to share."
         } catch {
-            errorMessage = error.localizedDescription
+            handleExportFailure(error)
         }
     }
 
     func exportTeacherAuditPDF() {
         do {
-            let destination = temporaryExportURL(prefix: "GradeDraft-TeacherReview", extension: "pdf")
+            let destination = temporaryExportURL(kind: .teacherAuditPDF, extension: "pdf")
             exportURL = try PDFExportService.teacherAuditPDF(for: assignment, destination: destination)
             exportKind = .teacherAuditPDF
-            recordExport(kind: .teacherAuditPDF, markdown: MarkdownReportBuilder.teacherAuditMarkdown(for: assignment, generatedAt: Date()), includesPrivateNotes: true, includesOriginalSources: false)
+            if let exportURL { recordExport(kind: .teacherAuditPDF, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: false) }
             statusMessage = "Teacher Review PDF is ready to share. Treat it as sensitive."
         } catch {
-            errorMessage = error.localizedDescription
+            handleExportFailure(error)
         }
     }
 
     func exportArchiveBundle() {
         do {
+            let sourceFiles = sourceFilesForCurrentAssignment()
             let destination = try BundleExportService.preflightDestination(for: assignment.id)
-            exportURL = try BundleExportService.writeTeacherAuditArchive(assignment: assignment, sourceFiles: sourceFilesForCurrentAssignment(), to: destination)
+            exportURL = try BundleExportService.writeTeacherAuditArchive(assignment: assignment, sourceFiles: sourceFiles, to: destination)
             exportKind = .zipArchive
-            recordExport(kind: .zipArchive, markdown: StableFingerprint.fingerprint([assignment.gradingPacketFingerprint]), includesPrivateNotes: true, includesOriginalSources: !sourceFilesForCurrentAssignment().isEmpty)
+            if let exportURL { recordExport(kind: .zipArchive, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: !sourceFiles.isEmpty) }
             statusMessage = "Teacher archive ZIP is ready to share. Treat it as sensitive."
         } catch {
-            errorMessage = error.localizedDescription
+            handleExportFailure(error)
         }
     }
 
     func exportBackupJSON() {
         do {
-            let destination = temporaryExportURL(prefix: "GradeDraft-FullBackup", extension: "zip")
+            let destination = temporaryExportURL(kind: .fullBackupArchive, extension: "zip", assignmentID: nil)
             let sourceFilesForBackup = assignments.flatMap { assignment in
                 sourceFiles(for: assignment)
             }
             exportURL = try BundleExportService.writeFullBackup(assignments: assignments, sourceFiles: sourceFilesForBackup, to: destination, classGroups: classGroups, students: students, rosterEntries: assignmentRosterEntries)
             exportKind = .fullBackupArchive
-            recordExport(kind: .fullBackupArchive, markdown: StableFingerprint.fingerprint(assignments.map(\.gradingPacketFingerprint)), includesPrivateNotes: true, includesOriginalSources: !sourceFilesForBackup.isEmpty)
+            if let exportURL { recordExport(kind: .fullBackupArchive, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: !sourceFilesForBackup.isEmpty) }
             statusMessage = "Full local backup archive is ready to share. Treat it as sensitive student data."
         } catch {
-            errorMessage = error.localizedDescription
+            handleExportFailure(error)
         }
     }
 
@@ -1533,19 +1525,51 @@ final class GradeDraftViewModel: ObservableObject {
         [.studentMarkdown, .teacherAuditMarkdown, .csvGradebook, .backupJSON]
     }
 
-    private func recordExport(kind: ExportKind, markdown: String, includesPrivateNotes: Bool, includesOriginalSources: Bool) {
+    private func recordExport(kind: ExportKind, content: String, includesPrivateNotes: Bool, includesOriginalSources: Bool) {
+        appendExportRecord(
+            kind: kind,
+            contentFingerprint: StableFingerprint.fingerprint(Data(content.utf8)),
+            includesPrivateNotes: includesPrivateNotes,
+            includesOriginalSources: includesOriginalSources
+        )
+    }
+
+    private func recordExport(kind: ExportKind, fileURL: URL, includesPrivateNotes: Bool, includesOriginalSources: Bool) {
+        do {
+            let data = try Data(contentsOf: fileURL)
+            appendExportRecord(
+                kind: kind,
+                contentFingerprint: StableFingerprint.fingerprint(data),
+                includesPrivateNotes: includesPrivateNotes,
+                includesOriginalSources: includesOriginalSources
+            )
+        } catch {
+            exportURL = nil
+            exportKind = nil
+            errorMessage = "GradeDraft could not create the export. No file was shared. Could not fingerprint the exported file."
+        }
+    }
+
+    private func appendExportRecord(kind: ExportKind, contentFingerprint: String, includesPrivateNotes: Bool, includesOriginalSources: Bool) {
         updateAssignment { assignment in
             assignment.exportRecords.append(
                 ExportRecord(
                     exportKind: kind,
-                    contentFingerprint: StableFingerprint.fingerprint([markdown]),
+                    contentFingerprint: contentFingerprint,
                     includesPrivateTeacherNotes: includesPrivateNotes,
                     includesOriginalSources: includesOriginalSources
                 )
             )
-            assignment.appendAuditEvent(.exportPrepared, detail: "Prepared \(kind.displayName).")
+            assignment.appendAuditEvent(.exportPrepared, detail: "Prepared \(kind.rawValue). Includes private notes: \(includesPrivateNotes ? "yes" : "no"). Includes original sources: \(includesOriginalSources ? "yes" : "no").")
         }
         persistOrSurfaceError()
+    }
+
+    private func handleExportFailure(_ error: Error) {
+        exportURL = nil
+        exportKind = nil
+        let detail = error.localizedDescription.replacingOccurrences(of: fileManager.temporaryDirectory.path, with: "[temporary directory]")
+        errorMessage = "GradeDraft could not create the export. No file was shared. \(detail)"
     }
 
     private func upsertAssignment(_ updated: AssignmentRecord) {
@@ -1675,11 +1699,8 @@ final class GradeDraftViewModel: ObservableObject {
         return UUID(uuidString: match.replacingOccurrences(of: "evidence:", with: ""))
     }
 
-    private func temporaryExportURL(prefix: String, extension ext: String) -> URL {
-        let safeTitle = assignment.title
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "[^A-Za-z0-9_-]+", with: "-", options: .regularExpression)
-        let filename = "\(prefix)-\(safeTitle.isEmpty ? assignment.id.uuidString : safeTitle).\(ext)"
+    private func temporaryExportURL(kind: ExportKind, extension ext: String, assignmentID: UUID? = nil) -> URL {
+        let filename = ExportFilenameBuilder.filename(kind: kind, assignmentID: assignmentID ?? assignment.id, extension: ext)
         return fileManager.temporaryDirectory.appendingPathComponent(filename)
     }
 

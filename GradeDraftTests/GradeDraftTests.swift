@@ -240,7 +240,9 @@ final class GradeDraftTests: XCTestCase {
         XCTAssertEqual(dataRow[14], "false")
 
         let csv = CSVExportService.exportedCSV(from: [assignment])
-        XCTAssertTrue(csv.hasPrefix("assignment_id,title,subject,grade_level,class_name,student,assignment_type,assessment_purpose,total_score,max_score,final_status,ocr_status,draft_status,final_review_stale,draft_stale,updated_at"))
+        let parsedRows = try CSVParser.parseRows(csv)
+        XCTAssertEqual(parsedRows.first, ["assignment_id", "title", "subject", "grade_level", "class_name", "student", "assignment_type", "assessment_purpose", "total_score", "max_score", "final_status", "ocr_status", "draft_status", "final_review_stale", "draft_stale", "updated_at"])
+        XCTAssertTrue(csv.hasPrefix("\"assignment_id\""))
         XCTAssertFalse(csv.contains("Private grading note."))
         XCTAssertFalse(csv.contains("Private instructor comment."))
     }

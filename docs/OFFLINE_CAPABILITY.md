@@ -24,8 +24,12 @@ The scaffold stores assignment state in local JSON under Application Support. Sc
 
 ## Export warning
 
-Student exports exclude private teacher notes. Teacher-audit exports can include reviewed text, OCR state, source references, private notes, and audit events. Treat teacher-audit exports and local backups as sensitive student records.
+Student exports exclude private teacher notes and render only teacher-approved, non-stale final grade content. Teacher-audit exports can include reviewed text, OCR state, source references, private notes, model-draft metadata, and audit events. Treat teacher-audit exports and local backups as sensitive student records.
+
+GradeDraft applies best-effort local file-protection attributes to generated exports where supported by the platform, and export files are marked to be excluded from backup where supported. This does not make exported files encrypted after they leave the app and does not replace school-approved storage, transfer, retention, or device-management policies.
+
+ZIP archives and full backups include `archive_inventory.json` so the exported package records which categories of data are present, including whether private teacher notes, original source files, and internal metadata were included.
 
 ## Not encryption
 
-The scaffold does not implement encryption. Local storage, source images, reports, and backups should not be described as encrypted unless a real encryption layer is added later.
+The scaffold does not implement encryption. Local storage, source images, reports, and backups should not be described as encrypted unless a real encryption layer is added later. Best-effort file-protection attributes are platform hints and must not be marketed as encryption or compliance certification.

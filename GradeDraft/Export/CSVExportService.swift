@@ -1,22 +1,14 @@
 import Foundation
 
 enum SpreadsheetSafety {
+    private static let dangerousFormulaPrefixes: Set<Character> = ["=", "+", "-", "@"]
+
     static func sanitizedCell(_ value: String) -> String {
         guard !value.isEmpty else { return value }
+        guard let firstNonWhitespace = value.first(where: { !$0.isWhitespace }) else { return value }
+        if value.first == "'" { return value }
         if isNumericalText(value) { return value }
-
-        guard let firstCharacter = value.first(where: { !$0.isWhitespace }) else {
-            return value
-        }
-
-        if firstCharacter == "=" ||
-            firstCharacter == "+" ||
-            firstCharacter == "-" ||
-            firstCharacter == "@" {
-            let leadingWhitespace = value.prefix { $0.isWhitespace }
-            if !leadingWhitespace.isEmpty && leadingWhitespace.allSatisfy({ $0 == "\t" }) {
-                return value
-            }
+        if dangerousFormulaPrefixes.contains(firstNonWhitespace) {
             return "'" + value
         }
         return value
@@ -81,16 +73,13 @@ enum CSVExportService {
     }
 
     static func exportedCSV(from assignments: [AssignmentRecord]) -> String {
-        buildStudentRows(from: assignments).map { $0.joined(separator: ",") }.joined(separator: "\n")
+        CSVWriter.string(rows: buildStudentRows(from: assignments))
     }
 
     static func writeCSV(from assignments: [AssignmentRecord], to destination: URL) throws -> URL {
         try exportedCSV(from: assignments).write(to: destination, atomically: true, encoding: .utf8)
+        ExportFileHardening.applyBestEffortProtection(to: destination)
         return destination
-    }
-
-    private static func csvEscaped(_ value: String) -> String {
-        value.replacingOccurrences(of: "\"", with: "\"\"")
     }
 
     private static func exportFinalStatus(for assignment: AssignmentRecord) -> String {
