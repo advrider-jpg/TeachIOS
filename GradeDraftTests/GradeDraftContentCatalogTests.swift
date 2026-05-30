@@ -113,7 +113,7 @@ final class GradeDraftContentCatalogTests: XCTestCase {
     }
 
     func testTemplateInsertionUpdatesExpectedFieldsFingerprintMetadataAndIdempotency() throws {
-        let original = AssignmentRecord(title: "Example", reviewedStudentText: "Student answer", rubricText: "Criterion: 0-1 point")
+        let original = AssignmentRecord(title: "Example", rubricText: "Criterion: 0-1 point", reviewedStudentText: "Student answer")
         let initialFingerprint = original.plannedContentPacketFingerprint
 
         let instruction = try XCTUnwrap(TeacherInstructionTemplateCatalog.template(id: "general-evidence-first"))
@@ -151,7 +151,7 @@ final class GradeDraftContentCatalogTests: XCTestCase {
 
     @MainActor
     func testViewModelTemplateApplicationMarksExistingDraftAndFinalReviewStaleAndAuditsBoth() throws {
-        var assignment = AssignmentRecord(title: "Stale-state test", reviewedStudentText: "Student answer", rubricText: "Criterion: 0-1 point")
+        var assignment = AssignmentRecord(title: "Stale-state test", rubricText: "Criterion: 0-1 point", reviewedStudentText: "Student answer")
         let startingFingerprint = assignment.gradingPacketFingerprint
         assignment.latestDraft = GradeDraftResult(
             packetFingerprint: startingFingerprint,
@@ -226,7 +226,7 @@ final class GradeDraftContentCatalogTests: XCTestCase {
     }
 
     func testPromptUsesCanonicalTemplateOptionalSectionsAndSafeNonRecursiveRendering() {
-        var assignment = AssignmentRecord(title: "Prompt", reviewedStudentText: "Student text", rubricText: "Criterion: 0-1 point")
+        var assignment = AssignmentRecord(title: "Prompt", rubricText: "Criterion: 0-1 point", reviewedStudentText: "Student text")
         assignment.customInstructions = "Use concise comments."
         assignment.answerKeyText = "Expected element."
         assignment.exemplarText = "Exemplar response."
@@ -265,7 +265,7 @@ final class GradeDraftContentCatalogTests: XCTestCase {
     }
 
     func testReportsKeepStudentTeacherSeparationAndTeacherContext() {
-        var assignment = AssignmentRecord(title: "Report", reviewedStudentText: "Student answer", rubricText: "Criterion: 0-1 point")
+        var assignment = AssignmentRecord(title: "Report", rubricText: "Criterion: 0-1 point", reviewedStudentText: "Student answer")
         assignment.customInstructions = "Teacher-only instruction."
         assignment.formativeFocusText = "Teacher-only formative focus."
         assignment.answerKeyText = "Teacher-only answer key."
@@ -294,7 +294,7 @@ final class GradeDraftContentCatalogTests: XCTestCase {
         XCTAssertFalse(student.contains("export-fingerprint"))
         XCTAssertFalse(student.contains("Review history detail."))
 
-        var draftOnly = AssignmentRecord(title: "Draft-only", reviewedStudentText: "Student answer", rubricText: "Criterion: 0-1 point")
+        var draftOnly = AssignmentRecord(title: "Draft-only", rubricText: "Criterion: 0-1 point", reviewedStudentText: "Student answer")
         draftOnly.latestDraft = GradeDraftResult(
             studentResponseSummary: "Summary",
             criteria: [CriterionScore(criterion: "Claim", rating: "Good", proposedPoints: 1, maxPoints: 1, evidence: ["Student answer"], explanation: "Met.", teacherReviewRequired: false)],
