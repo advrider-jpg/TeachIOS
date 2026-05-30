@@ -140,31 +140,28 @@ enum MarkdownReportBuilder {
         var output = reportHeader(title: "GradeDraft Student Report", assignment: assignment)
         output.append("\n> This student-facing report includes only teacher-approved student-facing content and excludes private teacher notes, review history, scanned-text review details, original-file details, and unreviewed AI suggestions.\n")
 
-        if let final = assignment.finalReview {
+        if let final = assignment.finalReview, final.status == .approved, !assignment.finalReviewIsStale {
             output.append("\n## Final teacher-approved grade\n")
             output.append("**Score:** \(GradeTotals.formatted(final.totalScore)) / \(GradeTotals.formatted(final.maxScore))\n")
             output.append("\n### Student feedback\n")
             output.append(final.studentFeedback.isEmpty ? "No feedback provided.\n" : "\(final.studentFeedback)\n")
             output.append("\n### Criteria\n")
             appendFinalCriteria(final.criteria, includeTeacherRationale: false, to: &output)
-        } else if let draft = assignment.latestDraft {
-            output.append("\n## Draft grade for teacher review\n")
-            output.append("**Score:** \(GradeTotals.formatted(draft.totalScore)) / \(GradeTotals.formatted(draft.maxScore))\n")
-            output.append("\nThis is not a finalized grade. A teacher must review and approve it before use.\n")
-            output.append("\n### Feedback suggestion for teacher review\n")
-            output.append("\(draft.studentFeedback)\n")
-            output.append("\n### Criteria suggestions\n")
-            appendDraftCriteria(draft.criteria, to: &output)
         } else {
-            output.append("\n## No grade has been drafted yet\n")
+            output.append("\n## No final teacher-approved grade is available\n")
+            output.append("Student-facing export is blocked until the teacher approves a current final grade. Draft suggestions and stale reviews are available only in teacher-only records.\n")
         }
 
         return output
     }
 
-    static func teacherAuditMarkdown(for assignment: AssignmentRecord) -> String {
+    static func teacherAuditMarkdown(for assignment: AssignmentRecord, generatedAt: Date = Date(), generatedForExportKind: ExportKind? = nil) -> String {
         var output = reportHeader(title: "GradeDraft Teacher Review", assignment: assignment)
         output.append("\n> This teacher-only review may include private notes, reviewed student work, scanned-text review details, original-file details, and local review history. Treat it as sensitive student data.\n")
+        output.append("\n**Report generated:** \(generatedAt)\n")
+        if let generatedForExportKind {
+            output.append("**Generated for export:** \(generatedForExportKind.displayName)\n")
+        }
 
         output.append("\n## Readiness and student work status\n")
         output.append("- Scanned-text review status: \(assignment.ocrReviewStatus.displayName)\n")
@@ -201,6 +198,22 @@ enum MarkdownReportBuilder {
             }
         }
 
+        output.append("\n## Grading packet context\n")
+        output.append("- Packet version: \(assignment.gradingPacket.packetVersion)\n")
+        output.append("- Fingerprint schema: \(assignment.gradingPacketFingerprintVersion)\n")
+        output.append("- Local review detail: \(assignment.gradingPacketFingerprint)\n")
+        appendTeacherOnlySection(title: "Rubric", value: assignment.rubricText, emptyMessage: "No rubric saved.", to: &output)
+        appendTeacherOnlySection(title: "Custom teacher instructions", value: GradeDraftTemplateApplication.withoutTemplateMarkers(assignment.customInstructions), emptyMessage: "No custom teacher instructions saved.", to: &output)
+        appendTeacherOnlySection(title: "Formative focus", value: GradeDraftTemplateApplication.withoutTemplateMarkers(assignment.formativeFocusText), emptyMessage: "No formative focus saved.", to: &output)
+        appendTeacherOnlySection(title: "Answer key", value: GradeDraftTemplateApplication.withoutTemplateMarkers(assignment.answerKeyText), emptyMessage: "No answer key saved.", to: &output)
+        appendTeacherOnlySection(title: "Exemplar", value: GradeDraftTemplateApplication.withoutTemplateMarkers(assignment.exemplarText), emptyMessage: "No exemplar saved.", to: &output)
+        if !assignment.appliedTemplates.isEmpty {
+            output.append("\n### Applied templates\n")
+            for record in assignment.appliedTemplates.sorted(by: { $0.appliedAt < $1.appliedAt }) {
+                output.append("- \(record.appliedAt): \(record.templateKind.displayName) — \(record.templateName) [id: \(record.templateID); mode: \(record.insertionMode.rawValue)]\n")
+            }
+        }
+
         output.append("\n## Reviewed student text\n\n")
         output.append(assignment.reviewedStudentText.isEmpty ? "No reviewed student text saved.\n" : "\(assignment.reviewedStudentText)\n")
 
@@ -233,8 +246,12 @@ enum MarkdownReportBuilder {
             }
         }
 
-        output.append("\n## Rubric\n\n")
-        output.append(assignment.rubricText.isEmpty ? "No rubric saved.\n" : "\(assignment.rubricText)\n")
+        if !assignment.exportRecords.isEmpty {
+            output.append("\n## Export records\n")
+            for record in assignment.exportRecords.sorted(by: { $0.createdAt < $1.createdAt }) {
+                output.append("- \(record.createdAt): \(record.exportKind.displayName); private notes included: \(record.includesPrivateTeacherNotes ? "yes" : "no"); original files included: \(record.includesOriginalSources ? "yes" : "no"); detail: \(record.contentFingerprint)\n")
+            }
+        }
 
         if !assignment.evidenceReferences.isEmpty {
             output.append("\n## Evidence\n")
@@ -263,8 +280,14 @@ enum MarkdownReportBuilder {
         try writeTemporaryReport(for: assignment, kind: .studentMarkdown, content: studentMarkdown(for: assignment))
     }
 
-    static func writeTemporaryTeacherAuditReport(for assignment: AssignmentRecord) throws -> URL {
-        try writeTemporaryReport(for: assignment, kind: .teacherAuditMarkdown, content: teacherAuditMarkdown(for: assignment))
+    static func writeTemporaryTeacherAuditReport(for assignment: AssignmentRecord, generatedAt: Date = Date()) throws -> URL {
+        try writeTemporaryReport(for: assignment, kind: .teacherAuditMarkdown, content: teacherAuditMarkdown(for: assignment, generatedAt: generatedAt, generatedForExportKind: .teacherAuditMarkdown))
+    }
+
+    private static func appendTeacherOnlySection(title: String, value: String, emptyMessage: String, to output: inout String) {
+        output.append("\n### \(title)\n\n")
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        output.append(trimmed.isEmpty ? "\(emptyMessage)\n" : "\(trimmed)\n")
     }
 
     private static func reportHeader(title: String, assignment: AssignmentRecord) -> String {

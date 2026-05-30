@@ -6,6 +6,7 @@ struct ExportsRestoreScreen: View {
     @State private var confirmationKind: ExportConfirmationKind?
     @State private var showingBackupImporter = false
     @State private var showingShareSheetWarning = false
+    @State private var showingClipboardWarning = false
     @State private var readyToShareFile = false
     @State private var showingResolutionSheet = false
 
@@ -34,12 +35,30 @@ struct ExportsRestoreScreen: View {
 
                 GroupedListCard(title: "Create export", subtitle: "Audience labels show whether a file is student-facing or teacher-only.") {
                     ExportOptionRow(
+                        title: "Student Report Markdown",
+                        subtitle: "Student-facing text report for sharing after final approval.",
+                        status: .studentFacing,
+                        actionLabel: "Export",
+                        disabled: !viewModel.canExportStudentReport,
+                        action: { confirmationKind = .studentReportMarkdown }
+                    )
+                    Divider().padding(.leading, 56)
+                    ExportOptionRow(
                         title: "Student Report PDF",
                         subtitle: "For sharing with students or families after final approval.",
                         status: .studentFacing,
                         actionLabel: "Export",
                         disabled: !viewModel.canExportStudentReport,
                         action: { confirmationKind = .studentReportPDF }
+                    )
+                    Divider().padding(.leading, 56)
+                    ExportOptionRow(
+                        title: "Teacher Review Markdown",
+                        subtitle: "Teacher-only text record. Do not share with students or families.",
+                        status: .teacherOnly,
+                        actionLabel: "Export",
+                        disabled: false,
+                        action: { confirmationKind = .teacherReviewMarkdown }
                     )
                     Divider().padding(.leading, 56)
                     ExportOptionRow(
@@ -127,7 +146,11 @@ struct ExportsRestoreScreen: View {
                         .padding(.vertical, 10)
                         PrimaryActionButton(title: "Open Share Sheet", systemImage: "square.and.arrow.up", action: { showingShareSheetWarning = true })
                             .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-                            .padding(.bottom, 12)
+                        if clipboardCopyAvailable(for: viewModel.exportKind) {
+                            SecondaryActionButton(title: "Copy Text", systemImage: "doc.on.clipboard", action: { showingClipboardWarning = true })
+                                .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
+                        }
+                        Spacer(minLength: 12)
                     } else {
                         EmptyState(title: "No export selected", message: "Create an export before opening the share sheet.", systemImage: "square.and.arrow.up")
                     }
@@ -139,7 +162,7 @@ struct ExportsRestoreScreen: View {
         .background(Color(.systemGroupedBackground))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $confirmationKind) { kind in
-            ExportConfirmationSheet(kind: kind, onCancel: { confirmationKind = nil }, onConfirm: { confirm(kind) })
+            ExportConfirmationSheet(kind: kind, assignment: viewModel.assignment, allAssignments: viewModel.assignments, onCancel: { confirmationKind = nil }, onConfirm: { confirm(kind) })
         }
         .sheet(isPresented: $readyToShareFile) {
             if let url = viewModel.exportURL {
@@ -154,17 +177,27 @@ struct ExportsRestoreScreen: View {
         .fileImporter(isPresented: $showingBackupImporter, allowedContentTypes: [.json, .zip, .item]) { result in
             if case .success(let url) = result { viewModel.restoreBackup(from: url) }
         }
-        .confirmationDialog("Share outside the app?", isPresented: $showingShareSheetWarning, titleVisibility: .visible) {
-            Button("Open Share Sheet") { readyToShareFile = true }
-            Button("Cancel", role: .cancel) {}
+        .confirmationDialog(shareSheetWarningTitle, isPresented: $showingShareSheetWarning, titleVisibility: .visible) {
+            Button(shareSheetPrimaryButton) { readyToShareFile = true }
+            Button(shareSheetSecondaryButton, role: .cancel) {}
         } message: {
-            Text("You are about to send a file or text to another app. GradeDraft cannot control how that destination app stores, syncs, forwards, or protects the information.")
+            Text(shareSheetWarningBody)
+        }
+        .confirmationDialog(clipboardWarningTitle, isPresented: $showingClipboardWarning, titleVisibility: .visible) {
+            Button(clipboardWarningPrimaryButton) { viewModel.copyPreparedExportTextToClipboard() }
+            Button(clipboardWarningSecondaryButton, role: .cancel) {}
+        } message: {
+            Text(clipboardWarningBody)
         }
     }
 
     private func confirm(_ kind: ExportConfirmationKind) {
         confirmationKind = nil
         switch kind {
+        case .studentReportMarkdown:
+            viewModel.exportStudentReport()
+        case .teacherReviewMarkdown:
+            viewModel.exportTeacherAuditReport()
         case .studentReportPDF:
             viewModel.exportStudentPDF()
         case .teacherReviewPDF:
@@ -176,5 +209,47 @@ struct ExportsRestoreScreen: View {
         case .gradebookArchive:
             viewModel.exportCSVGradebook()
         }
+    }
+
+    private func clipboardCopyAvailable(for kind: ExportKind?) -> Bool {
+        guard let kind else { return false }
+        switch kind {
+        case .studentMarkdown, .teacherAuditMarkdown, .csvGradebook, .backupJSON:
+            return true
+        case .studentPDF, .teacherAuditPDF, .zipArchive, .fullBackupArchive:
+            return false
+        }
+    }
+
+    private var shareSheetWarningTitle: String {
+        ExportWarningCatalog.warning(id: "share-sheet-warning")?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Share outside the app?"
+    }
+
+    private var shareSheetWarningBody: String {
+        ExportWarningCatalog.warning(id: "share-sheet-warning")?.body.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Confirm before sharing this export outside GradeDraft."
+    }
+
+    private var shareSheetPrimaryButton: String {
+        ExportWarningCatalog.warning(id: "share-sheet-warning")?.primaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Open Share Sheet"
+    }
+
+    private var shareSheetSecondaryButton: String {
+        ExportWarningCatalog.warning(id: "share-sheet-warning")?.secondaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Cancel"
+    }
+
+    private var clipboardWarningTitle: String {
+        ExportWarningCatalog.warning(id: "clipboard-warning")?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Copy student information?"
+    }
+
+    private var clipboardWarningBody: String {
+        ExportWarningCatalog.warning(id: "clipboard-warning")?.body.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Confirm before copying this export."
+    }
+
+    private var clipboardWarningPrimaryButton: String {
+        ExportWarningCatalog.warning(id: "clipboard-warning")?.primaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Copy"
+    }
+
+    private var clipboardWarningSecondaryButton: String {
+        ExportWarningCatalog.warning(id: "clipboard-warning")?.secondaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Cancel"
     }
 }
