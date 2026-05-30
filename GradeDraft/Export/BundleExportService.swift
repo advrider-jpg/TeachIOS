@@ -94,12 +94,12 @@ struct BundleExportService {
             try addData(CSVExportService.exportedCSV(from: [assignment]).data(using: .utf8) ?? Data(), named: "grade_summary.csv", category: "gradebook", sensitivity: .gradebook, description: "Quoted and formula-neutralized grade summary CSV.", inventory: &inventory, to: archive)
             try addCodable(assignment, named: "assignment.json", category: "assignmentRecord", sensitivity: .teacherAudit, description: "Complete assignment record.", inventory: &inventory, to: archive)
             try addCodable(assignment.parsedRubric.criteria, named: "rubric.json", category: "rubric", sensitivity: .studentDataInternal, description: "Parsed rubric criteria.", inventory: &inventory, to: archive)
-            try addCodable(assignment.sourceInputs, named: "source_metadata.json", category: "sourceMetadata", sensitivity: .sourceMetadata, description: "Original source metadata and local source references.", inventory: &inventory, to: archive)
+            try addCodable(assignment.sourceInputs, named: "source_metadata.json", category: "sourceMetadata", sensitivity: .sourceMetadata, description: "Original source file details and local source references.", inventory: &inventory, to: archive)
             try addCodable(assignment.ocrDocument, named: "ocr_document.json", category: "ocrDocument", sensitivity: .teacherAudit, description: "OCR document and review state.", inventory: &inventory, to: archive)
             try addCodable(assignment.evidenceReferences, named: "evidence_refs.json", category: "evidence", sensitivity: .teacherAudit, description: "Evidence references and bounding boxes.", inventory: &inventory, to: archive)
             try addCodable(assignment.latestDraft, named: "grade_proposal.json", category: "gradeProposal", sensitivity: .teacherAudit, description: "Draft grading proposal for teacher review.", inventory: &inventory, to: archive)
             try addCodable(assignment.finalReview, named: "final_review.json", category: "finalReview", sensitivity: .teacherAudit, description: "Teacher final review record.", inventory: &inventory, to: archive)
-            try addCodable(assignment.auditEvents, named: "audit_events.json", category: "auditEvents", sensitivity: .teacherAudit, description: "Audit events recorded for the assignment.", inventory: &inventory, to: archive)
+            try addCodable(assignment.auditEvents, named: "audit_events.json", category: "auditEvents", sensitivity: .teacherAudit, description: "Review log entries recorded for the assignment.", inventory: &inventory, to: archive)
             try addCodable(assignment.exportRecords, named: "export_records.json", category: "exportRecords", sensitivity: .internalMetadata, description: "Prior export records and fingerprints.", inventory: &inventory, to: archive)
             try addCodable(assignment.curriculumMappings, named: "curriculum_mappings.json", category: "curriculumMappings", sensitivity: .internalMetadata, description: "Local curriculum mapping records.", inventory: &inventory, to: archive)
             try addSources(existingSourceFiles, to: archive, inventory: &inventory)
@@ -180,7 +180,7 @@ struct BundleExportService {
             try addCodable(rosterEntries, named: "assignment_roster_entries.json", category: "rosterEntries", sensitivity: .studentDataInternal, description: "Assignment roster entries.", inventory: &inventory, to: archive)
             try addCodable(assignments.flatMap(\.sourceInputs), named: "source_inputs.json", category: "sourceMetadata", sensitivity: .sourceMetadata, description: "Source input metadata.", inventory: &inventory, to: archive)
             try addCodable(assignments.flatMap(\.evidenceReferences), named: "evidence_refs.json", category: "evidence", sensitivity: .teacherAudit, description: "Evidence references and bounding boxes.", inventory: &inventory, to: archive)
-            try addCodable(assignments.flatMap(\.auditEvents), named: "audit_events.json", category: "auditEvents", sensitivity: .teacherAudit, description: "Assignment audit events.", inventory: &inventory, to: archive)
+            try addCodable(assignments.flatMap(\.auditEvents), named: "audit_events.json", category: "auditEvents", sensitivity: .teacherAudit, description: "Assignment review log entries.", inventory: &inventory, to: archive)
             try addCodable(assignments.flatMap(\.exportRecords), named: "export_records.json", category: "exportRecords", sensitivity: .internalMetadata, description: "Export records and fingerprints.", inventory: &inventory, to: archive)
             try addCodable(assignments.flatMap(\.curriculumMappings), named: "curriculum_mappings.json", category: "curriculumMappings", sensitivity: .internalMetadata, description: "Local curriculum mappings.", inventory: &inventory, to: archive)
             try addCodable(assignments.compactMap(\.ocrDocument), named: "ocr_documents.json", category: "ocrDocument", sensitivity: .teacherAudit, description: "OCR documents and review state.", inventory: &inventory, to: archive)
@@ -521,7 +521,7 @@ struct BundleExportService {
     private static func safeRelativeSourcePath(fromArchiveEntryPath archiveEntryPath: String) throws -> String? {
         guard archiveEntryPath.hasPrefix("sources/") else { return nil }
         let relative = String(archiveEntryPath.dropFirst("sources/".count))
-        guard !relative.isEmpty else { throw BundleExportError.restoreFailed("Archive source entry contains an empty source path: \(archiveEntryPath).") }
+        guard !relative.isEmpty else { throw BundleExportError.restoreFailed("Archive source entry is missing a source reference: \(archiveEntryPath).") }
         guard !relative.hasPrefix("/") else { throw BundleExportError.restoreFailed("Archive source entry contains an absolute path: \(archiveEntryPath).") }
         guard !relative.contains("\\") else { throw BundleExportError.restoreFailed("Archive source entry contains an unsafe path separator: \(archiveEntryPath).") }
         let components = relative.split(separator: "/", omittingEmptySubsequences: false)
