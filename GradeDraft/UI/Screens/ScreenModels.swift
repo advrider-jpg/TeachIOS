@@ -186,7 +186,11 @@ extension GradeDraftViewModel {
         if assignment.finalReviewIsStale || assignment.latestDraftIsStale {
             return .needsRecheck
         }
-        if assignment.exportRecords.contains(where: { $0.exportKind == .studentPDF || $0.exportKind == .zipArchive }) {
+        // Only show "Exported" when the approved final review is still current.
+        // If the final review is nil (e.g. a new draft was started after export) or
+        // not approved, fall through so the assignment surfaces in the review queue.
+        if assignment.finalReview?.status == .approved,
+           assignment.exportRecords.contains(where: { $0.exportKind == .studentPDF || $0.exportKind == .zipArchive }) {
             return .exported
         }
         if assignment.finalReview?.status == .approved {
