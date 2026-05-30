@@ -236,23 +236,7 @@ enum MarkdownReportBuilder {
         }
 
         if let draft = assignment.latestDraft {
-            output.append("\n## Feedback suggestion for teacher review\n")
-            output.append("- Draft status: \(draftStatusLabel(draft.status))\n")
-            output.append("- Score: \(GradeTotals.formatted(draft.totalScore)) / \(GradeTotals.formatted(draft.maxScore))\n")
-            output.append("- Local review detail: \(draft.packetFingerprint)\n")
-            if let audit = draft.localModelAudit {
-                appendLocalModelAudit(audit, to: &output)
-            }
-            output.append("\n### Criteria suggestions\n")
-            appendDraftCriteria(draft.criteria, to: &output)
-            if !draft.uncertaintyFlags.isEmpty {
-                output.append("\n### Items needing attention\n")
-                for flag in draft.uncertaintyFlags { output.append("- \(flag)\n") }
-            }
-            if !draft.complianceFlags.isEmpty {
-                output.append("\n### Review notes\n")
-                for flag in draft.complianceFlags { output.append("- \(flag)\n") }
-            }
+            appendTeacherDraftSection(draft, to: &output)
         }
 
         if !assignment.exportRecords.isEmpty {
@@ -262,25 +246,8 @@ enum MarkdownReportBuilder {
             }
         }
 
-        if !assignment.evidenceReferences.isEmpty {
-            output.append("\n## Evidence\n")
-            for evidence in assignment.evidenceReferences {
-                output.append("- \(evidence.quote) — \(evidence.displaySource)")
-                if let box = evidence.boundingBox {
-                    output.append(" — bbox: \(box.stableDisplay)")
-                }
-                output.append("\n")
-            }
-        }
-
-        output.append("\n## Review history\n")
-        if assignment.auditEvents.isEmpty {
-            output.append("No review history recorded.\n")
-        } else {
-            for event in assignment.auditEvents.sorted(by: { $0.timestamp < $1.timestamp }) {
-                output.append("- \(event.timestamp): \(event.eventType.rawValue) — \(event.detail)\n")
-            }
-        }
+        appendEvidenceSection(assignment.evidenceReferences, to: &output)
+        appendAuditEventsSection(assignment.auditEvents, to: &output)
 
         return output
     }
@@ -317,6 +284,49 @@ enum MarkdownReportBuilder {
         }
         if let errorSummary = audit.generationErrorSummary {
             output.append("- Generation error summary: \(errorSummary)\n")
+        }
+    }
+
+    private static func appendTeacherDraftSection(_ draft: GradeDraftResult, to output: inout String) {
+        output.append("\n## Feedback suggestion for teacher review\n")
+        output.append("- Draft status: \(draftStatusLabel(draft.status))\n")
+        output.append("- Score: \(GradeTotals.formatted(draft.totalScore)) / \(GradeTotals.formatted(draft.maxScore))\n")
+        output.append("- Local review detail: \(draft.packetFingerprint)\n")
+        if let audit = draft.localModelAudit {
+            appendLocalModelAudit(audit, to: &output)
+        }
+        output.append("\n### Criteria suggestions\n")
+        appendDraftCriteria(draft.criteria, to: &output)
+        if !draft.uncertaintyFlags.isEmpty {
+            output.append("\n### Items needing attention\n")
+            for flag in draft.uncertaintyFlags { output.append("- \(flag)\n") }
+        }
+        if !draft.complianceFlags.isEmpty {
+            output.append("\n### Review notes\n")
+            for flag in draft.complianceFlags { output.append("- \(flag)\n") }
+        }
+    }
+
+    private static func appendEvidenceSection(_ evidence: [EvidenceReference], to output: inout String) {
+        guard !evidence.isEmpty else { return }
+        output.append("\n## Evidence\n")
+        for ref in evidence {
+            output.append("- \(ref.quote) — \(ref.displaySource)")
+            if let box = ref.boundingBox {
+                output.append(" — bbox: \(box.stableDisplay)")
+            }
+            output.append("\n")
+        }
+    }
+
+    private static func appendAuditEventsSection(_ events: [AuditEvent], to output: inout String) {
+        output.append("\n## Review history\n")
+        if events.isEmpty {
+            output.append("No review history recorded.\n")
+        } else {
+            for event in events.sorted(by: { $0.timestamp < $1.timestamp }) {
+                output.append("- \(event.timestamp): \(event.eventType.rawValue) — \(event.detail)\n")
+            }
         }
     }
 
