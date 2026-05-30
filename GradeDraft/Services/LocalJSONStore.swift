@@ -167,6 +167,12 @@ enum MarkdownReportBuilder {
         output.append("- Scanned-text review status: \(assignment.ocrReviewStatus.displayName)\n")
         output.append("- Original files: \(assignment.sourceInputs.count)\n")
         output.append("- Local review detail: \(assignment.gradingPacketFingerprint)\n")
+        if !assignment.selectedInstructionTemplateIDs.isEmpty {
+            output.append("- Selected AI constraint templates: \(assignment.selectedInstructionTemplateIDs.joined(separator: ", "))\n")
+            for template in GradingConstraintTemplates.templates(for: assignment.selectedInstructionTemplateIDs) {
+                output.append("  - \(template.title): \(template.text)\n")
+            }
+        }
         if assignment.latestDraftIsStale {
             output.append("- Draft status: Needs recheck; student work or rubric changed after the feedback suggestion was created.\n")
         }
@@ -234,6 +240,32 @@ enum MarkdownReportBuilder {
             output.append("- Draft status: \(draftStatusLabel(draft.status))\n")
             output.append("- Score: \(GradeTotals.formatted(draft.totalScore)) / \(GradeTotals.formatted(draft.maxScore))\n")
             output.append("- Local review detail: \(draft.packetFingerprint)\n")
+            if let audit = draft.localModelAudit {
+                output.append("\n### Local model audit\n")
+                output.append("- Provider: \(audit.provider)\n")
+                output.append("- Framework: \(audit.framework)\n")
+                output.append("- Prompt version: \(audit.promptVersion)\n")
+                output.append("- Schema version: \(audit.schemaVersion)\n")
+                output.append("- Validator version: \(audit.validatorVersion)\n")
+                output.append("- Generation mode: \(audit.generationMode.rawValue)\n")
+                output.append("- Prompt fingerprint: \(audit.promptFingerprint)\n")
+                output.append("- Input packet fingerprint: \(audit.inputPacketFingerprint)\n")
+                output.append("- Selected template IDs: \(audit.selectedInstructionTemplateIDs.joined(separator: ", "))\n")
+                output.append("- Selected template fingerprint: \(audit.selectedInstructionTemplateFingerprint)\n")
+                output.append("- Context size tokens: \(audit.contextSizeTokens.map(String.init) ?? "not measured")\n")
+                output.append("- Estimated/measured input tokens: \(audit.estimatedOrMeasuredInputTokens.map(String.init) ?? "not measured")\n")
+                output.append("- Reserved output tokens: \(audit.reservedOutputTokens.map(String.init) ?? "not measured")\n")
+                output.append("- Criteria requested/generated: \(audit.criteriaRequested)/\(audit.criteriaGenerated)\n")
+                output.append("- OCR status: \(audit.ocrReviewStatus.displayName)\n")
+                output.append("- OCR quality: \(audit.ocrQualitySummary.displaySummary)\n")
+                if !audit.validationWarnings.isEmpty {
+                    output.append("- Validation warnings:\n")
+                    for warning in audit.validationWarnings { output.append("  - \(warning)\n") }
+                }
+                if let errorSummary = audit.generationErrorSummary {
+                    output.append("- Generation error summary: \(errorSummary)\n")
+                }
+            }
             output.append("\n### Criteria suggestions\n")
             appendDraftCriteria(draft.criteria, to: &output)
             if !draft.uncertaintyFlags.isEmpty {

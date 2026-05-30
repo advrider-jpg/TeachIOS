@@ -33,3 +33,11 @@ ZIP archives and full backups include `archive_inventory.json` so the exported p
 ## Not encryption
 
 The scaffold does not implement encryption. Local storage, source images, reports, and backups should not be described as encrypted unless a real encryption layer is added later. Best-effort file-protection attributes are platform hints and must not be marketed as encryption or compliance certification.
+
+## Local model packet limits
+
+Foundation Models availability depends on supported hardware, operating-system version, Apple Intelligence settings, language/region, and model readiness. GradeDraft checks availability before generating a local draft.
+
+Long grading packets are handled locally. The app may use a compact prompt or criterion-by-criterion typed generation when safe, but it must not silently truncate reviewed student work or send the packet to a cloud model. If the packet is too large for the on-device model, GradeDraft reports that limitation and keeps manual grading available.
+
+Teacher-audit exports and full backups may include local model audit metadata. Student-facing exports do not include raw prompt material, raw model material, local model audit metadata, or private teacher notes.

@@ -16,6 +16,11 @@
 		BCC3F811BD918D685A21A9DC /* GradeTotals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34C1D9BF4FFCFEB34EEF7264 /* GradeTotals.swift */; };
 		D0893F41B415EF5F02392764 /* LocalJSONStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080B27BFE3EC6B6E76453A55 /* LocalJSONStore.swift */; };
 		EFE9E48E698998BB5031EAD6 /* PromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0EC5399AB1F0376FFFF1554 /* PromptBuilder.swift */; };
+		AI0000000000000000000002 /* GradingConstraintTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI0000000000000000000001 /* GradingConstraintTemplates.swift */; };
+		AI0000000000000000000004 /* FoundationModelGradeProposalSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI0000000000000000000003 /* FoundationModelGradeProposalSchema.swift */; };
+		AI0000000000000000000006 /* FoundationModelErrorMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI0000000000000000000005 /* FoundationModelErrorMapper.swift */; };
+		AI0000000000000000000008 /* GradingPromptBudgeter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI0000000000000000000007 /* GradingPromptBudgeter.swift */; };
+		AI0000000000000000000010 /* AppleIntelligenceImplementationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI0000000000000000000009 /* AppleIntelligenceImplementationTests.swift */; };
 		EDAE34C4F70B0071371919BC /* DocumentScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6080EE48D7210889E1CAAE50 /* DocumentScannerView.swift */; };
 		B82A21CD79BD6729921D0455 /* LocalCapabilityBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBD34CEB9D5E52DA3FF63AA0 /* LocalCapabilityBanner.swift */; };
 		00409CECD33DC980764B6B8E /* GradeResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D02E558438747A9D730FC8 /* GradeResultView.swift */; };
@@ -123,6 +128,11 @@
 		FB4149F0A80F5AEF370D2C6F /* GradingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradingService.swift; sourceTree = "<group>"; };
 		C970390A677003FF366361E2 /* FoundationModelGradingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelGradingService.swift; sourceTree = "<group>"; };
 		34C1D9BF4FFCFEB34EEF7264 /* GradeTotals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeTotals.swift; sourceTree = "<group>"; };
+		AI0000000000000000000001 /* GradingConstraintTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradingConstraintTemplates.swift; sourceTree = "<group>"; };
+		AI0000000000000000000003 /* FoundationModelGradeProposalSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelGradeProposalSchema.swift; sourceTree = "<group>"; };
+		AI0000000000000000000005 /* FoundationModelErrorMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelErrorMapper.swift; sourceTree = "<group>"; };
+		AI0000000000000000000007 /* GradingPromptBudgeter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradingPromptBudgeter.swift; sourceTree = "<group>"; };
+		AI0000000000000000000009 /* AppleIntelligenceImplementationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleIntelligenceImplementationTests.swift; sourceTree = "<group>"; };
 		080B27BFE3EC6B6E76453A55 /* LocalJSONStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalJSONStore.swift; sourceTree = "<group>"; };
 		A0EC5399AB1F0376FFFF1554 /* PromptBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptBuilder.swift; sourceTree = "<group>"; };
 		6080EE48D7210889E1CAAE50 /* DocumentScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentScannerView.swift; sourceTree = "<group>"; };
@@ -243,6 +253,7 @@
 			isa = PBXGroup;
 			children = (
 				BEAA58224F166E200203BADA /* GradeDraftModels.swift */,
+				AI0000000000000000000001 /* GradingConstraintTemplates.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -256,6 +267,9 @@
 				34C1D9BF4FFCFEB34EEF7264 /* GradeTotals.swift */,
 				080B27BFE3EC6B6E76453A55 /* LocalJSONStore.swift */,
 				A0EC5399AB1F0376FFFF1554 /* PromptBuilder.swift */,
+				AI0000000000000000000003 /* FoundationModelGradeProposalSchema.swift */,
+				AI0000000000000000000005 /* FoundationModelErrorMapper.swift */,
+				AI0000000000000000000007 /* GradingPromptBudgeter.swift */,
 				9C0011111111111111110002 /* RosterImportService.swift */,
 				9C0011111111111111110004 /* CurriculumCatalogService.swift */,
 				E00000000000000000000104 /* ExportAuthenticationService.swift */,
@@ -296,6 +310,7 @@
 				E00000000000000000000113 /* ExportPolicyTests.swift */,
 				E00000000000000000000114 /* ExportHardeningTests.swift */,
 				E00000000000000000000115 /* ArchiveRestoreSafetyTests.swift */,
+				AI0000000000000000000009 /* AppleIntelligenceImplementationTests.swift */,
 			);
 			path = GradeDraftTests;
 			sourceTree = "<group>";
@@ -573,6 +588,10 @@
 				BCC3F811BD918D685A21A9DC /* GradeTotals.swift in Sources */,
 				D0893F41B415EF5F02392764 /* LocalJSONStore.swift in Sources */,
 				EFE9E48E698998BB5031EAD6 /* PromptBuilder.swift in Sources */,
+				AI0000000000000000000002 /* GradingConstraintTemplates.swift in Sources */,
+				AI0000000000000000000004 /* FoundationModelGradeProposalSchema.swift in Sources */,
+				AI0000000000000000000006 /* FoundationModelErrorMapper.swift in Sources */,
+				AI0000000000000000000008 /* GradingPromptBudgeter.swift in Sources */,
 				EDAE34C4F70B0071371919BC /* DocumentScannerView.swift in Sources */,
 				B82A21CD79BD6729921D0455 /* LocalCapabilityBanner.swift in Sources */,
 				00409CECD33DC980764B6B8E /* GradeResultView.swift in Sources */,
@@ -602,6 +621,7 @@
 				E00000000000000000000013 /* ExportPolicyTests.swift in Sources */,
 				E00000000000000000000014 /* ExportHardeningTests.swift in Sources */,
 				E00000000000000000000015 /* ArchiveRestoreSafetyTests.swift in Sources */,
+				AI0000000000000000000010 /* AppleIntelligenceImplementationTests.swift in Sources */,
 			); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

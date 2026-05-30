@@ -109,6 +109,43 @@ struct RubricInstructionsScreen: View {
                 }
                 .padding(.horizontal, GradeDraftLayout.screenPadding)
 
+                GroupedListCard(title: "AI grading constraint templates", subtitle: "Selectable constraints included in the local AI grading packet.") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("These prompts guide the local draft only. Sensitive templates are never selected automatically and should be selected only when the teacher has supplied that context.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 8) {
+                            SecondaryActionButton(title: "Apply Recommended", systemImage: "checklist.checked", action: viewModel.applyRecommendedAIConstraintTemplates)
+                            SecondaryActionButton(title: "Clear", systemImage: "xmark.circle", action: viewModel.clearAIConstraintTemplates)
+                        }
+
+                        ForEach(GradingConstraintTemplates.builtIn) { template in
+                            Toggle(isOn: Binding(
+                                get: { viewModel.assignment.selectedInstructionTemplateIDs.contains(template.id) },
+                                set: { _ in viewModel.toggleAIConstraintTemplate(template.id) }
+                            )) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(template.title)
+                                        .font(.caption.bold())
+                                    Text(template.text)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    if template.sensitiveContextRequired {
+                                        Label("Select only when teacher-provided context exists. GradeDraft must not infer it.", systemImage: "exclamationmark.triangle")
+                                            .font(.caption2)
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
+                            }
+                            .toggleStyle(.switch)
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    .padding(GradeDraftLayout.rowHorizontalPadding)
+                }
+                .padding(.horizontal, GradeDraftLayout.screenPadding)
+
                 if let preview = viewModel.latestRubricPreview {
                     RubricImportPreviewCard(
                         preview: preview,

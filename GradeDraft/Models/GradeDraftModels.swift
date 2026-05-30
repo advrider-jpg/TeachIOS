@@ -21,6 +21,141 @@ enum StableFingerprint {
     }
 }
 
+// MARK: - Foundation Models prompt and audit metadata
+
+enum GradeDraftPromptVersion {
+    static let foundationModelsTypedV1 = "gradedraft.foundationmodels.typed.v1"
+    static let schemaVersion = "gradedraft.gradeproposal.schema.v1"
+    static let validatorVersion = "gradedraft.validator.v1"
+}
+
+enum LocalModelGenerationMode: String, Codable, Equatable, Sendable {
+    case fullPacket
+    case compactFullPacket
+    case perCriterion
+    case unavailable
+}
+
+struct LocalModelDraftAudit: Codable, Equatable, Sendable {
+    var provider: String
+    var framework: String
+    var promptVersion: String
+    var schemaVersion: String
+    var validatorVersion: String
+    var generationMode: LocalModelGenerationMode
+    var generatedAt: Date
+    var inputPacketFingerprint: String
+    var promptFingerprint: String
+    var selectedInstructionTemplateIDs: [String]
+    var selectedInstructionTemplateFingerprint: String
+    var contextSizeTokens: Int?
+    var estimatedOrMeasuredInputTokens: Int?
+    var reservedOutputTokens: Int?
+    var criteriaRequested: Int
+    var criteriaGenerated: Int
+    var usedStructuredRubric: Bool
+    var usedAnswerKey: Bool
+    var usedExemplar: Bool
+    var usedCurriculumReference: Bool
+    var sourceInputCount: Int
+    var ocrReviewStatus: OCRReviewStatus
+    var ocrQualitySummary: OCRQualitySummary
+    var validationWarnings: [String]
+    var modelUnavailableMessage: String?
+    var generationErrorSummary: String?
+
+    init(
+        provider: String = "Apple Foundation Models",
+        framework: String = "FoundationModels",
+        promptVersion: String = GradeDraftPromptVersion.foundationModelsTypedV1,
+        schemaVersion: String = GradeDraftPromptVersion.schemaVersion,
+        validatorVersion: String = GradeDraftPromptVersion.validatorVersion,
+        generationMode: LocalModelGenerationMode,
+        generatedAt: Date = Date(),
+        inputPacketFingerprint: String,
+        promptFingerprint: String,
+        selectedInstructionTemplateIDs: [String],
+        selectedInstructionTemplateFingerprint: String,
+        contextSizeTokens: Int?,
+        estimatedOrMeasuredInputTokens: Int?,
+        reservedOutputTokens: Int?,
+        criteriaRequested: Int,
+        criteriaGenerated: Int,
+        usedStructuredRubric: Bool,
+        usedAnswerKey: Bool,
+        usedExemplar: Bool,
+        usedCurriculumReference: Bool,
+        sourceInputCount: Int,
+        ocrReviewStatus: OCRReviewStatus,
+        ocrQualitySummary: OCRQualitySummary,
+        validationWarnings: [String] = [],
+        modelUnavailableMessage: String? = nil,
+        generationErrorSummary: String? = nil
+    ) {
+        self.provider = provider
+        self.framework = framework
+        self.promptVersion = promptVersion
+        self.schemaVersion = schemaVersion
+        self.validatorVersion = validatorVersion
+        self.generationMode = generationMode
+        self.generatedAt = Date(timeIntervalSinceReferenceDate: floor(generatedAt.timeIntervalSinceReferenceDate * 1000) / 1000)
+        self.inputPacketFingerprint = inputPacketFingerprint
+        self.promptFingerprint = promptFingerprint
+        self.selectedInstructionTemplateIDs = selectedInstructionTemplateIDs
+        self.selectedInstructionTemplateFingerprint = selectedInstructionTemplateFingerprint
+        self.contextSizeTokens = contextSizeTokens
+        self.estimatedOrMeasuredInputTokens = estimatedOrMeasuredInputTokens
+        self.reservedOutputTokens = reservedOutputTokens
+        self.criteriaRequested = criteriaRequested
+        self.criteriaGenerated = criteriaGenerated
+        self.usedStructuredRubric = usedStructuredRubric
+        self.usedAnswerKey = usedAnswerKey
+        self.usedExemplar = usedExemplar
+        self.usedCurriculumReference = usedCurriculumReference
+        self.sourceInputCount = sourceInputCount
+        self.ocrReviewStatus = ocrReviewStatus
+        self.ocrQualitySummary = ocrQualitySummary
+        self.validationWarnings = validationWarnings
+        self.modelUnavailableMessage = modelUnavailableMessage
+        self.generationErrorSummary = generationErrorSummary
+    }
+
+    static func make(input: GradingInput, plan: PromptBudgetPlan, generatedCriteriaCount: Int, extraWarnings: [String] = []) -> LocalModelDraftAudit {
+        let estimatedTokens: Int?
+        switch plan.mode {
+        case .fullPacket:
+            estimatedTokens = plan.report.fullPacketTokens
+        case .compactFullPacket:
+            estimatedTokens = plan.report.compactPacketTokens
+        case .perCriterion:
+            estimatedTokens = plan.report.perCriterionTokenCounts.values.max()
+        case .unavailable:
+            estimatedTokens = nil
+        }
+
+        return LocalModelDraftAudit(
+            generationMode: plan.mode,
+            inputPacketFingerprint: input.packetFingerprint,
+            promptFingerprint: plan.report.promptFingerprint,
+            selectedInstructionTemplateIDs: input.selectedInstructionTemplateIDs,
+            selectedInstructionTemplateFingerprint: input.selectedInstructionTemplateFingerprint,
+            contextSizeTokens: plan.report.contextSizeTokens,
+            estimatedOrMeasuredInputTokens: estimatedTokens,
+            reservedOutputTokens: plan.report.reservedOutputTokens,
+            criteriaRequested: input.parsedRubric.criteria.count,
+            criteriaGenerated: generatedCriteriaCount,
+            usedStructuredRubric: !input.parsedRubric.criteria.isEmpty,
+            usedAnswerKey: !input.answerKeyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            usedExemplar: !input.exemplarText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            usedCurriculumReference: !input.curriculumReference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            sourceInputCount: input.sourceInputCount,
+            ocrReviewStatus: input.ocrReviewStatus,
+            ocrQualitySummary: input.ocrQualitySummary,
+            validationWarnings: Array(Set(plan.report.warnings + extraWarnings)).sorted()
+        )
+    }
+}
+
 // MARK: - Assignment and classroom records
 
 struct AssignmentRecord: Identifiable, Equatable {
@@ -40,6 +175,7 @@ struct AssignmentRecord: Identifiable, Equatable {
     var assignmentType: AssignmentType
     var rubricText: String
     var customInstructions: String
+    var selectedInstructionTemplateIDs: [String]
     var answerKeyText: String
     var exemplarText: String
     var formativeFocusText: String
@@ -73,6 +209,7 @@ struct AssignmentRecord: Identifiable, Equatable {
         assignmentType: AssignmentType = .shortAnswer,
         rubricText: String = "",
         customInstructions: String = "",
+        selectedInstructionTemplateIDs: [String] = GradingConstraintTemplates.defaultSelectedIDs,
         answerKeyText: String = "",
         exemplarText: String = "",
         formativeFocusText: String = "",
@@ -105,6 +242,7 @@ struct AssignmentRecord: Identifiable, Equatable {
         self.assignmentType = assignmentType
         self.rubricText = rubricText
         self.customInstructions = customInstructions
+        self.selectedInstructionTemplateIDs = selectedInstructionTemplateIDs
         self.answerKeyText = answerKeyText
         self.exemplarText = exemplarText
         self.formativeFocusText = formativeFocusText
@@ -128,7 +266,7 @@ struct AssignmentRecord: Identifiable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case id, classGroupID, studentID, title, prompt, subject, gradeLevel, assessmentPurpose, curriculumReference
-        case className, studentDisplayName, assignmentType, rubricText, customInstructions
+        case className, studentDisplayName, assignmentType, rubricText, customInstructions, selectedInstructionTemplateIDs
         case answerKeyText, exemplarText, formativeFocusText, reviewedStudentText, sourceInputs, ocrDocument
         case ocrReviewStatus, ocrReviewedAt, latestDraft, finalReview
         case exportRecords, auditEvents, evidenceReferences, curriculumMappings, appliedTemplates, createdAt, updatedAt
@@ -152,6 +290,7 @@ extension AssignmentRecord: Codable {
         assignmentType = try container.decode(AssignmentType.self, forKey: .assignmentType)
         rubricText = try container.decode(String.self, forKey: .rubricText)
         customInstructions = try container.decode(String.self, forKey: .customInstructions)
+        selectedInstructionTemplateIDs = (try? container.decode([String].self, forKey: .selectedInstructionTemplateIDs)) ?? []
         answerKeyText = try container.decode(String.self, forKey: .answerKeyText)
         exemplarText = try container.decode(String.self, forKey: .exemplarText)
         formativeFocusText = (try? container.decode(String.self, forKey: .formativeFocusText)) ?? ""
@@ -187,6 +326,7 @@ extension AssignmentRecord: Codable {
         try container.encode(assignmentType, forKey: .assignmentType)
         try container.encode(rubricText, forKey: .rubricText)
         try container.encode(customInstructions, forKey: .customInstructions)
+        try container.encode(selectedInstructionTemplateIDs, forKey: .selectedInstructionTemplateIDs)
         try container.encode(answerKeyText, forKey: .answerKeyText)
         try container.encode(exemplarText, forKey: .exemplarText)
         try container.encode(formativeFocusText, forKey: .formativeFocusText)
@@ -263,6 +403,9 @@ extension AssignmentRecord: Codable {
             rubricText: rubricText,
             parsedRubric: parsedRubric,
             customInstructions: customInstructions,
+            selectedInstructionTemplateIDs: selectedInstructionTemplateIDs,
+            selectedInstructionTemplateText: GradingConstraintTemplates.combinedText(for: selectedInstructionTemplateIDs),
+            selectedInstructionTemplateFingerprint: GradingConstraintTemplates.fingerprint(for: selectedInstructionTemplateIDs),
             formativeFocusText: formativeFocusText,
             answerKeyText: answerKeyText,
             exemplarText: exemplarText,
@@ -1452,6 +1595,9 @@ struct GradingInput: Codable, Equatable {
     var rubricText: String
     var parsedRubric: ParsedRubric
     var customInstructions: String
+    var selectedInstructionTemplateIDs: [String] = []
+    var selectedInstructionTemplateText: String = ""
+    var selectedInstructionTemplateFingerprint: String = ""
     var formativeFocusText: String = ""
     var answerKeyText: String
     var exemplarText: String
@@ -1493,6 +1639,7 @@ struct GradeDraftResult: Identifiable, Codable, Equatable {
     var uncertaintyFlags: [String]
     var complianceFlags: [String]
     var rawModelResponse: String?
+    var localModelAudit: LocalModelDraftAudit?
 
     init(
         id: UUID = UUID(),
@@ -1507,7 +1654,8 @@ struct GradeDraftResult: Identifiable, Codable, Equatable {
         teacherNotes: String,
         uncertaintyFlags: [String],
         complianceFlags: [String] = [],
-        rawModelResponse: String? = nil
+        rawModelResponse: String? = nil,
+        localModelAudit: LocalModelDraftAudit? = nil
     ) {
         self.id = id
         self.generatedAt = Date(timeIntervalSinceReferenceDate: floor(generatedAt.timeIntervalSinceReferenceDate * 1000) / 1000)
@@ -1522,6 +1670,7 @@ struct GradeDraftResult: Identifiable, Codable, Equatable {
         self.uncertaintyFlags = uncertaintyFlags
         self.complianceFlags = complianceFlags
         self.rawModelResponse = rawModelResponse
+        self.localModelAudit = localModelAudit
     }
 }
 
@@ -1821,6 +1970,8 @@ enum GradeDraftError: LocalizedError, Equatable {
     case localModelUnavailable(String)
     case malformedModelResponse(String)
     case invalidModelGrade(String)
+    case promptTooLargeForLocalModel(String)
+    case localModelGenerationFailed(String)
     case ocrFailed(String)
     case persistenceFailed(String)
     case exportFailed(String)
@@ -1839,6 +1990,10 @@ enum GradeDraftError: LocalizedError, Equatable {
             return "The local model returned a response the app could not parse: \(message)"
         case .invalidModelGrade(let message):
             return "The local model returned an invalid grade draft: \(message)"
+        case .promptTooLargeForLocalModel(let message):
+            return message
+        case .localModelGenerationFailed(let message):
+            return message
         case .ocrFailed(let message):
             return "Text recognition failed: \(message)"
         case .persistenceFailed(let message):

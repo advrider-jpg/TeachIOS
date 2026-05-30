@@ -17,7 +17,8 @@ enum GradeTotals {
             teacherNotes: result.teacherNotes,
             uncertaintyFlags: result.uncertaintyFlags,
             complianceFlags: result.complianceFlags,
-            rawModelResponse: result.rawModelResponse
+            rawModelResponse: result.rawModelResponse,
+            localModelAudit: result.localModelAudit
         )
     }
 

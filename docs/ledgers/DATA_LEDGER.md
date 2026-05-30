@@ -34,3 +34,11 @@ This ledger summarizes durable data entities and persistence behavior for GradeD
 `GradeDraftDatabase` creates normalized tables for class groups, students, class-student links, assignment roster entries, student work, source inputs, PDF sources, OCR documents, OCR pages, OCR lines, OCR line revisions, rubrics, rubric criteria, rubric levels, teacher instructions, answer keys, expected elements, exemplars, curriculum items, curriculum mappings, grading packets, grade proposals, grade-proposal criteria, teacher reviews, final reviews, final-review criteria, evidence references, export records, audit events, and backup/restore events.
 
 Compatibility JSON payload rows remain for lossless export/fallback, but normalized rows are the primary load path once present.
+
+## 2026-05-30 — Local AI constraint templates and audit metadata
+
+- Added assignment-level `selectedInstructionTemplateIDs` to record teacher-selected AI grading constraint templates. Templates are selectable per-assignment and included in the local AI grading prompt.
+- Added `LocalModelDraftAudit` to draft records for teacher-audit and backup contexts, including prompt/schema/validator version, generation mode, packet fingerprint, token-budget summary, template IDs, OCR status, and validation warnings.
+- Added GRDB columns `selected_instruction_template_ids_json` on assignments and `local_model_audit_json` on drafts (migration 007).
+- Student-facing exports continue to exclude local model audit metadata, raw prompt material, raw model material, and private teacher notes.
+- Sensitive constraint templates (EAL/D-sensitive, adjustment-context) are never auto-selected and are only available via explicit teacher action.

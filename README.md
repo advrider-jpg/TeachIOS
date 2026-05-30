@@ -55,13 +55,14 @@ GradeDraft's export layer is intentionally separated by audience and sensitivity
 
 - OCR: Vision / VisionKit.
 - PDF import/export: PDFKit and UIKit local rendering.
-- Local grading draft: Foundation Models, when available on supported devices.
+- Local grading draft: Foundation Models typed guided generation, when available on supported devices.
+- Long grading packets may be drafted criterion-by-criterion or blocked with an explicit local-too-large message; GradeDraft does not silently truncate reviewed student text.
 - Storage: local-first GRDB database with normalized tables.
 - Export: teacher-controlled local Markdown, PDF, CSV, ZIP/archive, and backup files.
 - Minimum deployment target in this scaffold: iOS 17.0.
 - Foundation Models code is guarded with `canImport(FoundationModels)` and iOS availability checks.
 
-If Foundation Models is unavailable, GradeDraft shows a local-unavailable state and refuses to generate an AI grade. It does not fall back to a cloud model.
+If Foundation Models is unavailable, GradeDraft shows a local-unavailable state and refuses to generate an AI grade. It does not fall back to a cloud model. Manual final review remains available.
 
 ## Local-only constraints
 

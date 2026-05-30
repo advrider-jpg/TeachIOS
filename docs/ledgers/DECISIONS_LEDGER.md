@@ -41,3 +41,21 @@ Rationale: Offline mapping adds practical value without overclaiming policy stat
 Decision: Full backup restore detects assignment ID conflicts and supports keep-local, replace-local, and restore-as-copy behavior. Source files are restored through safe relative paths.
 
 Rationale: Backup restore should be recoverable and auditable without silently overwriting newer local work.
+
+## D008 — Typed guided generation replaces raw JSON production drafting
+
+Decision: The production local AI draft path uses Foundation Models typed guided generation and converts generated proposal objects into `GradeDraftResult` before validator normalization. The older string prompt and raw JSON parsing remain only as compatibility/debug material.
+
+Rationale: Rubric marking has a fixed schema. Typed generation reduces malformed output risk while preserving local validation as the correctness gate.
+
+## D009 — No silent truncation for grading packets
+
+Decision: Prompt budgeting chooses full packet, compact full packet, per-criterion generation, or explicit local-too-large failure. Reviewed student text is not silently truncated.
+
+Rationale: The app must grade from teacher-reviewed student text and teacher-supplied grading materials, not hidden excerpts or model summaries.
+
+## D010 — Sensitive constraint templates are manual-only
+
+Decision: EAL/D-sensitive and adjustment-context AI grading constraint templates are never auto-selected. Teachers may select them only when they have supplied the relevant context.
+
+Rationale: GradeDraft must not infer language background, disability, support needs, adjustment status, effort, or intent.

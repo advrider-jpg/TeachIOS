@@ -88,3 +88,15 @@ The primary persistence path is normalized GRDB. `GradeDraftDatabase` creates an
 ## Local-only posture
 
 No cloud services, remote AI, remote OCR, accounts, telemetry, analytics, subscriptions, hosted assets, Firebase, RevenueCat, or server APIs are introduced. Runtime validation still requires Xcode or equivalent Apple SDK tooling.
+
+## Foundation Models typed draft path
+
+GradeDraft uses Apple Foundation Models only as a local draft-assistance path. The production service requests typed guided-generation proposal objects, adapts those objects into `GradeDraftResult`, and then runs `GradeDraftValidator.normalizeAndValidate` before any draft is stored or shown for teacher final review.
+
+The draft path is:
+
+```text
+teacher-reviewed packet -> local validation -> prompt budget plan -> full/compact/per-criterion typed generation -> app validator -> teacher final review
+```
+
+The prompt budgeter must not silently truncate reviewed student text. When the packet cannot fit safely in the on-device model context, the app either drafts criterion-by-criterion from the full reviewed text and grading materials or fails with an explicit local-too-large message. Manual final review remains available when local AI is unavailable or blocked.
