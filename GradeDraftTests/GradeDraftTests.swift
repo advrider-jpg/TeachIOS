@@ -1754,6 +1754,7 @@ final class GradeDraftTests: XCTestCase {
 
     // MARK: - Change 5: Stale status tests
 
+    @MainActor
     func testAssignmentRosterStatusStaleReviewBeatsExported() {
         var record = AssignmentRecord(title: "Stale")
         record.rubricText = "Claim: 0-4 points"
@@ -1936,7 +1937,7 @@ final class GradeDraftTests: XCTestCase {
     @MainActor
     func testLegacyJSONRestoreSanitizesUnsafeSourcePaths() throws {
         let unsafeSource = SourceInputRef(
-            sourceType: .image,
+            sourceType: .photo,
             localRelativePath: "/absolute/bad.png",
             fileName: "bad.png"
         )
