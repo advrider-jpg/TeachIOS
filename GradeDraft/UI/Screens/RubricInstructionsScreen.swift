@@ -204,7 +204,7 @@ struct RubricInstructionsScreen: View {
                 .padding(.horizontal, GradeDraftLayout.screenPadding)
 
                 GroupedListCard(title: "Instructions", subtitle: "Long instructions stay in detail panels, not list rows.") {
-                    textEditor(title: "Rubric / grading criteria", text: binding(\.rubricText), minHeight: 160, hint: "Paste rubric, answer key, or grading criteria.")
+                    textEditor(title: "Rubric / grading criteria", text: rubricTextBinding, minHeight: 160, hint: "Paste rubric, answer key, or grading criteria.")
                     textEditor(title: "Custom teacher instructions", text: binding(\.customInstructions), minHeight: 90, hint: "Optional custom grading rules.")
                     textEditor(title: "Formative focus", text: binding(\.formativeFocusText), minHeight: 80, hint: "Optional formative feedback focus, misconceptions, or next-step emphasis.")
                     textEditor(title: "Answer key", text: binding(\.answerKeyText), minHeight: 80, hint: "Expected elements, misconceptions, or partial credit.")
@@ -294,6 +294,13 @@ struct RubricInstructionsScreen: View {
         Binding(
             get: { viewModel.assignment[keyPath: keyPath] },
             set: { value in viewModel.updateAssignment { $0[keyPath: keyPath] = value } }
+        )
+    }
+
+    private var rubricTextBinding: Binding<String> {
+        Binding(
+            get: { viewModel.assignment.rubricText },
+            set: { newText in viewModel.updateRubricText(newText) }
         )
     }
 

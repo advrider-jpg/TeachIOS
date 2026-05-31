@@ -3,6 +3,7 @@ import Foundation
 import LocalAuthentication
 #endif
 
+@MainActor
 protocol ExportAuthenticationServicing {
     func authenticateForSensitiveExport(reason: String) async -> ExportAuthenticationResult
 }

@@ -429,7 +429,7 @@ enum MarkdownReportBuilder {
             filenameExtension = "pdf"
         case .csvGradebook:
             filenameExtension = "csv"
-        case .zipArchive, .fullBackupArchive:
+        case .zipArchive, .fullBackupArchive, .assignmentGradebookArchive:
             filenameExtension = "zip"
         case .backupJSON:
             filenameExtension = "json"

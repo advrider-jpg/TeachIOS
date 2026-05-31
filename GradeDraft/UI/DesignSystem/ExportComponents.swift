@@ -56,6 +56,7 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
     case teacherReviewPDF
     case fullBackup
     case teacherArchive
+    case gradebookCSV
     case gradebookArchive
 
     var id: String { rawValue }
@@ -74,8 +75,10 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
             return .fullBackupArchive
         case .teacherArchive:
             return .zipArchive
-        case .gradebookArchive:
+        case .gradebookCSV:
             return .csvGradebook
+        case .gradebookArchive:
+            return .assignmentGradebookArchive
         }
     }
 
@@ -95,6 +98,8 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
             return "Full Backup"
         case .teacherArchive:
             return "Teacher Archive"
+        case .gradebookCSV:
+            return "Gradebook CSV"
         case .gradebookArchive:
             return "Gradebook Archive"
         }
@@ -114,8 +119,10 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
             return "Teacher-only backup. Store securely."
         case .teacherArchive:
             return "Teacher-only archive. It may include original files and private review records."
+        case .gradebookCSV:
+            return "Teacher-only CSV for local gradebook records."
         case .gradebookArchive:
-            return "Teacher-only gradebook file for local record keeping."
+            return "Teacher-only ZIP with gradebook CSV, assignment records, reports, OCR/evidence records, and original files when available."
         }
     }
 
@@ -133,6 +140,8 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
             return "Create Full Backup"
         case .teacherArchive:
             return "Create Teacher Archive"
+        case .gradebookCSV:
+            return "Create Gradebook CSV"
         case .gradebookArchive:
             return "Create Gradebook Archive"
         }
@@ -146,7 +155,7 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
         switch self {
         case .studentReportMarkdown, .studentReportPDF:
             return .studentFacing
-        default:
+        case .teacherReviewMarkdown, .teacherReviewPDF, .fullBackup, .teacherArchive, .gradebookCSV, .gradebookArchive:
             return .teacherOnly
         }
     }
@@ -202,13 +211,25 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
                     "Original-file details"
                 ])
             ]
-        case .gradebookArchive:
+        case .gradebookCSV:
             return [
                 ExportDisclosureSection(title: "MAY INCLUDE", systemImage: "lock", items: [
                     "Student names",
                     "Final grades",
                     "Rubric labels",
                     "Student-facing feedback"
+                ])
+            ]
+        case .gradebookArchive:
+            return [
+                ExportDisclosureSection(title: "MAY INCLUDE", systemImage: "lock", items: [
+                    "Student names",
+                    "Final grades",
+                    "Assignment records",
+                    "Reports and OCR documents",
+                    "Evidence references",
+                    "Private teacher notes",
+                    "Original files when available"
                 ])
             ]
         }
@@ -306,8 +327,10 @@ struct ExportConfirmationSheet: View {
             return archiveInventory(title: "Teacher archive inventory", assignments: [assignment])
         case .fullBackup:
             return archiveInventory(title: "Full backup inventory", assignments: allAssignments.isEmpty ? [assignment] : allAssignments)
-        case .gradebookArchive:
+        case .gradebookCSV:
             return archiveInventory(title: "Gradebook CSV inventory", assignments: allAssignments.isEmpty ? [assignment] : allAssignments)
+        case .gradebookArchive:
+            return archiveInventory(title: "Gradebook archive inventory", assignments: allAssignments.isEmpty ? [assignment] : allAssignments)
         }
     }
 
@@ -488,9 +511,9 @@ struct ExportConfirmationSheet: View {
 private extension ExportConfirmationKind {
     var requiresPreviewBeforeExport: Bool {
         switch self {
-        case .studentReportMarkdown, .studentReportPDF, .teacherReviewPDF, .fullBackup, .teacherArchive:
+        case .studentReportMarkdown, .studentReportPDF, .teacherReviewPDF, .fullBackup, .teacherArchive, .gradebookCSV, .gradebookArchive:
             return true
-        case .teacherReviewMarkdown, .gradebookArchive:
+        case .teacherReviewMarkdown:
             return false
         }
     }
@@ -500,7 +523,7 @@ private extension ExportRiskSummary {
     init(kind: ExportConfirmationKind, assignment: AssignmentRecord, allAssignments: [AssignmentRecord]) {
         let scopedAssignments: [AssignmentRecord]
         switch kind {
-        case .fullBackup, .gradebookArchive:
+        case .fullBackup, .gradebookCSV, .gradebookArchive:
             scopedAssignments = allAssignments.isEmpty ? [assignment] : allAssignments
         default:
             scopedAssignments = [assignment]
@@ -510,7 +533,7 @@ private extension ExportRiskSummary {
         switch kind {
         case .studentReportMarkdown, .studentReportPDF:
             includesDraft = false
-        case .gradebookArchive:
+        case .gradebookCSV, .gradebookArchive:
             includesDraft = scopedAssignments.contains { $0.gradebookExportContainsDraftState }
         case .teacherReviewMarkdown, .teacherReviewPDF, .teacherArchive, .fullBackup:
             includesDraft = scopedAssignments.contains { $0.containsDraftGradingContent }
@@ -520,15 +543,15 @@ private extension ExportRiskSummary {
         switch kind {
         case .studentReportMarkdown, .studentReportPDF:
             includesPrivate = false
-        case .teacherReviewMarkdown, .teacherReviewPDF, .fullBackup, .teacherArchive:
+        case .teacherReviewMarkdown, .teacherReviewPDF, .fullBackup, .teacherArchive, .gradebookArchive:
             includesPrivate = true
-        case .gradebookArchive:
+        case .gradebookCSV:
             includesPrivate = false
         }
 
         let includesSources: Bool
         switch kind {
-        case .teacherArchive, .fullBackup:
+        case .teacherArchive, .fullBackup, .gradebookArchive:
             includesSources = scopedAssignments.contains { !$0.sourceInputs.isEmpty }
         default:
             includesSources = false

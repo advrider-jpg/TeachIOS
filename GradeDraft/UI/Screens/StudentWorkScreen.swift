@@ -4,6 +4,73 @@ import UIKit
 import UniformTypeIdentifiers
 import VisionKit
 
+struct DeleteAssignmentConfirmationSheet: View {
+    var warning: ExportWarningDefinition
+    var assignmentTitle: String
+    var onCancel: () -> Void
+    var onConfirm: () -> Void
+
+    @State private var acknowledged = false
+    @State private var typedConfirmation = ""
+
+    private var canDelete: Bool {
+        acknowledged && typedConfirmation.trimmingCharacters(in: .whitespacesAndNewlines) == "DELETE"
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    WarningBanner(title: warning.title.trimmingCharacters(in: .whitespacesAndNewlines), message: warning.body.trimmingCharacters(in: .whitespacesAndNewlines), status: .teacherOnly)
+                    if !warning.checklist.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Checklist")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            ForEach(warning.checklist, id: \.self) { item in
+                                Label(item, systemImage: "checkmark.circle")
+                                    .font(.caption)
+                            }
+                        }
+                    }
+                    Toggle(isOn: $acknowledged) {
+                        Text("I understand this action is irreversible and will permanently delete \"\(assignmentTitle)\" and all associated records.")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .toggleStyle(.switch)
+                    if acknowledged {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(warning.escalatedConfirmation ?? "Type DELETE to confirm.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            TextField("Type DELETE", text: $typedConfirmation)
+                                .textInputAutocapitalization(.characters)
+                                .autocorrectionDisabled()
+                                .padding(10)
+                                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                    Button(role: .destructive, action: onConfirm) {
+                        Label("Delete Assignment", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!canDelete)
+                }
+                .padding(GradeDraftLayout.screenPadding)
+            }
+            .navigationTitle("Delete Assignment")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+            }
+        }
+    }
+}
+
 struct StudentWorkScreen: View {
     @ObservedObject var viewModel: GradeDraftViewModel
     var assignmentID: UUID
@@ -11,6 +78,7 @@ struct StudentWorkScreen: View {
     @State private var showingPDFImporter = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showingClearConfirm = false
+    @State private var showingDeleteConfirm = false
 
     var body: some View {
         ScrollView {
@@ -74,6 +142,19 @@ struct StudentWorkScreen: View {
                     )
                 }
                 .padding(.horizontal, GradeDraftLayout.screenPadding)
+
+                if let deleteWarning = ExportWarningCatalog.warning(id: "delete-local-data-warning") {
+                    GroupedListCard(title: "Danger Zone", subtitle: "Permanent actions that cannot be undone.") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(deleteWarning.body.trimmingCharacters(in: .whitespacesAndNewlines))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            DestructiveActionButton(title: "Delete Assignment", systemImage: "trash", action: { showingDeleteConfirm = true })
+                        }
+                        .padding(GradeDraftLayout.rowHorizontalPadding)
+                    }
+                    .padding(.horizontal, GradeDraftLayout.screenPadding)
+                }
             }
             .padding(.bottom, 24)
         }
@@ -111,6 +192,19 @@ struct StudentWorkScreen: View {
             Button(clearWarningSecondaryButton, role: .cancel) {}
         } message: {
             Text(clearWarningBody)
+        }
+        .sheet(isPresented: $showingDeleteConfirm) {
+            if let deleteWarning = ExportWarningCatalog.warning(id: "delete-local-data-warning") {
+                DeleteAssignmentConfirmationSheet(
+                    warning: deleteWarning,
+                    assignmentTitle: viewModel.assignment.title,
+                    onCancel: { showingDeleteConfirm = false },
+                    onConfirm: {
+                        showingDeleteConfirm = false
+                        viewModel.deleteCurrentAssignment()
+                    }
+                )
+            }
         }
     }
 

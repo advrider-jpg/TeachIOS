@@ -576,3 +576,15 @@ private struct ExportInventorySensitivity {
     }
 }
 // swiftlint:enable type_body_length
+
+enum SourcePathSafety {
+    static func sanitizedLocalSourcePath(_ path: String?) -> String? {
+        guard let path, !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        guard !path.hasPrefix("/") else { return nil }
+        guard !path.contains("\\") else { return nil }
+        guard path.hasPrefix("Sources/") else { return nil }
+        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { return nil }
+        return path
+    }
+}

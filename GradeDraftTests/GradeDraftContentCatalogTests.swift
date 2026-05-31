@@ -191,11 +191,15 @@ final class GradeDraftContentCatalogTests: XCTestCase {
     func testRubricTemplateApplicationPreservesExistingPublicAPIAndDoesNotClearReviewByDefault() throws {
         let template = try XCTUnwrap(RubricTemplateCatalog.template(id: "formative-exit-ticket-8pt"))
         var assignment = AssignmentRecord(title: "Exit ticket", assessmentPurpose: .summative)
+        assignment.rubricImportMode = .structuredConfirmed
+        assignment.confirmedParsedRubric = ParsedRubric(criteria: [], issues: [], groups: [])
         assignment.latestDraft = GradeDraftResult(studentResponseSummary: "Summary", criteria: [], totalScore: 0, maxScore: 0, studentFeedback: "Draft", teacherNotes: "Note", uncertaintyFlags: [])
         let updated = GradeDraftTemplateApplication.applyingRubricTemplate(template, to: assignment)
         XCTAssertEqual(updated.assignmentType, .shortAnswer)
         XCTAssertEqual(updated.assessmentPurpose, .formative)
         XCTAssertTrue(updated.rubricText.contains("Shows current understanding"))
+        XCTAssertEqual(updated.rubricImportMode, .automatic)
+        XCTAssertNil(updated.confirmedParsedRubric)
         XCTAssertNotNil(updated.latestDraft)
         XCTAssertEqual(RubricTemplates.builtIn.map(\.id), RubricTemplateCatalog.builtIn.map(\.id))
     }
@@ -209,6 +213,8 @@ final class GradeDraftContentCatalogTests: XCTestCase {
         XCTAssertEqual(ExportWarningCatalog.warningIDs(for: .zipArchive), ["zip-archive-warning"])
         XCTAssertEqual(ExportWarningCatalog.warningIDs(for: .fullBackupArchive), ["zip-archive-warning", "json-backup-warning"])
         XCTAssertEqual(ExportWarningCatalog.warningIDs(for: .backupJSON), ["json-backup-warning"])
+        XCTAssertTrue(ExportWarningCatalog.warningIDs(for: .assignmentGradebookArchive).contains("zip-archive-warning"))
+        XCTAssertTrue(ExportWarningCatalog.warningIDs(for: .assignmentGradebookArchive).contains("csv-warning"))
         XCTAssertEqual(ExportWarningCatalog.primaryWarning(for: .fullBackupArchive)?.id, "zip-archive-warning")
 
         let teacherPDFWarnings = ExportConfirmationKind.teacherReviewPDF.baseWarnings

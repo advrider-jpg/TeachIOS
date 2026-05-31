@@ -155,6 +155,7 @@ final class ExportFilenameHardeningTests: XCTestCase {
         XCTAssertEqual(ExportKind.zipArchive.safeFilenameToken, "TeacherArchive")
         XCTAssertEqual(ExportKind.fullBackupArchive.safeFilenameToken, "FullBackup")
         XCTAssertEqual(ExportKind.backupJSON.safeFilenameToken, "BackupJSON")
+        XCTAssertEqual(ExportKind.assignmentGradebookArchive.safeFilenameToken, "GradebookArchive")
     }
 }
 

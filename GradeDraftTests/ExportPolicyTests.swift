@@ -3,7 +3,7 @@ import XCTest
 
 final class ExportPolicyTests: XCTestCase {
     func testEveryExportKindHasExplicitPolicy() {
-        let kinds: [ExportKind] = [.studentMarkdown, .teacherAuditMarkdown, .studentPDF, .teacherAuditPDF, .csvGradebook, .zipArchive, .fullBackupArchive, .backupJSON]
+        let kinds: [ExportKind] = [.studentMarkdown, .teacherAuditMarkdown, .studentPDF, .teacherAuditPDF, .csvGradebook, .zipArchive, .fullBackupArchive, .backupJSON, .assignmentGradebookArchive]
         XCTAssertEqual(kinds.map { $0.contentPolicy.kind }, kinds)
         XCTAssertTrue(kinds.allSatisfy { !$0.contentPolicy.warningTitle.isEmpty && !$0.contentPolicy.warningBody.isEmpty })
     }
@@ -131,8 +131,46 @@ final class ExportPolicyTests: XCTestCase {
     func testExportConfirmationKindMapsToPolicies() {
         XCTAssertEqual(ExportConfirmationKind.studentReportPDF.exportKind, .studentPDF)
         XCTAssertEqual(ExportConfirmationKind.teacherReviewPDF.exportKind, .teacherAuditPDF)
-        XCTAssertEqual(ExportConfirmationKind.gradebookArchive.exportKind, .csvGradebook)
+        XCTAssertEqual(ExportConfirmationKind.gradebookCSV.exportKind, .csvGradebook)
+        XCTAssertEqual(ExportConfirmationKind.gradebookArchive.exportKind, .assignmentGradebookArchive)
         XCTAssertEqual(ExportConfirmationKind.teacherArchive.exportKind, .zipArchive)
         XCTAssertEqual(ExportConfirmationKind.fullBackup.exportKind, .fullBackupArchive)
+    }
+
+    func testAssignmentGradebookArchivePolicyIsSensitiveTeacherOnly() {
+        let policy = ExportKind.assignmentGradebookArchive.contentPolicy
+        XCTAssertTrue(policy.isTeacherOnly)
+        XCTAssertFalse(policy.isStudentFacing)
+        XCTAssertTrue(policy.requiresLocalAuthenticationWhenAvailable)
+        XCTAssertTrue(policy.includesPrivateTeacherNotes)
+        XCTAssertTrue(policy.includesSourceFiles)
+        XCTAssertTrue(policy.includesAuditEvents)
+        XCTAssertTrue(policy.includesOCRText)
+        XCTAssertTrue(policy.includesInternalMetadata)
+    }
+
+    func testAssignmentGradebookArchiveDisplayName() {
+        XCTAssertEqual(ExportKind.assignmentGradebookArchive.displayName, "Gradebook Archive")
+        XCTAssertEqual(ExportKind.csvGradebook.displayName, "Gradebook CSV")
+    }
+
+    func testAssignmentGradebookArchiveSafeFilenameToken() {
+        XCTAssertEqual(ExportKind.assignmentGradebookArchive.safeFilenameToken, "GradebookArchive")
+        XCTAssertEqual(ExportKind.csvGradebook.safeFilenameToken, "GradebookCSV")
+    }
+
+    func testAssignmentGradebookArchiveWarningIDsIncludeZip() {
+        let ids = ExportWarningCatalog.warningIDs(for: .assignmentGradebookArchive)
+        XCTAssertTrue(ids.contains("zip-archive-warning"))
+        XCTAssertTrue(ids.contains("csv-warning"))
+    }
+
+    func testSensitivePoliciesRequireLocalAuthenticationIncludingGradebookArchive() {
+        XCTAssertTrue(ExportKind.assignmentGradebookArchive.contentPolicy.requiresLocalAuthenticationWhenAvailable)
+        XCTAssertTrue(ExportKind.csvGradebook.contentPolicy.requiresLocalAuthenticationWhenAvailable)
+        XCTAssertTrue(ExportKind.teacherAuditMarkdown.contentPolicy.requiresLocalAuthenticationWhenAvailable)
+        XCTAssertTrue(ExportKind.fullBackupArchive.contentPolicy.requiresLocalAuthenticationWhenAvailable)
+        XCTAssertFalse(ExportKind.studentMarkdown.contentPolicy.requiresLocalAuthenticationWhenAvailable)
+        XCTAssertFalse(ExportKind.studentPDF.contentPolicy.requiresLocalAuthenticationWhenAvailable)
     }
 }

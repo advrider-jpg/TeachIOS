@@ -2,6 +2,38 @@ import XCTest
 import ZIPFoundation
 @testable import GradeDraft
 
+private final class ArchiveTestAssignmentStore: AssignmentStoring {
+    private(set) var assignments: [AssignmentRecord]
+    private(set) var rosterEntries: [AssignmentRosterEntry] = []
+    private let root: URL
+
+    init(assignments: [AssignmentRecord] = [], root: URL) {
+        self.assignments = assignments
+        self.root = root
+    }
+
+    func loadAssignments() throws -> [AssignmentRecord] { assignments }
+    func saveAssignments(_ assignments: [AssignmentRecord]) throws { self.assignments = assignments }
+    func deleteAssignment(id: UUID) throws { assignments.removeAll { $0.id == id } }
+    func applicationSupportDirectory() throws -> URL {
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+    func loadClassGroups() throws -> [ClassGroupRecord] { [] }
+    func saveClassGroup(_ classGroup: ClassGroupRecord) throws {}
+    func deleteClassGroup(id: UUID) throws {}
+    func loadStudents() throws -> [StudentRecord] { [] }
+    func saveStudent(_ student: StudentRecord) throws {}
+    func deleteStudent(id: UUID) throws {}
+    func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] { rosterEntries.filter { $0.assignmentID == assignmentID } }
+    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws { self.rosterEntries = entries }
+    func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws {}
+    func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws {}
+    func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws {}
+    func saveEvidenceReferences(_ references: [EvidenceReference], assignmentID: UUID) throws {}
+    func loadFullAssignmentGraph(id: UUID) throws -> AssignmentRecord? { assignments.first { $0.id == id } }
+}
+
 final class ArchiveInventoryHardeningTests: XCTestCase {
     func testTeacherAuditArchiveContainsInventoryJSON() throws {
         let archive = try teacherArchive()
@@ -195,6 +227,78 @@ final class RestorePathSafetyTests: XCTestCase {
             conflictResolution: .replaceLocal
         )
         XCTAssertEqual(String(data: try Data(contentsOf: local), encoding: .utf8), "source bytes")
+    }
+
+    // MARK: - Change 4: Roster entry remap tests
+
+    @MainActor
+    func testRestoreAsCopyRemapsRosterEntryToNewAssignmentID() throws {
+        let localAssignment = ExportFixtureFactory.sensitiveApprovedAssignment()
+        let localRosterEntry = AssignmentRosterEntry(assignmentID: localAssignment.id, studentID: UUID(), studentDisplayName: "Alice")
+
+        // Build a full backup that has the same assignment ID
+        let backupRoot = ExportFixtureFactory.temporaryDirectory("RosterRemapBackup")
+        let archive = backupRoot.appendingPathComponent("backup.zip")
+        let written = try BundleExportService.writeFullBackup(
+            assignments: [localAssignment],
+            sourceFiles: [],
+            to: archive,
+            classGroups: [],
+            students: [],
+            rosterEntries: [localRosterEntry]
+        )
+
+        let root = ExportFixtureFactory.temporaryDirectory("RosterRemapRestore")
+        let store = ArchiveTestAssignmentStore(assignments: [localAssignment], root: root)
+        let vm = GradeDraftViewModel(assignments: [localAssignment], store: store)
+        vm.assignmentRosterEntries = [localRosterEntry]
+        vm.backupConflictResolution = .restoreAsCopy
+
+        vm.previewBackupRestore(from: written)
+        XCTAssertNotNil(vm.pendingRestorePreview, "Preview must be set before confirm")
+        vm.confirmPendingRestore()
+
+        // After restore there should be 2 assignments
+        XCTAssertEqual(vm.assignments.count, 2, "Restore-as-copy must produce two assignments")
+        let copiedAssignment = vm.assignments.first(where: { $0.id != localAssignment.id })
+        XCTAssertNotNil(copiedAssignment, "A copied assignment with a new ID must exist")
+
+        // The local roster entry must still reference the original
+        XCTAssertTrue(vm.assignmentRosterEntries.contains { $0.assignmentID == localAssignment.id }, "Local roster entry must remain for original")
+
+        // There must be a roster entry pointing to the copied assignment
+        if let copiedID = copiedAssignment?.id {
+            XCTAssertTrue(vm.assignmentRosterEntries.contains { $0.assignmentID == copiedID }, "A roster entry must reference the copied assignment ID")
+        }
+    }
+
+    @MainActor
+    func testRestoreKeepLocalDoesNotImportConflictingRosterEntries() throws {
+        let localAssignment = ExportFixtureFactory.sensitiveApprovedAssignment()
+        let localRosterEntry = AssignmentRosterEntry(assignmentID: localAssignment.id, studentID: UUID(), studentDisplayName: "Bob")
+
+        let backupRoot = ExportFixtureFactory.temporaryDirectory("RosterKeepLocalBackup")
+        let archive = backupRoot.appendingPathComponent("backup.zip")
+        let written = try BundleExportService.writeFullBackup(
+            assignments: [localAssignment],
+            sourceFiles: [],
+            to: archive,
+            classGroups: [],
+            students: [],
+            rosterEntries: [localRosterEntry]
+        )
+
+        let root = ExportFixtureFactory.temporaryDirectory("RosterKeepLocalRestore")
+        let store = ArchiveTestAssignmentStore(assignments: [localAssignment], root: root)
+        let vm = GradeDraftViewModel(assignments: [localAssignment], store: store)
+        vm.assignmentRosterEntries = [localRosterEntry]
+        vm.backupConflictResolution = .keepLocal
+
+        vm.previewBackupRestore(from: written)
+        vm.confirmPendingRestore()
+
+        let entries = vm.assignmentRosterEntries.filter { $0.assignmentID == localAssignment.id }
+        XCTAssertEqual(entries.count, 1, "Keep-local must not import duplicate roster entries for conflicting assignments")
     }
 
     private func backupWithAppManagedSource() throws -> (assignment: AssignmentRecord, archiveURL: URL, restoreRoot: URL) {

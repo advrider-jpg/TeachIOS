@@ -80,8 +80,17 @@ struct ExportsRestoreScreen: View {
                     )
                     Divider().padding(.leading, 56)
                     ExportOptionRow(
-                        title: "Gradebook Archive",
+                        title: "Gradebook CSV",
                         subtitle: "Teacher-only CSV for local gradebook records.",
+                        status: .teacherOnly,
+                        actionLabel: "Create",
+                        disabled: false,
+                        action: { confirmationKind = .gradebookCSV }
+                    )
+                    Divider().padding(.leading, 56)
+                    ExportOptionRow(
+                        title: "Gradebook Archive",
+                        subtitle: "Teacher-only ZIP with gradebook CSV, assignment records, reports, OCR/evidence records, and original files when available.",
                         status: .teacherOnly,
                         actionLabel: "Create",
                         disabled: false,
@@ -99,7 +108,7 @@ struct ExportsRestoreScreen: View {
                 }
                 .padding(.horizontal, GradeDraftLayout.screenPadding)
 
-                GroupedListCard(title: "Import Backup", subtitle: "Preview matching records before importing.") {
+                GroupedListCard(title: "Import Backup", subtitle: "Choose a backup to preview records before importing. Records are not changed until you confirm.") {
                     VStack(alignment: .leading, spacing: 10) {
                         Picker("Backup import option", selection: $viewModel.backupConflictResolution) {
                             ForEach(BackupConflictResolution.allCases) { option in
@@ -109,7 +118,7 @@ struct ExportsRestoreScreen: View {
                         .pickerStyle(.menu)
                         HStack(spacing: 8) {
                             SecondaryActionButton(title: "Choose Option", systemImage: "slider.horizontal.3", action: { showingResolutionSheet = true })
-                            PrimaryActionButton(title: "Import Backup", systemImage: "square.and.arrow.down", action: { showingBackupImporter = true })
+                            PrimaryActionButton(title: "Choose Backup", systemImage: "square.and.arrow.down", action: { showingBackupImporter = true })
                         }
                         Text("Import as New Copy keeps your current record and imports the backup version separately. Original files from the backup will be copied to the new record.")
                             .font(.caption)
@@ -119,7 +128,15 @@ struct ExportsRestoreScreen: View {
                 }
                 .padding(.horizontal, GradeDraftLayout.screenPadding)
 
-                if let preview = viewModel.latestRestorePreview {
+                if let preview = viewModel.pendingRestorePreview {
+                    RestorePreviewCard(preview: preview)
+                        .padding(.horizontal, GradeDraftLayout.screenPadding)
+                    HStack(spacing: 8) {
+                        SecondaryActionButton(title: "Cancel Import", systemImage: "xmark", action: viewModel.cancelPendingRestore)
+                        PrimaryActionButton(title: "Confirm Import", systemImage: "square.and.arrow.down", action: viewModel.confirmPendingRestore)
+                    }
+                    .padding(.horizontal, GradeDraftLayout.screenPadding)
+                } else if let preview = viewModel.latestRestorePreview {
                     RestorePreviewCard(preview: preview)
                         .padding(.horizontal, GradeDraftLayout.screenPadding)
                 }
@@ -175,7 +192,7 @@ struct ExportsRestoreScreen: View {
             }
         }
         .fileImporter(isPresented: $showingBackupImporter, allowedContentTypes: [.json, .zip, .item]) { result in
-            if case .success(let url) = result { viewModel.restoreBackup(from: url) }
+            if case .success(let url) = result { viewModel.previewBackupRestore(from: url) }
         }
         .confirmationDialog(shareSheetWarningTitle, isPresented: $showingShareSheetWarning, titleVisibility: .visible) {
             Button(shareSheetPrimaryButton) { readyToShareFile = true }
@@ -193,22 +210,7 @@ struct ExportsRestoreScreen: View {
 
     private func confirm(_ kind: ExportConfirmationKind) {
         confirmationKind = nil
-        switch kind {
-        case .studentReportMarkdown:
-            viewModel.exportStudentReport()
-        case .teacherReviewMarkdown:
-            viewModel.exportTeacherAuditReport()
-        case .studentReportPDF:
-            viewModel.exportStudentPDF()
-        case .teacherReviewPDF:
-            viewModel.exportTeacherAuditPDF()
-        case .fullBackup:
-            viewModel.exportBackupJSON()
-        case .teacherArchive:
-            viewModel.exportArchiveBundle()
-        case .gradebookArchive:
-            viewModel.exportCSVGradebook()
-        }
+        Task { await viewModel.performConfirmedExport(kind) }
     }
 
     private func clipboardCopyAvailable(for kind: ExportKind?) -> Bool {
@@ -216,7 +218,7 @@ struct ExportsRestoreScreen: View {
         switch kind {
         case .studentMarkdown, .teacherAuditMarkdown, .csvGradebook, .backupJSON:
             return true
-        case .studentPDF, .teacherAuditPDF, .zipArchive, .fullBackupArchive:
+        case .studentPDF, .teacherAuditPDF, .zipArchive, .fullBackupArchive, .assignmentGradebookArchive:
             return false
         }
     }
