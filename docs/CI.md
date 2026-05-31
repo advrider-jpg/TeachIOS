@@ -18,7 +18,7 @@ GradeDraft CI is layered so deterministic policy failures, Swift style failures,
 
 `scripts/ci/select_xcode.sh` is the supported CI Xcode selector. It prefers `GRADE_DRAFT_XCODE_PATH`, then the highest installed `/Applications/Xcode_26*.app`, then `/Applications/Xcode.app` only if that app reports Xcode 26 or newer. It fails openly if Xcode 26+ is not available.
 
-`scripts/ci/select_ios_simulator.py` reads `xcrun simctl list devices available --json`, selects an available iPhone simulator with iOS 26 or newer, writes the destination to `$GITHUB_OUTPUT` in CI, and supports `--print-destination` for local command substitution.
+`scripts/ci/select_ios_simulator.py` reads `xcrun simctl list devices available --json`, selects an available iPhone simulator with iOS 26 or newer, writes an arm64 simulator destination to `$GITHUB_OUTPUT` in CI, and supports `--print-destination` for local command substitution.
 
 ## Local Reproduction
 

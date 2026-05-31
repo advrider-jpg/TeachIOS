@@ -92,7 +92,7 @@ def main() -> int:
 
     min_major = int(os.environ.get("IOS_MIN_MAJOR", "26"))
     candidate = select_candidate(min_major)
-    destination = f"platform=iOS Simulator,id={candidate.udid}"
+    destination = f"platform=iOS Simulator,id={candidate.udid},arch=arm64"
     summary = (
         f"Selected simulator: {candidate.name} "
         f"({candidate.runtime_name}, {candidate.runtime_identifier}, {candidate.udid})"
