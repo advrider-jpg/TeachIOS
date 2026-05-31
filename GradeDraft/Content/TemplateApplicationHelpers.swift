@@ -14,6 +14,8 @@ enum GradeDraftTemplateApplication {
         copy.assignmentType = template.assignmentType
         copy.assessmentPurpose = template.assessmentPurpose
         copy.rubricText = template.rubricText
+        copy.rubricImportMode = .automatic
+        copy.confirmedParsedRubric = nil
         copy.customInstructions = template.customInstructions
         copy.recordAppliedTemplate(id: template.id, name: template.name, kind: .rubric, mode: .replace)
         if resetDrafts {

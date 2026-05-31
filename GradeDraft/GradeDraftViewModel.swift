@@ -982,8 +982,6 @@ final class GradeDraftViewModel: ObservableObject {
                 assignment.rubricImportMode = .rawTextOnly
                 assignment.confirmedParsedRubric = nil
             }
-            assignment.latestDraft = nil
-            assignment.finalReview = nil
             let criterionCount = useStructuredImport ? preview.detectedCriteria.count : 0
             assignment.appendAuditEvent(.inputChanged, detail: "Confirmed rubric import with \(criterionCount) structured criterion/criteria and \(preview.issues.count) item(s) needing attention.")
         }
@@ -997,8 +995,6 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.rubricText = text
             assignment.rubricImportMode = .automatic
             assignment.confirmedParsedRubric = nil
-            assignment.latestDraft = nil
-            assignment.finalReview = nil
         }
         persistOrSurfaceError()
     }

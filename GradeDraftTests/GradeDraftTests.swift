@@ -1788,13 +1788,37 @@ final class GradeDraftTests: XCTestCase {
 
     @MainActor
     func testConfirmStructuredImportSetsMode() {
-        let assignment = AssignmentRecord(title: "Test")
+        var assignment = AssignmentRecord(title: "Test", rubricText: "Old rubric")
+        assignment.latestDraft = GradeDraftResult(
+            packetFingerprint: "old-packet",
+            studentResponseSummary: "Summary",
+            criteria: [],
+            totalScore: 0,
+            maxScore: 0,
+            studentFeedback: "Draft",
+            teacherNotes: "Note",
+            uncertaintyFlags: []
+        )
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: "old-packet",
+            status: .approved,
+            criteria: [],
+            totalScore: 0,
+            maxScore: 0,
+            studentFeedback: "Final",
+            privateTeacherNotes: "Note",
+            teacherEdited: true
+        )
         let store = InMemoryAssignmentStore(assignments: [assignment])
         let vm = GradeDraftViewModel(assignments: [assignment], store: store)
         let preview = MarkdownRubricParser.preview("| Criterion | Max | Level | Points |\n|---|---|---|---|\n| Claim | 4 | Good | 4 |")
         vm.confirmMarkdownRubricImport(preview, useStructuredImport: true)
         XCTAssertEqual(vm.assignment.rubricImportMode, .structuredConfirmed)
         XCTAssertNotNil(vm.assignment.confirmedParsedRubric)
+        XCTAssertNotNil(vm.assignment.latestDraft)
+        XCTAssertNotNil(vm.assignment.finalReview)
+        XCTAssertTrue(vm.assignment.latestDraftIsStale)
+        XCTAssertTrue(vm.assignment.finalReviewIsStale)
     }
 
     @MainActor
@@ -1823,11 +1847,35 @@ final class GradeDraftTests: XCTestCase {
         var assignment = AssignmentRecord(title: "Test")
         assignment.rubricImportMode = .structuredConfirmed
         assignment.confirmedParsedRubric = ParsedRubric(criteria: [], issues: [], groups: [])
+        assignment.latestDraft = GradeDraftResult(
+            packetFingerprint: "old-packet",
+            studentResponseSummary: "Summary",
+            criteria: [],
+            totalScore: 0,
+            maxScore: 0,
+            studentFeedback: "Draft",
+            teacherNotes: "Note",
+            uncertaintyFlags: []
+        )
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: "old-packet",
+            status: .approved,
+            criteria: [],
+            totalScore: 0,
+            maxScore: 0,
+            studentFeedback: "Final",
+            privateTeacherNotes: "Note",
+            teacherEdited: true
+        )
         let store = InMemoryAssignmentStore(assignments: [assignment])
         let vm = GradeDraftViewModel(assignments: [assignment], store: store)
         vm.updateRubricText("New rubric text")
         XCTAssertEqual(vm.assignment.rubricImportMode, .automatic)
         XCTAssertNil(vm.assignment.confirmedParsedRubric)
+        XCTAssertNotNil(vm.assignment.latestDraft)
+        XCTAssertNotNil(vm.assignment.finalReview)
+        XCTAssertTrue(vm.assignment.latestDraftIsStale)
+        XCTAssertTrue(vm.assignment.finalReviewIsStale)
     }
 
     func testRubricImportModeCodableRoundTrip() throws {
