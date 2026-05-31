@@ -6,7 +6,7 @@ struct ClassesScreen: View {
 
     var body: some View {
         List {
-            Section("Add Class") {
+            Section {
                 TextField("Class name", text: $newClassName)
                     .submitLabel(.done)
                     .onSubmit(addClass)
@@ -14,6 +14,8 @@ struct ClassesScreen: View {
                     Label("Add Class", systemImage: "plus")
                 }
                 .disabled(trimmedClassName.isEmpty)
+            } header: {
+                Text("Add Class")
             } footer: {
                 Text("Class records stay on this device.")
             }

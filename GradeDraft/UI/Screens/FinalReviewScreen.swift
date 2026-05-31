@@ -8,7 +8,7 @@ struct FinalReviewScreen: View {
         Form {
             let assignment = viewModel.assignment
             if assignment.finalReviewIsStale {
-                Section("Needs Recheck") {
+                Section {
                     WarningBanner(
                         title: "This review needs rechecking.",
                         message: "Student work, rubric, or evidence changed after this review was last saved.",
@@ -17,7 +17,7 @@ struct FinalReviewScreen: View {
                 }
             }
 
-            Section("Review Actions") {
+            Section {
                 Button {
                     Task { await viewModel.draftGrade() }
                 } label: {
@@ -46,11 +46,13 @@ struct FinalReviewScreen: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            } header: {
+                Text("Review Actions")
             } footer: {
                 Text("GradeDraft drafts suggestions only. The teacher approves the final grade.")
             }
 
-            Section("Evidence") {
+            Section {
                 if assignment.evidenceReferences.isEmpty {
                     ContentUnavailableView(
                         "No evidence added",
@@ -62,12 +64,14 @@ struct FinalReviewScreen: View {
                         EvidenceSourceRow(evidence: item)
                     }
                 }
+            } header: {
+                Text("Evidence")
             } footer: {
                 Text("Evidence remains linked to reviewed student work or teacher notes.")
             }
 
             if let finalReview = assignment.finalReview {
-                Section("Criterion Review") {
+                Section {
                     FinalGradeReviewView(
                         review: finalReview,
                         isStale: assignment.finalReviewIsStale,
@@ -80,11 +84,13 @@ struct FinalReviewScreen: View {
                         onClearEvidence: { criterionID in viewModel.clearEvidenceFromFinalReview(criterionID: criterionID) }
                     )
                     .id(finalReview.id)
+                } header: {
+                    Text("Criterion Review")
                 } footer: {
                     Text("Approve every criterion before treating the score as final.")
                 }
             } else if let result = assignment.latestDraft {
-                Section("Draft Suggestion") {
+                Section {
                     LabeledContent("Suggested Score", value: "\(GradeTotals.formatted(result.totalScore)) / \(GradeTotals.formatted(result.maxScore))")
                     if assignment.latestDraftIsStale || result.status == .stale {
                         Label("Needs recheck: student work, rubric, or evidence changed.", systemImage: "exclamationmark.triangle")
@@ -139,6 +145,8 @@ struct FinalReviewScreen: View {
                             }
                         }
                     }
+                } header: {
+                    Text("Draft Suggestion")
                 } footer: {
                     Text("Review this suggestion and start final review before export.")
                 }
@@ -152,13 +160,15 @@ struct FinalReviewScreen: View {
                 }
             }
 
-            Section("Teacher Approval") {
+            Section {
                 GradeDraftStatusLabeledContent(
                     title: "Approval Status",
                     value: finalReviewStatusText(assignment.finalReview?.status),
                     status: assignment.finalReview?.status.v6Status ?? .reviewFinalGrade
                 )
                 LabeledContent("Student-facing export", value: viewModel.canExportStudentReport ? "Ready" : "Blocked")
+            } header: {
+                Text("Teacher Approval")
             } footer: {
                 Text("Student-facing export is blocked until the teacher approves the final grade.")
             }

@@ -34,7 +34,7 @@ struct RubricInstructionsScreen: View {
     var body: some View {
         Form {
             if !assignment.hasGradingStandard {
-                Section("Needs Attention") {
+                Section {
                     WarningBanner(
                         title: "Add a grading standard",
                         message: "Add a rubric, answer key, exemplar, or grading criteria before drafting feedback.",
@@ -43,7 +43,7 @@ struct RubricInstructionsScreen: View {
                 }
             }
 
-            Section("Rubric Setup") {
+            Section {
                 Picker("Template", selection: $selectedTemplateID) {
                     ForEach(RubricTemplates.builtIn) { template in
                         Text(template.name).tag(template.id)
@@ -60,12 +60,14 @@ struct RubricInstructionsScreen: View {
                 TextEditor(text: rubricTextBinding)
                     .frame(minHeight: 150)
                     .accessibilityLabel("Rubric or grading criteria")
+            } header: {
+                Text("Rubric Setup")
             } footer: {
                 Text("Templates and imports are local. Review rubric text before grading.")
             }
 
             if let preview = viewModel.latestRubricPreview {
-                Section(preview.issues.isEmpty ? "Preview Import" : "Imported with Warnings") {
+                Section {
                     GradeDraftStatusLabeledContent(title: "Detected Criteria", value: "\(preview.detectedCriteria.count)", status: preview.issues.isEmpty ? .onTrack : .needsAttention)
                     LabeledContent("Scoring Bands", value: "\(preview.detectedLevels.count)")
                     ForEach(preview.detectedCriteria) { criterion in
@@ -103,12 +105,14 @@ struct RubricInstructionsScreen: View {
                     } label: {
                         Label("Use Rubric Text", systemImage: "text.alignleft")
                     }
+                } header: {
+                    Text(preview.issues.isEmpty ? "Preview Import" : "Imported with Warnings")
                 } footer: {
                     Text("Review the criteria before using them for teacher-reviewed grading.")
                 }
             }
 
-            Section("Planned Content Templates") {
+            Section {
                 templateControl(
                     title: "Teacher instruction template",
                     detail: "Adds teacher-only custom instructions. Existing text is never removed without confirmation.",
@@ -141,11 +145,13 @@ struct RubricInstructionsScreen: View {
                     actionTitle: "Insert Formative Focus",
                     action: { requestTemplateApplication(.formativeFocus) }
                 )
+            } header: {
+                Text("Planned Content Templates")
             } footer: {
                 Text("Choose whether to append or replace when teacher-entered content already exists.")
             }
 
-            Section("AI Grading Constraints") {
+            Section {
                 Text("These prompts guide the local draft only. Sensitive templates are never selected automatically and should be selected only when the teacher has supplied that context.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -173,11 +179,13 @@ struct RubricInstructionsScreen: View {
                         }
                     }
                 }
+            } header: {
+                Text("AI Grading Constraints")
             } footer: {
                 Text("GradeDraft drafts suggestions only. The teacher approves the final grade.")
             }
 
-            Section("Criteria") {
+            Section {
                 if assignment.parsedRubric.criteria.isEmpty {
                     ContentUnavailableView(
                         "No structured criteria detected",
@@ -205,7 +213,7 @@ struct RubricInstructionsScreen: View {
                 }
             }
 
-            Section("Curriculum Reference") {
+            Section {
                 Text(viewModel.curriculumCatalog.warning)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -234,20 +242,26 @@ struct RubricInstructionsScreen: View {
                 TextEditor(text: binding(\.curriculumReference))
                     .frame(minHeight: 110)
                     .accessibilityLabel("Curriculum or reference material")
+            } header: {
+                Text("Curriculum Reference")
             } footer: {
                 Text("Optional local reference. Confirm against your jurisdiction before reporting.")
             }
 
-            Section("Teacher Instructions") {
+            Section {
                 textEditor("Custom teacher instructions", text: binding(\.customInstructions), minHeight: 120)
                 textEditor("Formative focus", text: binding(\.formativeFocusText), minHeight: 90)
+            } header: {
+                Text("Teacher Instructions")
             } footer: {
                 Text("These instructions are teacher-facing and remain part of the local grading packet.")
             }
 
-            Section("Answer Key and Exemplar") {
+            Section {
                 textEditor("Answer key", text: binding(\.answerKeyText), minHeight: 100)
                 textEditor("Exemplar response", text: binding(\.exemplarText), minHeight: 100)
+            } header: {
+                Text("Answer Key and Exemplar")
             } footer: {
                 Text("Grading cannot begin until scanned text is reviewed and a grading standard is supplied.")
             }

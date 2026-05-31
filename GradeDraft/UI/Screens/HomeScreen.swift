@@ -11,7 +11,7 @@ struct HomeScreen: View {
                 Text("GradeDraft stores student work and grading records locally on this device.")
             }
 
-            Section("Summary") {
+            Section {
                 LabeledContent("Assignments", value: "\(viewModel.assignments.count)")
                 GradeDraftStatusLabeledContent(title: GradeDraftWorkflowLanguage.reviewTextActionLabel, value: "\(viewModel.scannedTextReviewAssignments.count)", status: .reviewScannedText)
                 GradeDraftStatusLabeledContent(title: "Final Review", value: "\(viewModel.finalReviewAssignments.count)", status: .reviewFinalGrade)
@@ -56,7 +56,7 @@ struct HomeScreen: View {
                 }
             }
 
-            Section("Recent Exports & Backups") {
+            Section {
                 let records = viewModel.recentExportRows
                 if records.isEmpty {
                     ContentUnavailableView(
@@ -85,6 +85,8 @@ struct HomeScreen: View {
                         .accessibilityElement(children: .combine)
                     }
                 }
+            } header: {
+                Text("Recent Exports & Backups")
             } footer: {
                 Text("Files are created locally and shared only when you choose.")
             }

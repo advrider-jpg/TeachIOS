@@ -15,17 +15,19 @@ struct ReviewScannedTextScreen: View {
                 let pages = document.pages.sorted { $0.pageIndex < $1.pageIndex }
                 let page = selectedPage(from: pages)
                 List {
-                    Section("Review Gate") {
+                    Section {
                         ReviewGateBanner(
                             title: GradeDraftUIStatus.reviewScannedText.rawValue,
                             message: reviewSubtitle(for: assignment),
                             status: assignment.ocrReviewStatus.v6Status
                         )
+                    } header: {
+                        Text("Review Gate")
                     } footer: {
                         Text("OCR text must be reviewed before grading.")
                     }
 
-                    Section("Work Preview") {
+                    Section {
                         ScannedTextPageSelector(pages: pages, selectedPageID: $selectedPageID)
                         if let page {
                             let source = page.sourceInputID.flatMap { sourceID in
@@ -37,12 +39,14 @@ struct ReviewScannedTextScreen: View {
                                 selectedLineID: selectedLineID
                             )
                         }
+                    } header: {
+                        Text("Work Preview")
                     } footer: {
                         Text("Selected line is outlined in blue. Lines needing review are outlined in orange.")
                     }
 
                     if let page {
-                        Section("Text Lines") {
+                        Section {
                             if let finalReview = assignment.finalReview, !finalReview.criteria.isEmpty {
                                 Picker("Evidence target", selection: $selectedEvidenceCriterionID) {
                                     Text("First criterion").tag(Optional<UUID>.none)
@@ -89,18 +93,22 @@ struct ReviewScannedTextScreen: View {
                                     evidenceEnabled: assignment.finalReview != nil && !line.reviewedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                 )
                             }
+                        } header: {
+                            Text("Text Lines")
                         } footer: {
                             Text(document.qualitySummary.displaySummary)
                         }
                     }
 
-                    Section("Review Actions") {
+                    Section {
                         Button {
                             showingReviewConfirm = true
                         } label: {
                             Label("Mark Text Reviewed", systemImage: "checkmark.seal")
                         }
                         .disabled(document.unresolvedLineCount > 0)
+                    } header: {
+                        Text("Review Actions")
                     } footer: {
                         Text("Only continue if the text shown here accurately reflects the student work you want GradeDraft to use.")
                     }

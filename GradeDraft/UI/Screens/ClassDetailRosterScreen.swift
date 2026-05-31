@@ -11,7 +11,7 @@ struct ClassDetailRosterScreen: View {
 
     var body: some View {
         Form {
-            Section("Class") {
+            Section {
                 LabeledContent("Name", value: classSummary.name.isEmpty ? "Class" : classSummary.name)
                 LabeledContent("Subject", value: classSummary.subject.nilIfBlank ?? "Not set")
                 LabeledContent("Students", value: "\(students.count)")
@@ -44,7 +44,7 @@ struct ClassDetailRosterScreen: View {
                 }
             }
 
-            Section("Import Roster CSV") {
+            Section {
                 Button {
                     showingRosterImporter = true
                 } label: {
@@ -65,6 +65,8 @@ struct ClassDetailRosterScreen: View {
                     Label("Create Assignments", systemImage: "doc.badge.plus")
                 }
                 .disabled(rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } header: {
+                Text("Import Roster CSV")
             } footer: {
                 Text("Review new students, duplicates, and rejected rows before creating assignment records.")
             }

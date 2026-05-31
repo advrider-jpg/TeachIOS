@@ -13,7 +13,7 @@ struct ExportsRestoreScreen: View {
     var body: some View {
         Form {
             if !viewModel.canExportStudentReport {
-                Section("Export Safety") {
+                Section {
                     WarningBanner(
                         title: "Final approval required",
                         message: "Student-facing export is blocked until the teacher approves the final grade.",
@@ -22,7 +22,7 @@ struct ExportsRestoreScreen: View {
                 }
             }
 
-            Section("Create Export") {
+            Section {
                 ForEach(ExportConfirmationKind.allCases) { kind in
                     ExportOptionRow(
                         title: kind.title,
@@ -33,11 +33,13 @@ struct ExportsRestoreScreen: View {
                         action: { confirmationKind = kind }
                     )
                 }
+            } header: {
+                Text("Create Export")
             } footer: {
                 Text("Audience labels show whether a file is student-facing or teacher-only. Student-facing exports omit private teacher notes.")
             }
 
-            Section("Import Backup") {
+            Section {
                 Picker("Backup import option", selection: $viewModel.backupConflictResolution) {
                     ForEach(BackupConflictResolution.allCases) { option in
                         Text(option.displayName).tag(option)
@@ -53,6 +55,8 @@ struct ExportsRestoreScreen: View {
                 } label: {
                     Label("Choose Backup", systemImage: "tray.and.arrow.down")
                 }
+            } header: {
+                Text("Import Backup")
             } footer: {
                 Text("Choose a backup to preview records before importing. Records are not changed until you confirm.")
             }
@@ -64,7 +68,7 @@ struct ExportsRestoreScreen: View {
             }
 
             if let url = viewModel.exportURL {
-                Section("Ready to Share") {
+                Section {
                     HStack(spacing: 12) {
                         Image(systemName: "doc")
                             .foregroundStyle(.blue)
@@ -101,6 +105,8 @@ struct ExportsRestoreScreen: View {
                             Label("Copy Text", systemImage: "doc.on.clipboard")
                         }
                     }
+                } header: {
+                    Text("Ready to Share")
                 } footer: {
                     Text("Opening the share sheet sends the selected file to another app.")
                 }
@@ -177,7 +183,7 @@ struct ExportsRestoreScreen: View {
 
     @ViewBuilder
     private func restorePreviewSection(_ preview: BackupRestorePreview, title: String, pending: Bool) -> some View {
-        Section(title) {
+        Section {
             Text(preview.summary)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -201,6 +207,8 @@ struct ExportsRestoreScreen: View {
                     Label("Confirm Import", systemImage: "tray.and.arrow.down")
                 }
             }
+        } header: {
+            Text(title)
         } footer: {
             Text("Records are not changed until you confirm the import.")
         }

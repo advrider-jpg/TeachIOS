@@ -8,7 +8,7 @@ struct AssignmentOverviewScreen: View {
         Group {
             if let assignment = viewModel.assignment(for: assignmentID) {
                 Form {
-                    Section("Next Up") {
+                    Section {
                         NavigationLink {
                             nextDestination(for: assignment)
                         } label: {
@@ -20,27 +20,33 @@ struct AssignmentOverviewScreen: View {
                                 actionLabel: viewModel.v6ActionLabel(for: assignment)
                             )
                         }
+                    } header: {
+                        Text("Next Up")
                     } footer: {
                         Text(nextUpDetail(for: assignment))
                     }
 
-                    Section("Workflow") {
+                    Section {
                         WorkflowProgressRail(steps: workflowSteps(for: assignment))
+                    } header: {
+                        Text("Workflow")
                     } footer: {
                         Text("Visible steps match the teacher workflow.")
                     }
 
                     if !blockingIssues(for: assignment).isEmpty {
-                        Section("Fix Before Continuing") {
+                        Section {
                             ForEach(blockingIssues(for: assignment), id: \.title) { issue in
                                 BlockingIssueRow(title: issue.title, detail: issue.detail, status: issue.status)
                             }
+                        } header: {
+                            Text("Fix Before Continuing")
                         } footer: {
                             Text("These items prevent grading or export.")
                         }
                     }
 
-                    Section("Assignment Details") {
+                    Section {
                         TextField("Assignment title", text: binding(\.title))
                         TextField("Assignment question or prompt", text: promptBinding, axis: .vertical)
                             .lineLimit(2...6)
@@ -53,6 +59,8 @@ struct AssignmentOverviewScreen: View {
                                 Text(type.displayName).tag(type)
                             }
                         }
+                    } header: {
+                        Text("Assignment Details")
                     } footer: {
                         Text("Setup fields stay local and are used to build the teacher-reviewed grading packet.")
                     }

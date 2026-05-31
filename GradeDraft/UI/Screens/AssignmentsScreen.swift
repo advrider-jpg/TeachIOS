@@ -6,7 +6,7 @@ struct AssignmentsScreen: View {
 
     var body: some View {
         List {
-            Section("Assignments") {
+            Section {
                 if filteredAssignments.isEmpty {
                     if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         ContentUnavailableView(
@@ -26,6 +26,8 @@ struct AssignmentsScreen: View {
                         }
                     }
                 }
+            } header: {
+                Text("Assignments")
             } footer: {
                 Text("Each row shows the current status and next teacher action.")
             }
