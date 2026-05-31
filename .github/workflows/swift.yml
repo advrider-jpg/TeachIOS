@@ -60,7 +60,7 @@ jobs:
             echo "- Python: $(python3 --version)"
             echo "- Guardrails: repo_health, no_network_scan, export_hardening_scan, bad_string_scan, project_membership, CI contract"
             echo "- Local reproduction:"
-            echo '  `python3 scripts/repo_health.py && python3 scripts/no_network_scan.py && python3 scripts/export_hardening_scan.py && python3 scripts/ci/bad_string_scan.py && python3 scripts/ci/check_xcode_project_membership.py && python3 scripts/ci/check_ci_contract.py`'
+            echo "  \`python3 scripts/repo_health.py && python3 scripts/no_network_scan.py && python3 scripts/export_hardening_scan.py && python3 scripts/ci/bad_string_scan.py && python3 scripts/ci/check_xcode_project_membership.py && python3 scripts/ci/check_ci_contract.py\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   workflow-lint:
@@ -320,7 +320,7 @@ jobs:
             echo ""
             echo "- Xcode: $(xcodebuild -version | head -1)"
             echo "- Simulator: ${{ steps.simulator.outputs.device_name }} (${{ steps.simulator.outputs.runtime_name }})"
-            echo "- PNG count: $(ls screenshots/*.png 2>/dev/null | wc -l | tr -d ' ')"
+            echo "- PNG count: $(find screenshots -maxdepth 1 -name '*.png' -type f 2>/dev/null | wc -l | tr -d ' ')"
             echo "- Result bundle: ${{ runner.temp }}/GradeDraftScreenshotTests.xcresult"
             echo "- Local reproduction: \`bash scripts/ci/select_xcode.sh && DESTINATION=\"\$(python3 scripts/ci/select_ios_simulator.py --print-destination)\" && xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination \"\$DESTINATION\" -derivedDataPath /tmp/GradeDraftScreenshotDerivedData -resultBundlePath /tmp/GradeDraftScreenshotTests.xcresult -only-testing:GradeDraftTests/GradeDraftScreenshotTests test\`"
           } >> "$GITHUB_STEP_SUMMARY"
