@@ -73,7 +73,7 @@ struct StudentWorkScreen: View {
 
     var body: some View {
         Form {
-            Section("Attached Files") {
+            Section {
                 if assignment.sourceInputs.isEmpty {
                     ContentUnavailableView(
                         "Add student work",
@@ -85,11 +85,13 @@ struct StudentWorkScreen: View {
                         WorkAttachmentRow(source: source)
                     }
                 }
-            } footer: {
+            } header: {
+                    Text("Attached Files")
+                } footer: {
                 Text("Original files stay on this device unless you export them.")
             }
 
-            Section("Add Student Work") {
+            Section {
                 Button {
                     showingScanner = true
                 } label: {
@@ -108,11 +110,13 @@ struct StudentWorkScreen: View {
                     Label("Import PDF", systemImage: "doc.richtext")
                 }
                 .disabled(viewModel.isWorking)
-            } footer: {
+            } header: {
+                    Text("Add Student Work")
+                } footer: {
                 Text("Import locally. No student work is uploaded.")
             }
 
-            Section("Work Preview") {
+            Section {
                 TextEditor(text: binding(\.reviewedStudentText))
                     .frame(minHeight: 180)
                     .accessibilityLabel("Reviewed student work text")
@@ -122,21 +126,25 @@ struct StudentWorkScreen: View {
                     Label("Use Pasted Text as Reviewed", systemImage: "checkmark.circle")
                 }
                 .disabled(assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            } footer: {
+            } header: {
+                    Text("Work Preview")
+                } footer: {
                 Text("Review or paste the text GradeDraft can use. OCR text must be reviewed before grading.")
             }
 
-            Section("Student Work Status") {
+            Section {
                 BlockingIssueRow(
                     title: assignment.ocrReviewStatus.v6Status.rawValue,
                     detail: assignment.ocrReviewStatus.blocksGrading ? GradeDraftWorkflowLanguage.reviewScannedTextExplanation : "Student work is ready for teacher review.",
                     status: assignment.ocrReviewStatus.v6Status
                 )
-            } footer: {
+            } header: {
+                    Text("Student Work Status")
+                } footer: {
                 Text("Teacher review gates remain required.")
             }
 
-            Section("Danger Zone") {
+            Section {
                 Button(role: .destructive) {
                     showingClearConfirm = true
                 } label: {
@@ -154,7 +162,9 @@ struct StudentWorkScreen: View {
                         Label("Delete Assignment", systemImage: "trash")
                     }
                 }
-            } footer: {
+            } header: {
+                    Text("Danger Zone")
+                } footer: {
                 Text("Permanent actions cannot be undone.")
             }
         }
