@@ -1,4 +1,3 @@
-import SnapshotTesting
 import SwiftUI
 import UIKit
 import XCTest
@@ -6,11 +5,6 @@ import XCTest
 @testable import GradeDraft
 
 final class NativeUIRefactorSnapshotTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        isRecording = false
-    }
-
     @MainActor
     func testHomeScreenNativeListSnapshot() {
         let viewModel = NativeUITestFixture.viewModel(selecting: .readyToExport)
@@ -109,7 +103,7 @@ final class NativeUIRefactorSnapshotTests: XCTestCase {
         screen: String,
         sourceFile: String,
         expectedContainer: NativeContainer,
-        file: StaticString = #file,
+        file: StaticString = #filePath,
         testName: String = #function,
         line: UInt = #line,
         @ViewBuilder content: () -> Content
@@ -120,9 +114,35 @@ final class NativeUIRefactorSnapshotTests: XCTestCase {
             expectedContainer: expectedContainer,
             content: content
         )
-        XCTAssertTrue(snapshot.sourceContainerPresent, "\(screen) should render with native \(expectedContainer.rawValue).")
-        XCTAssertTrue(snapshot.forbiddenScreenTokens.isEmpty, "\(screen) should not use obsolete custom screen-level UI: \(snapshot.forbiddenScreenTokens.joined(separator: ", "))")
-        assertSnapshot(of: snapshot.renderedSummary, as: .lines, file: file, testName: testName, line: line)
+        XCTAssertTrue(snapshot.sourceContainerPresent,
+                      "\(screen) should render with native \(expectedContainer.rawValue).",
+                      file: file, line: line)
+        XCTAssertTrue(snapshot.forbiddenScreenTokens.isEmpty,
+                      "\(screen) should not use obsolete custom screen-level UI: \(snapshot.forbiddenScreenTokens.joined(separator: ", "))",
+                      file: file, line: line)
+
+        // Compare directly against the committed reference so CI never tries to write snapshots.
+        let referenceName = testName.replacingOccurrences(of: "()", with: "")
+        let referenceURL = URL(fileURLWithPath: "\(file)")
+            .deletingLastPathComponent()
+            .appendingPathComponent("__Snapshots__")
+            .appendingPathComponent("NativeUIRefactorSnapshotTests")
+            .appendingPathComponent("\(referenceName).1.txt")
+        guard let stored = try? String(contentsOf: referenceURL, encoding: .utf8) else {
+            XCTFail("Missing snapshot reference: \(referenceURL.lastPathComponent). "
+                + "Run the test locally and commit the generated file.",
+                    file: file, line: line)
+            return
+        }
+        // Normalize line endings for comparison so Windows-authored files always match.
+        let normalizedStored = stored.replacingOccurrences(of: "\r\n", with: "\n")
+            .trimmingCharacters(in: .newlines)
+        let normalizedActual = snapshot.renderedSummary
+            .trimmingCharacters(in: .newlines)
+        XCTAssertEqual(normalizedActual, normalizedStored,
+                       "Snapshot mismatch for \(screen). Update the .txt file in "
+                       + "__Snapshots__/NativeUIRefactorSnapshotTests/ if the source changed intentionally.",
+                       file: file, line: line)
     }
 }
 
