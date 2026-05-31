@@ -71,8 +71,11 @@ final class GradeDraftUITabAndLanguageTests: XCTestCase {
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let screenSource = try sourceFiles(in: repoRoot.appendingPathComponent("GradeDraft/UI/Screens"))
-            .map { try String(contentsOf: repoRoot.appendingPathComponent($0), encoding: .utf8) }
+        let screensURL = repoRoot.appendingPathComponent("GradeDraft/UI/Screens")
+        let screenSource = try FileManager.default
+            .contentsOfDirectory(at: screensURL, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+            .filter { $0.pathExtension == "swift" }
+            .map { try String(contentsOf: $0, encoding: .utf8) }
             .joined(separator: "\n")
         XCTAssertFalse(screenSource.contains("GradeResultView("), "Active v6 screens should render native final-review rows instead of routing to legacy GradeResultView.")
     }
