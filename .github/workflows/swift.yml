@@ -189,6 +189,7 @@ jobs:
             -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$RESULT_BUNDLE" \
             -skip-testing:GradeDraftTests/GradeDraftScreenshotTests \
+            ARCHS=arm64 \
             clean test \
             | tee xcode-logs/xcode-unit-tests.log
 
@@ -215,13 +216,13 @@ jobs:
             echo "| Simulator | ${{ steps.simulator.outputs.device_name }} (${{ steps.simulator.outputs.runtime_name }}) |"
             echo "| Destination | ${{ steps.simulator.outputs.destination }} |"
             echo "| Result bundle | ${{ runner.temp }}/GradeDraftUnitTests.xcresult |"
-            echo "| Command | \`xcodebuild -project $PROJECT -scheme $SCHEME -destination '${{ steps.simulator.outputs.destination }}' -derivedDataPath \$RUNNER_TEMP/GradeDraftDerivedData -resultBundlePath \$RUNNER_TEMP/GradeDraftUnitTests.xcresult -skip-testing:GradeDraftTests/GradeDraftScreenshotTests clean test\` |"
+            echo "| Command | \`xcodebuild -project $PROJECT -scheme $SCHEME -destination '${{ steps.simulator.outputs.destination }}' -derivedDataPath \$RUNNER_TEMP/GradeDraftDerivedData -resultBundlePath \$RUNNER_TEMP/GradeDraftUnitTests.xcresult -skip-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 clean test\` |"
             echo ""
             echo "Local reproduction:"
             echo "\`\`\`bash"
             echo "bash scripts/ci/select_xcode.sh"
             echo "DESTINATION=\"\$(python3 scripts/ci/select_ios_simulator.py --print-destination)\""
-            echo "xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination \"\$DESTINATION\" -derivedDataPath /tmp/GradeDraftDerivedData -resultBundlePath /tmp/GradeDraftUnitTests.xcresult -skip-testing:GradeDraftTests/GradeDraftScreenshotTests clean test"
+            echo "xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination \"\$DESTINATION\" -derivedDataPath /tmp/GradeDraftDerivedData -resultBundlePath /tmp/GradeDraftUnitTests.xcresult -skip-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 clean test"
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -255,6 +256,7 @@ jobs:
             -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$RESULT_BUNDLE" \
             -only-testing:GradeDraftTests/GradeDraftScreenshotTests \
+            ARCHS=arm64 \
             test \
             | tee xcode-logs/xcode-screenshot-smoke.log
 
@@ -322,7 +324,7 @@ jobs:
             echo "- Simulator: ${{ steps.simulator.outputs.device_name }} (${{ steps.simulator.outputs.runtime_name }})"
             echo "- PNG count: $(find screenshots -maxdepth 1 -name '*.png' -type f 2>/dev/null | wc -l | tr -d ' ')"
             echo "- Result bundle: ${{ runner.temp }}/GradeDraftScreenshotTests.xcresult"
-            echo "- Local reproduction: \`bash scripts/ci/select_xcode.sh && DESTINATION=\"\$(python3 scripts/ci/select_ios_simulator.py --print-destination)\" && xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination \"\$DESTINATION\" -derivedDataPath /tmp/GradeDraftScreenshotDerivedData -resultBundlePath /tmp/GradeDraftScreenshotTests.xcresult -only-testing:GradeDraftTests/GradeDraftScreenshotTests test\`"
+            echo "- Local reproduction: \`bash scripts/ci/select_xcode.sh && DESTINATION=\"\$(python3 scripts/ci/select_ios_simulator.py --print-destination)\" && xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination \"\$DESTINATION\" -derivedDataPath /tmp/GradeDraftScreenshotDerivedData -resultBundlePath /tmp/GradeDraftScreenshotTests.xcresult -only-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 test\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   release-build:

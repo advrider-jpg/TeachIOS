@@ -58,6 +58,7 @@ xcodebuild \
   -derivedDataPath /tmp/GradeDraftDerivedData \
   -resultBundlePath /tmp/GradeDraftUnitTests.xcresult \
   -skip-testing:GradeDraftTests/GradeDraftScreenshotTests \
+  ARCHS=arm64 \
   clean test
 ```
 
@@ -73,6 +74,7 @@ xcodebuild \
   -derivedDataPath /tmp/GradeDraftScreenshotDerivedData \
   -resultBundlePath /tmp/GradeDraftScreenshotTests.xcresult \
   -only-testing:GradeDraftTests/GradeDraftScreenshotTests \
+  ARCHS=arm64 \
   test
 ```
 

@@ -69,7 +69,9 @@ def main() -> int:
     release = job_block(text, "release-build")
     require("continue-on-error: true" not in unit, failures, "Deterministic Xcode tests must not use broad continue-on-error.")
     require("-skip-testing:GradeDraftTests/GradeDraftScreenshotTests" in unit, failures, "Deterministic Xcode tests must skip screenshot tests.")
+    require("ARCHS=arm64" in unit, failures, "Deterministic Xcode tests must pin simulator builds to arm64.")
     require("-only-testing:GradeDraftTests/GradeDraftScreenshotTests" in screenshot, failures, "Screenshot job must only run screenshot tests.")
+    require("ARCHS=arm64" in screenshot, failures, "Screenshot tests must pin simulator builds to arm64.")
     require("CODE_SIGNING_ALLOWED=NO" in release, failures, "Release build must disable signing for CI.")
     require("configuration Release" in release or "-configuration Release" in release, failures, "Release build must use Release configuration.")
 
