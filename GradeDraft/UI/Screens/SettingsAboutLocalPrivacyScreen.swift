@@ -17,7 +17,7 @@ struct SettingsAboutLocalPrivacyScreen: View {
                 Label("Teacher finalizes all grades.", systemImage: "person.badge.checkmark")
             }
 
-            Section("Local Storage") {
+            Section {
                 GradeDraftStatusLabeledContent(title: "Local Only", value: viewModel.persistenceSummary, status: .teacherOnly)
                 GradeDraftStatusLabeledContent(title: "Device Backup Setting", value: viewModel.deviceBackupStatusSummary, status: backupPolicyUIStatus)
                 LabeledContent("Assignments", value: "\(viewModel.assignments.count)")
@@ -35,6 +35,8 @@ struct SettingsAboutLocalPrivacyScreen: View {
                         systemImage: viewModel.localDataExcludedFromDeviceBackup ? "externaldrive.badge.icloud" : "lock.shield"
                     )
                 }
+            } header: {
+                Text("Local Storage")
             } footer: {
                 Text("Student records are stored locally. Device backup behavior depends on this device and account configuration.")
             }

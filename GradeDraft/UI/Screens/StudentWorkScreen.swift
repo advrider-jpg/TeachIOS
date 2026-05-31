@@ -20,13 +20,15 @@ struct DeleteAssignmentConfirmationSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Delete Assignment") {
+                Section {
                     WarningBanner(title: warning.title.trimmingCharacters(in: .whitespacesAndNewlines), message: warning.body.trimmingCharacters(in: .whitespacesAndNewlines), status: .teacherOnly)
                     if !warning.checklist.isEmpty {
-                        DisclosureGroup("Checklist") {
+                        DisclosureGroup {
                             ForEach(warning.checklist, id: \.self) { item in
                                 Label(item, systemImage: "checkmark.circle")
                             }
+                        } label: {
+                            Text("Checklist")
                         }
                     }
                     Toggle(isOn: $acknowledged) {
@@ -41,6 +43,8 @@ struct DeleteAssignmentConfirmationSheet: View {
                         Label("Delete Assignment", systemImage: "trash")
                     }
                     .disabled(!canDelete)
+                } header: {
+                    Text("Delete Assignment")
                 } footer: {
                     Text(warning.escalatedConfirmation ?? "Type DELETE to confirm.")
                 }
@@ -65,9 +69,10 @@ struct StudentWorkScreen: View {
     @State private var showingClearConfirm = false
     @State private var showingDeleteConfirm = false
 
+    private var assignment: AssignmentRecord { viewModel.assignment }
+
     var body: some View {
         Form {
-            let assignment = viewModel.assignment
             Section("Attached Files") {
                 if assignment.sourceInputs.isEmpty {
                     ContentUnavailableView(
