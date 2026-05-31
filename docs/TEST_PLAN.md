@@ -47,7 +47,7 @@ Remaining bad-string matches should be limited to canonical source-of-truth/rese
 
 ## CI gates
 
-The primary workflow is `.github/workflows/swift.yml` (`GradeDraft CI`). It separates static policy checks, workflow linting, SwiftLint, deterministic Xcode unit/integration tests, screenshot smoke tests, and unsigned Release build verification.
+The primary workflow is `.github/workflows/swift.yml` (`GradeDraft CI`). It separates static policy checks, workflow linting, SwiftLint, deterministic Xcode unit/integration tests, screenshot smoke tests, and unsigned Release build verification. Core page screenshot capture also has a separate workflow at `.github/workflows/core-page-screenshots.yml` (`GradeDraft Core Page Screenshots`).
 
 Required PR jobs:
 
@@ -62,7 +62,11 @@ Main, scheduled, manual, or labeled deeper checks:
 - `release-build`
 - `ci-summary`
 
-The deterministic Xcode job skips `GradeDraftTests/GradeDraftScreenshotTests`; the screenshot job runs only that test class and uploads the PNG outputs. See `docs/CI.md` for local reproduction commands, artifact names, Xcode 26+ selection, iOS 26+ simulator selection, and branch-protection guidance.
+Separate visual PR check:
+
+- `core-page-screenshots`
+
+The deterministic Xcode job skips `GradeDraftTests/GradeDraftScreenshotTests`; the screenshot jobs run only that test class and upload the PNG outputs. `GradeDraftScreenshotTests` captures every core app page under `GradeDraft/UI/Screens/*Screen.swift`, excluding only `ScreenModels.swift`, and includes a manifest test that fails when a core page lacks a screenshot case. See `docs/CI.md` for local reproduction commands, artifact names, Xcode 26+ selection, iOS 26+ simulator selection, and branch-protection guidance.
 
 ## Production-path CI coverage
 
@@ -104,7 +108,7 @@ Run in Xcode 26+ on macOS with iOS SDK:
 - Build test target.
 - Run unit tests.
 - Run the deterministic CI XCTest command while skipping screenshot tests.
-- Run screenshot smoke tests separately and inspect uploaded PNG artifacts.
+- Run core page screenshot tests separately and inspect uploaded PNG artifacts.
 - Run an unsigned Release build with `CODE_SIGNING_ALLOWED=NO`.
 - Confirm Foundation Models API calls compile against the installed SDK.
 - Confirm PDFKit rendering/import and UIKit PDF export compile and run.
