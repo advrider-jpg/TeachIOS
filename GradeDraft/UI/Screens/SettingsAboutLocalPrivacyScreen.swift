@@ -7,12 +7,12 @@ struct SettingsAboutLocalPrivacyScreen: View {
     var body: some View {
         Form {
             Section("Local Privacy") {
-                Text("GradeDraft stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The developer does not receive, upload, or access this information in the core app workflow.")
+                Text("GradeDraft stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The core workflow does not upload or send this information.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 Label("No cloud text recognition in the core workflow.", systemImage: "checkmark.circle")
                 Label("No cloud AI grading in the core workflow.", systemImage: "checkmark.circle")
-                Label("No usage tracking in this repo.", systemImage: "checkmark.circle")
+                Label("No usage tracking in the core workflow.", systemImage: "checkmark.circle")
                 Label("No account or login required.", systemImage: "checkmark.circle")
                 Label("Teacher finalizes all grades.", systemImage: "person.badge.checkmark")
             }
@@ -51,7 +51,7 @@ struct SettingsAboutLocalPrivacyScreen: View {
             Section("About") {
                 LabeledContent("App", value: "GradeDraft")
                 LabeledContent("Mode", value: "Local-first teacher review")
-                LabeledContent("Target", value: "iOS 17")
+                LabeledContent("Core workflow", value: "Local text review, teacher final grade, local export")
             }
         }
         .navigationTitle("Privacy & Storage")

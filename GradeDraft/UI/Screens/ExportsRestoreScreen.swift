@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct ExportsRestoreScreen: View {
     @ObservedObject var viewModel: GradeDraftViewModel
+    var assignmentID: UUID? = nil
     @State private var confirmationKind: ExportConfirmationKind?
     @State private var showingBackupImporter = false
     @State private var showingShareSheetWarning = false
@@ -12,7 +13,8 @@ struct ExportsRestoreScreen: View {
 
     var body: some View {
         Form {
-            if !viewModel.canExportStudentReport {
+            let assignment = selectedAssignment
+            if !assignment.isStudentFacingExportReady {
                 Section {
                     WarningBanner(
                         title: "Final approval required",
@@ -29,7 +31,7 @@ struct ExportsRestoreScreen: View {
                         subtitle: kind.subtitle,
                         status: kind.warningStatus,
                         actionLabel: exportActionLabel(for: kind),
-                        disabled: exportDisabled(for: kind),
+                        disabled: exportDisabled(for: kind, assignment: assignment),
                         action: { confirmationKind = kind }
                     )
                 }
@@ -151,7 +153,7 @@ struct ExportsRestoreScreen: View {
         .navigationTitle("Exports & Backup")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $confirmationKind) { kind in
-            ExportConfirmationSheet(kind: kind, assignment: viewModel.assignment, allAssignments: viewModel.assignments, onCancel: { confirmationKind = nil }, onConfirm: { confirm(kind) })
+            ExportConfirmationSheet(kind: kind, assignment: selectedAssignment, allAssignments: viewModel.assignments, onCancel: { confirmationKind = nil }, onConfirm: { confirm(kind) })
         }
         .sheet(isPresented: $showingResolutionSheet) {
             RestoreConflictResolutionSheet(selection: $viewModel.backupConflictResolution) {
@@ -159,7 +161,12 @@ struct ExportsRestoreScreen: View {
             }
         }
         .fileImporter(isPresented: $showingBackupImporter, allowedContentTypes: [.json, .zip, .item]) { result in
-            if case .success(let url) = result { viewModel.previewBackupRestore(from: url) }
+            switch result {
+            case .success(let url):
+                viewModel.previewBackupRestore(from: url)
+            case .failure(let error):
+                viewModel.errorMessage = error.localizedDescription
+            }
         }
         .confirmationDialog(shareSheetWarningTitle, isPresented: $showingShareSheetWarning, titleVisibility: .visible) {
             Button(shareSheetPrimaryButton) { shareLinkApproved = true }
@@ -179,6 +186,15 @@ struct ExportsRestoreScreen: View {
         .onChange(of: viewModel.exportKind) { _, _ in
             shareLinkApproved = false
         }
+        .onAppear {
+            if let assignmentID {
+                viewModel.selectAssignment(assignmentID)
+            }
+        }
+    }
+
+    private var selectedAssignment: AssignmentRecord {
+        assignmentID.flatMap { viewModel.assignment(for: $0) } ?? viewModel.assignment
     }
 
     @ViewBuilder
@@ -216,6 +232,9 @@ struct ExportsRestoreScreen: View {
 
     private func confirm(_ kind: ExportConfirmationKind) {
         confirmationKind = nil
+        if let assignmentID {
+            viewModel.selectAssignment(assignmentID)
+        }
         Task { await viewModel.performConfirmedExport(kind) }
     }
 
@@ -228,10 +247,10 @@ struct ExportsRestoreScreen: View {
         }
     }
 
-    private func exportDisabled(for kind: ExportConfirmationKind) -> Bool {
+    private func exportDisabled(for kind: ExportConfirmationKind, assignment: AssignmentRecord) -> Bool {
         switch kind {
         case .studentReportMarkdown, .studentReportPDF:
-            return !viewModel.canExportStudentReport
+            return !assignment.isStudentFacingExportReady
         case .teacherReviewMarkdown, .teacherReviewPDF, .fullBackup, .teacherArchive, .gradebookCSV, .gradebookArchive:
             return false
         }

@@ -68,8 +68,9 @@ struct StudentWorkScreen: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showingClearConfirm = false
     @State private var showingDeleteConfirm = false
+    @State private var pastedStudentText = ""
 
-    private var assignment: AssignmentRecord { viewModel.assignment }
+    private var assignment: AssignmentRecord { viewModel.assignment(for: assignmentID) ?? viewModel.assignment }
 
     var body: some View {
         Form {
@@ -99,6 +100,14 @@ struct StudentWorkScreen: View {
                 }
                 .disabled(!VNDocumentCameraViewController.isSupported || viewModel.isWorking)
 
+                if !VNDocumentCameraViewController.isSupported {
+                    BlockingIssueRow(
+                        title: "Scanning unavailable",
+                        detail: "Document camera scanning is not available on this device. Choose a photo, import a PDF, or paste text instead.",
+                        status: .needsAttention
+                    )
+                }
+
                 PhotosPicker(selection: $selectedPhoto, matching: .images) {
                     Label("Choose Photo", systemImage: "photo")
                 }
@@ -117,19 +126,31 @@ struct StudentWorkScreen: View {
             }
 
             Section {
-                TextEditor(text: binding(\.reviewedStudentText))
-                    .frame(minHeight: 180)
-                    .accessibilityLabel("Reviewed student work text")
-                Button {
-                    viewModel.applyPastedStudentText(viewModel.assignment.reviewedStudentText)
-                } label: {
-                    Label("Use Pasted Text as Reviewed", systemImage: "checkmark.circle")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Current reviewed text")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No reviewed text has been saved for this assignment." : assignment.reviewedStudentText)
+                        .font(.body)
+                        .foregroundStyle(assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .secondary : .primary)
+                        .textSelection(.enabled)
                 }
-                .disabled(assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                TextEditor(text: $pastedStudentText)
+                    .frame(minHeight: 140)
+                    .accessibilityLabel("Paste student work text")
+                Button {
+                    viewModel.selectAssignment(assignmentID)
+                    viewModel.applyPastedStudentText(pastedStudentText)
+                    refreshPastedTextDraft()
+                } label: {
+                    Label("Save Pasted Text as Reviewed", systemImage: "checkmark.circle")
+                }
+                .disabled(pastedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isWorking)
             } header: {
                     Text("Work Preview")
                 } footer: {
-                Text("Review or paste the text GradeDraft can use. OCR text must be reviewed before grading.")
+                Text("Saving pasted text records it as teacher-reviewed input and replaces current attached work for this assignment. OCR text must be reviewed before grading.")
             }
 
             Section {
@@ -150,7 +171,7 @@ struct StudentWorkScreen: View {
                 } label: {
                     Label("Clear Work", systemImage: "trash")
                 }
-                .disabled(assignment.reviewedStudentText.isEmpty && assignment.sourceInputs.isEmpty)
+                .disabled((assignment.reviewedStudentText.isEmpty && assignment.sourceInputs.isEmpty) || viewModel.isWorking)
 
                 if let deleteWarning = ExportWarningCatalog.warning(id: "delete-local-data-warning") {
                     Text(deleteWarning.body.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -161,6 +182,7 @@ struct StudentWorkScreen: View {
                     } label: {
                         Label("Delete Assignment", systemImage: "trash")
                     }
+                    .disabled(viewModel.isWorking)
                 }
             } header: {
                     Text("Danger Zone")
@@ -171,7 +193,14 @@ struct StudentWorkScreen: View {
         .navigationTitle("Student Work")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
-        .onAppear { viewModel.selectAssignment(assignmentID) }
+        .onAppear {
+            viewModel.selectAssignment(assignmentID)
+            refreshPastedTextDraft()
+        }
+        .onChange(of: assignmentID) { _, newValue in
+            viewModel.selectAssignment(newValue)
+            refreshPastedTextDraft()
+        }
         .sheet(isPresented: $showingScanner) {
             DocumentScannerView { images in
                 Task { await viewModel.applyScannedImages(images) }
@@ -182,14 +211,19 @@ struct StudentWorkScreen: View {
             }
         }
         .fileImporter(isPresented: $showingPDFImporter, allowedContentTypes: [.pdf]) { result in
-            if case .success(let url) = result {
+            switch result {
+            case .success(let url):
+                viewModel.selectAssignment(assignmentID)
                 Task { await viewModel.applyPDFFile(url) }
+            case .failure(let error):
+                viewModel.errorMessage = error.localizedDescription
             }
         }
         .onChange(of: selectedPhoto) { _, newItem in
             guard let newItem else { return }
             Task {
                 if let data = try? await newItem.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                    viewModel.selectAssignment(assignmentID)
                     await viewModel.applyPhotoImages([image])
                 } else {
                     viewModel.errorMessage = "The selected photo could not be imported."
@@ -198,7 +232,10 @@ struct StudentWorkScreen: View {
             }
         }
         .confirmationDialog(clearWarningTitle, isPresented: $showingClearConfirm, titleVisibility: .visible) {
-            Button(clearWarningPrimaryButton, role: .destructive) { viewModel.clearCurrentStudentWork() }
+            Button(clearWarningPrimaryButton, role: .destructive) {
+                viewModel.selectAssignment(assignmentID)
+                viewModel.clearCurrentStudentWork()
+            }
             Button(clearWarningSecondaryButton, role: .cancel) {}
         } message: {
             Text(clearWarningBody)
@@ -207,10 +244,11 @@ struct StudentWorkScreen: View {
             if let deleteWarning = ExportWarningCatalog.warning(id: "delete-local-data-warning") {
                 DeleteAssignmentConfirmationSheet(
                     warning: deleteWarning,
-                    assignmentTitle: viewModel.assignment.title,
+                    assignmentTitle: assignment.title,
                     onCancel: { showingDeleteConfirm = false },
                     onConfirm: {
                         showingDeleteConfirm = false
+                        viewModel.selectAssignment(assignmentID)
                         viewModel.deleteCurrentAssignment()
                     }
                 )
@@ -218,11 +256,13 @@ struct StudentWorkScreen: View {
         }
     }
 
-    private func binding<Value>(_ keyPath: WritableKeyPath<AssignmentRecord, Value>) -> Binding<Value> {
-        Binding(
-            get: { viewModel.assignment[keyPath: keyPath] },
-            set: { value in viewModel.updateAssignment { $0[keyPath: keyPath] = value } }
-        )
+    private func refreshPastedTextDraft() {
+        let current = assignment
+        if current.sourceInputs.isEmpty || current.sourceInputs.allSatisfy({ $0.sourceType == .pastedText }) {
+            pastedStudentText = current.reviewedStudentText
+        } else {
+            pastedStudentText = ""
+        }
     }
 
     private var clearWarningTitle: String {

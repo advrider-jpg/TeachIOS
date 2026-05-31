@@ -5,7 +5,7 @@ hostedViewSize: 390x844
 expectedContainer: List
 sourceContainerPresent: true
 sections:
-- Review Gate
+- Text Review Needed
 - Work Preview
 - Text Lines
 - Review Actions

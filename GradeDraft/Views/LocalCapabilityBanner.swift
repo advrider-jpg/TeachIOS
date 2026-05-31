@@ -3,6 +3,7 @@ import SwiftUI
 struct LocalCapabilityBanner: View {
     var status: LocalAIStatus
     var message: String
+    @State private var showingDetails = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -15,17 +16,22 @@ struct LocalCapabilityBanner: View {
                 Text(message)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Text("Local AI availability depends on Apple Intelligence support, settings, language/region, and model readiness. Manual grading remains available when local AI is unavailable.")
+                DisclosureGroup(isExpanded: $showingDetails) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Manual final review remains available when local AI is unavailable.")
+                        Text("Student work is not uploaded for text recognition, draft feedback, or usage tracking.")
+                    }
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("No backend, no cloud text recognition, no cloud grading, and no telemetry SDK in this repo.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                } label: {
+                    Text(showingDetails ? "Hide details" : "Local privacy details")
+                        .font(.caption.weight(.semibold))
+                }
             }
             Spacer()
         }
         .padding()
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private var title: String {

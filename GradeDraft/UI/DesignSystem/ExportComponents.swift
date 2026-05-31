@@ -10,27 +10,36 @@ struct ExportOptionRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 Image(systemName: status == .studentFacing ? "person.crop.circle.badge.checkmark" : "lock.doc")
                     .foregroundStyle(status.color)
                     .frame(width: 28)
+                    .padding(.top, 2)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                         .font(.headline)
-                        .lineLimit(1)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(subtitle)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .layoutPriority(1)
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 6) {
                     StatusChip(status, compact: true)
                     Text(actionLabel)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(disabled ? Color(.secondaryLabel) : Color.blue)
-                        .lineLimit(1)
+                        .multilineTextAlignment(.trailing)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: 132, alignment: .trailing)
+                .layoutPriority(2)
             }
             .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
             .padding(.vertical, 10)
@@ -40,6 +49,12 @@ struct ExportOptionRow: View {
         .buttonStyle(.plain)
         .disabled(disabled)
         .opacity(disabled ? 0.55 : 1)
+        .accessibilityLabel(title)
+        .accessibilityValue(accessibilityValue)
+    }
+
+    private var accessibilityValue: String {
+        "\(subtitle) Status: \(status.fullAccessibilityLabel). Action: \(actionLabel)."
     }
 }
 

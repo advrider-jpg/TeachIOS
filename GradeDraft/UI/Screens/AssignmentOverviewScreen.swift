@@ -92,8 +92,8 @@ struct AssignmentOverviewScreen: View {
             WorkflowStepRow(index: 2, title: "Student Work", detail: assignment.reviewedStudentText.isEmpty ? "Add student work for teacher-reviewed grading." : "Student work has been added.", status: assignment.reviewedStudentText.isEmpty ? .addStudentWork : .onTrack),
             WorkflowStepRow(index: 3, title: GradeDraftWorkflowLanguage.ocrReviewStepLabel, detail: assignment.ocrReviewStatus.blocksGrading ? GradeDraftWorkflowLanguage.reviewScannedTextExplanation : "Text review gate is satisfied.", status: assignment.ocrReviewStatus.v6Status),
             WorkflowStepRow(index: 4, title: "Rubric", detail: assignment.hasGradingStandard ? "Rubric or instructions ready for teacher review." : "Rubric needs fixes before grading.", status: assignment.hasGradingStandard ? .onTrack : .needsAttention),
-            WorkflowStepRow(index: 5, title: "Final Review", detail: assignment.finalReview == nil ? "Review final grade before export." : "Teacher final review is saved.", status: assignment.finalReview?.status.v6Status ?? .reviewFinalGrade),
-            WorkflowStepRow(index: 6, title: "Export", detail: viewModel.canExportStudentReport ? "Ready to export." : "Final approval required before student-facing export.", status: viewModel.canExportStudentReport ? .readyToExport : .notStarted)
+            WorkflowStepRow(index: 5, title: "Final Review", detail: finalReviewStepDetail(for: assignment), status: finalReviewStepStatus(for: assignment)),
+            WorkflowStepRow(index: 6, title: "Export", detail: assignment.isStudentFacingExportReady ? "Ready to export." : "Final approval required before student-facing export.", status: assignment.isStudentFacingExportReady ? .readyToExport : .notStarted)
         ]
     }
 
@@ -107,7 +107,7 @@ struct AssignmentOverviewScreen: View {
         case .reviewFinalGrade, .needsRecheck, .readyForTeacherReview, .inProgress:
             FinalReviewScreen(viewModel: viewModel, assignmentID: assignment.id)
         case .readyToExport, .approved, .exported:
-            ExportsRestoreScreen(viewModel: viewModel)
+            ExportsRestoreScreen(viewModel: viewModel, assignmentID: assignment.id)
                 .toolbar(.hidden, for: .tabBar)
         case .notStarted, .needsAttention, .fixBeforeContinuing, .onTrack, .studentFacing, .teacherOnly:
             RubricInstructionsScreen(viewModel: viewModel, assignmentID: assignment.id)
@@ -149,24 +149,51 @@ struct AssignmentOverviewScreen: View {
 
     private func binding<Value>(_ keyPath: WritableKeyPath<AssignmentRecord, Value>) -> Binding<Value> {
         Binding(
-            get: { viewModel.assignment[keyPath: keyPath] },
-            set: { newValue in viewModel.updateAssignment { $0[keyPath: keyPath] = newValue } }
+            get: {
+                if let assignment = viewModel.assignment(for: assignmentID) {
+                    return assignment[keyPath: keyPath]
+                }
+                return viewModel.assignment[keyPath: keyPath]
+            },
+            set: { newValue in
+                viewModel.selectAssignment(assignmentID)
+                viewModel.updateAssignment { $0[keyPath: keyPath] = newValue }
+            }
         )
     }
 
     private var promptBinding: Binding<String> {
         Binding(
-            get: { viewModel.assignment.prompt ?? "" },
-            set: { value in viewModel.updateAssignment { $0.prompt = value.nilIfBlank } }
+            get: { viewModel.assignment(for: assignmentID)?.prompt ?? "" },
+            set: { value in
+                viewModel.selectAssignment(assignmentID)
+                viewModel.updateAssignment { $0.prompt = value.nilIfBlank }
+            }
         )
     }
 
     private func save() {
         do {
+            viewModel.selectAssignment(assignmentID)
             try viewModel.saveCurrentAssignment()
             viewModel.statusMessage = "Assignment saved locally."
         } catch {
             viewModel.errorMessage = error.localizedDescription
         }
+    }
+
+    private func finalReviewStepDetail(for assignment: AssignmentRecord) -> String {
+        if assignment.finalReviewIsStale {
+            return "Recheck final review because student work, rubric, or evidence changed."
+        }
+        guard let finalReview = assignment.finalReview else {
+            return "Review final grade before export."
+        }
+        return finalReview.status == .approved ? "Teacher-approved final review is saved." : "Teacher final review is in progress."
+    }
+
+    private func finalReviewStepStatus(for assignment: AssignmentRecord) -> GradeDraftUIStatus {
+        if assignment.finalReviewIsStale { return .needsRecheck }
+        return assignment.finalReview?.status.v6Status ?? .reviewFinalGrade
     }
 }
