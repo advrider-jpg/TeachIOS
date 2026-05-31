@@ -104,17 +104,17 @@ struct FinalReviewScreen: View {
                     }
                     ForEach(result.criteria) { criterion in
                         DisclosureGroup {
-                            Text(criterion.explanation.isEmpty ? “No explanation provided.” : criterion.explanation)
+                            Text(criterion.explanation.isEmpty ? "No explanation provided." : criterion.explanation)
                                 .font(.subheadline)
-                            LabeledContent(“Suggested Points”, value: “\(GradeTotals.formatted(criterion.proposedPoints)) / \(GradeTotals.formatted(criterion.maxPoints))”)
+                            LabeledContent("Suggested Points", value: "\(GradeTotals.formatted(criterion.proposedPoints)) / \(GradeTotals.formatted(criterion.maxPoints))")
                             if criterion.teacherReviewRequired {
-                                Label(“Teacher review required for this criterion.”, systemImage: “exclamationmark.triangle”)
+                                Label("Teacher review required for this criterion.", systemImage: "exclamationmark.triangle")
                                     .font(.subheadline)
                                     .foregroundStyle(.orange)
                             }
                             if !criterion.evidence.isEmpty {
                                 ForEach(criterion.evidence, id: \.self) { evidence in
-                                    Text(“”\(evidence)””)
+                                    Text("\u{201C}\(evidence)\u{201D}")
                                         .font(.caption)
                                         .textSelection(.enabled)
                                 }
@@ -123,7 +123,7 @@ struct FinalReviewScreen: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(criterion.criterion)
                                     .font(.headline)
-                                Text(criterion.rating.isEmpty ? “No rating selected” : criterion.rating)
+                                Text(criterion.rating.isEmpty ? "No rating selected" : criterion.rating)
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
