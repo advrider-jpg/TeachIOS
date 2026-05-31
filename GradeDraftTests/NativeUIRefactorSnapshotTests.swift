@@ -211,9 +211,9 @@ private struct NativeHostedScreenSnapshot {
             let ns = NSRange(source.startIndex..<source.endIndex, in: source)
             for match in regex.matches(in: source, range: ns) {
                 guard match.numberOfRanges > group,
-                      let r = Range(match.range(at: group), in: source),
-                      let full = Range(match.range, in: source) else { continue }
-                hits.append((range: full, title: String(source[r])))
+                      let titleRange = Range(match.range(at: group), in: source),
+                      let fullRange = Range(match.range, in: source) else { continue }
+                hits.append((range: fullRange, title: String(source[titleRange])))
             }
         }
         // Sort by position so titles appear in the order they occur in the source file.
