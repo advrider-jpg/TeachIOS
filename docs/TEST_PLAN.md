@@ -38,11 +38,43 @@ Run in the repository root:
 python3 scripts/no_network_scan.py
 python3 scripts/export_hardening_scan.py
 python3 scripts/repo_health.py
-# Run the required unresolved-completion-language search from the project prompt.
-# Any matches should be limited to canonical source/research materials that discuss scope boundaries.
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_ci_contract.py
 ```
 
 Remaining bad-string matches should be limited to canonical source-of-truth/research/source-material documents that discuss out-of-scope product boundaries, not unimplemented status for the 11 v3 features.
+
+## CI gates
+
+The primary workflow is `.github/workflows/swift.yml` (`GradeDraft CI`). It separates static policy checks, workflow linting, SwiftLint, deterministic Xcode unit/integration tests, screenshot smoke tests, and unsigned Release build verification.
+
+Required PR jobs:
+
+- `static-policy`
+- `workflow-lint`
+- `swiftlint`
+- `xcode-unit-tests`
+
+Main, scheduled, manual, or labeled deeper checks:
+
+- `screenshot-smoke`
+- `release-build`
+- `ci-summary`
+
+The deterministic Xcode job skips `GradeDraftTests/GradeDraftScreenshotTests`; the screenshot job runs only that test class and uploads the PNG outputs. See `docs/CI.md` for local reproduction commands, artifact names, Xcode 26+ selection, iOS 26+ simulator selection, and branch-protection guidance.
+
+## Production-path CI coverage
+
+`GradeDraftProductionPathTests` provides a named CI-facing production-path layer for:
+
+- sensitive gradebook archive authentication before ZIP creation;
+- gradebook archive ZIP contents, including `gradebook.csv`, `assignments.json`, and `archive_inventory.json`;
+- backup restore preview before mutation;
+- stale final-review blocking for student-facing export;
+- OCR incomplete-state blocking for draft and manual review paths;
+- no-cloud fallback enforcement when local AI is unavailable; and
+- structured rubric import producing teacher-confirmed state while staling existing draft/final review records.
 
 
 ## Export hardening coverage
@@ -71,6 +103,9 @@ Run in Xcode 26+ on macOS with iOS SDK:
 - Build app target.
 - Build test target.
 - Run unit tests.
+- Run the deterministic CI XCTest command while skipping screenshot tests.
+- Run screenshot smoke tests separately and inspect uploaded PNG artifacts.
+- Run an unsigned Release build with `CODE_SIGNING_ALLOWED=NO`.
 - Confirm Foundation Models API calls compile against the installed SDK.
 - Confirm PDFKit rendering/import and UIKit PDF export compile and run.
 - Confirm Vision/VisionKit capture and OCR compile and run on device/simulator where supported.

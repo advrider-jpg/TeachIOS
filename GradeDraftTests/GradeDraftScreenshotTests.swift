@@ -12,42 +12,50 @@ final class GradeDraftScreenshotTests: XCTestCase {
 
     // MARK: - Screens
 
-    func testCaptureAllScreens() {
+    func testCaptureNewAssignmentScreen() {
         let screenshotDir = prepareScreenshotDirectory()
-
-        // 1. Fresh assignment — home state every new user sees
         let emptyStore = InMemoryAssignmentStore()
         let emptyVM = GradeDraftViewModel(assignments: [AssignmentRecord()], store: emptyStore)
         snapshot("01-new-assignment", ContentView(viewModel: emptyVM), to: screenshotDir)
+    }
 
-        // 2. Assignment ready to grade (rubric + reviewed scanned text, no draft yet)
+    func testCaptureReadyToGradeScreen() {
+        let screenshotDir = prepareScreenshotDirectory()
         let readyAssignment = makeBaseAssignment()
         let readyStore = InMemoryAssignmentStore(assignments: [readyAssignment])
         let readyVM = GradeDraftViewModel(assignments: [readyAssignment], store: readyStore)
         snapshot("02-ready-to-grade", ContentView(viewModel: readyVM), to: screenshotDir)
+    }
 
-        // 3. Draft generated — AI suggestion awaiting teacher review
+    func testCaptureDraftGeneratedScreen() {
+        let screenshotDir = prepareScreenshotDirectory()
         var draftAssignment = makeBaseAssignment()
         draftAssignment.latestDraft = makeDraft(for: draftAssignment)
         let draftStore = InMemoryAssignmentStore(assignments: [draftAssignment])
         let draftVM = GradeDraftViewModel(assignments: [draftAssignment], store: draftStore)
         snapshot("03-draft-generated", ContentView(viewModel: draftVM), to: screenshotDir)
+    }
 
-        // 4. Final review — teacher has approved all criteria
+    func testCaptureApprovedFinalReviewScreen() {
+        let screenshotDir = prepareScreenshotDirectory()
         var approvedAssignment = makeBaseAssignment()
         approvedAssignment.latestDraft = makeDraft(for: approvedAssignment)
         approvedAssignment.finalReview = makeFinalReview(for: approvedAssignment, status: .approved)
         let approvedStore = InMemoryAssignmentStore(assignments: [approvedAssignment])
         let approvedVM = GradeDraftViewModel(assignments: [approvedAssignment], store: approvedStore)
         snapshot("04-approved-final-review", ContentView(viewModel: approvedVM), to: screenshotDir)
+    }
 
-        // 5. Gradebook — class roster with mixed completion states
+    func testCaptureClassGradebookScreen() {
+        let screenshotDir = prepareScreenshotDirectory()
         let classAssignments = makeClassRoster()
         let rosterStore = InMemoryAssignmentStore(assignments: classAssignments)
         let rosterVM = GradeDraftViewModel(assignments: classAssignments, store: rosterStore)
         snapshot("05-class-gradebook", ContentView(viewModel: rosterVM), to: screenshotDir)
+    }
 
-        // 6. Manual final review in-progress (no AI draft)
+    func testCaptureManualFinalReviewScreen() {
+        let screenshotDir = prepareScreenshotDirectory()
         var manualAssignment = makeBaseAssignment()
         manualAssignment.finalReview = makeFinalReview(for: manualAssignment, status: .inProgress)
         let manualStore = InMemoryAssignmentStore(assignments: [manualAssignment])

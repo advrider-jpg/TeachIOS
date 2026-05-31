@@ -105,6 +105,7 @@
 		E00000000000000000000013 /* ExportPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000113 /* ExportPolicyTests.swift */; };
 		E00000000000000000000014 /* ExportHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000114 /* ExportHardeningTests.swift */; };
 		E00000000000000000000015 /* ArchiveRestoreSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000115 /* ArchiveRestoreSafetyTests.swift */; };
+		E00000000000000000000016 /* GradeDraftProductionPathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000116 /* GradeDraftProductionPathTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -192,6 +193,7 @@
 		E00000000000000000000113 /* ExportPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportPolicyTests.swift; sourceTree = "<group>"; };
 		E00000000000000000000114 /* ExportHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportHardeningTests.swift; sourceTree = "<group>"; };
 		E00000000000000000000115 /* ArchiveRestoreSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveRestoreSafetyTests.swift; sourceTree = "<group>"; };
+		E00000000000000000000116 /* GradeDraftProductionPathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftProductionPathTests.swift; sourceTree = "<group>"; };
 		C00000000000000000000001 /* AnswerKeyTemplateCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnswerKeyTemplateCatalog.swift; sourceTree = "<group>"; };
 		C00000000000000000000002 /* ExemplarTemplateCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExemplarTemplateCatalog.swift; sourceTree = "<group>"; };
 		C00000000000000000000003 /* ExportWarningCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportWarningCatalog.swift; sourceTree = "<group>"; };
@@ -328,6 +330,7 @@
 				E00000000000000000000113 /* ExportPolicyTests.swift */,
 				E00000000000000000000114 /* ExportHardeningTests.swift */,
 				E00000000000000000000115 /* ArchiveRestoreSafetyTests.swift */,
+				E00000000000000000000116 /* GradeDraftProductionPathTests.swift */,
 				AI0000000000000000000009 /* AppleIntelligenceImplementationTests.swift */,
 			);
 			path = GradeDraftTests;
@@ -639,6 +642,7 @@
 				E00000000000000000000013 /* ExportPolicyTests.swift in Sources */,
 				E00000000000000000000014 /* ExportHardeningTests.swift in Sources */,
 				E00000000000000000000015 /* ArchiveRestoreSafetyTests.swift in Sources */,
+				E00000000000000000000016 /* GradeDraftProductionPathTests.swift in Sources */,
 				AI0000000000000000000010 /* AppleIntelligenceImplementationTests.swift in Sources */,
 			); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
