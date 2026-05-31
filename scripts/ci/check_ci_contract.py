@@ -8,6 +8,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "swift.yml"
+CORE_SCREENSHOTS_WORKFLOW = ROOT / ".github" / "workflows" / "core-page-screenshots.yml"
 
 
 def require(condition: bool, failures: list[str], message: str) -> None:
@@ -34,6 +35,7 @@ def job_block(text: str, job_name: str) -> str:
 
 def main() -> int:
     text = WORKFLOW.read_text(encoding="utf-8")
+    screenshot_text = CORE_SCREENSHOTS_WORKFLOW.read_text(encoding="utf-8")
     failures: list[str] = []
     required_jobs = [
         "static-policy",
@@ -46,10 +48,23 @@ def main() -> int:
     ]
 
     require("name: GradeDraft CI" in text, failures, "Primary workflow must be named GradeDraft CI.")
+    require(
+        "name: GradeDraft Core Page Screenshots" in screenshot_text,
+        failures,
+        "Core page screenshots workflow must be named GradeDraft Core Page Screenshots.",
+    )
     require(re.search(r"^permissions:\n  contents: read", text, re.MULTILINE) is not None, failures, "Workflow must use permissions: contents: read.")
+    require(
+        re.search(r"^permissions:\n  contents: read", screenshot_text, re.MULTILINE) is not None,
+        failures,
+        "Core page screenshots workflow must use permissions: contents: read.",
+    )
     require(re.search(r"^concurrency:", text, re.MULTILINE) is not None, failures, "Workflow must define concurrency.")
+    require(re.search(r"^concurrency:", screenshot_text, re.MULTILINE) is not None, failures, "Core page screenshots workflow must define concurrency.")
     require("macos-latest" not in text, failures, "Apple jobs must not use macos-latest.")
+    require("macos-latest" not in screenshot_text, failures, "Core page screenshots workflow must not use macos-latest.")
     require("runs-on: macos-26" in text, failures, "Apple jobs must use an explicit macos-26 runner.")
+    require("runs-on: macos-26" in screenshot_text, failures, "Core page screenshots workflow must use an explicit macos-26 runner.")
     require("scripts/no_network_scan.py" in text, failures, "No-network guardrail must run directly.")
     require("scripts/export_hardening_scan.py" in text, failures, "Export-hardening guardrail must run directly.")
     require("scripts/ci/bad_string_scan.py" in text, failures, "Bad string scan must run from a script.")
@@ -58,6 +73,8 @@ def main() -> int:
     require("scripts/ci/check_ci_contract.py" in text, failures, "CI contract scan must run.")
     require("scripts/ci/select_xcode.sh" in text, failures, "Xcode selection must use the shared script.")
     require("scripts/ci/select_ios_simulator.py" in text, failures, "Simulator selection must use the shared script.")
+    require("scripts/ci/select_xcode.sh" in screenshot_text, failures, "Core page screenshots workflow must use the shared Xcode selector.")
+    require("scripts/ci/select_ios_simulator.py" in screenshot_text, failures, "Core page screenshots workflow must use the shared simulator selector.")
     require("actionlint .github/workflows/*.yml" in text, failures, "Workflow lint must run actionlint.")
 
     for job in required_jobs:
@@ -75,6 +92,15 @@ def main() -> int:
     require("ARCHS=arm64" in screenshot, failures, "Screenshot tests must pin simulator builds to arm64.")
     require("CODE_SIGNING_ALLOWED=NO" in release, failures, "Release build must disable signing for CI.")
     require("configuration Release" in release or "-configuration Release" in release, failures, "Release build must use Release configuration.")
+
+    core_screenshots = job_block(screenshot_text, "core-page-screenshots")
+    require(core_screenshots, failures, "Missing core-page-screenshots job.")
+    require("timeout-minutes:" in core_screenshots, failures, "Core page screenshots job must define timeout-minutes.")
+    require("-only-testing:GradeDraftTests/GradeDraftScreenshotTests" in core_screenshots, failures, "Core page screenshots workflow must only run screenshot tests.")
+    require("ARCHS=arm64" in core_screenshots, failures, "Core page screenshots tests must pin simulator builds to arm64.")
+    require("Verify complete core page screenshot set" in core_screenshots, failures, "Core page screenshots workflow must verify the complete PNG set.")
+    require("gradedraft-core-page-screenshots" in core_screenshots, failures, "Core page screenshots workflow must upload PNG artifacts.")
+    require("xcode-core-page-screenshots-output" in core_screenshots, failures, "Core page screenshots workflow must upload logs and result bundle.")
 
     artifact_tokens = [
         "actions/upload-artifact@v4",

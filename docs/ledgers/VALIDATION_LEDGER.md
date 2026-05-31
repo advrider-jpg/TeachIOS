@@ -2,6 +2,24 @@
 
 This ledger records source-level validation expectations for the all-features completion patch.
 
+## 2026-05-31 — Separate core page screenshot workflow
+
+The repository now has a separate GitHub Actions workflow at `.github/workflows/core-page-screenshots.yml` (`GradeDraft Core Page Screenshots`) with one job:
+
+- `core-page-screenshots`
+
+It runs on pull requests, pushes to `main`, and manual dispatch. The job selects Xcode 26+ and an iOS 26+ iPhone simulator, runs only `GradeDraftTests/GradeDraftScreenshotTests`, verifies the complete expected PNG set, and uploads `xcode-core-page-screenshots-output` plus `gradedraft-core-page-screenshots`.
+
+The screenshot XCTest manifest must match the concrete core page files in `GradeDraft/UI/Screens/*Screen.swift`, excluding only `ScreenModels.swift`.
+
+Local reproduction on macOS/Xcode 26+:
+
+```bash
+bash scripts/ci/select_xcode.sh
+DESTINATION="$(python3 scripts/ci/select_ios_simulator.py --print-destination)"
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination "$DESTINATION" -derivedDataPath /tmp/GradeDraftCorePageScreenshotDerivedData -resultBundlePath /tmp/GradeDraftCorePageScreenshots.xcresult -only-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 test
+```
+
 ## 2026-05-31 — Production CI gates
 
 The primary GitHub Actions workflow is now `.github/workflows/swift.yml` (`GradeDraft CI`) with these PR-required checks:

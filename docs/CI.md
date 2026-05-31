@@ -1,6 +1,6 @@
 # GradeDraft CI
 
-GradeDraft CI is layered so deterministic policy failures, Swift style failures, Xcode test failures, visual smoke failures, and Release build failures are diagnosed separately. The workflow lives at `.github/workflows/swift.yml` and is named `GradeDraft CI`.
+GradeDraft CI is layered so deterministic policy failures, Swift style failures, Xcode test failures, visual smoke failures, and Release build failures are diagnosed separately. The primary workflow lives at `.github/workflows/swift.yml` and is named `GradeDraft CI`. A separate visual workflow lives at `.github/workflows/core-page-screenshots.yml` and is named `GradeDraft Core Page Screenshots`.
 
 ## Jobs
 
@@ -13,6 +13,15 @@ GradeDraft CI is layered so deterministic policy failures, Swift style failures,
 | `screenshot-smoke` | `macos-26` | No for ordinary PRs | Runs only `GradeDraftScreenshotTests` and uploads PNGs plus `.xcresult`. It runs on `main`, scheduled/manual runs, and PRs labeled `visual-check`. |
 | `release-build` | `macos-26` | No for ordinary PRs | Builds Release for generic iOS with code signing disabled. It runs on `main`, scheduled, and manual runs. |
 | `ci-summary` | `ubuntu-latest` | Optional | Writes a combined job-result summary and fails if any PR-required job failed. |
+
+## Separate Screenshot Workflow
+
+`GradeDraft Core Page Screenshots` runs on ordinary pull requests, pushes to `main`, and manual dispatch. Its `core-page-screenshots` job selects Xcode 26+ and an iOS 26+ iPhone simulator, runs only `GradeDraftTests/GradeDraftScreenshotTests`, verifies the complete expected PNG set, then uploads:
+
+- `xcode-core-page-screenshots-output`
+- `gradedraft-core-page-screenshots`
+
+The XCTest screenshot manifest compares against `GradeDraft/UI/Screens/*Screen.swift`, excluding only `ScreenModels.swift`, so every core app page must have an explicit screenshot case.
 
 ## Toolchain Selection
 
@@ -62,7 +71,7 @@ xcodebuild \
   clean test
 ```
 
-Run screenshot smoke coverage:
+Run core page screenshot coverage:
 
 ```bash
 bash scripts/ci/select_xcode.sh
@@ -71,8 +80,8 @@ xcodebuild \
   -project GradeDraft.xcodeproj \
   -scheme GradeDraft \
   -destination "$DESTINATION" \
-  -derivedDataPath /tmp/GradeDraftScreenshotDerivedData \
-  -resultBundlePath /tmp/GradeDraftScreenshotTests.xcresult \
+  -derivedDataPath /tmp/GradeDraftCorePageScreenshotDerivedData \
+  -resultBundlePath /tmp/GradeDraftCorePageScreenshots.xcresult \
   -only-testing:GradeDraftTests/GradeDraftScreenshotTests \
   ARCHS=arm64 \
   test
@@ -96,14 +105,20 @@ xcodebuild \
 
 `xcode-unit-tests` uploads `xcode-unit-tests-output`, including the unit `.xcresult` and Xcode logs.
 
-`screenshot-smoke` uploads `xcode-screenshot-smoke-output` and `gradedraft-screenshots`. The screenshot tests write stable PNG names:
+`screenshot-smoke` uploads `xcode-screenshot-smoke-output` and `gradedraft-screenshots`. The separate `core-page-screenshots` job uploads `xcode-core-page-screenshots-output` and `gradedraft-core-page-screenshots`. The screenshot tests write stable PNG names:
 
-- `01-new-assignment.png`
-- `02-ready-to-grade.png`
-- `03-draft-generated.png`
-- `04-approved-final-review.png`
-- `05-class-gradebook.png`
-- `06-manual-final-review.png`
+- `01-home.png`
+- `02-classes.png`
+- `03-class-detail-roster.png`
+- `04-assignments.png`
+- `05-assignment-overview.png`
+- `06-student-work.png`
+- `07-review.png`
+- `08-review-scanned-text.png`
+- `09-final-review.png`
+- `10-exports-restore.png`
+- `11-settings-local-privacy.png`
+- `12-rubric-instructions.png`
 
 `release-build` uploads `xcode-release-build-output`.
 
@@ -120,7 +135,7 @@ Add new Swift files to the Xcode project target when adding them to `GradeDraft/
 
 ## CI Contract
 
-`scripts/ci/check_ci_contract.py` intentionally fails if the workflow loses required properties: explicit `macos-26` runners, minimal permissions, concurrency, job timeouts, direct no-network and export-hardening guardrails, Xcode/simulator selector scripts, screenshot separation, release build verification, and artifact uploads.
+`scripts/ci/check_ci_contract.py` intentionally fails if the workflows lose required properties: explicit `macos-26` runners, minimal permissions, concurrency, job timeouts, direct no-network and export-hardening guardrails, Xcode/simulator selector scripts, screenshot separation, core page screenshot verification, release build verification, and artifact uploads.
 
 When CI fails, do not delete tests, mark deterministic tests as allowed failures, switch back to `macos-latest`, remove local-first guardrails, or move screenshot tests back into the deterministic job. Fix the implementation or the contract deliberately.
 
@@ -136,6 +151,7 @@ Required before merging ordinary PRs:
 Recommended for pre-release, release tags, and manual release confidence:
 
 - all PR-required jobs
+- `core-page-screenshots`
 - `screenshot-smoke`
 - `release-build`
 - `ci-summary`

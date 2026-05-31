@@ -1,0 +1,182 @@
+name: GradeDraft Core Page Screenshots
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT: GradeDraft.xcodeproj
+  SCHEME: GradeDraft
+  IOS_MIN_MAJOR: "26"
+  XCODE_MIN_MAJOR: "26"
+
+jobs:
+  core-page-screenshots:
+    name: core-page-screenshots
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26+
+        run: bash scripts/ci/select_xcode.sh
+
+      - name: Print Xcode and simulator inventory
+        run: |
+          set -euo pipefail
+          mkdir -p xcode-logs
+          xcodebuild -version | tee xcode-logs/xcode-version.log
+          xcrun simctl list runtimes available | tee xcode-logs/sim-runtimes.log
+          xcrun simctl list devices available | tee xcode-logs/sim-devices.log
+
+      - name: Select iOS 26+ iPhone simulator
+        id: simulator
+        run: python3 scripts/ci/select_ios_simulator.py
+
+      - name: Cache Swift package dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ~/Library/Developer/Xcode/DerivedData/SourcePackages
+          key: spm-${{ runner.os }}-xcode26-${{ hashFiles('GradeDraft.xcodeproj/project.pbxproj', '**/Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-xcode26-
+
+      - name: Resolve Swift package dependencies
+        run: |
+          set -euo pipefail
+          mkdir -p xcode-logs
+          xcodebuild -resolvePackageDependencies \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            | tee xcode-logs/spm-resolve.log
+
+      - name: Capture every core app page
+        run: |
+          set -euo pipefail
+          DERIVED_DATA="$RUNNER_TEMP/GradeDraftCorePageScreenshotDerivedData"
+          RESULT_BUNDLE="$RUNNER_TEMP/GradeDraftCorePageScreenshots.xcresult"
+          mkdir -p xcode-logs screenshots
+          rm -rf "$RESULT_BUNDLE"
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -derivedDataPath "$DERIVED_DATA" \
+            -resultBundlePath "$RESULT_BUNDLE" \
+            -only-testing:GradeDraftTests/GradeDraftScreenshotTests \
+            ARCHS=arm64 \
+            test \
+            | tee xcode-logs/xcode-core-page-screenshots.log
+
+      - name: Collect screenshot PNGs from simulator container
+        if: always()
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/GradeDraftCorePageScreenshotDerivedData
+          DESTINATION: ${{ steps.simulator.outputs.destination }}
+        run: |
+          set -euo pipefail
+          mkdir -p screenshots
+          UDID="${DESTINATION##*id=}"
+          UDID="${UDID%%,*}"
+          APP_PATH="$(find "$DERIVED_DATA" -path '*/Build/Products/*/*.app' -type d | head -n 1 || true)"
+          if [ -z "$UDID" ] || [ -z "$APP_PATH" ]; then
+            echo "Missing simulator UDID or built app; screenshot extraction cannot proceed."
+            exit 0
+          fi
+          BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP_PATH/Info.plist" 2>/dev/null || true)"
+          if [ -z "$BUNDLE_ID" ]; then
+            echo "Missing bundle ID; screenshot extraction cannot proceed."
+            exit 0
+          fi
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          APP_CONTAINER="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data 2>/dev/null || true)"
+          if [ -n "$APP_CONTAINER" ] && [ -d "$APP_CONTAINER/Documents/GradeDraftScreenshots" ]; then
+            cp "$APP_CONTAINER/Documents/GradeDraftScreenshots"/*.png screenshots/ 2>/dev/null || true
+          fi
+          if ! ls screenshots/*.png >/dev/null 2>&1; then
+            SIM_DATA="${HOME}/Library/Developer/CoreSimulator/Devices/$UDID/data"
+            FOUND_DIR="$(find "$SIM_DATA/Containers/Data/Application" -name GradeDraftScreenshots -type d 2>/dev/null | head -n 1 || true)"
+            if [ -n "$FOUND_DIR" ]; then
+              cp "$FOUND_DIR"/*.png screenshots/ 2>/dev/null || true
+            fi
+          fi
+          ls -la screenshots || true
+
+      - name: Verify complete core page screenshot set
+        run: |
+          set -euo pipefail
+          expected=(
+            01-home.png
+            02-classes.png
+            03-class-detail-roster.png
+            04-assignments.png
+            05-assignment-overview.png
+            06-student-work.png
+            07-review.png
+            08-review-scanned-text.png
+            09-final-review.png
+            10-exports-restore.png
+            11-settings-local-privacy.png
+            12-rubric-instructions.png
+          )
+
+          missing=0
+          for file in "${expected[@]}"; do
+            if [ ! -s "screenshots/$file" ]; then
+              echo "::error file=screenshots/$file::Missing core page screenshot $file"
+              missing=1
+            fi
+          done
+
+          actual_count="$(find screenshots -maxdepth 1 -name '*.png' -type f 2>/dev/null | wc -l | tr -d ' ')"
+          if [ "$actual_count" -lt "${#expected[@]}" ]; then
+            echo "::error::Expected at least ${#expected[@]} screenshots, found $actual_count"
+            missing=1
+          fi
+          exit "$missing"
+
+      - name: Upload core page screenshot result bundle and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-core-page-screenshots-output
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/GradeDraftCorePageScreenshots.xcresult
+            xcode-logs/*.log
+
+      - name: Upload core page PNG artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradedraft-core-page-screenshots
+          retention-days: 30
+          if-no-files-found: error
+          path: screenshots/*.png
+
+      - name: Write screenshot summary
+        if: always()
+        run: |
+          {
+            echo "## core-page-screenshots"
+            echo ""
+            echo "- Xcode: $(xcodebuild -version | head -1)"
+            echo "- Simulator: ${{ steps.simulator.outputs.device_name }} (${{ steps.simulator.outputs.runtime_name }})"
+            echo "- PNG count: $(find screenshots -maxdepth 1 -name '*.png' -type f 2>/dev/null | wc -l | tr -d ' ')"
+            echo "- Result bundle: ${{ runner.temp }}/GradeDraftCorePageScreenshots.xcresult"
+            echo "- Artifact: gradedraft-core-page-screenshots"
+            echo "- Local reproduction: \`bash scripts/ci/select_xcode.sh && DESTINATION=\"\$(python3 scripts/ci/select_ios_simulator.py --print-destination)\" && xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination \"\$DESTINATION\" -derivedDataPath /tmp/GradeDraftCorePageScreenshotDerivedData -resultBundlePath /tmp/GradeDraftCorePageScreenshots.xcresult -only-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 test\`"
+          } >> "$GITHUB_STEP_SUMMARY"

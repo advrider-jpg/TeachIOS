@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-05-31 — Core page screenshot workflow
+
+- Added a separate `GradeDraft Core Page Screenshots` GitHub Actions workflow that runs the screenshot XCTest suite on pull requests, pushes to `main`, and manual dispatch, then verifies and uploads the complete core-page PNG set.
+- Expanded `GradeDraftScreenshotTests` from workflow-state screenshots to explicit coverage for every concrete core page under `GradeDraft/UI/Screens`, with a manifest check that fails if a screen file lacks a screenshot case.
+- Updated CI documentation, test-plan notes, and the CI contract guardrail so the separate screenshot workflow stays tied to the real Xcode/simulator selectors and artifact outputs.
+
 ## 2026-05-31 — Production CI structure
 
 - Replaced the MVP two-job CI workflow with layered `GradeDraft CI` jobs for static policy, workflow lint, SwiftLint, deterministic Xcode unit/integration tests, screenshot smoke tests, Release build verification, and a combined summary.
