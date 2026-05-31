@@ -19,46 +19,31 @@ struct DeleteAssignmentConfirmationSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+            Form {
+                Section("Delete Assignment") {
                     WarningBanner(title: warning.title.trimmingCharacters(in: .whitespacesAndNewlines), message: warning.body.trimmingCharacters(in: .whitespacesAndNewlines), status: .teacherOnly)
                     if !warning.checklist.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Checklist")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                        DisclosureGroup("Checklist") {
                             ForEach(warning.checklist, id: \.self) { item in
                                 Label(item, systemImage: "checkmark.circle")
-                                    .font(.caption)
                             }
                         }
                     }
                     Toggle(isOn: $acknowledged) {
                         Text("I understand this action is irreversible and will permanently delete \"\(assignmentTitle)\" and all associated records.")
-                            .font(.subheadline.weight(.semibold))
                     }
-                    .toggleStyle(.switch)
                     if acknowledged {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(warning.escalatedConfirmation ?? "Type DELETE to confirm.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            TextField("Type DELETE", text: $typedConfirmation)
-                                .textInputAutocapitalization(.characters)
-                                .autocorrectionDisabled()
-                                .padding(10)
-                                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
-                        }
+                        TextField("Type DELETE", text: $typedConfirmation)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
                     }
                     Button(role: .destructive, action: onConfirm) {
                         Label("Delete Assignment", systemImage: "trash")
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: GradeDraftLayout.minimumTapTarget)
                     }
-                    .buttonStyle(.bordered)
                     .disabled(!canDelete)
+                } footer: {
+                    Text(warning.escalatedConfirmation ?? "Type DELETE to confirm.")
                 }
-                .padding(GradeDraftLayout.screenPadding)
             }
             .navigationTitle("Delete Assignment")
             .navigationBarTitleDisplayMode(.inline)
@@ -81,84 +66,94 @@ struct StudentWorkScreen: View {
     @State private var showingDeleteConfirm = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: GradeDraftLayout.deepSectionSpacing) {
-                let assignment = viewModel.assignment
-                DeepWorkflowHeader(
-                    title: "Student Work",
-                    subtitle: "Add student work for teacher-reviewed grading.",
-                    status: assignment.reviewedStudentText.isEmpty ? .addStudentWork : .onTrack
-                )
-
-                GroupedListCard(title: "Attached files", subtitle: "Original files stay on this device unless you export them.") {
-                    if assignment.sourceInputs.isEmpty {
-                        EmptyState(title: "Add student work", message: "Scan, import a photo or PDF, or paste text directly.", systemImage: "doc.badge.plus")
-                    } else {
-                        ForEach(assignment.sourceInputs) { source in
-                            WorkAttachmentRow(source: source)
-                            if source.id != assignment.sourceInputs.last?.id { Divider().padding(.leading, 56) }
-                        }
-                    }
-                }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
-
-                GroupedListCard(title: "Add student work", subtitle: "Import locally. No student work is uploaded.") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 8) {
-                            PrimaryActionButton(title: "Scan", systemImage: "doc.viewfinder", action: { showingScanner = true }, disabled: !VNDocumentCameraViewController.isSupported || viewModel.isWorking)
-                            PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                                Label("Import Photo", systemImage: "photo")
-                                    .lineLimit(1)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(minHeight: GradeDraftLayout.minimumTapTarget)
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(viewModel.isWorking)
-                        }
-                        SecondaryActionButton(title: "Import PDF", systemImage: "doc.richtext", action: { showingPDFImporter = true }, disabled: viewModel.isWorking)
-                        DestructiveActionButton(title: "Clear Work", systemImage: "trash", action: { showingClearConfirm = true }, disabled: assignment.reviewedStudentText.isEmpty && assignment.sourceInputs.isEmpty)
-                    }
-                    .padding(GradeDraftLayout.rowHorizontalPadding)
-                }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
-
-                GroupedListCard(title: "Work preview", subtitle: "Review or paste the text GradeDraft can use.") {
-                    WorkPreviewCard(text: binding(\.reviewedStudentText))
-                    HStack(spacing: 8) {
-                        SecondaryActionButton(title: "Use pasted text as reviewed", systemImage: "checkmark.circle", action: {
-                            viewModel.applyPastedStudentText(viewModel.assignment.reviewedStudentText)
-                        }, disabled: assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                    .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-                    .padding(.bottom, 12)
-                }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
-
-                GroupedListCard(title: "Student work status", subtitle: "Teacher review gates remain required.") {
-                    BlockingIssueRow(
-                        title: assignment.ocrReviewStatus.v6Status.rawValue,
-                        detail: assignment.ocrReviewStatus.blocksGrading ? GradeDraftWorkflowLanguage.reviewScannedTextExplanation : "Student work is ready for teacher review.",
-                        status: assignment.ocrReviewStatus.v6Status
+        Form {
+            let assignment = viewModel.assignment
+            Section("Attached Files") {
+                if assignment.sourceInputs.isEmpty {
+                    ContentUnavailableView(
+                        "Add student work",
+                        systemImage: "doc.badge.plus",
+                        description: Text("Scan, import a photo or PDF, or paste text directly.")
                     )
+                } else {
+                    ForEach(assignment.sourceInputs) { source in
+                        WorkAttachmentRow(source: source)
+                    }
                 }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
+            } footer: {
+                Text("Original files stay on this device unless you export them.")
+            }
+
+            Section("Add Student Work") {
+                Button {
+                    showingScanner = true
+                } label: {
+                    Label("Scan Paper Work", systemImage: "doc.viewfinder")
+                }
+                .disabled(!VNDocumentCameraViewController.isSupported || viewModel.isWorking)
+
+                PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                    Label("Choose Photo", systemImage: "photo")
+                }
+                .disabled(viewModel.isWorking)
+
+                Button {
+                    showingPDFImporter = true
+                } label: {
+                    Label("Import PDF", systemImage: "doc.richtext")
+                }
+                .disabled(viewModel.isWorking)
+            } footer: {
+                Text("Import locally. No student work is uploaded.")
+            }
+
+            Section("Work Preview") {
+                TextEditor(text: binding(\.reviewedStudentText))
+                    .frame(minHeight: 180)
+                    .accessibilityLabel("Reviewed student work text")
+                Button {
+                    viewModel.applyPastedStudentText(viewModel.assignment.reviewedStudentText)
+                } label: {
+                    Label("Use Pasted Text as Reviewed", systemImage: "checkmark.circle")
+                }
+                .disabled(assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } footer: {
+                Text("Review or paste the text GradeDraft can use. OCR text must be reviewed before grading.")
+            }
+
+            Section("Student Work Status") {
+                BlockingIssueRow(
+                    title: assignment.ocrReviewStatus.v6Status.rawValue,
+                    detail: assignment.ocrReviewStatus.blocksGrading ? GradeDraftWorkflowLanguage.reviewScannedTextExplanation : "Student work is ready for teacher review.",
+                    status: assignment.ocrReviewStatus.v6Status
+                )
+            } footer: {
+                Text("Teacher review gates remain required.")
+            }
+
+            Section("Danger Zone") {
+                Button(role: .destructive) {
+                    showingClearConfirm = true
+                } label: {
+                    Label("Clear Work", systemImage: "trash")
+                }
+                .disabled(assignment.reviewedStudentText.isEmpty && assignment.sourceInputs.isEmpty)
 
                 if let deleteWarning = ExportWarningCatalog.warning(id: "delete-local-data-warning") {
-                    GroupedListCard(title: "Danger Zone", subtitle: "Permanent actions that cannot be undone.") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(deleteWarning.body.trimmingCharacters(in: .whitespacesAndNewlines))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            DestructiveActionButton(title: "Delete Assignment", systemImage: "trash", action: { showingDeleteConfirm = true })
-                        }
-                        .padding(GradeDraftLayout.rowHorizontalPadding)
+                    Text(deleteWarning.body.trimmingCharacters(in: .whitespacesAndNewlines))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Button(role: .destructive) {
+                        showingDeleteConfirm = true
+                    } label: {
+                        Label("Delete Assignment", systemImage: "trash")
                     }
-                    .padding(.horizontal, GradeDraftLayout.screenPadding)
                 }
+            } footer: {
+                Text("Permanent actions cannot be undone.")
             }
-            .padding(.bottom, 24)
         }
-        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Student Work")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .onAppear { viewModel.selectAssignment(assignmentID) }

@@ -1,0 +1,23 @@
+screen: StudentWorkScreen
+hostedController: UIHostingController
+hostedViewLoaded: true
+hostedViewSize: 390x844
+expectedContainer: Form
+sourceContainerPresent: true
+sections:
+- Delete Assignment
+- Attached Files
+- Add Student Work
+- Work Preview
+- Student Work Status
+- Danger Zone
+nativeControls:
+- Form
+- Section
+- ContentUnavailableView
+- PhotosPicker
+- fileImporter
+- confirmationDialog
+- TextEditor
+forbiddenScreenTokens:
+- none

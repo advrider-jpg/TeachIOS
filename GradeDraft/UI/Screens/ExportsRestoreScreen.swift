@@ -7,184 +7,145 @@ struct ExportsRestoreScreen: View {
     @State private var showingBackupImporter = false
     @State private var showingShareSheetWarning = false
     @State private var showingClipboardWarning = false
-    @State private var readyToShareFile = false
+    @State private var shareLinkApproved = false
     @State private var showingResolutionSheet = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: GradeDraftLayout.sectionSpacing) {
-                TopLevelHeader(title: "Exports", subtitle: "Student-facing reports, teacher-only records, backups, and restore.") {
-                    NavigationLink {
-                        SettingsAboutLocalPrivacyScreen(viewModel: viewModel)
-                    } label: {
-                        Image(systemName: "lock.shield")
-                            .font(.title3)
-                            .frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("Local Privacy")
-                }
-
-                if !viewModel.canExportStudentReport {
+        Form {
+            if !viewModel.canExportStudentReport {
+                Section("Export Safety") {
                     WarningBanner(
                         title: "Final approval required",
                         message: "Student-facing export is blocked until the teacher approves the final grade.",
                         status: .teacherOnly
                     )
-                    .padding(.horizontal, GradeDraftLayout.screenPadding)
                 }
+            }
 
-                GroupedListCard(title: "Create export", subtitle: "Audience labels show whether a file is student-facing or teacher-only.") {
+            Section("Create Export") {
+                ForEach(ExportConfirmationKind.allCases) { kind in
                     ExportOptionRow(
-                        title: "Student Report Markdown",
-                        subtitle: "Student-facing text report for sharing after final approval.",
-                        status: .studentFacing,
-                        actionLabel: "Export",
-                        disabled: !viewModel.canExportStudentReport,
-                        action: { confirmationKind = .studentReportMarkdown }
-                    )
-                    Divider().padding(.leading, 56)
-                    ExportOptionRow(
-                        title: "Student Report PDF",
-                        subtitle: "For sharing with students or families after final approval.",
-                        status: .studentFacing,
-                        actionLabel: "Export",
-                        disabled: !viewModel.canExportStudentReport,
-                        action: { confirmationKind = .studentReportPDF }
-                    )
-                    Divider().padding(.leading, 56)
-                    ExportOptionRow(
-                        title: "Teacher Review Markdown",
-                        subtitle: "Teacher-only text record. Do not share with students or families.",
-                        status: .teacherOnly,
-                        actionLabel: "Export",
-                        disabled: false,
-                        action: { confirmationKind = .teacherReviewMarkdown }
-                    )
-                    Divider().padding(.leading, 56)
-                    ExportOptionRow(
-                        title: "Teacher Review PDF",
-                        subtitle: "Teacher-only record. Do not share with students or families.",
-                        status: .teacherOnly,
-                        actionLabel: "Export",
-                        disabled: false,
-                        action: { confirmationKind = .teacherReviewPDF }
-                    )
-                    Divider().padding(.leading, 56)
-                    ExportOptionRow(
-                        title: "Teacher Archive",
-                        subtitle: "Teacher-only ZIP with review records and original files when available.",
-                        status: .teacherOnly,
-                        actionLabel: "Create",
-                        disabled: false,
-                        action: { confirmationKind = .teacherArchive }
-                    )
-                    Divider().padding(.leading, 56)
-                    ExportOptionRow(
-                        title: "Gradebook CSV",
-                        subtitle: "Teacher-only CSV for local gradebook records.",
-                        status: .teacherOnly,
-                        actionLabel: "Create",
-                        disabled: false,
-                        action: { confirmationKind = .gradebookCSV }
-                    )
-                    Divider().padding(.leading, 56)
-                    ExportOptionRow(
-                        title: "Gradebook Archive",
-                        subtitle: "Teacher-only ZIP with gradebook CSV, assignment records, reports, OCR/evidence records, and original files when available.",
-                        status: .teacherOnly,
-                        actionLabel: "Create",
-                        disabled: false,
-                        action: { confirmationKind = .gradebookArchive }
-                    )
-                    Divider().padding(.leading, 56)
-                    ExportOptionRow(
-                        title: "Full Backup",
-                        subtitle: "Teacher-only backup of GradeDraft data stored on this device.",
-                        status: .teacherOnly,
-                        actionLabel: "Create",
-                        disabled: false,
-                        action: { confirmationKind = .fullBackup }
+                        title: kind.title,
+                        subtitle: kind.subtitle,
+                        status: kind.warningStatus,
+                        actionLabel: exportActionLabel(for: kind),
+                        disabled: exportDisabled(for: kind),
+                        action: { confirmationKind = kind }
                     )
                 }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
+            } footer: {
+                Text("Audience labels show whether a file is student-facing or teacher-only. Student-facing exports omit private teacher notes.")
+            }
 
-                GroupedListCard(title: "Import Backup", subtitle: "Choose a backup to preview records before importing. Records are not changed until you confirm.") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Picker("Backup import option", selection: $viewModel.backupConflictResolution) {
-                            ForEach(BackupConflictResolution.allCases) { option in
-                                Text(option.displayName).tag(option)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        HStack(spacing: 8) {
-                            SecondaryActionButton(title: "Choose Option", systemImage: "slider.horizontal.3", action: { showingResolutionSheet = true })
-                            PrimaryActionButton(title: "Choose Backup", systemImage: "square.and.arrow.down", action: { showingBackupImporter = true })
-                        }
-                        Text("Import as New Copy keeps your current record and imports the backup version separately. Original files from the backup will be copied to the new record.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            Section("Import Backup") {
+                Picker("Backup import option", selection: $viewModel.backupConflictResolution) {
+                    ForEach(BackupConflictResolution.allCases) { option in
+                        Text(option.displayName).tag(option)
                     }
-                    .padding(GradeDraftLayout.rowHorizontalPadding)
                 }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
+                Button {
+                    showingResolutionSheet = true
+                } label: {
+                    Label("Choose Option", systemImage: "slider.horizontal.3")
+                }
+                Button {
+                    showingBackupImporter = true
+                } label: {
+                    Label("Choose Backup", systemImage: "tray.and.arrow.down")
+                }
+            } footer: {
+                Text("Choose a backup to preview records before importing. Records are not changed until you confirm.")
+            }
 
-                if let preview = viewModel.pendingRestorePreview {
-                    RestorePreviewCard(preview: preview)
-                        .padding(.horizontal, GradeDraftLayout.screenPadding)
-                    HStack(spacing: 8) {
-                        SecondaryActionButton(title: "Cancel Import", systemImage: "xmark", action: viewModel.cancelPendingRestore)
-                        PrimaryActionButton(title: "Confirm Import", systemImage: "square.and.arrow.down", action: viewModel.confirmPendingRestore)
+            if let preview = viewModel.pendingRestorePreview {
+                restorePreviewSection(preview, title: "Preview Import", pending: true)
+            } else if let preview = viewModel.latestRestorePreview {
+                restorePreviewSection(preview, title: "Backup Preview", pending: false)
+            }
+
+            if let url = viewModel.exportURL {
+                Section("Ready to Share") {
+                    HStack(spacing: 12) {
+                        Image(systemName: "doc")
+                            .foregroundStyle(.blue)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(viewModel.exportKind?.v6DisplayName ?? "Local export")
+                                .font(.headline)
+                                .lineLimit(1)
+                            Text(url.lastPathComponent)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 8)
+                        StatusChip(viewModel.exportKind?.v6AudienceStatus ?? .teacherOnly, compact: true)
                     }
-                    .padding(.horizontal, GradeDraftLayout.screenPadding)
-                } else if let preview = viewModel.latestRestorePreview {
-                    RestorePreviewCard(preview: preview)
-                        .padding(.horizontal, GradeDraftLayout.screenPadding)
+                    LabeledContent("Audience", value: viewModel.exportKind?.v6DisplayName ?? "Unknown")
+                    LabeledContent("Stored", value: "Local file")
+                    if shareLinkApproved {
+                        ShareLink(item: url) {
+                            Label("Share Export", systemImage: "square.and.arrow.up")
+                        }
+                    } else {
+                        Button {
+                            showingShareSheetWarning = true
+                        } label: {
+                            Label("Review Share Warning", systemImage: "exclamationmark.triangle")
+                        }
+                    }
+                    if clipboardCopyAvailable(for: viewModel.exportKind) {
+                        Button {
+                            showingClipboardWarning = true
+                        } label: {
+                            Label("Copy Text", systemImage: "doc.on.clipboard")
+                        }
+                    }
+                } footer: {
+                    Text("Opening the share sheet sends the selected file to another app.")
                 }
+            }
 
-                GroupedListCard(title: "Ready to share", subtitle: "Opening the share sheet sends the selected file to another app.") {
-                    if let url = viewModel.exportURL {
+            Section("Recent Exports") {
+                let records = viewModel.recentExportRows
+                if records.isEmpty {
+                    ContentUnavailableView(
+                        "No exports yet",
+                        systemImage: "square.and.arrow.up",
+                        description: Text("Create an export before opening the share sheet.")
+                    )
+                } else {
+                    ForEach(records) { record in
                         HStack(spacing: 12) {
-                            Image(systemName: "doc")
-                                .foregroundStyle(.blue)
+                            Image(systemName: record.kind.v6AudienceStatus.systemImage)
+                                .foregroundStyle(record.kind.v6AudienceStatus.color)
                                 .frame(width: 28)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(viewModel.exportKind?.v6DisplayName ?? "Local export")
+                                Text(record.kind.v6DisplayName)
                                     .font(.headline)
                                     .lineLimit(1)
-                                Text(url.lastPathComponent)
+                                Text(record.assignmentTitle)
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 8)
-                            StatusChip(viewModel.exportKind?.v6AudienceStatus ?? .teacherOnly, compact: true)
+                            StatusChip(record.kind.v6AudienceStatus, compact: true)
                         }
-                        .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-                        .padding(.vertical, 10)
-                        PrimaryActionButton(title: "Open Share Sheet", systemImage: "square.and.arrow.up", action: { showingShareSheetWarning = true })
-                            .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-                        if clipboardCopyAvailable(for: viewModel.exportKind) {
-                            SecondaryActionButton(title: "Copy Text", systemImage: "doc.on.clipboard", action: { showingClipboardWarning = true })
-                                .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-                        }
-                        Spacer(minLength: 12)
-                    } else {
-                        EmptyState(title: "No export selected", message: "Create an export before opening the share sheet.", systemImage: "square.and.arrow.up")
                     }
                 }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
             }
-            .padding(.bottom, 24)
+
+            Section("Export Safety") {
+                Label("Student-facing exports omit private teacher notes.", systemImage: "person.crop.circle.badge.checkmark")
+                Label("Teacher-only exports may include private notes, review history, and source details.", systemImage: "lock.doc")
+                Label("Backup import previews before mutating records.", systemImage: "archivebox")
+            }
         }
-        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Exports & Backup")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $confirmationKind) { kind in
             ExportConfirmationSheet(kind: kind, assignment: viewModel.assignment, allAssignments: viewModel.assignments, onCancel: { confirmationKind = nil }, onConfirm: { confirm(kind) })
-        }
-        .sheet(isPresented: $readyToShareFile) {
-            if let url = viewModel.exportURL {
-                ActivityViewController(items: [url])
-            }
         }
         .sheet(isPresented: $showingResolutionSheet) {
             RestoreConflictResolutionSheet(selection: $viewModel.backupConflictResolution) {
@@ -195,7 +156,7 @@ struct ExportsRestoreScreen: View {
             if case .success(let url) = result { viewModel.previewBackupRestore(from: url) }
         }
         .confirmationDialog(shareSheetWarningTitle, isPresented: $showingShareSheetWarning, titleVisibility: .visible) {
-            Button(shareSheetPrimaryButton) { readyToShareFile = true }
+            Button(shareSheetPrimaryButton) { shareLinkApproved = true }
             Button(shareSheetSecondaryButton, role: .cancel) {}
         } message: {
             Text(shareSheetWarningBody)
@@ -206,11 +167,66 @@ struct ExportsRestoreScreen: View {
         } message: {
             Text(clipboardWarningBody)
         }
+        .onChange(of: viewModel.exportURL) { _, _ in
+            shareLinkApproved = false
+        }
+        .onChange(of: viewModel.exportKind) { _, _ in
+            shareLinkApproved = false
+        }
+    }
+
+    @ViewBuilder
+    private func restorePreviewSection(_ preview: BackupRestorePreview, title: String, pending: Bool) -> some View {
+        Section(title) {
+            Text(preview.summary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            LabeledContent("Assignments", value: "\(preview.assignmentCount)")
+            LabeledContent("Classes", value: "\(preview.classCount)")
+            LabeledContent("Students", value: "\(preview.studentCount)")
+            LabeledContent("Original files", value: "\(preview.sourceFileCount)")
+            if preview.conflictAssignmentIDs.isEmpty {
+                BlockingIssueRow(title: "No matching records found", detail: "Import can continue with the selected option.", status: .onTrack)
+            } else {
+                RestoreConflictRow(count: preview.conflictAssignmentIDs.count)
+            }
+            ForEach(preview.warnings, id: \.self) { warning in
+                BlockingIssueRow(title: "Needs attention", detail: warning, status: .needsAttention)
+            }
+            if pending {
+                Button(role: .cancel, action: viewModel.cancelPendingRestore) {
+                    Label("Cancel Import", systemImage: "xmark")
+                }
+                Button(action: viewModel.confirmPendingRestore) {
+                    Label("Confirm Import", systemImage: "tray.and.arrow.down")
+                }
+            }
+        } footer: {
+            Text("Records are not changed until you confirm the import.")
+        }
     }
 
     private func confirm(_ kind: ExportConfirmationKind) {
         confirmationKind = nil
         Task { await viewModel.performConfirmedExport(kind) }
+    }
+
+    private func exportActionLabel(for kind: ExportConfirmationKind) -> String {
+        switch kind {
+        case .studentReportMarkdown, .teacherReviewMarkdown, .studentReportPDF, .teacherReviewPDF:
+            return "Export"
+        case .fullBackup, .teacherArchive, .gradebookCSV, .gradebookArchive:
+            return "Create"
+        }
+    }
+
+    private func exportDisabled(for kind: ExportConfirmationKind) -> Bool {
+        switch kind {
+        case .studentReportMarkdown, .studentReportPDF:
+            return !viewModel.canExportStudentReport
+        case .teacherReviewMarkdown, .teacherReviewPDF, .fullBackup, .teacherArchive, .gradebookCSV, .gradebookArchive:
+            return false
+        }
     }
 
     private func clipboardCopyAvailable(for kind: ExportKind?) -> Bool {
@@ -232,7 +248,7 @@ struct ExportsRestoreScreen: View {
     }
 
     private var shareSheetPrimaryButton: String {
-        ExportWarningCatalog.warning(id: "share-sheet-warning")?.primaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Open Share Sheet"
+        "Show Share Link"
     }
 
     private var shareSheetSecondaryButton: String {

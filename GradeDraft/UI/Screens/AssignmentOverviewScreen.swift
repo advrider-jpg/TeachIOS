@@ -5,19 +5,10 @@ struct AssignmentOverviewScreen: View {
     var assignmentID: UUID
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: GradeDraftLayout.deepSectionSpacing) {
-                if let assignment = viewModel.assignment(for: assignmentID) {
-                    DeepWorkflowHeader(
-                        title: assignment.title,
-                        subtitle: "Workflow summary and next action.",
-                        status: viewModel.v6Status(for: assignment)
-                    ) {
-                        Button("Save") { save() }
-                            .buttonStyle(.bordered)
-                    }
-
-                    GroupedListCard(title: "Next up", subtitle: nextUpDetail(for: assignment)) {
+        Group {
+            if let assignment = viewModel.assignment(for: assignmentID) {
+                Form {
+                    Section("Next Up") {
                         NavigationLink {
                             nextDestination(for: assignment)
                         } label: {
@@ -29,56 +20,61 @@ struct AssignmentOverviewScreen: View {
                                 actionLabel: viewModel.v6ActionLabel(for: assignment)
                             )
                         }
-                        .buttonStyle(.plain)
+                    } footer: {
+                        Text(nextUpDetail(for: assignment))
                     }
-                    .padding(.horizontal, GradeDraftLayout.screenPadding)
 
-                    GroupedListCard(title: "Workflow", subtitle: "Visible steps match the teacher workflow.") {
+                    Section("Workflow") {
                         WorkflowProgressRail(steps: workflowSteps(for: assignment))
+                    } footer: {
+                        Text("Visible steps match the teacher workflow.")
                     }
-                    .padding(.horizontal, GradeDraftLayout.screenPadding)
 
                     if !blockingIssues(for: assignment).isEmpty {
-                        GroupedListCard(title: "Fix before continuing", subtitle: "These items prevent grading or export.") {
+                        Section("Fix Before Continuing") {
                             ForEach(blockingIssues(for: assignment), id: \.title) { issue in
                                 BlockingIssueRow(title: issue.title, detail: issue.detail, status: issue.status)
                             }
+                        } footer: {
+                            Text("These items prevent grading or export.")
                         }
-                        .padding(.horizontal, GradeDraftLayout.screenPadding)
                     }
 
-                    GroupedListCard(title: "Assignment details", subtitle: "Setup fields for this record.") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            TextField("Assignment title", text: binding(\.title))
-                                .textFieldStyle(.roundedBorder)
-                            TextField("Assignment question or prompt", text: promptBinding)
-                                .textFieldStyle(.roundedBorder)
-                            TextField("Student name or local identifier", text: binding(\.studentDisplayName))
-                                .textFieldStyle(.roundedBorder)
-                            TextField("Class or section", text: binding(\.className))
-                                .textFieldStyle(.roundedBorder)
-                            TextField("Subject", text: binding(\.subject))
-                                .textFieldStyle(.roundedBorder)
-                            TextField("Grade level", text: binding(\.gradeLevel))
-                                .textFieldStyle(.roundedBorder)
-                            Picker("Assignment type", selection: binding(\.assignmentType)) {
-                                ForEach(AssignmentType.allCases) { type in Text(type.displayName).tag(type) }
+                    Section("Assignment Details") {
+                        TextField("Assignment title", text: binding(\.title))
+                        TextField("Assignment question or prompt", text: promptBinding, axis: .vertical)
+                            .lineLimit(2...6)
+                        TextField("Student name or local identifier", text: binding(\.studentDisplayName))
+                        TextField("Class or section", text: binding(\.className))
+                        TextField("Subject", text: binding(\.subject))
+                        TextField("Grade level", text: binding(\.gradeLevel))
+                        Picker("Assignment type", selection: binding(\.assignmentType)) {
+                            ForEach(AssignmentType.allCases) { type in
+                                Text(type.displayName).tag(type)
                             }
-                            .pickerStyle(.menu)
                         }
-                        .padding(GradeDraftLayout.rowHorizontalPadding)
+                    } footer: {
+                        Text("Setup fields stay local and are used to build the teacher-reviewed grading packet.")
                     }
-                    .padding(.horizontal, GradeDraftLayout.screenPadding)
-                } else {
-                    EmptyState(title: "Assignment not found", message: "Return to Assignments and choose a saved assignment.", systemImage: "doc.text.magnifyingglass")
-                        .padding(GradeDraftLayout.screenPadding)
                 }
+                .navigationTitle(assignment.title.isEmpty ? "Assignment" : assignment.title)
+            } else {
+                ContentUnavailableView(
+                    "Assignment not found",
+                    systemImage: "doc.text.magnifyingglass",
+                    description: Text("Return to Assignments and choose a saved assignment.")
+                )
+                .navigationTitle("Assignment")
             }
-            .padding(.bottom, 24)
         }
-        .background(Color(.systemGroupedBackground))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Save") { save() }
+                    .disabled(viewModel.assignment(for: assignmentID) == nil)
+            }
+        }
         .onAppear { viewModel.selectAssignment(assignmentID) }
     }
 

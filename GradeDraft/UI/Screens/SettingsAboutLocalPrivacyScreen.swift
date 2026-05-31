@@ -5,55 +5,54 @@ struct SettingsAboutLocalPrivacyScreen: View {
     @State private var showingBackupToggleWarning = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: GradeDraftLayout.deepSectionSpacing) {
-                DeepWorkflowHeader(
-                    title: "Settings / About / Local Privacy",
-                    subtitle: "Local storage, backups, teacher-only records, and device processing.",
-                    status: .teacherOnly
-                )
-
-                GroupedListCard(title: "Local Privacy", subtitle: "GradeDraft is local-first and offline-first.") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("GradeDraft stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The developer does not receive, upload, or access this information in the core app workflow.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Label("No cloud text recognition in the core workflow.", systemImage: "checkmark.circle")
-                        Label("No cloud AI grading in the core workflow.", systemImage: "checkmark.circle")
-                        Label("No usage tracking in this repo.", systemImage: "checkmark.circle")
-                        Label("No account or login required.", systemImage: "checkmark.circle")
-                        Label("Teacher finalizes all grades.", systemImage: "person.badge.checkmark")
-                    }
+        Form {
+            Section("Local Privacy") {
+                Text("GradeDraft stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The developer does not receive, upload, or access this information in the core app workflow.")
                     .font(.subheadline)
-                    .padding(GradeDraftLayout.rowHorizontalPadding)
-                }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
-
-                GroupedListCard(title: "Local storage", subtitle: "Persistence details for teacher awareness.") {
-                    BlockingIssueRow(title: "Local only", detail: viewModel.persistenceSummary, status: .teacherOnly)
-                    BlockingIssueRow(title: "Exports", detail: "Exports may contain sensitive student information. Review the confirmation sheet before creating a file.", status: .needsAttention)
-                    BlockingIssueRow(title: "Device backup setting", detail: viewModel.deviceBackupStatusSummary, status: backupPolicyUIStatus)
-                    SecondaryActionButton(
-                        title: viewModel.localDataExcludedFromDeviceBackup ? "Review Backup Inclusion" : "Keep Local Only",
-                        systemImage: viewModel.localDataExcludedFromDeviceBackup ? "externaldrive.badge.icloud" : "lock.shield",
-                        action: {
-                            if viewModel.localDataExcludedFromDeviceBackup {
-                                showingBackupToggleWarning = true
-                            } else {
-                                viewModel.keepLocalDataExcludedFromDeviceBackup()
-                            }
-                        }
-                    )
-                    .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-                    .padding(.bottom, 10)
-                    BlockingIssueRow(title: "Exported backups", detail: "Full backup archive exports include all GradeDraft data stored on this device. Store exported files securely.", status: .teacherOnly)
-                }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
+                    .foregroundStyle(.secondary)
+                Label("No cloud text recognition in the core workflow.", systemImage: "checkmark.circle")
+                Label("No cloud AI grading in the core workflow.", systemImage: "checkmark.circle")
+                Label("No usage tracking in this repo.", systemImage: "checkmark.circle")
+                Label("No account or login required.", systemImage: "checkmark.circle")
+                Label("Teacher finalizes all grades.", systemImage: "person.badge.checkmark")
             }
-            .padding(.bottom, 24)
+
+            Section("Local Storage") {
+                GradeDraftStatusLabeledContent(title: "Local Only", value: viewModel.persistenceSummary, status: .teacherOnly)
+                GradeDraftStatusLabeledContent(title: "Device Backup Setting", value: viewModel.deviceBackupStatusSummary, status: backupPolicyUIStatus)
+                LabeledContent("Assignments", value: "\(viewModel.assignments.count)")
+                LabeledContent("Classes", value: "\(viewModel.classGroups.count)")
+                LabeledContent("Students", value: "\(viewModel.students.count)")
+                Button {
+                    if viewModel.localDataExcludedFromDeviceBackup {
+                        showingBackupToggleWarning = true
+                    } else {
+                        viewModel.keepLocalDataExcludedFromDeviceBackup()
+                    }
+                } label: {
+                    Label(
+                        viewModel.localDataExcludedFromDeviceBackup ? "Review Backup Inclusion" : "Keep Local Only",
+                        systemImage: viewModel.localDataExcludedFromDeviceBackup ? "externaldrive.badge.icloud" : "lock.shield"
+                    )
+                }
+            } footer: {
+                Text("Student records are stored locally. Device backup behavior depends on this device and account configuration.")
+            }
+
+            Section("Backup and Export Warnings") {
+                BlockingIssueRow(title: "Exports", detail: "Exports may contain sensitive student information. Review the confirmation sheet before creating a file.", status: .needsAttention)
+                BlockingIssueRow(title: "Exported backups", detail: "Full backup archive exports include all GradeDraft data stored on this device. Store exported files securely.", status: .teacherOnly)
+                Label("Opening the share sheet sends the selected file to another app.", systemImage: "square.and.arrow.up")
+                Label("Backup import must preview before mutating records.", systemImage: "archivebox")
+            }
+
+            Section("About") {
+                LabeledContent("App", value: "GradeDraft")
+                LabeledContent("Mode", value: "Local-first teacher review")
+                LabeledContent("Target", value: "iOS 17")
+            }
         }
-        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Privacy & Storage")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .onAppear { viewModel.refreshDeviceBackupPolicyStatus() }

@@ -1,31 +1,6 @@
 import SwiftUI
 import UIKit
 
-struct WorkPreviewCard: View {
-    var text: Binding<String>
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Work preview")
-                .font(.headline)
-            TextEditor(text: text)
-                .frame(minHeight: 160)
-                .padding(8)
-                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(alignment: .topLeading) {
-                    if text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text("Paste or import student work.")
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 16)
-                            .allowsHitTesting(false)
-                    }
-                }
-        }
-        .padding(14)
-    }
-}
-
 // MARK: - Scanned text review components
 
 struct ScannedTextPageSelector: View {

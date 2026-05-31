@@ -41,8 +41,7 @@ struct EvidenceSourceRow: View {
             }
             Spacer(minLength: 8)
         }
-        .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-        .padding(.vertical, 10)
+        .padding(.vertical, 6)
     }
 }
 
@@ -51,13 +50,16 @@ struct EvidenceSourcePreview: View {
     var evidence: [EvidenceReference]
 
     var body: some View {
-        GroupedListCard(title: "Evidence", subtitle: "Evidence remains linked to reviewed student work or teacher notes.") {
+        VStack(alignment: .leading, spacing: 8) {
             if evidence.isEmpty {
-                EmptyState(title: "No evidence added", message: "Add evidence from reviewed text during final review.", systemImage: "quote.bubble")
+                ContentUnavailableView(
+                    "No evidence added",
+                    systemImage: "quote.bubble",
+                    description: Text("Add evidence from reviewed text during final review.")
+                )
             } else {
                 ForEach(evidence) { item in
                     EvidenceSourceRow(evidence: item)
-                    if item.id != evidence.last?.id { Divider().padding(.leading, 50) }
                 }
             }
         }

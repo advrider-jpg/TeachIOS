@@ -1,5 +1,7 @@
 import SwiftUI
 
+// Legacy grading suggestion view retained for compatibility; the active v6 navigation path no longer routes to it.
+@available(*, deprecated, message: "Active GradeDraft screens use native Form sections and FinalReviewScreen instead.")
 struct GradeResultView: View {
     var result: GradeDraftResult
     var isStale: Bool = false
@@ -104,8 +106,7 @@ private struct CriterionDraftCard: View {
                     .foregroundStyle(.orange)
             }
         }
-        .padding()
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.vertical, 4)
     }
 }
 
@@ -147,19 +148,12 @@ struct FinalGradeReviewView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Final Review")
-                        .font(.headline)
-                    Text(statusText)
-                        .font(.caption)
-                        .foregroundStyle(statusColor)
-                }
-                Spacer()
-                Text("\(GradeTotals.formatted(workingReview.totalScore)) / \(GradeTotals.formatted(workingReview.maxScore))")
-                    .font(.title3.bold())
+        Group {
+            LabeledContent("Status") {
+                Text(statusText)
+                    .foregroundStyle(statusColor)
             }
+            LabeledContent("Final Score", value: "\(GradeTotals.formatted(workingReview.totalScore)) / \(GradeTotals.formatted(workingReview.maxScore))")
 
             if isStale || workingReview.status == .stale {
                 Label("This review needs rechecking because student work, rubric, or evidence changed after it was last saved.", systemImage: "exclamationmark.triangle")
@@ -172,10 +166,6 @@ struct FinalGradeReviewView: View {
                     .foregroundStyle(.orange)
                     .font(.caption)
             }
-
-            Text("Criteria")
-                .font(.subheadline.bold())
-                .foregroundStyle(.secondary)
 
             ForEach($workingReview.criteria) { $criterion in
                 FinalCriterionEditor(
@@ -198,50 +188,48 @@ struct FinalGradeReviewView: View {
             } label: {
                 Label("Add Criterion", systemImage: "plus.circle")
             }
-            .buttonStyle(.bordered)
             .disabled(onAddCriterion == nil)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Student Feedback")
-                    .font(.headline)
+                HStack {
+                    Text("Student Feedback")
+                        .font(.headline)
+                    Spacer()
+                    StatusChip(.studentFacing, compact: true)
+                }
                 Text("Visible to student. Keep it constructive and evidence-linked.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 TextEditor(text: $workingReview.studentFeedback)
                     .frame(minHeight: 120)
-                    .padding(8)
-                    .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Private Teacher Note")
-                    .font(.headline)
+                HStack {
+                    Text("Private Teacher Note")
+                        .font(.headline)
+                    Spacer()
+                    StatusChip(.teacherOnly, compact: true)
+                }
                 Text("Not visible to student. Included only in teacher-only records.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 TextEditor(text: $workingReview.privateTeacherNotes)
                     .frame(minHeight: 90)
-                    .padding(8)
-                    .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
 
-            HStack(spacing: 12) {
-                Button("Save Teacher Edits") {
-                    workingReview.teacherEdited = true
-                    workingReview = GradeTotals.applyingDeterministicTotals(to: workingReview)
-                    onChange(workingReview)
-                }
-                .buttonStyle(.bordered)
-
-                Button("Approve Final Grade") {
-                    showingApproveConfirm = true
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canApproveCurrentReview)
+            Button("Save Teacher Edits") {
+                workingReview.teacherEdited = true
+                workingReview = GradeTotals.applyingDeterministicTotals(to: workingReview)
+                onChange(workingReview)
             }
+
+            Button("Approve Final Grade") {
+                showingApproveConfirm = true
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!canApproveCurrentReview)
         }
-        .padding()
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onChange(of: review) { _, newValue in
             workingReview = newValue
         }
@@ -358,8 +346,6 @@ private struct FinalCriterionEditor: View {
                     .font(.caption.bold())
                 TextEditor(text: $criterion.explanation)
                     .frame(minHeight: 60)
-                    .padding(6)
-                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -460,7 +446,6 @@ private struct FinalCriterionEditor: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.vertical, 4)
     }
 }

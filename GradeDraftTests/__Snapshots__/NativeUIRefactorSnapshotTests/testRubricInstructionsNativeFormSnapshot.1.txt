@@ -1,0 +1,25 @@
+screen: RubricInstructionsScreen
+hostedController: UIHostingController
+hostedViewLoaded: true
+hostedViewSize: 390x844
+expectedContainer: Form
+sourceContainerPresent: true
+sections:
+- Needs Attention
+- Rubric Setup
+- Planned Content Templates
+- AI Grading Constraints
+- Criteria
+- Curriculum Reference
+- Teacher Instructions
+- Answer Key and Exemplar
+nativeControls:
+- Form
+- Section
+- ContentUnavailableView
+- fileImporter
+- confirmationDialog
+- TextEditor
+- LabeledContent
+forbiddenScreenTokens:
+- none

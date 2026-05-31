@@ -2,55 +2,90 @@ import SwiftUI
 
 struct ReviewScreen: View {
     @ObservedObject var viewModel: GradeDraftViewModel
-    @State private var segment: ReviewSegment = .all
+    @State private var searchText = ""
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: GradeDraftLayout.sectionSpacing) {
-                TopLevelHeader(title: "Review", subtitle: "Teacher work queue for text checks, final grades, and rechecks.")
+        List {
+            if textNeedsReview.isEmpty && finalReview.isEmpty && needsRecheck.isEmpty && readyToExport.isEmpty {
+                ContentUnavailableView(
+                    "No reviews pending",
+                    systemImage: "checklist.checked",
+                    description: Text("Assignments needing teacher review will appear here.")
+                )
+            }
 
-                Picker("Review queue", selection: $segment) {
-                    ForEach(ReviewSegment.allCases) { item in
-                        Text(item.rawValue).tag(item)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
-
-                GroupedListCard(title: reviewTitle, subtitle: "Open a row to continue the required teacher review.") {
-                    let items = viewModel.reviewItems(for: segment)
-                    if items.isEmpty {
-                        EmptyState(title: "No review items", message: "Assignments needing teacher review will appear here.", systemImage: "checklist")
-                    } else {
-                        ForEach(items) { item in
-                            NavigationLink {
-                                item.destinationView(viewModel: viewModel)
-                            } label: {
-                                ReviewQueueRow(title: item.title, detail: item.detail, countText: item.countText, status: item.status, actionLabel: item.actionLabel)
-                            }
-                            .buttonStyle(.plain)
-                            if item.id != items.last?.id { Divider().padding(.leading, 56) }
+            if !textNeedsReview.isEmpty {
+                reviewSection("Text Needs Review", items: textNeedsReview)
+            }
+            if !finalReview.isEmpty {
+                reviewSection("Final Review", items: finalReview)
+            }
+            if !needsRecheck.isEmpty {
+                reviewSection("Needs Recheck", items: needsRecheck)
+            }
+            if !readyToExport.isEmpty {
+                Section("Ready to Export") {
+                    ForEach(readyToExport) { assignment in
+                        NavigationLink {
+                            ExportsRestoreScreen(viewModel: viewModel)
+                                .toolbar(.hidden, for: .tabBar)
+                        } label: {
+                            AssignmentRow(assignment: assignment, status: viewModel.v6Status(for: assignment), actionLabel: viewModel.v6ActionLabel(for: assignment))
                         }
                     }
                 }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
             }
-            .padding(.bottom, 24)
         }
-        .background(Color(.systemGroupedBackground))
-        .navigationBarTitleDisplayMode(.inline)
+        .gradeDraftNativeGroupedList()
+        .navigationTitle("Review")
+        .searchable(text: $searchText, prompt: "Search review queue")
     }
 
-    private var reviewTitle: String {
-        switch segment {
-        case .all:
-            return "All"
-        case .scannedText:
-            return "Scanned Text"
-        case .finalReview:
-            return "Final Review"
-        case .needsRecheck:
-            return "Needs Recheck"
+    @ViewBuilder
+    private func reviewSection(_ title: String, items: [ReviewNavigationItem]) -> some View {
+        Section(title) {
+            ForEach(items) { item in
+                NavigationLink {
+                    item.destinationView(viewModel: viewModel)
+                } label: {
+                    ReviewQueueRow(title: item.title, detail: item.detail, countText: item.countText, status: item.status, actionLabel: item.actionLabel)
+                }
+            }
         }
+    }
+
+    private var textNeedsReview: [ReviewNavigationItem] {
+        filtered(viewModel.reviewItems(for: .scannedText))
+    }
+
+    private var finalReview: [ReviewNavigationItem] {
+        filtered(viewModel.reviewItems(for: .finalReview))
+    }
+
+    private var needsRecheck: [ReviewNavigationItem] {
+        filtered(viewModel.reviewItems(for: .needsRecheck))
+    }
+
+    private var readyToExport: [AssignmentRecord] {
+        let rows = viewModel.readyToExportAssignments
+        let query = normalizedSearchText
+        guard !query.isEmpty else { return rows }
+        return rows.filter { assignment in
+            [assignment.title, assignment.studentDisplayName, assignment.className, assignment.subject, viewModel.v6Status(for: assignment).rawValue]
+                .contains { $0.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
+        }
+    }
+
+    private func filtered(_ items: [ReviewNavigationItem]) -> [ReviewNavigationItem] {
+        let query = normalizedSearchText
+        guard !query.isEmpty else { return items }
+        return items.filter { item in
+            [item.title, item.detail, item.countText ?? "", item.status.rawValue, item.actionLabel]
+                .contains { $0.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
+        }
+    }
+
+    private var normalizedSearchText: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

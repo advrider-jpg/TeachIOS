@@ -45,6 +45,9 @@ jobs:
       - name: Bad implementation string guardrail
         run: python3 scripts/ci/bad_string_scan.py
 
+      - name: Native UI refactor guardrail
+        run: python3 scripts/ci/check_native_ui_refactor.py
+
       - name: Xcode project membership guardrail
         run: python3 scripts/ci/check_xcode_project_membership.py
 
@@ -58,9 +61,9 @@ jobs:
             echo "## static-policy"
             echo ""
             echo "- Python: $(python3 --version)"
-            echo "- Guardrails: repo_health, no_network_scan, export_hardening_scan, bad_string_scan, project_membership, CI contract"
+            echo "- Guardrails: repo_health, no_network_scan, export_hardening_scan, bad_string_scan, native_ui_refactor, project_membership, CI contract"
             echo "- Local reproduction:"
-            echo "  \`python3 scripts/repo_health.py && python3 scripts/no_network_scan.py && python3 scripts/export_hardening_scan.py && python3 scripts/ci/bad_string_scan.py && python3 scripts/ci/check_xcode_project_membership.py && python3 scripts/ci/check_ci_contract.py\`"
+            echo "  \`python3 scripts/repo_health.py && python3 scripts/no_network_scan.py && python3 scripts/export_hardening_scan.py && python3 scripts/ci/bad_string_scan.py && python3 scripts/ci/check_native_ui_refactor.py && python3 scripts/ci/check_xcode_project_membership.py && python3 scripts/ci/check_ci_contract.py\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   workflow-lint:

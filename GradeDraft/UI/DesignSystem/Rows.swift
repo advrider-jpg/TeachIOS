@@ -25,9 +25,6 @@ struct ClassRow: View {
             }
             Spacer(minLength: 8)
             StatusChip(status, compact: true)
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
         .padding(.vertical, 10)
@@ -66,9 +63,6 @@ struct AssignmentRow: View {
                     .foregroundStyle(.blue)
                     .lineLimit(1)
             }
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
         .padding(.vertical, 10)
@@ -155,9 +149,6 @@ struct ReviewQueueRow: View {
                     .foregroundStyle(.blue)
                     .lineLimit(1)
             }
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
         .padding(.vertical, 10)

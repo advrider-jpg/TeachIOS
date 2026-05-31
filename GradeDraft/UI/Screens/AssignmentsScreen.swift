@@ -2,39 +2,62 @@ import SwiftUI
 
 struct AssignmentsScreen: View {
     @ObservedObject var viewModel: GradeDraftViewModel
+    @State private var searchText = ""
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: GradeDraftLayout.sectionSpacing) {
-                TopLevelHeader(title: "Assignments", subtitle: "Add work, review text, approve final grades, and export.") {
-                    Button { viewModel.newAssignment() } label: {
-                        Image(systemName: "plus")
-                            .font(.title3)
-                            .frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("New assignment")
-                }
-
-                GroupedListCard(title: "Assignment list", subtitle: "Each row shows the current status and next teacher action.") {
-                    if viewModel.assignments.isEmpty {
-                        EmptyState(title: "No saved assignments", message: "Create an assignment to begin.", systemImage: "doc.badge.plus")
+        List {
+            Section("Assignments") {
+                if filteredAssignments.isEmpty {
+                    if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        ContentUnavailableView(
+                            "No saved assignments",
+                            systemImage: "doc.badge.plus",
+                            description: Text("Create an assignment to begin.")
+                        )
                     } else {
-                        ForEach(viewModel.assignments) { assignment in
-                            NavigationLink {
-                                AssignmentOverviewScreen(viewModel: viewModel, assignmentID: assignment.id)
-                            } label: {
-                                AssignmentRow(assignment: assignment, status: viewModel.v6Status(for: assignment), actionLabel: viewModel.v6ActionLabel(for: assignment))
-                            }
-                            .buttonStyle(.plain)
-                            if assignment.id != viewModel.assignments.last?.id { Divider().padding(.leading, 56) }
+                        ContentUnavailableView.search(text: searchText)
+                    }
+                } else {
+                    ForEach(filteredAssignments) { assignment in
+                        NavigationLink {
+                            AssignmentOverviewScreen(viewModel: viewModel, assignmentID: assignment.id)
+                        } label: {
+                            AssignmentRow(assignment: assignment, status: viewModel.v6Status(for: assignment), actionLabel: viewModel.v6ActionLabel(for: assignment))
                         }
                     }
                 }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
+            } footer: {
+                Text("Each row shows the current status and next teacher action.")
             }
-            .padding(.bottom, 24)
         }
-        .background(Color(.systemGroupedBackground))
-        .navigationBarTitleDisplayMode(.inline)
+        .gradeDraftNativeGroupedList()
+        .navigationTitle("Assignments")
+        .searchable(text: $searchText, prompt: "Search assignments")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    viewModel.newAssignment()
+                } label: {
+                    Label("New Assignment", systemImage: "plus")
+                }
+            }
+        }
+    }
+
+    private var filteredAssignments: [AssignmentRecord] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return viewModel.assignments }
+        return viewModel.assignments.filter { assignment in
+            [
+                assignment.title,
+                assignment.studentDisplayName,
+                assignment.className,
+                assignment.subject,
+                assignment.assignmentType.displayName,
+                viewModel.v6Status(for: assignment).rawValue
+            ].contains { value in
+                value.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+            }
+        }
     }
 }

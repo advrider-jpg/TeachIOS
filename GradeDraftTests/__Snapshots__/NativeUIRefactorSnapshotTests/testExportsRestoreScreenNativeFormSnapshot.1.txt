@@ -1,0 +1,23 @@
+screen: ExportsRestoreScreen
+hostedController: UIHostingController
+hostedViewLoaded: true
+hostedViewSize: 390x844
+expectedContainer: Form
+sourceContainerPresent: true
+sections:
+- Export Safety
+- Create Export
+- Import Backup
+- Ready to Share
+- Recent Exports
+- Export Safety
+nativeControls:
+- Form
+- Section
+- ContentUnavailableView
+- ShareLink
+- fileImporter
+- confirmationDialog
+- LabeledContent
+forbiddenScreenTokens:
+- none

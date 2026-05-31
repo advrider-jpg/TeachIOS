@@ -1,0 +1,21 @@
+screen: FinalReviewScreen
+hostedController: UIHostingController
+hostedViewLoaded: true
+hostedViewSize: 390x844
+expectedContainer: Form
+sourceContainerPresent: true
+sections:
+- Needs Recheck
+- Review Actions
+- Evidence
+- Criterion Review
+- Draft Suggestion
+- Final Review
+- Teacher Approval
+nativeControls:
+- Form
+- Section
+- ContentUnavailableView
+- LabeledContent
+forbiddenScreenTokens:
+- none

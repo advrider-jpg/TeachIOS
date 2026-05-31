@@ -1,0 +1,18 @@
+screen: SettingsAboutLocalPrivacyScreen
+hostedController: UIHostingController
+hostedViewLoaded: true
+hostedViewSize: 390x844
+expectedContainer: Form
+sourceContainerPresent: true
+sections:
+- Local Privacy
+- Local Storage
+- Backup and Export Warnings
+- About
+nativeControls:
+- Form
+- Section
+- confirmationDialog
+- LabeledContent
+forbiddenScreenTokens:
+- none
