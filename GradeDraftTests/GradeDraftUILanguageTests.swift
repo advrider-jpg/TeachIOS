@@ -51,6 +51,35 @@ final class GradeDraftUITabAndLanguageTests: XCTestCase {
         XCTAssertEqual(GradeDraftWorkflowLanguage.reviewScannedTextExplanation, "Review scanned text before drafting feedback.")
     }
 
+
+    func testNativeRefactorSafetyCopyRemainsVisible() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let uiSource = try sourceFiles(in: repoRoot.appendingPathComponent("GradeDraft/UI"))
+            .map { try String(contentsOf: repoRoot.appendingPathComponent($0), encoding: .utf8) }
+            .joined(separator: "\n")
+
+        XCTAssertTrue(uiSource.contains("Student-facing exports omit private teacher notes"))
+        XCTAssertTrue(uiSource.contains("GradeDraft drafts suggestions only"))
+        XCTAssertTrue(uiSource.contains("No student work is uploaded"))
+        XCTAssertTrue(uiSource.contains("Opening the share sheet sends the selected file to another app"))
+        XCTAssertTrue(uiSource.contains(GradeDraftWorkflowLanguage.reviewScannedTextExplanation))
+    }
+
+    func testLegacyGradeResultViewIsNotRoutedFromActiveNativeScreens() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let screensURL = repoRoot.appendingPathComponent("GradeDraft/UI/Screens")
+        let screenSource = try FileManager.default
+            .contentsOfDirectory(at: screensURL, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+            .filter { $0.pathExtension == "swift" }
+            .map { try String(contentsOf: $0, encoding: .utf8) }
+            .joined(separator: "\n")
+        XCTAssertFalse(screenSource.contains("GradeResultView("), "Active v6 screens should render native final-review rows instead of routing to legacy GradeResultView.")
+    }
+
     func testVisibleTeacherFacingStringsDoNotUseImplementationLanguage() throws {
         let forbiddenTerms = [
             "stale draft",

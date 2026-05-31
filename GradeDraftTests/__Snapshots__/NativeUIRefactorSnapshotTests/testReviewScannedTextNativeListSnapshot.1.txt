@@ -1,0 +1,19 @@
+screen: ReviewScannedTextScreen
+hostedController: UIHostingController
+hostedViewLoaded: true
+hostedViewSize: 390x844
+expectedContainer: List
+sourceContainerPresent: true
+sections:
+- Review Gate
+- Work Preview
+- Text Lines
+- Review Actions
+- Evidence
+nativeControls:
+- List
+- Section
+- ContentUnavailableView
+- confirmationDialog
+forbiddenScreenTokens:
+- none

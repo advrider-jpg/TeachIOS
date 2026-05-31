@@ -32,195 +32,241 @@ struct RubricInstructionsScreen: View {
     private var formativeTemplateOptions: [(String, String)] { formativeTemplates.map { ($0.id, $0.name) } }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: GradeDraftLayout.deepSectionSpacing) {
-                DeepWorkflowHeader(
-                    title: "Rubric & Instructions",
-                    subtitle: "Rubric import, criteria, instructions, and curriculum reference.",
-                    status: assignment.hasGradingStandard ? .onTrack : .needsAttention
-                )
-
-                if !assignment.hasGradingStandard {
+        Form {
+            if !assignment.hasGradingStandard {
+                Section("Needs Attention") {
                     WarningBanner(
                         title: "Add a grading standard",
                         message: "Add a rubric, answer key, exemplar, or grading criteria before drafting feedback.",
                         status: .needsAttention
                     )
-                    .padding(.horizontal, GradeDraftLayout.screenPadding)
                 }
+            }
 
-                GroupedListCard(title: "Rubric setup", subtitle: "Apply a local template or import a teacher-provided rubric.") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Picker("Template", selection: $selectedTemplateID) {
-                            ForEach(RubricTemplates.builtIn) { template in
-                                Text(template.name).tag(template.id)
+            Section {
+                Picker("Template", selection: $selectedTemplateID) {
+                    ForEach(RubricTemplates.builtIn) { template in
+                        Text(template.name).tag(template.id)
+                    }
+                }
+                Button(action: applyTemplate) {
+                    Label("Apply Template", systemImage: "checkmark.circle")
+                }
+                Button {
+                    showingRubricImporter = true
+                } label: {
+                    Label("Import Rubric File", systemImage: "doc.badge.plus")
+                }
+                TextEditor(text: rubricTextBinding)
+                    .frame(minHeight: 150)
+                    .accessibilityLabel("Rubric or grading criteria")
+            } header: {
+                Text("Rubric Setup")
+            } footer: {
+                Text("Templates and imports are local. Review rubric text before grading.")
+            }
+
+            if let preview = viewModel.latestRubricPreview {
+                Section {
+                    GradeDraftStatusLabeledContent(title: "Detected Criteria", value: "\(preview.detectedCriteria.count)", status: preview.issues.isEmpty ? .onTrack : .needsAttention)
+                    LabeledContent("Scoring Bands", value: "\(preview.detectedLevels.count)")
+                    ForEach(preview.detectedCriteria) { criterion in
+                        DisclosureGroup {
+                            if !criterion.descriptor.isEmpty {
+                                Text(criterion.descriptor)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            LabeledContent("Max Points", value: GradeTotals.formatted(criterion.maxPoints))
+                            ForEach(criterion.levels) { level in
+                                LabeledContent(level.label, value: GradeTotals.formatted(level.points))
+                            }
+                        } label: {
+                            RubricCriterionRow(criterion: criterion)
+                        }
+                    }
+                    if !preview.issues.isEmpty {
+                        DisclosureGroup("Import Warnings") {
+                            ForEach(preview.issues, id: \.id) { issue in
+                                Label(issue.message, systemImage: "exclamationmark.triangle")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.orange)
                             }
                         }
-                        .pickerStyle(.menu)
-                        HStack(spacing: 8) {
-                            SecondaryActionButton(title: "Apply Template", systemImage: "checklist", action: applyTemplate)
-                            SecondaryActionButton(title: "Import Rubric", systemImage: "square.and.arrow.down", action: { showingRubricImporter = true })
-                        }
-                        SecondaryActionButton(title: "Import Curriculum Reference", systemImage: "book", action: { showingCurriculumImporter = true })
                     }
-                    .padding(GradeDraftLayout.rowHorizontalPadding)
-                }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
-
-                GroupedListCard(title: "Planned content templates", subtitle: "Choose whether to append or replace when teacher-entered content already exists.") {
-                    VStack(alignment: .leading, spacing: 14) {
-                        templateControl(
-                            title: "Teacher instruction template",
-                            detail: "Adds teacher-only custom instructions. Existing text is never removed without confirmation.",
-                            selection: $selectedInstructionTemplateID,
-                            options: instructionTemplateOptions,
-                            actionTitle: "Insert Instruction",
-                            action: { requestTemplateApplication(.teacherInstruction) }
-                        )
-                        Divider()
-                        templateControl(
-                            title: "Answer-key template",
-                            detail: "Filtered for this assignment type and inserted into Answer key.",
-                            selection: $selectedAnswerKeyTemplateID,
-                            options: answerKeyTemplateOptions,
-                            actionTitle: "Insert Answer Key",
-                            action: { requestTemplateApplication(.answerKey) }
-                        )
-                        Divider()
-                        templateControl(
-                            title: "Exemplar template",
-                            detail: "Filtered for this assignment type and inserted into Exemplar response.",
-                            selection: $selectedExemplarTemplateID,
-                            options: exemplarTemplateOptions,
-                            actionTitle: "Insert Exemplar",
-                            action: { requestTemplateApplication(.exemplar) }
-                        )
-                        Divider()
-                        templateControl(
-                            title: "Formative focus template",
-                            detail: "Filtered for this assignment type and stored as dedicated formative focus guidance.",
-                            selection: $selectedFormativeTemplateID,
-                            options: formativeTemplateOptions,
-                            actionTitle: "Insert Formative Focus",
-                            action: { requestTemplateApplication(.formativeFocus) }
-                        )
+                    Button {
+                        viewModel.confirmMarkdownRubricImport(preview, useStructuredImport: true)
+                    } label: {
+                        Label("Confirm Structured Import", systemImage: "checkmark.circle")
                     }
-                    .padding(GradeDraftLayout.rowHorizontalPadding)
+                    .disabled(preview.detectedCriteria.isEmpty)
+                    Button {
+                        viewModel.confirmMarkdownRubricImport(preview, useStructuredImport: false)
+                    } label: {
+                        Label("Use Rubric Text", systemImage: "text.alignleft")
+                    }
+                } header: {
+                    Text(preview.issues.isEmpty ? "Preview Import" : "Imported with Warnings")
+                } footer: {
+                    Text("Review the criteria before using them for teacher-reviewed grading.")
                 }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
+            }
 
-                GroupedListCard(title: "AI grading constraint templates", subtitle: "Selectable constraints included in the local AI grading packet.") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("These prompts guide the local draft only. Sensitive templates are never selected automatically and should be selected only when the teacher has supplied that context.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            Section {
+                templateControl(
+                    title: "Teacher instruction template",
+                    detail: "Adds teacher-only custom instructions. Existing text is never removed without confirmation.",
+                    selection: $selectedInstructionTemplateID,
+                    options: instructionTemplateOptions,
+                    actionTitle: "Insert Instruction",
+                    action: { requestTemplateApplication(.teacherInstruction) }
+                )
+                templateControl(
+                    title: "Answer-key template",
+                    detail: "Filtered for this assignment type and inserted into Answer key.",
+                    selection: $selectedAnswerKeyTemplateID,
+                    options: answerKeyTemplateOptions,
+                    actionTitle: "Insert Answer Key",
+                    action: { requestTemplateApplication(.answerKey) }
+                )
+                templateControl(
+                    title: "Exemplar template",
+                    detail: "Filtered for this assignment type and inserted into Exemplar response.",
+                    selection: $selectedExemplarTemplateID,
+                    options: exemplarTemplateOptions,
+                    actionTitle: "Insert Exemplar",
+                    action: { requestTemplateApplication(.exemplar) }
+                )
+                templateControl(
+                    title: "Formative focus template",
+                    detail: "Filtered for this assignment type and stored as dedicated formative focus guidance.",
+                    selection: $selectedFormativeTemplateID,
+                    options: formativeTemplateOptions,
+                    actionTitle: "Insert Formative Focus",
+                    action: { requestTemplateApplication(.formativeFocus) }
+                )
+            } header: {
+                Text("Planned Content Templates")
+            } footer: {
+                Text("Choose whether to append or replace when teacher-entered content already exists.")
+            }
 
-                        HStack(spacing: 8) {
-                            SecondaryActionButton(title: "Apply Recommended", systemImage: "checklist.checked", action: viewModel.applyRecommendedAIConstraintTemplates)
-                            SecondaryActionButton(title: "Clear", systemImage: "xmark.circle", action: viewModel.clearAIConstraintTemplates)
+            Section {
+                Text("These prompts guide the local draft only. Sensitive templates are never selected automatically and should be selected only when the teacher has supplied that context.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Button(action: viewModel.applyRecommendedAIConstraintTemplates) {
+                    Label("Apply Recommended", systemImage: "checklist.checked")
+                }
+                Button(action: viewModel.clearAIConstraintTemplates) {
+                    Label("Clear", systemImage: "xmark.circle")
+                }
+                ForEach(GradingConstraintTemplates.builtIn) { template in
+                    Toggle(isOn: Binding(
+                        get: { viewModel.assignment.selectedInstructionTemplateIDs.contains(template.id) },
+                        set: { _ in viewModel.toggleAIConstraintTemplate(template.id) }
+                    )) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(template.title)
+                            Text(template.text)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            if template.sensitiveContextRequired {
+                                Label("Select only when teacher-provided context exists. GradeDraft must not infer it.", systemImage: "exclamationmark.triangle")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
                         }
+                    }
+                }
+            } header: {
+                Text("AI Grading Constraints")
+            } footer: {
+                Text("GradeDraft drafts suggestions only. The teacher approves the final grade.")
+            }
 
-                        ForEach(GradingConstraintTemplates.builtIn) { template in
-                            Toggle(isOn: Binding(
-                                get: { viewModel.assignment.selectedInstructionTemplateIDs.contains(template.id) },
-                                set: { _ in viewModel.toggleAIConstraintTemplate(template.id) }
-                            )) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(template.title)
-                                        .font(.caption.bold())
-                                    Text(template.text)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                    if template.sensitiveContextRequired {
-                                        Label("Select only when teacher-provided context exists. GradeDraft must not infer it.", systemImage: "exclamationmark.triangle")
-                                            .font(.caption2)
-                                            .foregroundStyle(.orange)
-                                    }
+            Section("Criteria") {
+                if assignment.parsedRubric.criteria.isEmpty {
+                    ContentUnavailableView(
+                        "No structured criteria detected",
+                        systemImage: "list.bullet.rectangle",
+                        description: Text("Drafts and manual grading still require teacher review.")
+                    )
+                } else {
+                    ForEach(assignment.parsedRubric.criteria) { criterion in
+                        DisclosureGroup {
+                            if !criterion.descriptor.isEmpty {
+                                Text(criterion.descriptor)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            LabeledContent("Max Points", value: GradeTotals.formatted(criterion.maxPoints))
+                            if !criterion.levels.isEmpty {
+                                ForEach(criterion.levels) { level in
+                                    LabeledContent(level.label, value: GradeTotals.formatted(level.points))
                                 }
                             }
-                            .toggleStyle(.switch)
-                            .padding(.vertical, 4)
-                        }
-                    }
-                    .padding(GradeDraftLayout.rowHorizontalPadding)
-                }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
-
-                if let preview = viewModel.latestRubricPreview {
-                    RubricImportPreviewCard(
-                        preview: preview,
-                        onConfirmStructured: { viewModel.confirmMarkdownRubricImport(preview, useStructuredImport: true) },
-                        onUseText: { viewModel.confirmMarkdownRubricImport(preview, useStructuredImport: false) }
-                    )
-                    .padding(.horizontal, GradeDraftLayout.screenPadding)
-                }
-
-                GroupedListCard(title: "Criteria", subtitle: "Detected structured criteria for scoring.") {
-                    if assignment.parsedRubric.criteria.isEmpty {
-                        EmptyState(title: "No structured criteria detected", message: "Drafts and manual grading still require teacher review.", systemImage: "list.bullet.rectangle")
-                    } else {
-                        ForEach(assignment.parsedRubric.criteria) { criterion in
+                        } label: {
                             RubricCriterionRow(criterion: criterion)
-                            if criterion.id != assignment.parsedRubric.criteria.last?.id { Divider().padding(.leading, 56) }
                         }
                     }
                 }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
-
-                GroupedListCard(title: "Local curriculum catalog", subtitle: "Optional local reference. Confirm against your jurisdiction before reporting.") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(viewModel.curriculumCatalog.warning)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        TextField("Search local curriculum", text: $viewModel.curriculumSearchText)
-                            .textFieldStyle(.roundedBorder)
-                        HStack(spacing: 8) {
-                            TextField("Learning area", text: $viewModel.curriculumLearningAreaFilter)
-                                .textFieldStyle(.roundedBorder)
-                            TextField("Year level", text: $viewModel.curriculumYearLevelFilter)
-                                .textFieldStyle(.roundedBorder)
-                        }
-                    }
-                    .padding(GradeDraftLayout.rowHorizontalPadding)
-                    ForEach(viewModel.filteredCurriculumItems.prefix(8)) { item in
-                        HStack(alignment: .top, spacing: 10) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(CurriculumCatalogService.displaySummary(for: item))
-                                    .font(.subheadline)
-                                    .lineLimit(2)
-                                Text(item.shortDescription)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-                            Spacer(minLength: 8)
-                            SecondaryActionButton(title: "Map", systemImage: "link", action: { viewModel.mapCurriculumItemToCurrentAssignment(item) })
-                                .frame(width: 94)
-                        }
-                        .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-                        .padding(.vertical, 8)
-                    }
-                }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
-
-                GroupedListCard(title: "Instructions", subtitle: "Long instructions stay in detail panels, not list rows.") {
-                    textEditor(title: "Rubric / grading criteria", text: rubricTextBinding, minHeight: 160, hint: "Paste rubric, answer key, or grading criteria.")
-                    textEditor(title: "Custom teacher instructions", text: binding(\.customInstructions), minHeight: 90, hint: "Optional custom grading rules.")
-                    textEditor(title: "Formative focus", text: binding(\.formativeFocusText), minHeight: 80, hint: "Optional formative feedback focus, misconceptions, or next-step emphasis.")
-                    textEditor(title: "Answer key", text: binding(\.answerKeyText), minHeight: 80, hint: "Expected elements, misconceptions, or partial credit.")
-                    textEditor(title: "Exemplar response", text: binding(\.exemplarText), minHeight: 80, hint: "Teacher-supplied exemplar.")
-                    textEditor(title: "Curriculum / reference material", text: binding(\.curriculumReference), minHeight: 100, hint: "Teacher-entered or imported curriculum reference.")
-                    Text("Grading cannot begin until scanned text is reviewed and a grading standard is supplied.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-                        .padding(.bottom, 12)
-                }
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
             }
-            .padding(.bottom, 24)
+
+            Section {
+                Text(viewModel.curriculumCatalog.warning)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Button {
+                    showingCurriculumImporter = true
+                } label: {
+                    Label("Import Curriculum Reference", systemImage: "book")
+                }
+                TextField("Search local curriculum", text: $viewModel.curriculumSearchText)
+                TextField("Learning area", text: $viewModel.curriculumLearningAreaFilter)
+                TextField("Year level", text: $viewModel.curriculumYearLevelFilter)
+                ForEach(Array(viewModel.filteredCurriculumItems.prefix(8))) { item in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(CurriculumCatalogService.displaySummary(for: item))
+                            .font(.subheadline)
+                        Text(item.shortDescription)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            viewModel.mapCurriculumItemToCurrentAssignment(item)
+                        } label: {
+                            Label("Map", systemImage: "link")
+                        }
+                    }
+                }
+                TextEditor(text: binding(\.curriculumReference))
+                    .frame(minHeight: 110)
+                    .accessibilityLabel("Curriculum or reference material")
+            } header: {
+                Text("Curriculum Reference")
+            } footer: {
+                Text("Optional local reference. Confirm against your jurisdiction before reporting.")
+            }
+
+            Section {
+                textEditor("Custom teacher instructions", text: binding(\.customInstructions), minHeight: 120)
+                textEditor("Formative focus", text: binding(\.formativeFocusText), minHeight: 90)
+            } header: {
+                Text("Teacher Instructions")
+            } footer: {
+                Text("These instructions are teacher-facing and remain part of the local grading packet.")
+            }
+
+            Section {
+                textEditor("Answer key", text: binding(\.answerKeyText), minHeight: 100)
+                textEditor("Exemplar response", text: binding(\.exemplarText), minHeight: 100)
+            } header: {
+                Text("Answer Key and Exemplar")
+            } footer: {
+                Text("Grading cannot begin until scanned text is reviewed and a grading standard is supplied.")
+            }
         }
-        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Rubric & Instructions")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .onAppear {
@@ -253,10 +299,10 @@ struct RubricInstructionsScreen: View {
     private func templateControl(title: String, detail: String, selection: Binding<String>, options: [(String, String)], actionTitle: String, action: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.headline)
-            Text(detail).font(.caption).foregroundStyle(.secondary)
+            Text(detail).font(.footnote).foregroundStyle(.secondary)
             if options.isEmpty {
                 Text("No compatible template is available for this assignment type.")
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
                 Picker(title, selection: selection) {
@@ -264,30 +310,24 @@ struct RubricInstructionsScreen: View {
                         Text(option.1).tag(option.0)
                     }
                 }
-                .pickerStyle(.menu)
             }
-            SecondaryActionButton(title: actionTitle, systemImage: "text.badge.plus", action: action, disabled: options.isEmpty)
+            Button(action: action) {
+                Label(actionTitle, systemImage: "text.badge.plus")
+            }
+            .disabled(options.isEmpty)
         }
+        .padding(.vertical, 4)
     }
 
-    private func textEditor(title: String, text: Binding<String>, minHeight: CGFloat, hint: String) -> some View {
+    private func textEditor(_ title: String, text: Binding<String>, minHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.headline)
+            Text(title)
+                .font(.headline)
             TextEditor(text: text)
                 .frame(minHeight: minHeight)
-                .padding(8)
-                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(alignment: .topLeading) {
-                    if text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(hint)
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 16)
-                            .allowsHitTesting(false)
-                    }
-                }
+                .accessibilityLabel(title)
         }
-        .padding(GradeDraftLayout.rowHorizontalPadding)
+        .padding(.vertical, 4)
     }
 
     private func binding<Value>(_ keyPath: WritableKeyPath<AssignmentRecord, Value>) -> Binding<Value> {

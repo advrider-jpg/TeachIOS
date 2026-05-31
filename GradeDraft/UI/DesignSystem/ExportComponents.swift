@@ -578,30 +578,6 @@ private extension AssignmentRecord {
     }
 }
 
-struct RestorePreviewCard: View {
-    var preview: BackupRestorePreview
-
-    var body: some View {
-        GroupedListCard(title: "Backup Preview", subtitle: preview.summary) {
-            MetricStrip(metrics: [
-                .init("Assignments", value: "\(preview.assignmentCount)"),
-                .init("Classes", value: "\(preview.classCount)"),
-                .init("Students", value: "\(preview.studentCount)"),
-                .init("Original files", value: "\(preview.sourceFileCount)")
-            ])
-            .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-            .padding(.bottom, 10)
-            if preview.conflictAssignmentIDs.isEmpty {
-                BlockingIssueRow(title: "No matching records found", detail: "Import can continue with the selected option.", status: .onTrack)
-            } else {
-                RestoreConflictRow(count: preview.conflictAssignmentIDs.count)
-            }
-            ForEach(preview.warnings, id: \.self) { warning in
-                BlockingIssueRow(title: "Needs attention", detail: warning, status: .needsAttention)
-            }
-        }
-    }
-}
 
 struct RestoreConflictRow: View {
     var count: Int

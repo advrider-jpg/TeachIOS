@@ -9,43 +9,44 @@ struct ReviewScannedTextScreen: View {
     @State private var showingReviewConfirm = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: GradeDraftLayout.deepSectionSpacing) {
-                let assignment = viewModel.assignment
-                DeepWorkflowHeader(
-                    title: GradeDraftWorkflowLanguage.reviewScannedTextScreenTitle,
-                    subtitle: reviewSubtitle(for: assignment),
-                    status: assignment.ocrReviewStatus.v6Status
-                ) {
-                    Button("Mark Reviewed") { showingReviewConfirm = true }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(assignment.ocrDocument == nil)
-                }
+        Group {
+            let assignment = viewModel.assignment
+            if let document = assignment.ocrDocument, !document.pages.isEmpty {
+                let pages = document.pages.sorted { $0.pageIndex < $1.pageIndex }
+                let page = selectedPage(from: pages)
+                List {
+                    Section {
+                        ReviewGateBanner(
+                            title: GradeDraftUIStatus.reviewScannedText.rawValue,
+                            message: reviewSubtitle(for: assignment),
+                            status: assignment.ocrReviewStatus.v6Status
+                        )
+                    } header: {
+                        Text("Review Gate")
+                    } footer: {
+                        Text("OCR text must be reviewed before grading.")
+                    }
 
-                ReviewGateBanner(
-                    title: GradeDraftUIStatus.reviewScannedText.rawValue,
-                    message: reviewSubtitle(for: assignment),
-                    status: assignment.ocrReviewStatus.v6Status
-                )
-                .padding(.horizontal, GradeDraftLayout.screenPadding)
-
-                if let document = assignment.ocrDocument, !document.pages.isEmpty {
-                    let pages = document.pages.sorted { $0.pageIndex < $1.pageIndex }
-                    ScannedTextPageSelector(pages: pages, selectedPageID: $selectedPageID)
-                    if let page = selectedPage(from: pages) {
-                        let source = page.sourceInputID.flatMap { sourceID in
-                            assignment.sourceInputs.first(where: { $0.id == sourceID })
-                        }
-                        GroupedListCard(title: "Work preview", subtitle: "Selected line is outlined in blue. Lines needing review are outlined in orange.") {
+                    Section {
+                        ScannedTextPageSelector(pages: pages, selectedPageID: $selectedPageID)
+                        if let page {
+                            let source = page.sourceInputID.flatMap { sourceID in
+                                assignment.sourceInputs.first(where: { $0.id == sourceID })
+                            }
                             ScannedTextDocumentPreview(
                                 image: source.flatMap { viewModel.sourceImage(for: $0) },
                                 page: page,
                                 selectedLineID: selectedLineID
                             )
                         }
-                        .padding(.horizontal, GradeDraftLayout.screenPadding)
+                    } header: {
+                        Text("Work Preview")
+                    } footer: {
+                        Text("Selected line is outlined in blue. Lines needing review are outlined in orange.")
+                    }
 
-                        GroupedListCard(title: "Text lines", subtitle: "Line 1 of \(document.qualitySummary.unconfirmedLineCount + document.qualitySummary.lowConfidenceLineCount) to review") {
+                    if let page {
+                        Section {
                             if let finalReview = assignment.finalReview, !finalReview.criteria.isEmpty {
                                 Picker("Evidence target", selection: $selectedEvidenceCriterionID) {
                                     Text("First criterion").tag(Optional<UUID>.none)
@@ -53,15 +54,15 @@ struct ReviewScannedTextScreen: View {
                                         Text(criterion.criterion).tag(Optional(criterion.id))
                                     }
                                 }
-                                .pickerStyle(.menu)
-                                .padding(GradeDraftLayout.rowHorizontalPadding)
                             }
-                            HStack(spacing: 8) {
-                                SecondaryActionButton(title: "Next line", systemImage: "arrow.down.circle", action: selectNextLine)
-                                SecondaryActionButton(title: "Mark Page Reviewed", systemImage: "checkmark.rectangle", action: { viewModel.markOCRPageReviewed(pageID: page.id) })
+                            Button(action: selectNextLine) {
+                                Label("Next Line", systemImage: "arrow.down.circle")
                             }
-                            .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-                            .padding(.bottom, 8)
+                            Button {
+                                viewModel.markOCRPageReviewed(pageID: page.id)
+                            } label: {
+                                Label("Mark Page Reviewed", systemImage: "checkmark.rectangle")
+                            }
                             ForEach(page.lines) { line in
                                 TextLineEditorCard(
                                     pageID: page.id,
@@ -91,24 +92,43 @@ struct ReviewScannedTextScreen: View {
                                     },
                                     evidenceEnabled: assignment.finalReview != nil && !line.reviewedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                 )
-                                .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-                                .padding(.bottom, 8)
                             }
+                        } header: {
+                            Text("Text Lines")
+                        } footer: {
+                            Text(document.qualitySummary.displaySummary)
                         }
-                        .padding(.horizontal, GradeDraftLayout.screenPadding)
                     }
-                    EvidenceSourcePreview(evidence: assignment.evidenceReferences)
-                        .padding(.horizontal, GradeDraftLayout.screenPadding)
-                } else {
-                    GroupedListCard(title: GradeDraftUIStatus.reviewScannedText.rawValue, subtitle: "Add student work before reviewing scanned text.") {
-                        EmptyState(title: "No scanned text", message: "Import a scan, photo, or PDF, or paste text from the Student Work screen.", systemImage: "text.viewfinder")
+
+                    Section {
+                        Button {
+                            showingReviewConfirm = true
+                        } label: {
+                            Label("Mark Text Reviewed", systemImage: "checkmark.seal")
+                        }
+                        .disabled(document.unresolvedLineCount > 0)
+                    } header: {
+                        Text("Review Actions")
+                    } footer: {
+                        Text("Only continue if the text shown here accurately reflects the student work you want GradeDraft to use.")
                     }
-                    .padding(.horizontal, GradeDraftLayout.screenPadding)
+
+                    if !assignment.evidenceReferences.isEmpty {
+                        Section("Evidence") {
+                            EvidenceSourcePreview(evidence: assignment.evidenceReferences)
+                        }
+                    }
                 }
+                .gradeDraftNativeGroupedList()
+            } else {
+                ContentUnavailableView(
+                    "No scanned text",
+                    systemImage: "text.viewfinder",
+                    description: Text("Import a scan, photo, or PDF, or paste text from the Student Work screen.")
+                )
             }
-            .padding(.bottom, 24)
         }
-        .background(Color(.systemGroupedBackground))
+        .navigationTitle(GradeDraftWorkflowLanguage.reviewScannedTextScreenTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .onAppear {

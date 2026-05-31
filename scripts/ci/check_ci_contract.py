@@ -53,6 +53,7 @@ def main() -> int:
     require("scripts/no_network_scan.py" in text, failures, "No-network guardrail must run directly.")
     require("scripts/export_hardening_scan.py" in text, failures, "Export-hardening guardrail must run directly.")
     require("scripts/ci/bad_string_scan.py" in text, failures, "Bad string scan must run from a script.")
+    require("scripts/ci/check_native_ui_refactor.py" in text, failures, "Native UI refactor guardrail must run.")
     require("scripts/ci/check_xcode_project_membership.py" in text, failures, "Xcode project membership scan must run.")
     require("scripts/ci/check_ci_contract.py" in text, failures, "CI contract scan must run.")
     require("scripts/ci/select_xcode.sh" in text, failures, "Xcode selection must use the shared script.")
