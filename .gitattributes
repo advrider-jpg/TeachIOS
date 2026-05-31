@@ -1,0 +1,3 @@
+# Force LF line endings for snapshot reference files so macOS CI comparisons
+# are not broken by Windows CRLF checkouts.
+GradeDraftTests/__Snapshots__/**/*.txt text eol=lf
