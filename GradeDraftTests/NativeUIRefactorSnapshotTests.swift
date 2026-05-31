@@ -198,7 +198,27 @@ private struct NativeHostedScreenSnapshot {
     }
 
     private static func sectionTitles(in source: String) -> [String] {
-        matches(pattern: #"Section\(\"([^\"]+)\""#, in: source)
+        // Match both Section("Title") { and } header: { Text("Title") } in source order.
+        // Section("Title") also catches reviewSection("Title") calls via substring — intentional.
+        let patterns: [(String, Int)] = [
+            (#"Section\(\"([^\"]+)\""#, 1),
+            (#"header:\s*\{\s*\n\s*Text\(\"([^\"]+)\"\)"#, 1)
+        ]
+        var hits: [(range: Range<String.Index>, title: String)] = []
+        for (pattern, group) in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern,
+                                                       options: .dotMatchesLineSeparators) else { continue }
+            let ns = NSRange(source.startIndex..<source.endIndex, in: source)
+            for match in regex.matches(in: source, range: ns) {
+                guard match.numberOfRanges > group,
+                      let r = Range(match.range(at: group), in: source),
+                      let full = Range(match.range, in: source) else { continue }
+                hits.append((range: full, title: String(source[r])))
+            }
+        }
+        // Sort by position so titles appear in the order they occur in the source file.
+        return hits.sorted { $0.range.lowerBound < $1.range.lowerBound }
+                   .map(\.title)
     }
 
     private static func controls(in source: String) -> [String] {

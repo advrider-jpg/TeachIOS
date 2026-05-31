@@ -34,7 +34,7 @@ struct RubricInstructionsScreen: View {
     var body: some View {
         Form {
             if !assignment.hasGradingStandard {
-                Section {
+                Section("Needs Attention") {
                     WarningBanner(
                         title: "Add a grading standard",
                         message: "Add a rubric, answer key, exemplar, or grading criteria before drafting feedback.",
@@ -185,7 +185,7 @@ struct RubricInstructionsScreen: View {
                 Text("GradeDraft drafts suggestions only. The teacher approves the final grade.")
             }
 
-            Section {
+            Section("Criteria") {
                 if assignment.parsedRubric.criteria.isEmpty {
                     ContentUnavailableView(
                         "No structured criteria detected",

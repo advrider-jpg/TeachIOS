@@ -5,7 +5,6 @@ hostedViewSize: 390x844
 expectedContainer: Form
 sourceContainerPresent: true
 sections:
-- Export Safety
 - Create Export
 - Import Backup
 - Ready to Share

@@ -11,7 +11,7 @@ struct HomeScreen: View {
                 Text("GradeDraft stores student work and grading records locally on this device.")
             }
 
-            Section {
+            Section("Summary") {
                 LabeledContent("Assignments", value: "\(viewModel.assignments.count)")
                 GradeDraftStatusLabeledContent(title: GradeDraftWorkflowLanguage.reviewTextActionLabel, value: "\(viewModel.scannedTextReviewAssignments.count)", status: .reviewScannedText)
                 GradeDraftStatusLabeledContent(title: "Final Review", value: "\(viewModel.finalReviewAssignments.count)", status: .reviewFinalGrade)
