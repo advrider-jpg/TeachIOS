@@ -2,6 +2,42 @@
 
 This ledger records source-level validation expectations for the all-features completion patch.
 
+## 2026-05-31 — Production CI gates
+
+The primary GitHub Actions workflow is now `.github/workflows/swift.yml` (`GradeDraft CI`) with these PR-required checks:
+
+- `static-policy`
+- `workflow-lint`
+- `swiftlint`
+- `xcode-unit-tests`
+
+Deeper validation runs on `main`, schedule, manual dispatch, or visual-check PRs:
+
+- `screenshot-smoke`
+- `release-build`
+- `ci-summary`
+
+Local static reproduction:
+
+```bash
+python3 scripts/repo_health.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_ci_contract.py
+```
+
+Apple SDK validation still requires macOS/Xcode 26+:
+
+```bash
+bash scripts/ci/select_xcode.sh
+DESTINATION="$(python3 scripts/ci/select_ios_simulator.py --print-destination)"
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination "$DESTINATION" -derivedDataPath /tmp/GradeDraftDerivedData -resultBundlePath /tmp/GradeDraftUnitTests.xcresult -skip-testing:GradeDraftTests/GradeDraftScreenshotTests clean test
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination "$DESTINATION" -derivedDataPath /tmp/GradeDraftScreenshotDerivedData -resultBundlePath /tmp/GradeDraftScreenshotTests.xcresult -only-testing:GradeDraftTests/GradeDraftScreenshotTests test
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -configuration Release -destination "generic/platform=iOS" -derivedDataPath /tmp/GradeDraftReleaseDerivedData CODE_SIGNING_ALLOWED=NO build
+```
+
 ## Static validation to run after patch generation
 
 Run from a clean copy of the uploaded ZIP after applying `GradeDraft_all_features_completion_v3.patch`:
