@@ -1687,9 +1687,13 @@ final class GradeDraftViewModel: ObservableObject {
                     original.id == restoredRecord.id ? nil : (original.id, restoredRecord.id)
                 })
             } ?? [:]
+            let localRosterEntries = assignmentRosterEntries
             let mergeResult = mergeRestoredAssignments(restored, resolution: backupConflictResolution)
             assignments = mergeResult.assignments.sorted { $0.updatedAt > $1.updatedAt }
             refreshAssignmentRosterEntries()
+            if backupConflictResolution != .replaceLocal {
+                mergeRestoredRosterEntries(localRosterEntries)
+            }
             if let restoredDatabaseExport {
                 mergeRestoredClassGroups(restoredDatabaseExport.classGroups)
                 mergeRestoredStudents(restoredDatabaseExport.students)
