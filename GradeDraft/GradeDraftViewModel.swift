@@ -197,7 +197,7 @@ final class GradeDraftViewModel: ObservableObject {
     }
 
     var persistenceSummary: String {
-        "Persistence: \(persistenceMode)"
+        "Stored locally on this device"
     }
 
     var localDataExcludedFromDeviceBackup: Bool {

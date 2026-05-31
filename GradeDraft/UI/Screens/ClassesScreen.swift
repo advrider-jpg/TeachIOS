@@ -55,7 +55,11 @@ struct ClassesScreen: View {
 
     private func addClass() {
         guard !trimmedClassName.isEmpty else { return }
-        viewModel.saveClassGroup(ClassGroupRecord(name: trimmedClassName, subject: viewModel.assignment.subject, gradeLevel: viewModel.assignment.gradeLevel))
+        if viewModel.classSummaries.contains(where: { $0.name.caseInsensitiveCompare(trimmedClassName) == .orderedSame }) {
+            viewModel.errorMessage = "A class with this name already exists locally."
+            return
+        }
+        viewModel.saveClassGroup(ClassGroupRecord(name: trimmedClassName))
         newClassName = ""
     }
 }

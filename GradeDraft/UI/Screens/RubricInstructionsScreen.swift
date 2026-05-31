@@ -22,7 +22,7 @@ struct RubricInstructionsScreen: View {
     @State private var showingCurriculumImporter = false
     @State private var pendingTemplateApplication: PlannedTemplateTarget?
 
-    private var assignment: AssignmentRecord { viewModel.assignment }
+    private var assignment: AssignmentRecord { viewModel.assignment(for: assignmentID) ?? viewModel.assignment }
     private var instructionTemplateOptions: [(String, String)] { TeacherInstructionTemplateCatalog.all.map { ($0.id, $0.name) } }
     private var answerKeyTemplates: [AnswerKeyTemplate] { AnswerKeyTemplateCatalog.templates(for: assignment.assignmentType) }
     private var exemplarTemplates: [ExemplarTemplate] { ExemplarTemplateCatalog.templates(for: assignment.assignmentType) }
@@ -146,25 +146,41 @@ struct RubricInstructionsScreen: View {
                     action: { requestTemplateApplication(.formativeFocus) }
                 )
             } header: {
-                Text("Planned Content Templates")
+                Text("Instruction and Answer Key Templates")
             } footer: {
                 Text("Choose whether to append or replace when teacher-entered content already exists.")
             }
 
             Section {
+                if case .unavailable(let message) = viewModel.localAIStatus {
+                    WarningBanner(
+                        title: "Local AI unavailable",
+                        message: message,
+                        status: .needsAttention
+                    )
+                }
                 Text("These prompts guide the local draft only. Sensitive templates are never selected automatically and should be selected only when the teacher has supplied that context.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Button(action: viewModel.applyRecommendedAIConstraintTemplates) {
+                Button {
+                    viewModel.selectAssignment(assignmentID)
+                    viewModel.applyRecommendedAIConstraintTemplates()
+                } label: {
                     Label("Apply Recommended", systemImage: "checklist.checked")
                 }
-                Button(action: viewModel.clearAIConstraintTemplates) {
+                Button {
+                    viewModel.selectAssignment(assignmentID)
+                    viewModel.clearAIConstraintTemplates()
+                } label: {
                     Label("Clear", systemImage: "xmark.circle")
                 }
                 ForEach(GradingConstraintTemplates.builtIn) { template in
                     Toggle(isOn: Binding(
-                        get: { viewModel.assignment.selectedInstructionTemplateIDs.contains(template.id) },
-                        set: { _ in viewModel.toggleAIConstraintTemplate(template.id) }
+                        get: { assignment.selectedInstructionTemplateIDs.contains(template.id) },
+                        set: { _ in
+                            viewModel.selectAssignment(assignmentID)
+                            viewModel.toggleAIConstraintTemplate(template.id)
+                        }
                     )) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(template.title)
@@ -233,6 +249,7 @@ struct RubricInstructionsScreen: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         Button {
+                            viewModel.selectAssignment(assignmentID)
                             viewModel.mapCurriculumItemToCurrentAssignment(item)
                         } label: {
                             Label("Map", systemImage: "link")
@@ -273,7 +290,7 @@ struct RubricInstructionsScreen: View {
             viewModel.selectAssignment(assignmentID)
             resetTemplateSelections()
         }
-        .onChange(of: viewModel.assignment.assignmentType) { _, _ in
+        .onChange(of: assignment.assignmentType) { _, _ in
             resetTemplateSelections()
         }
         .confirmationDialog(
@@ -289,10 +306,22 @@ struct RubricInstructionsScreen: View {
             Text("Choose how GradeDraft should insert this template. Teacher-entered content is not deleted unless you choose Replace.")
         }
         .fileImporter(isPresented: $showingRubricImporter, allowedContentTypes: [.plainText, .item]) { result in
-            if case .success(let url) = result { viewModel.importMarkdownRubric(from: url) }
+            switch result {
+            case .success(let url):
+                viewModel.selectAssignment(assignmentID)
+                viewModel.importMarkdownRubric(from: url)
+            case .failure(let error):
+                viewModel.errorMessage = error.localizedDescription
+            }
         }
         .fileImporter(isPresented: $showingCurriculumImporter, allowedContentTypes: [.plainText, .commaSeparatedText, .item]) { result in
-            if case .success(let url) = result { viewModel.importCurriculumReference(from: url) }
+            switch result {
+            case .success(let url):
+                viewModel.selectAssignment(assignmentID)
+                viewModel.importCurriculumReference(from: url)
+            case .failure(let error):
+                viewModel.errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -310,6 +339,7 @@ struct RubricInstructionsScreen: View {
                         Text(option.1).tag(option.0)
                     }
                 }
+                .labelsHidden()
             }
             Button(action: action) {
                 Label(actionTitle, systemImage: "text.badge.plus")
@@ -332,15 +362,21 @@ struct RubricInstructionsScreen: View {
 
     private func binding<Value>(_ keyPath: WritableKeyPath<AssignmentRecord, Value>) -> Binding<Value> {
         Binding(
-            get: { viewModel.assignment[keyPath: keyPath] },
-            set: { value in viewModel.updateAssignment { $0[keyPath: keyPath] = value } }
+            get: { assignment[keyPath: keyPath] },
+            set: { value in
+                viewModel.selectAssignment(assignmentID)
+                viewModel.updateAssignment { $0[keyPath: keyPath] = value }
+            }
         )
     }
 
     private var rubricTextBinding: Binding<String> {
         Binding(
-            get: { viewModel.assignment.rubricText },
-            set: { newText in viewModel.updateRubricText(newText) }
+            get: { assignment.rubricText },
+            set: { newText in
+                viewModel.selectAssignment(assignmentID)
+                viewModel.updateRubricText(newText)
+            }
         )
     }
 
@@ -386,6 +422,7 @@ struct RubricInstructionsScreen: View {
     }
 
     private func performTemplateApplication(_ target: PlannedTemplateTarget, mode: TemplateInsertionMode) {
+        viewModel.selectAssignment(assignmentID)
         switch target {
         case .teacherInstruction:
             guard let template = TeacherInstructionTemplateCatalog.template(id: selectedInstructionTemplateID) else { return }
@@ -404,6 +441,7 @@ struct RubricInstructionsScreen: View {
 
     private func applyTemplate() {
         guard let template = RubricTemplates.builtIn.first(where: { $0.id == selectedTemplateID }) else { return }
+        viewModel.selectAssignment(assignmentID)
         viewModel.applyTemplate(template)
     }
 }

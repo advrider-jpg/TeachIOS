@@ -7,7 +7,7 @@ sourceContainerPresent: true
 sections:
 - Needs Attention
 - Rubric Setup
-- Planned Content Templates
+- Instruction and Answer Key Templates
 - AI Grading Constraints
 - Criteria
 - Curriculum Reference

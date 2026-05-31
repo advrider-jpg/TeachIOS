@@ -8,23 +8,28 @@ struct ClassRow: View {
     var status: GradeDraftUIStatus
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: "person.2")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(.blue)
                 .frame(width: 28)
+                .padding(.top, 2)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(name.isEmpty ? "Unnamed class" : name)
                     .font(.headline)
-                    .lineLimit(1)
-                    .layoutPriority(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("\(subject.isEmpty ? "Class" : subject) · \(studentCount) students · \(assignmentCount) assignments")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
             Spacer(minLength: 8)
             StatusChip(status, compact: true)
+                .layoutPriority(2)
         }
         .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
         .padding(.vertical, 10)
@@ -40,29 +45,37 @@ struct AssignmentRow: View {
     var actionLabel: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: "doc.text")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(.blue)
                 .frame(width: 28)
+                .padding(.top, 2)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(assignment.title)
                     .font(.headline)
-                    .lineLimit(2)
-                    .layoutPriority(1)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(assignmentRowMetadata)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 6) {
                 StatusChip(status, compact: true)
                 Text(actionLabel)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.blue)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.trailing)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: 132, alignment: .trailing)
+            .layoutPriority(2)
         }
         .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
         .padding(.vertical, 10)
@@ -84,27 +97,34 @@ struct StudentRow: View {
     var scoreText: String?
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: "person.crop.circle")
                 .font(.system(size: 21))
                 .foregroundStyle(.secondary)
                 .frame(width: 28)
+                .padding(.top, 1)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(student.displayName.isEmpty ? "Unnamed student" : student.displayName)
                     .font(.headline)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(student.localIdentifier.isEmpty ? student.className.nilIfBlank ?? "No local ID" : student.localIdentifier)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
             Spacer(minLength: 8)
             if let scoreText {
                 Text(scoreText)
                     .font(.subheadline.monospacedDigit().weight(.semibold))
                     .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             StatusChip(status, compact: true)
+                .layoutPriority(2)
         }
         .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
         .padding(.vertical, 9)
@@ -121,21 +141,26 @@ struct ReviewQueueRow: View {
     var actionLabel: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: status.systemImage)
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(status.color)
                 .frame(width: 28)
+                .padding(.top, 2)
+                .accessibilityLabel("Status")
+                .accessibilityValue(status.fullAccessibilityLabel)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.headline)
-                    .lineLimit(2)
-                    .layoutPriority(1)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(detail)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 6) {
                 if let countText {
@@ -143,12 +168,17 @@ struct ReviewQueueRow: View {
                         .font(.caption.monospacedDigit().weight(.semibold))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
                 Text(actionLabel)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.blue)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.trailing)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: 120, alignment: .trailing)
+            .layoutPriority(2)
         }
         .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
         .padding(.vertical, 10)
@@ -162,22 +192,28 @@ struct WorkAttachmentRow: View {
     var source: SourceInputRef
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: attachmentIcon)
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(.blue)
                 .frame(width: 28)
+                .padding(.top, 2)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(source.fileName?.nilIfBlank ?? source.sourceType.displayName)
                     .font(.headline)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(attachmentDetail)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
             Spacer(minLength: 8)
             StatusChip(source.teacherIncludedInExport ? .teacherOnly : .notStarted, compact: true)
+                .layoutPriority(2)
         }
         .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
         .padding(.vertical, 9)

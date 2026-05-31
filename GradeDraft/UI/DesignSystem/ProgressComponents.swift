@@ -66,6 +66,16 @@ private struct MetricCell: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color(.separator), lineWidth: 0.5)
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(metric.title)
+        .accessibilityValue(accessibilityValue)
+    }
+
+    private var accessibilityValue: String {
+        if let status = metric.status {
+            return "\(metric.value). Status: \(status.fullAccessibilityLabel)"
+        }
+        return metric.value
     }
 }
 
@@ -85,17 +95,22 @@ struct WorkflowStepRow: View {
                     .foregroundStyle(status.color)
             }
             .frame(width: 28, height: 28)
+            .accessibilityLabel("Step \(index)")
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.headline)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(detail)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
             Spacer(minLength: 8)
             StatusChip(status, compact: true)
+                .layoutPriority(2)
         }
         .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
         .padding(.vertical, 10)
@@ -136,15 +151,20 @@ struct BlockingIssueRow: View {
             Image(systemName: status.systemImage)
                 .foregroundStyle(status.color)
                 .frame(width: 22, height: 22)
+                .accessibilityLabel("Status")
+                .accessibilityValue(status.fullAccessibilityLabel)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.headline)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(detail)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
             Spacer(minLength: 8)
         }
         .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)

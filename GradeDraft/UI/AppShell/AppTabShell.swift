@@ -41,41 +41,12 @@ enum GradeDraftTab: String, CaseIterable, Hashable, Identifiable {
 }
 
 struct AppTabShell: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @ObservedObject var viewModel: GradeDraftViewModel
     @State private var selectedTab: GradeDraftTab = .home
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            NavigationStack {
-                HomeScreen(viewModel: viewModel)
-            }
-            .tabItem { Label(GradeDraftTab.home.title, systemImage: GradeDraftTab.home.systemImage) }
-            .tag(GradeDraftTab.home)
-
-            NavigationStack {
-                ClassesScreen(viewModel: viewModel)
-            }
-            .tabItem { Label(GradeDraftTab.classes.title, systemImage: GradeDraftTab.classes.systemImage) }
-            .tag(GradeDraftTab.classes)
-
-            NavigationStack {
-                AssignmentsScreen(viewModel: viewModel)
-            }
-            .tabItem { Label(GradeDraftTab.assignments.title, systemImage: GradeDraftTab.assignments.systemImage) }
-            .tag(GradeDraftTab.assignments)
-
-            NavigationStack {
-                ReviewScreen(viewModel: viewModel)
-            }
-            .tabItem { Label(GradeDraftTab.review.title, systemImage: GradeDraftTab.review.systemImage) }
-            .tag(GradeDraftTab.review)
-
-            NavigationStack {
-                ExportsRestoreScreen(viewModel: viewModel)
-            }
-            .tabItem { Label(GradeDraftTab.exports.title, systemImage: GradeDraftTab.exports.systemImage) }
-            .tag(GradeDraftTab.exports)
-        }
+        rootShell
         .task { viewModel.refreshCapabilityStatus() }
         .alert("GradeDraft", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
@@ -84,6 +55,71 @@ struct AppTabShell: View {
             Button("OK", role: .cancel) { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "Unknown error")
+        }
+    }
+
+    @ViewBuilder
+    private var rootShell: some View {
+        if horizontalSizeClass == .regular {
+            NavigationSplitView {
+                List(GradeDraftTab.allCases, selection: $selectedTab) { tab in
+                    Label(tab.title, systemImage: tab.systemImage)
+                        .tag(tab)
+                }
+                .navigationTitle("GradeDraft")
+            } detail: {
+                NavigationStack {
+                    selectedRootScreen
+                }
+            }
+        } else {
+            TabView(selection: $selectedTab) {
+                NavigationStack {
+                    HomeScreen(viewModel: viewModel)
+                }
+                .tabItem { Label(GradeDraftTab.home.title, systemImage: GradeDraftTab.home.systemImage) }
+                .tag(GradeDraftTab.home)
+
+                NavigationStack {
+                    ClassesScreen(viewModel: viewModel)
+                }
+                .tabItem { Label(GradeDraftTab.classes.title, systemImage: GradeDraftTab.classes.systemImage) }
+                .tag(GradeDraftTab.classes)
+
+                NavigationStack {
+                    AssignmentsScreen(viewModel: viewModel)
+                }
+                .tabItem { Label(GradeDraftTab.assignments.title, systemImage: GradeDraftTab.assignments.systemImage) }
+                .tag(GradeDraftTab.assignments)
+
+                NavigationStack {
+                    ReviewScreen(viewModel: viewModel)
+                }
+                .tabItem { Label(GradeDraftTab.review.title, systemImage: GradeDraftTab.review.systemImage) }
+                .tag(GradeDraftTab.review)
+
+                NavigationStack {
+                    ExportsRestoreScreen(viewModel: viewModel)
+                }
+                .tabItem { Label(GradeDraftTab.exports.title, systemImage: GradeDraftTab.exports.systemImage) }
+                .tag(GradeDraftTab.exports)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var selectedRootScreen: some View {
+        switch selectedTab {
+        case .home:
+            HomeScreen(viewModel: viewModel)
+        case .classes:
+            ClassesScreen(viewModel: viewModel)
+        case .assignments:
+            AssignmentsScreen(viewModel: viewModel)
+        case .review:
+            ReviewScreen(viewModel: viewModel)
+        case .exports:
+            ExportsRestoreScreen(viewModel: viewModel)
         }
     }
 }

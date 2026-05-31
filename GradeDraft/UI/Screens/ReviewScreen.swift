@@ -8,9 +8,9 @@ struct ReviewScreen: View {
         List {
             if textNeedsReview.isEmpty && finalReview.isEmpty && needsRecheck.isEmpty && readyToExport.isEmpty {
                 ContentUnavailableView(
-                    "No reviews pending",
+                    emptyStateTitle,
                     systemImage: "checklist.checked",
-                    description: Text("Assignments needing teacher review will appear here.")
+                    description: Text(emptyStateDescription)
                 )
             }
 
@@ -27,7 +27,7 @@ struct ReviewScreen: View {
                 Section("Ready to Export") {
                     ForEach(readyToExport) { assignment in
                         NavigationLink {
-                            ExportsRestoreScreen(viewModel: viewModel)
+                            ExportsRestoreScreen(viewModel: viewModel, assignmentID: assignment.id)
                                 .toolbar(.hidden, for: .tabBar)
                         } label: {
                             AssignmentRow(assignment: assignment, status: viewModel.v6Status(for: assignment), actionLabel: viewModel.v6ActionLabel(for: assignment))
@@ -87,5 +87,15 @@ struct ReviewScreen: View {
 
     private var normalizedSearchText: String {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var emptyStateTitle: String {
+        normalizedSearchText.isEmpty ? "No reviews pending" : "No matching reviews"
+    }
+
+    private var emptyStateDescription: String {
+        normalizedSearchText.isEmpty
+            ? "Assignments needing teacher review will appear here."
+            : "No review rows match this search."
     }
 }

@@ -60,6 +60,12 @@ README, architecture, data model, test plan, implementation notes, next-validati
 ### Validation notes
 
 Patch application and static scripts are run on a clean copy after patch generation. Xcode build, XCTest execution, simulator/device smoke tests, SwiftUI runtime flows, Vision/VisionKit behavior, PDFKit/UIKit rendering, and Foundation Models behavior require macOS/Xcode or equivalent Apple tooling.
+# 2026-05-31 — Core UI/UX defect remediation
+
+- Fixed screenshot-audit UI defects across GradeDraft’s native app shell, shared rows/status chips, review queues, student work, scanned-text review, final review, rubric/templates, class roster, export/restore, and privacy surfaces.
+- Kept success and readiness states tied to real assignment records, OCR/final-review gates, local export eligibility, and explicit teacher actions; no backend, cloud fallback, analytics, login, mocked persistence, or fake availability paths were added.
+- Ran local static validation and line-ending checks; SwiftLint, `xcodebuild`, and simulator tests remain unavailable on this Windows host.
+
 # 2026-05-31 — PR 21 CI and review-comment fixes
 
 - Fixed export-auth actor isolation and test compile issues found by PR 21 CI.

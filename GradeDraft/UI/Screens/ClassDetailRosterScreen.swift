@@ -8,6 +8,7 @@ struct ClassDetailRosterScreen: View {
     @State private var newStudentLocalID = ""
     @State private var rosterCSV = ""
     @State private var showingRosterImporter = false
+    @State private var reviewedRosterCSV: String?
 
     var body: some View {
         Form {
@@ -53,18 +54,24 @@ struct ClassDetailRosterScreen: View {
                 TextEditor(text: $rosterCSV)
                     .frame(minHeight: 110)
                     .accessibilityLabel("Pasted roster CSV")
+                    .onChange(of: rosterCSV) { _, _ in reviewedRosterCSV = nil }
                 Button {
-                    _ = viewModel.previewRosterCSV(rosterCSV, className: classSummary.name)
+                    previewRosterCSV()
                 } label: {
                     Label("Preview Import", systemImage: "list.bullet.rectangle")
                 }
                 .disabled(rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Button {
-                    viewModel.createAssignmentsFromRosterCSV(rosterCSV, className: classSummary.name)
+                    createAssignmentsFromReviewedRoster()
                 } label: {
                     Label("Create Assignments", systemImage: "doc.badge.plus")
                 }
-                .disabled(rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(!rosterPreviewReadyForCreate)
+                if !rosterPreviewReadyForCreate && !rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Label("Preview the current roster CSV before creating local assignment records.", systemImage: "info.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             } header: {
                 Text("Import Roster CSV")
             } footer: {
@@ -146,6 +153,10 @@ struct ClassDetailRosterScreen: View {
         max(assignments.count - approvedCount, 0)
     }
 
+    private var rosterPreviewReadyForCreate: Bool {
+        reviewedRosterCSV == rosterCSV && viewModel.latestRosterPreview?.students.isEmpty == false
+    }
+
     private func scoreText(for student: StudentRecord) -> String? {
         guard let record = assignments.first(where: { $0.studentDisplayName.caseInsensitiveCompare(student.displayName) == .orderedSame }),
               let review = record.finalReview,
@@ -155,10 +166,32 @@ struct ClassDetailRosterScreen: View {
 
     private func saveStudent() {
         let trimmedName = newStudentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLocalID = newStudentLocalID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
-        viewModel.saveStudent(StudentRecord(displayName: trimmedName, className: classSummary.name, localIdentifier: newStudentLocalID.trimmingCharacters(in: .whitespacesAndNewlines)))
+        if students.contains(where: { student in
+            student.displayName.caseInsensitiveCompare(trimmedName) == .orderedSame ||
+            (!trimmedLocalID.isEmpty && student.localIdentifier.caseInsensitiveCompare(trimmedLocalID) == .orderedSame)
+        }) {
+            viewModel.errorMessage = "A matching student already exists in this class. Edit the existing roster record instead of creating a duplicate."
+            return
+        }
+        viewModel.saveStudent(StudentRecord(displayName: trimmedName, className: classSummary.name, localIdentifier: trimmedLocalID))
         newStudentName = ""
         newStudentLocalID = ""
+    }
+
+    private func previewRosterCSV() {
+        _ = viewModel.previewRosterCSV(rosterCSV, className: classSummary.name)
+        reviewedRosterCSV = rosterCSV
+    }
+
+    private func createAssignmentsFromReviewedRoster() {
+        guard rosterPreviewReadyForCreate else {
+            viewModel.errorMessage = "Preview the current roster CSV before creating assignment records."
+            return
+        }
+        viewModel.createAssignmentsFromRosterCSV(rosterCSV, className: classSummary.name)
+        reviewedRosterCSV = nil
     }
 
     private func importRosterCSV(from url: URL) {
@@ -168,7 +201,7 @@ struct ClassDetailRosterScreen: View {
         }
         do {
             rosterCSV = try String(contentsOf: url, encoding: .utf8)
-            _ = viewModel.previewRosterCSV(rosterCSV, className: classSummary.name)
+            previewRosterCSV()
         } catch {
             viewModel.errorMessage = error.localizedDescription
         }
