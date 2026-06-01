@@ -1,0 +1,51 @@
+{
+  "catalogID": "acara-australian-curriculum-v9-mrac-2024-04",
+  "generatedAt": "2026-06-01T00:01:56Z",
+  "generatedBy": "scripts/curriculum/build_acara_curriculum_catalog.py",
+  "itemCount": 24662,
+  "itemTypeCounts": {
+    "achievement-standard": 251,
+    "capability": 2649,
+    "concept": 2205,
+    "content-description": 2678,
+    "elaboration": 16841,
+    "priority": 38
+  },
+  "learningAreaCounts": {
+    "Cross-curriculum priorities": 38,
+    "English": 1217,
+    "General capabilities": 2649,
+    "Health and Physical Education": 594,
+    "Humanities and Social Sciences": 1972,
+    "Languages": 13545,
+    "Mathematics": 1376,
+    "Science": 1219,
+    "Technologies": 806,
+    "The Arts": 1246
+  },
+  "lowerOfficialParsedCountRationale": "",
+  "officialItemCount": 24662,
+  "schemaVersion": "1.0.0",
+  "sourceCount": 18,
+  "sourceCounts": {
+    "CCP_AA": 10,
+    "CCP_A_TSI": 13,
+    "CCP_S": 15,
+    "GC_CCT": 150,
+    "GC_DL": 170,
+    "GC_EU": 81,
+    "GC_IU": 121,
+    "GC_L": 1156,
+    "GC_N": 756,
+    "GC_PSC": 215,
+    "LA_ART": 1246,
+    "LA_ENG": 1217,
+    "LA_HASS": 1972,
+    "LA_HPE": 594,
+    "LA_LAN": 13554,
+    "LA_MAT": 1376,
+    "LA_SCI": 1219,
+    "LA_TEC": 806
+  },
+  "sourceMode": "Official Australian Curriculum workbook fallback used because MRAC JSON-LD source refresh could not run in this environment"
+}

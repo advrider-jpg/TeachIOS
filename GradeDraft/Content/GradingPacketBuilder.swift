@@ -80,7 +80,7 @@ extension AssignmentRecord {
         let trimmedCurriculum = curriculumReference.trimmingCharacters(in: .whitespacesAndNewlines)
         let curriculum = trimmedCurriculum.isEmpty ? nil : GradingPacketCurriculumReference(
             rawText: trimmedCurriculum,
-            mappings: curriculumMappings.map { mapping in
+            mappings: curriculumMappings.filter { $0.teacherSelected }.map { mapping in
                 [mapping.curriculumItemID, mapping.mappingKind, mapping.rubricCriterionID ?? "", mapping.evidenceReferenceID?.uuidString ?? ""].joined(separator: ":")
             }
         )

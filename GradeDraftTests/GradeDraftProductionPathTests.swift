@@ -146,6 +146,27 @@ final class GradeDraftProductionPathTests: XCTestCase {
         XCTAssertTrue(viewModel.assignment.finalReviewIsStale)
     }
 
+
+    func testGRDBBootstrapMarksApplicationSupportExcludedFromBackup() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftProtection-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = try GRDBAssignmentStore(applicationSupportURL: root)
+        let directory = try store.applicationSupportDirectory()
+        let excluded = try directory.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup
+        XCTAssertEqual(excluded, true)
+    }
+
+    func testFallbackJSONStoreMarksApplicationSupportExcludedFromBackup() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftJSONProtection-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = LocalJSONStore(fileManager: .default, applicationSupportURL: root)
+        let directory = try store.applicationSupportDirectory()
+        let excluded = try directory.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup
+        XCTAssertEqual(excluded, true)
+    }
+
     private func approvedAssignment(title: String, student: String) -> AssignmentRecord {
         var assignment = AssignmentRecord(
             title: title,

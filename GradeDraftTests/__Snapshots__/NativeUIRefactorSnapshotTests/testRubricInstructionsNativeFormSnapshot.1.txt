@@ -16,6 +16,7 @@ sections:
 nativeControls:
 - Form
 - Section
+- NavigationLink
 - ContentUnavailableView
 - fileImporter
 - confirmationDialog

@@ -41,3 +41,7 @@ Foundation Models availability depends on supported hardware, operating-system v
 Long grading packets are handled locally. The app may use a compact prompt or criterion-by-criterion typed generation when safe, but it must not silently truncate reviewed student work or send the packet to a cloud model. If the packet is too large for the on-device model, GradeDraft reports that limitation and keeps manual grading available.
 
 Teacher-audit exports and full backups may include local model audit metadata. Student-facing exports do not include raw prompt material, raw model material, local model audit metadata, or private teacher notes.
+
+## Australian Curriculum catalog offline behavior — 2026-05-31
+
+The Australian Curriculum browser loads committed JSON resources from the app bundle. The app does not fetch MRAC, Scootle, ACARA, or other curriculum endpoints at runtime. Provenance URLs are stored as inert catalog metadata for attribution and audit export. The developer-side generator may refresh sources during maintenance, but normal app operation remains offline.

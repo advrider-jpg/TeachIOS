@@ -55,6 +55,28 @@ def main() -> int:
         print(export_scan.stderr.strip())
         return export_scan.returncode
 
+    curriculum_scan = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "ci" / "check_curriculum_catalog.py")],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    print(curriculum_scan.stdout.strip())
+    if curriculum_scan.returncode != 0:
+        print(curriculum_scan.stderr.strip())
+        return curriculum_scan.returncode
+
+    release_scan = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "ci" / "check_release_readiness_static.py")],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    print(release_scan.stdout.strip())
+    if release_scan.returncode != 0:
+        print(release_scan.stderr.strip())
+        return release_scan.returncode
+
     print("Required files present.")
     print("Health check passed. Use Xcode to compile and run unit tests.")
     return 0

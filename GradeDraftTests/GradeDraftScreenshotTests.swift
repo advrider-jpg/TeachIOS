@@ -22,7 +22,8 @@ final class GradeDraftScreenshotTests: XCTestCase {
         CorePageScreenshotCase(imageName: "09-final-review", sourceFile: "FinalReviewScreen.swift"),
         CorePageScreenshotCase(imageName: "10-exports-restore", sourceFile: "ExportsRestoreScreen.swift"),
         CorePageScreenshotCase(imageName: "11-settings-local-privacy", sourceFile: "SettingsAboutLocalPrivacyScreen.swift"),
-        CorePageScreenshotCase(imageName: "12-rubric-instructions", sourceFile: "RubricInstructionsScreen.swift")
+        CorePageScreenshotCase(imageName: "12-rubric-instructions", sourceFile: "RubricInstructionsScreen.swift"),
+        CorePageScreenshotCase(imageName: "13-curriculum-browser", sourceFile: "CurriculumBrowserScreen.swift")
     ]
 
     // MARK: - Coverage Contract
@@ -129,6 +130,15 @@ final class GradeDraftScreenshotTests: XCTestCase {
         let assignmentID = viewModel.assignment.id
         try snapshot("12-rubric-instructions",
                      NavigationStack { RubricInstructionsScreen(viewModel: viewModel, assignmentID: assignmentID) },
+                     to: prepareScreenshotDirectory())
+    }
+
+    func testCaptureCurriculumBrowserScreen() throws {
+        let viewModel = makeCorePageViewModel(selecting: .readyToExport)
+        let assignmentID = viewModel.assignment.id
+        viewModel.curriculumSearchText = "English"
+        try snapshot("13-curriculum-browser",
+                     NavigationStack { CurriculumBrowserScreen(viewModel: viewModel, assignmentID: assignmentID) },
                      to: prepareScreenshotDirectory())
     }
 

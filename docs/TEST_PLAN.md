@@ -130,3 +130,22 @@ Run in Xcode 26+ on macOS with iOS SDK:
 ## Validation limits of this environment
 
 Static inspection and Python guardrails can run without Xcode. App build, simulator launch, PDFKit/UIKit runtime rendering, Vision/VisionKit behavior, Foundation Models behavior, and SwiftLint require macOS/Xcode or equivalent CI/plugin tooling.
+
+## Production-readiness validation commands — 2026-05-31
+
+Run the following non-Xcode checks from repo root:
+
+```bash
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_curriculum_catalog.py
+python3 scripts/repo_health.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_release_readiness_static.py
+```
+
+Xcode and physical-device validation remain required before TestFlight or App Store submission.

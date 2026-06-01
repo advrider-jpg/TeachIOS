@@ -33,23 +33,27 @@ struct DocumentScannerView: UIViewControllerRepresentable {
         }
 
         func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
-            // Extract images here (nonisolated) so non-Sendable VNDocumentCameraScan is
-            // never sent into the @MainActor region. UIImage is Sendable.
             let images = (0..<scan.pageCount).map { scan.imageOfPage(at: $0) }
-            MainActor.assumeIsolated {
-                controller.dismiss(animated: true) { self.onComplete(images) }
+            Task { @MainActor in
+                controller.dismiss(animated: true) {
+                    self.onComplete(images)
+                }
             }
         }
 
         func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
-            MainActor.assumeIsolated {
-                controller.dismiss(animated: true) { self.onCancel() }
+            Task { @MainActor in
+                controller.dismiss(animated: true) {
+                    self.onCancel()
+                }
             }
         }
 
         func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFailWithError error: Error) {
-            MainActor.assumeIsolated {
-                controller.dismiss(animated: true) { self.onError(error) }
+            Task { @MainActor in
+                controller.dismiss(animated: true) {
+                    self.onError(error)
+                }
             }
         }
     }

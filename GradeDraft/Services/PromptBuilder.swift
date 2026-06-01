@@ -99,7 +99,7 @@ enum PromptBuilder {
         2. Do not infer effort, intent, motivation, behavior, personality, ability, disability, EAL/D status, demographic traits, giftedness, home support, family support, laziness, carelessness, or future performance.
         3. Do not invent evidence. For every criterion, cite exact evidence from the reviewed student text or use this exact marker: \(missingEvidenceMarker).
         4. When source reference tags such as [p1-l2-abcdef12] are present, include matching evidence source refs for cited quotes.
-        5. Do not invent curriculum references, official standards, answer-key elements, source facts, exemplar content, or teacher instructions.
+        5. Do not invent, complete, translate, infer, or report curriculum references, official standards, standard codes, source facts, jurisdiction compliance, answer-key elements, exemplar content, or teacher instructions. Use only teacher-selected curriculum text already present in the prompt.
         6. If the rubric is ambiguous, use the most conservative reasonable score and add an uncertainty flag.
         7. If OCR quality is uncertain, mark affected criteria as teacherReviewRequired.
         8. If the response is weak, unclear, off-prompt, or relies on unsupported source material, diagram interpretation, symbolic math, visual artifacts, handwriting uncertainty, or notation the app cannot reliably assess from reviewed text, mark teacherReviewRequired and explain the limitation.

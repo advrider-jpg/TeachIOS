@@ -233,36 +233,23 @@ struct RubricInstructionsScreen: View {
                 Text(viewModel.curriculumCatalog.warning)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                NavigationLink {
+                    CurriculumBrowserScreen(viewModel: viewModel, assignmentID: assignmentID)
+                } label: {
+                    Label("Browse Australian Curriculum Catalog", systemImage: "book.closed")
+                }
                 Button {
                     showingCurriculumImporter = true
                 } label: {
-                    Label("Import Curriculum Reference", systemImage: "book")
-                }
-                TextField("Search local curriculum", text: $viewModel.curriculumSearchText)
-                TextField("Learning area", text: $viewModel.curriculumLearningAreaFilter)
-                TextField("Year level", text: $viewModel.curriculumYearLevelFilter)
-                ForEach(Array(viewModel.filteredCurriculumItems.prefix(8))) { item in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(CurriculumCatalogService.displaySummary(for: item))
-                            .font(.subheadline)
-                        Text(item.shortDescription)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                        Button {
-                            viewModel.selectAssignment(assignmentID)
-                            viewModel.mapCurriculumItemToCurrentAssignment(item)
-                        } label: {
-                            Label("Map", systemImage: "link")
-                        }
-                    }
+                    Label("Import Teacher-Provided Curriculum Reference", systemImage: "doc.badge.plus")
                 }
                 TextEditor(text: binding(\.curriculumReference))
                     .frame(minHeight: 110)
-                    .accessibilityLabel("Curriculum or reference material")
+                    .accessibilityLabel("Teacher-selected curriculum or reference material")
             } header: {
                 Text("Curriculum Reference")
             } footer: {
-                Text("Optional local reference. Confirm against your jurisdiction before reporting.")
+                Text("Use the bundled catalog for read-only Australian Curriculum references, or import teacher-provided local reference text. Only teacher-selected references enter grading context.")
             }
 
             Section {

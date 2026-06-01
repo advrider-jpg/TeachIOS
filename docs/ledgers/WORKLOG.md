@@ -72,3 +72,12 @@ Patch application and static scripts are run on a clean copy after patch generat
 - Fixed restore-as-copy roster preservation/remapping so local roster rows remain and copied assignments receive remapped roster entries.
 - Preserved draft/final review records as stale when rubric text or structured rubric imports change, and reset cached structured criteria when applying rubric templates.
 - Local static guardrails were run during the pass; Xcode/XCTest validation is tracked through GitHub Actions for PR 21 because local `xcrun` is unavailable in this Windows environment.
+
+# 2026-05-31 — Mega production-readiness source review patch
+
+- Added release configuration files, app-icon asset catalog, Face ID usage description, production static guardrails, curriculum catalog validator, and CI wiring for production readiness checks.
+- Replaced the three-item hardcoded Australian Curriculum seed catalog with bundled generated Australian Curriculum Version 9.0 JSON resources, manifest, summary, and a Swift bundle loader plus searchable/map/unmap browser UI.
+- Added local-data protection helper and applied backup exclusion/file protection to GRDB, fallback JSON persistence, staged backups, source images, and export hardening paths.
+- Removed `MainActor.assumeIsolated` from document-scanner delegate handling.
+- Updated prompt, grading-packet, export/audit, dependency, OSS, Australian Curriculum, and release documentation to preserve local-first, teacher-controlled, no-runtime-network boundaries.
+- Xcode, package resolution, signing, archive, App Store Connect, and physical-device validation remain blocked in this Linux environment and are tracked in release docs.
