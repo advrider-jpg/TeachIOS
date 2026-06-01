@@ -62,9 +62,17 @@ struct AppTabShell: View {
     private var rootShell: some View {
         if horizontalSizeClass == .regular {
             NavigationSplitView {
-                List(GradeDraftTab.allCases, selection: $selectedTab) { tab in
-                    Label(tab.title, systemImage: tab.systemImage)
-                        .tag(tab)
+                List {
+                    ForEach(GradeDraftTab.allCases) { tab in
+                        Button {
+                            selectedTab = tab
+                        } label: {
+                            Label(tab.title, systemImage: tab.systemImage)
+                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(selectedTab == tab ? Color.accentColor.opacity(0.12) : Color.clear)
+                        .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
+                    }
                 }
                 .navigationTitle("GradeDraft")
             } detail: {
