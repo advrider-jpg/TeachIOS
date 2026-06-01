@@ -105,3 +105,31 @@ RUN_FOUNDATION_MODEL_DEVICE_TESTS=1 xcodebuild test -project GradeDraft.xcodepro
 ```
 
 Xcode, simulator, and real-device Foundation Models validation were not run in this environment (Windows).
+
+## 2026-05-31 — Mega production-readiness patch validation scope
+
+Available in this Linux environment:
+
+```bash
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_curriculum_catalog.py
+python3 scripts/repo_health.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_release_readiness_static.py
+```
+
+Required outside this environment:
+
+```bash
+xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft
+xcodebuild test -project GradeDraft.xcodeproj -scheme GradeDraft -destination 'platform=iOS Simulator,name=iPad Pro 11-inch (M4)'
+xcodebuild build -project GradeDraft.xcodeproj -scheme GradeDraft -configuration Release -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
+xcodebuild archive -project GradeDraft.xcodeproj -scheme GradeDraft -configuration Release -archivePath build/GradeDraft.xcarchive
+```
+
+Manual physical-device validation is still required for camera OCR, LocalAuthentication export gates, share sheets, backup restore, Airplane Mode, and Foundation Models on Apple Intelligence-capable hardware.

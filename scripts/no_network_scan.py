@@ -35,7 +35,13 @@ PACKAGE_DOCS_ALLOWLIST = {
     pathlib.Path("docs/DEPENDENCIES.md"),
     pathlib.Path("docs/OSS_REVIEW.md"),
 }
+CURRICULUM_PROVENANCE_ALLOWLIST = {
+    pathlib.Path("GradeDraft/Resources/JSON/curriculum_catalog_acara_v9.json"),
+    pathlib.Path("GradeDraft/Resources/JSON/curriculum_catalog_acara_v9_manifest.json"),
+    pathlib.Path("GradeDraft/Resources/JSON/curriculum_catalog_acara_v9_summary.json"),
+}
 PBX_REPO_PATTERN = re.compile(r"^\s*repositoryURL\s*=")
+APPLE_PLIST_DTD_PATTERN = re.compile(r"https?://www\.apple\.com/DTDs/PropertyList-1\.0\.dtd")
 
 failures: list[str] = []
 for path in ROOT.rglob("*"):
@@ -55,7 +61,14 @@ for path in ROOT.rglob("*"):
     for lineno, line in enumerate(text.splitlines(), start=1):
         if path.suffix == ".pbxproj" and PBX_REPO_PATTERN.search(line):
             continue
-        if path in PACKAGE_DOCS_ALLOWLIST and "github.com/" in line:
+        if path.suffix in {".plist", ".xcprivacy"} and APPLE_PLIST_DTD_PATTERN.search(line):
+            continue
+        if rel in PACKAGE_DOCS_ALLOWLIST and "github.com/" in line:
+            continue
+        if rel in CURRICULUM_PROVENANCE_ALLOWLIST:
+            # These generated resources may contain official provenance URLs and
+            # ordinary curriculum vocabulary that collides with product-blocked
+            # analytics/network terms. Runtime Swift code remains scanned below.
             continue
         for pattern in PATTERNS:
             if pattern.search(line):

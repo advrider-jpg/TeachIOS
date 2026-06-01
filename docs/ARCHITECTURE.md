@@ -100,3 +100,7 @@ teacher-reviewed packet -> local validation -> prompt budget plan -> full/compac
 ```
 
 The prompt budgeter must not silently truncate reviewed student text. When the packet cannot fit safely in the on-device model context, the app either drafts criterion-by-criterion from the full reviewed text and grading materials or fails with an explicit local-too-large message. Manual final review remains available when local AI is unavailable or blocked.
+
+## Production-readiness additions — 2026-05-31
+
+Release configuration lives under `Config/`, with replace-before-release bundle and team values instead of hard-coded signing credentials. `LocalDataProtection` centralizes backup exclusion and best-effort file protection for local databases, fallback JSON persistence, staged backup imports, source images, and export artifacts. `CurriculumCatalogService` loads bundled Australian Curriculum JSON resources and exposes read-only search/mapping data to SwiftUI; teachers must explicitly map references before the references enter grading packets.

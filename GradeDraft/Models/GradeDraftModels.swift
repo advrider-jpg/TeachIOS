@@ -678,63 +678,162 @@ struct RosterImportPreview: Codable, Equatable {
 
 struct CurriculumSource: Identifiable, Codable, Equatable {
     var id: String
+    var kind: String
     var name: String
     var version: String
+    var sourceVersion: String
     var provenance: String
     var localPath: String
-    var importedAt: Date = Date()
+    var jsonldURL: String
+    var retrievedAt: Date
+    var importedAt: Date
+    var sha256: String
+    var licenseName: String
+
+    init(
+        id: String,
+        kind: String = "localReference",
+        name: String,
+        version: String,
+        sourceVersion: String = "",
+        provenance: String,
+        localPath: String,
+        jsonldURL: String = "",
+        retrievedAt: Date = Date(),
+        importedAt: Date = Date(),
+        sha256: String = "",
+        licenseName: String = ""
+    ) {
+        self.id = id
+        self.kind = kind
+        self.name = name
+        self.version = version
+        self.sourceVersion = sourceVersion.isEmpty ? version : sourceVersion
+        self.provenance = provenance
+        self.localPath = localPath
+        self.jsonldURL = jsonldURL
+        self.retrievedAt = retrievedAt
+        self.importedAt = importedAt
+        self.sha256 = sha256
+        self.licenseName = licenseName
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, kind, name, version, sourceVersion, provenance, localPath, jsonldURL, retrievedAt, importedAt, sha256, licenseName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        kind = (try? container.decode(String.self, forKey: .kind)) ?? "localReference"
+        name = try container.decode(String.self, forKey: .name)
+        version = try container.decode(String.self, forKey: .version)
+        sourceVersion = (try? container.decode(String.self, forKey: .sourceVersion)) ?? version
+        provenance = try container.decode(String.self, forKey: .provenance)
+        localPath = (try? container.decode(String.self, forKey: .localPath)) ?? ""
+        jsonldURL = (try? container.decode(String.self, forKey: .jsonldURL)) ?? ""
+        retrievedAt = (try? container.decode(Date.self, forKey: .retrievedAt)) ?? Date()
+        importedAt = (try? container.decode(Date.self, forKey: .importedAt)) ?? retrievedAt
+        sha256 = (try? container.decode(String.self, forKey: .sha256)) ?? ""
+        licenseName = (try? container.decode(String.self, forKey: .licenseName)) ?? ""
+    }
 }
 
 struct CurriculumItem: Identifiable, Codable, Equatable {
     var id: String
     var source: String
     var version: String
+    var sourceVersion: String
     var learningArea: String
     var subject: String
     var yearLevel: String
+    var band: String
     var strand: String
+    var substrand: String
     var organizer: String
     var itemType: String
+    var catalogKind: String
     var code: String
     var title: String
     var shortDescription: String
     var sourceURL: String
+    var externalURI: String
     var provenance: String
+    var sourceKey: String
+    var sourceName: String
+    var altLabels: [String]
+    var parentIDs: [String]
+    var childIDs: [String]
+    var tags: [String]
+    var isOfficial: Bool
+    var isEditable: Bool
+    var licenseName: String
+    var sourceAttribution: String
 
     init(
         id: String,
         source: String,
         version: String,
+        sourceVersion: String = "",
         learningArea: String,
         subject: String,
         yearLevel: String,
+        band: String = "",
         strand: String = "",
+        substrand: String = "",
         organizer: String = "",
         itemType: String,
+        catalogKind: String = "",
         code: String,
         title: String,
         shortDescription: String,
         sourceURL: String,
-        provenance: String = ""
+        externalURI: String = "",
+        provenance: String = "",
+        sourceKey: String = "",
+        sourceName: String = "",
+        altLabels: [String] = [],
+        parentIDs: [String] = [],
+        childIDs: [String] = [],
+        tags: [String] = [],
+        isOfficial: Bool = false,
+        isEditable: Bool = true,
+        licenseName: String = "",
+        sourceAttribution: String = ""
     ) {
         self.id = id
         self.source = source
         self.version = version
+        self.sourceVersion = sourceVersion.isEmpty ? version : sourceVersion
         self.learningArea = learningArea
         self.subject = subject
         self.yearLevel = yearLevel
+        self.band = band
         self.strand = strand
+        self.substrand = substrand
         self.organizer = organizer
         self.itemType = itemType
+        self.catalogKind = catalogKind.isEmpty ? itemType : catalogKind
         self.code = code
         self.title = title
         self.shortDescription = shortDescription
         self.sourceURL = sourceURL
-        self.provenance = provenance
+        self.externalURI = externalURI.isEmpty ? sourceURL : externalURI
+        self.provenance = provenance.isEmpty ? sourceURL : provenance
+        self.sourceKey = sourceKey
+        self.sourceName = sourceName.isEmpty ? source : sourceName
+        self.altLabels = altLabels
+        self.parentIDs = parentIDs
+        self.childIDs = childIDs
+        self.tags = tags
+        self.isOfficial = isOfficial
+        self.isEditable = isEditable
+        self.licenseName = licenseName
+        self.sourceAttribution = sourceAttribution
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, source, version, learningArea, subject, yearLevel, strand, organizer, itemType, code, title, shortDescription, sourceURL, provenance
+        case id, source, version, sourceVersion, learningArea, subject, yearLevel, band, strand, substrand, organizer, itemType, catalogKind, code, title, shortDescription, sourceURL, externalURI, provenance, sourceKey, sourceName, altLabels, parentIDs, childIDs, tags, isOfficial, isEditable, licenseName, sourceAttribution
     }
 
     init(from decoder: Decoder) throws {
@@ -742,36 +841,126 @@ struct CurriculumItem: Identifiable, Codable, Equatable {
         id = try container.decode(String.self, forKey: .id)
         source = try container.decode(String.self, forKey: .source)
         version = try container.decode(String.self, forKey: .version)
+        sourceVersion = (try? container.decode(String.self, forKey: .sourceVersion)) ?? version
         learningArea = try container.decode(String.self, forKey: .learningArea)
         subject = try container.decode(String.self, forKey: .subject)
         yearLevel = try container.decode(String.self, forKey: .yearLevel)
+        band = (try? container.decode(String.self, forKey: .band)) ?? ""
         strand = (try? container.decode(String.self, forKey: .strand)) ?? ""
+        substrand = (try? container.decode(String.self, forKey: .substrand)) ?? ""
         organizer = (try? container.decode(String.self, forKey: .organizer)) ?? ""
         itemType = try container.decode(String.self, forKey: .itemType)
+        catalogKind = (try? container.decode(String.self, forKey: .catalogKind)) ?? itemType
         code = try container.decode(String.self, forKey: .code)
         title = try container.decode(String.self, forKey: .title)
         shortDescription = try container.decode(String.self, forKey: .shortDescription)
         sourceURL = try container.decode(String.self, forKey: .sourceURL)
+        externalURI = (try? container.decode(String.self, forKey: .externalURI)) ?? sourceURL
         provenance = (try? container.decode(String.self, forKey: .provenance)) ?? sourceURL
+        sourceKey = (try? container.decode(String.self, forKey: .sourceKey)) ?? ""
+        sourceName = (try? container.decode(String.self, forKey: .sourceName)) ?? source
+        altLabels = (try? container.decode([String].self, forKey: .altLabels)) ?? []
+        parentIDs = (try? container.decode([String].self, forKey: .parentIDs)) ?? []
+        childIDs = (try? container.decode([String].self, forKey: .childIDs)) ?? []
+        tags = (try? container.decode([String].self, forKey: .tags)) ?? []
+        isOfficial = (try? container.decode(Bool.self, forKey: .isOfficial)) ?? false
+        isEditable = (try? container.decode(Bool.self, forKey: .isEditable)) ?? true
+        licenseName = (try? container.decode(String.self, forKey: .licenseName)) ?? ""
+        sourceAttribution = (try? container.decode(String.self, forKey: .sourceAttribution)) ?? ""
     }
 }
 
 struct CurriculumCatalog: Codable, Equatable {
+    var schemaVersion: String
+    var catalogID: String
+    var displayName: String
+    var sourceVersion: String
+    var filesUpdated: String
+    var generatedAt: Date
+    var generatedBy: String
+    var licenseName: String
+    var attributionText: String
+    var nonEndorsementWarning: String
+    var icipWarning: String
     var sources: [CurriculumSource]
     var items: [CurriculumItem]
+    var relationships: [String]
+    var tags: [String]
     var warning: String
 
-    func filtered(learningArea: String = "", subject: String = "", yearLevel: String = "", searchText: String = "") -> [CurriculumItem] {
+    init(
+        schemaVersion: String = "legacy-local",
+        catalogID: String = "teacher-provided-local-reference-catalog",
+        displayName: String = "Local curriculum reference catalog",
+        sourceVersion: String = "repository-local",
+        filesUpdated: String = "",
+        generatedAt: Date = Date(),
+        generatedBy: String = "GradeDraft",
+        licenseName: String = "",
+        attributionText: String = "",
+        nonEndorsementWarning: String = "",
+        icipWarning: String = "",
+        sources: [CurriculumSource],
+        items: [CurriculumItem],
+        relationships: [String] = [],
+        tags: [String] = [],
+        warning: String
+    ) {
+        self.schemaVersion = schemaVersion
+        self.catalogID = catalogID
+        self.displayName = displayName
+        self.sourceVersion = sourceVersion
+        self.filesUpdated = filesUpdated
+        self.generatedAt = generatedAt
+        self.generatedBy = generatedBy
+        self.licenseName = licenseName
+        self.attributionText = attributionText
+        self.nonEndorsementWarning = nonEndorsementWarning.isEmpty ? warning : nonEndorsementWarning
+        self.icipWarning = icipWarning
+        self.sources = sources
+        self.items = items
+        self.relationships = relationships
+        self.tags = tags
+        self.warning = warning
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, catalogID, displayName, sourceVersion, filesUpdated, generatedAt, generatedBy, licenseName, attributionText, nonEndorsementWarning, icipWarning, sources, items, relationships, tags, warning
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = (try? container.decode(String.self, forKey: .schemaVersion)) ?? "legacy-local"
+        catalogID = (try? container.decode(String.self, forKey: .catalogID)) ?? "teacher-provided-local-reference-catalog"
+        displayName = (try? container.decode(String.self, forKey: .displayName)) ?? "Local curriculum reference catalog"
+        sourceVersion = (try? container.decode(String.self, forKey: .sourceVersion)) ?? "repository-local"
+        filesUpdated = (try? container.decode(String.self, forKey: .filesUpdated)) ?? ""
+        generatedAt = (try? container.decode(Date.self, forKey: .generatedAt)) ?? Date()
+        generatedBy = (try? container.decode(String.self, forKey: .generatedBy)) ?? "GradeDraft"
+        licenseName = (try? container.decode(String.self, forKey: .licenseName)) ?? ""
+        attributionText = (try? container.decode(String.self, forKey: .attributionText)) ?? ""
+        nonEndorsementWarning = (try? container.decode(String.self, forKey: .nonEndorsementWarning)) ?? ""
+        icipWarning = (try? container.decode(String.self, forKey: .icipWarning)) ?? ""
+        sources = try container.decode([CurriculumSource].self, forKey: .sources)
+        items = try container.decode([CurriculumItem].self, forKey: .items)
+        relationships = (try? container.decode([String].self, forKey: .relationships)) ?? []
+        tags = (try? container.decode([String].self, forKey: .tags)) ?? []
+        warning = (try? container.decode(String.self, forKey: .warning)) ?? nonEndorsementWarning
+        if nonEndorsementWarning.isEmpty { nonEndorsementWarning = warning }
+    }
+
+    func filtered(catalogKind: String = "", subject: String = "", learningArea: String = "", yearLevel: String = "", searchText: String = "") -> [CurriculumItem] {
         let normalizedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return items.filter { item in
+            let kindMatch = catalogKind.isEmpty || item.catalogKind.localizedCaseInsensitiveContains(catalogKind) || item.itemType.localizedCaseInsensitiveContains(catalogKind)
             let learningAreaMatch = learningArea.isEmpty || item.learningArea.localizedCaseInsensitiveContains(learningArea)
             let subjectMatch = subject.isEmpty || item.subject.localizedCaseInsensitiveContains(subject)
-            let yearLevelMatch = yearLevel.isEmpty || item.yearLevel.localizedCaseInsensitiveContains(yearLevel)
-            let searchMatch = normalizedSearch.isEmpty || [item.code, item.title, item.shortDescription, item.learningArea, item.subject]
+            let yearLevelMatch = yearLevel.isEmpty || item.yearLevel.localizedCaseInsensitiveContains(yearLevel) || item.band.localizedCaseInsensitiveContains(yearLevel)
+            let searchable = ([item.code, item.title, item.shortDescription, item.learningArea, item.subject, item.strand, item.substrand, item.organizer] + item.altLabels + item.tags)
                 .joined(separator: " ")
                 .lowercased()
-                .contains(normalizedSearch)
-            return learningAreaMatch && subjectMatch && yearLevelMatch && searchMatch
+            let searchMatch = normalizedSearch.isEmpty || searchable.contains(normalizedSearch)
+            return kindMatch && learningAreaMatch && subjectMatch && yearLevelMatch && searchMatch
         }
     }
 }

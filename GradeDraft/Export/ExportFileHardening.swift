@@ -31,12 +31,6 @@ extension ExportKind {
 
 enum ExportFileHardening {
     static func applyBestEffortProtection(to url: URL) {
-        try? (url as NSURL).setResourceValue(true, forKey: .isExcludedFromBackupKey)
-        #if os(iOS)
-        try? FileManager.default.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-            ofItemAtPath: url.path
-        )
-        #endif
+        LocalDataProtection.protectSensitiveFile(url)
     }
 }

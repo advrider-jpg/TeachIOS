@@ -162,6 +162,18 @@ final class AppleIntelligenceImplementationTests: XCTestCase {
         }
     }
 
+
+    func testFoundationModelServiceReportsUnavailableWithoutCloudFallback() async {
+        let service = FoundationModelGradingService()
+        let status = service.localAIStatus
+        switch status {
+        case .available:
+            XCTAssertTrue(true)
+        case .unavailable(let message):
+            XCTAssertFalse(message.localizedCaseInsensitiveContains("cloud fallback"))
+        }
+    }
+
     // MARK: - Helpers
 
     private func validDraft(for input: GradingInput, studentFeedback: String = "The response includes a clear claim.") -> GradeDraftResult {

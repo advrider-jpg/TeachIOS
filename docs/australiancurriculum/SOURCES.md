@@ -30,3 +30,7 @@
 - Use official Australian Curriculum pages as source of truth for public content.
 - Use MRAC and official downloads for any future in-app curriculum corpus. Do not copy static website text into app bundles unless licensing permits it.
 - Jurisdiction and sector resources linked from ACARA should be separately researched before claiming compliance with local reporting/assessment requirements.
+
+## Bundled catalog source notes — 2026-05-31
+
+The production catalog generator preserves MRAC JSON-LD source URLs for all 18 source families and records the source mode in `curriculum_catalog_acara_v9_manifest.json`. The committed catalog was generated from `docs/australiancurriculum/curriculum-workbook.xlsx` because direct MRAC JSON-LD refresh could not be completed in this Linux environment. Before TestFlight or App Store submission, rerun the generator on a network-enabled developer machine and review the manifest/source checksums.

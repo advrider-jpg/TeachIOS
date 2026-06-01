@@ -1,0 +1,202 @@
+{
+  "catalogID": "acara-australian-curriculum-v9-mrac-2024-04",
+  "filesUpdated": "2024-06-07",
+  "generatedAt": "2026-06-01T00:01:56Z",
+  "generatedBy": "scripts/curriculum/build_acara_curriculum_catalog.py",
+  "requiredSourceKeys": [
+    "CCP_AA",
+    "CCP_A_TSI",
+    "CCP_S",
+    "GC_CCT",
+    "GC_DL",
+    "GC_EU",
+    "GC_IU",
+    "GC_L",
+    "GC_N",
+    "GC_PSC",
+    "LA_ART",
+    "LA_ENG",
+    "LA_HASS",
+    "LA_HPE",
+    "LA_LAN",
+    "LA_MAT",
+    "LA_SCI",
+    "LA_TEC"
+  ],
+  "resourceChecksums": {
+    "curriculum_catalog_acara_v9.json": "836ab623a8a304c30ebbe7eaa9d215a6ef943a04620498180c7d4075e6ca66f8",
+    "curriculum_catalog_acara_v9_summary.json": "d25d9a2d288ad5581aa0a7b60200d8535c99c08abb2e68143b3519388a86eb72"
+  },
+  "schemaVersion": "1.0.0",
+  "sourceMode": "Official Australian Curriculum workbook fallback used because MRAC JSON-LD source refresh could not run in this environment",
+  "sourceVersion": "Australian Curriculum Version 9.0 / MRAC 2024-04",
+  "sources": [
+    {
+      "id": "LA_ART",
+      "itemCount": 1246,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/LA/ART/export/MRAC/2024/04/LA/ART.jsonld",
+      "kind": "learningArea",
+      "name": "The Arts",
+      "sha256": "7cb5545291d07ec257ea17c98be5e21c4d896b467e22f96e4e3f9da4f3cb0489",
+      "sourceVersion": "MRAC/2024/04/LA/ART"
+    },
+    {
+      "id": "LA_ENG",
+      "itemCount": 1217,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/LA/ENG/export/MRAC/2024/04/LA/ENG.jsonld",
+      "kind": "learningArea",
+      "name": "English",
+      "sha256": "67e5463dffbfefb1871638ebe3ac8afb5ad334e565660d02044c44496fb00b3f",
+      "sourceVersion": "MRAC/2024/04/LA/ENG"
+    },
+    {
+      "id": "LA_HPE",
+      "itemCount": 594,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/LA/HPE/export/MRAC/2024/04/LA/HPE.jsonld",
+      "kind": "learningArea",
+      "name": "Health and Physical Education",
+      "sha256": "71db73100041e79e791feccd770188ebcb5002ad75c9a2e03f1bc3f671708447",
+      "sourceVersion": "MRAC/2024/04/LA/HPE"
+    },
+    {
+      "id": "LA_HASS",
+      "itemCount": 1972,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/LA/HASS/export/MRAC/2024/04/LA/HASS.jsonld",
+      "kind": "learningArea",
+      "name": "Humanities and Social Sciences",
+      "sha256": "ef285160aee6c5ffb81f1a84f5ad92bb795a1a537cec82d5a9b0b6cda1b7485d",
+      "sourceVersion": "MRAC/2024/04/LA/HASS"
+    },
+    {
+      "id": "LA_LAN",
+      "itemCount": 13554,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/LA/LAN/export/MRAC/2024/04/LA/LAN.jsonld",
+      "kind": "learningArea",
+      "name": "Languages",
+      "sha256": "16556363ad6d31c980f8d73e8e39fbeddd1ef324c236553f479839fbd6e64a54",
+      "sourceVersion": "MRAC/2024/04/LA/LAN"
+    },
+    {
+      "id": "LA_MAT",
+      "itemCount": 1376,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/LA/MAT/export/MRAC/2024/04/LA/MAT.jsonld",
+      "kind": "learningArea",
+      "name": "Mathematics",
+      "sha256": "e7e11bd5b7a5b41673b5e2185f5e7ae71a77fb1a5f21b855fab34ad6a648afe6",
+      "sourceVersion": "MRAC/2024/04/LA/MAT"
+    },
+    {
+      "id": "LA_SCI",
+      "itemCount": 1219,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/LA/SCI/export/MRAC/2024/04/LA/SCI.jsonld",
+      "kind": "learningArea",
+      "name": "Science",
+      "sha256": "ef057173cee0c3abb7ea6813640acd5a4a3f1b6dd45ee9eeb6b2dd628aae8865",
+      "sourceVersion": "MRAC/2024/04/LA/SCI"
+    },
+    {
+      "id": "LA_TEC",
+      "itemCount": 806,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/LA/TEC/export/MRAC/2024/04/LA/TEC.jsonld",
+      "kind": "learningArea",
+      "name": "Technologies",
+      "sha256": "7acaef8cca9de5a129a0eebdb6215b98156c303973b750b741aa47141104a551",
+      "sourceVersion": "MRAC/2024/04/LA/TEC"
+    },
+    {
+      "id": "GC_CCT",
+      "itemCount": 150,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/GC/CCT/export/MRAC/2024/04/GC/CCT.jsonld",
+      "kind": "generalCapability",
+      "name": "Critical and Creative Thinking",
+      "sha256": "27dece8c23e48942ae9dc1828461162b6f0dd898677ece76a43316b41cde2265",
+      "sourceVersion": "MRAC/2024/04/GC/CCT"
+    },
+    {
+      "id": "GC_DL",
+      "itemCount": 170,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/GC/DL/export/MRAC/2024/04/GC/DL.jsonld",
+      "kind": "generalCapability",
+      "name": "Digital Literacy",
+      "sha256": "7c2a9d501d47c8a9a98dd34c8a40e4b41d518a8f6d117f4352dca7af52323212",
+      "sourceVersion": "MRAC/2024/04/GC/DL"
+    },
+    {
+      "id": "GC_EU",
+      "itemCount": 81,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/GC/EU/export/MRAC/2024/04/GC/EU.jsonld",
+      "kind": "generalCapability",
+      "name": "Ethical Understanding",
+      "sha256": "34fefda29dfbb5ebe0051778573233f812251e813ad29f6e6a92432a20b948c0",
+      "sourceVersion": "MRAC/2024/04/GC/EU"
+    },
+    {
+      "id": "GC_IU",
+      "itemCount": 121,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/GC/IU/export/MRAC/2024/04/GC/IU.jsonld",
+      "kind": "generalCapability",
+      "name": "Intercultural Understanding",
+      "sha256": "6d0dba1b7eff0fd34801bff67c957bbbcb2d6370bdc13ee2b3ed2cb2785bfde1",
+      "sourceVersion": "MRAC/2024/04/GC/IU"
+    },
+    {
+      "id": "GC_L",
+      "itemCount": 1156,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/GC/L/export/MRAC/2024/04/GC/L.jsonld",
+      "kind": "generalCapability",
+      "name": "Literacy",
+      "sha256": "5b682a34da5af8e111ca83faec8ff2e3f3d4d1ff7550bf177998f0d63e0c37e4",
+      "sourceVersion": "MRAC/2024/04/GC/L"
+    },
+    {
+      "id": "GC_N",
+      "itemCount": 756,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/GC/N/export/MRAC/2024/04/GC/N.jsonld",
+      "kind": "generalCapability",
+      "name": "Numeracy",
+      "sha256": "f0d1521f685d834ab55ada5e39df10138e2416de5efa72bf1d03ecef7f3472b3",
+      "sourceVersion": "MRAC/2024/04/GC/N"
+    },
+    {
+      "id": "GC_PSC",
+      "itemCount": 215,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/GC/PSC/export/MRAC/2024/04/GC/PSC.jsonld",
+      "kind": "generalCapability",
+      "name": "Personal and Social capability",
+      "sha256": "a6850ebcff2109a60fdef6a65c95b0d369b37aeb92a34160869df8d296cce863",
+      "sourceVersion": "MRAC/2024/04/GC/PSC"
+    },
+    {
+      "id": "CCP_S",
+      "itemCount": 15,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/CCP/S/export/MRAC/2024/04/CCP/S.jsonld",
+      "kind": "crossCurriculumPriority",
+      "name": "Sustainability",
+      "sha256": "f507419963d154a6c90168463c5b04c9b2ca9b94865a5e47966e265b5ae9bb12",
+      "sourceVersion": "MRAC/2024/04/CCP/S"
+    },
+    {
+      "id": "CCP_A_TSI",
+      "itemCount": 13,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/CCP/A_TSI/export/MRAC/2024/04/CCP/A_TSI.jsonld",
+      "kind": "crossCurriculumPriority",
+      "name": "Aboriginal and Torres Strait Islander Histories and Cultures",
+      "sha256": "499a29371e33d49ae0c7e3d7bdc943c291a506dbf7ffa2e8a78a8eb97feceee9",
+      "sourceVersion": "MRAC/2024/04/CCP/A_TSI"
+    },
+    {
+      "id": "CCP_AA",
+      "itemCount": 10,
+      "jsonldURL": "https://vocabulary.curriculum.edu.au/MRAC/2024/04/CCP/AA/export/MRAC/2024/04/CCP/AA.jsonld",
+      "kind": "crossCurriculumPriority",
+      "name": "Asia and Australia's engagement with Asia",
+      "sha256": "7dcb0d9446a717fff3d63292a8306b4540f2e6e5d7afb395e454329313b08595",
+      "sourceVersion": "MRAC/2024/04/CCP/AA"
+    }
+  ],
+  "workbookFallback": {
+    "path": "docs/australiancurriculum/curriculum-workbook.xlsx",
+    "rationale": "Network access for MRAC JSON-LD download was unavailable in the implementation environment; the committed app catalog was normalized from the official Australian Curriculum workbook already present in the repository.",
+    "sha256": "db446882d2c00cf7c085a03e250e2442fda6c44011fc114680c46c1dc7a822c3"
+  }
+}

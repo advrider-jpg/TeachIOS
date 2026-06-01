@@ -4,3 +4,6 @@
 # are not broken by Windows CRLF checkouts.
 GradeDraftTests/__Snapshots__/**/*.txt text eol=lf
 GradeDraftTests/NativeUIRefactorSnapshotTests.swift text eol=lf
+
+# Keep bundled curriculum checksums platform-stable.
+GradeDraft/Resources/JSON/curriculum_catalog_acara_v9*.json text eol=lf

@@ -139,3 +139,11 @@ For the first Australian MVP:
 - Attach official codes to grading packets.
 - Create jurisdiction-specific curriculum mappings.
 - Maintain offline curriculum cache.
+
+## Production catalog pipeline added 2026-05-31
+
+`build_acara_curriculum_catalog.py` defines 18 required Australian Curriculum Version 9.0 source families: 8 learning areas, 7 general capabilities, and 3 cross-curriculum priorities. It emits deterministic normalized JSON resources, manifest metadata, source checksums, item counts, license/attribution text, non-endorsement warning, and ICIP warning metadata.
+
+The app loads the bundled JSON through `CurriculumCatalogService` and does not download curriculum data at runtime. The no-network scanner allows provenance URLs inside the generated curriculum JSON resources only; it still prohibits app runtime networking and analytics tokens.
+
+The current committed resources were generated from the local official workbook fallback because direct MRAC JSON-LD refresh could not be performed in this environment. That is suitable for source review but remains a release blocker until a network-enabled developer machine reruns and validates the preferred MRAC JSON-LD refresh path.

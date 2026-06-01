@@ -24,8 +24,11 @@ final class GradeDraftViewModel: ObservableObject {
     @Published var backupConflictResolution: BackupConflictResolution = .restoreAsCopy
     @Published var curriculumCatalog: CurriculumCatalog = CurriculumCatalogService.localCatalog
     @Published var curriculumSearchText = ""
+    @Published var curriculumCatalogKindFilter = ""
+    @Published var curriculumSubjectFilter = ""
     @Published var curriculumLearningAreaFilter = ""
     @Published var curriculumYearLevelFilter = ""
+    @Published var curriculumResultLimit = 50
     @Published private(set) var deviceBackupPolicyStatus: DeviceBackupPolicyStatus = .unknown("Backup exclusion has not been checked yet.")
 
     private let ocrService: OCRServicing
@@ -218,8 +221,7 @@ final class GradeDraftViewModel: ObservableObject {
     func refreshDeviceBackupPolicyStatus() {
         do {
             let directory = try store.applicationSupportDirectory()
-            let values = try directory.resourceValues(forKeys: [.isExcludedFromBackupKey])
-            if let excluded = values.isExcludedFromBackup {
+            if let excluded = try LocalDataProtection.isExcludedFromBackup(directory) {
                 deviceBackupPolicyStatus = excluded ? .excluded : .included
             } else {
                 deviceBackupPolicyStatus = .unknown("The platform did not report an exclusion value for the local storage directory.")
@@ -246,10 +248,8 @@ final class GradeDraftViewModel: ObservableObject {
     }
 
     private func setApplicationSupportExcludedFromDeviceBackup(_ excluded: Bool, surfaceStatus: Bool) throws {
-        var directory = try store.applicationSupportDirectory()
-        var values = URLResourceValues()
-        values.isExcludedFromBackup = excluded
-        try directory.setResourceValues(values)
+        let directory = try store.applicationSupportDirectory()
+        try LocalDataProtection.setExcludedFromBackup(excluded, for: directory)
         deviceBackupPolicyStatus = excluded ? .excluded : .included
         if surfaceStatus {
             statusMessage = excluded
@@ -1012,27 +1012,95 @@ final class GradeDraftViewModel: ObservableObject {
         }
     }
 
-    var filteredCurriculumItems: [CurriculumItem] {
+    var curriculumCatalogSummary: String {
+        "\(curriculumCatalog.displayName): \(curriculumCatalog.items.count) item(s) from \(curriculumCatalog.sources.count) source(s)."
+    }
+
+    var curriculumAvailableCatalogKinds: [String] {
+        uniqueCurriculumValues { $0.catalogKind.isEmpty ? $0.itemType : $0.catalogKind }
+    }
+
+    var curriculumAvailableLearningAreas: [String] {
+        uniqueCurriculumValues { $0.learningArea }
+    }
+
+    var curriculumAvailableSubjects: [String] {
+        uniqueCurriculumValues { $0.subject }
+    }
+
+    var curriculumAvailableYearLevelsAndBands: [String] {
+        uniqueCurriculumValues { $0.yearLevel.isEmpty ? $0.band : $0.yearLevel }
+    }
+
+    var curriculumSearchResults: [CurriculumItem] {
         curriculumCatalog.filtered(
+            catalogKind: curriculumCatalogKindFilter,
+            subject: curriculumSubjectFilter,
             learningArea: curriculumLearningAreaFilter,
             yearLevel: curriculumYearLevelFilter,
             searchText: curriculumSearchText
         )
     }
 
+    var filteredCurriculumItems: [CurriculumItem] {
+        curriculumSearchResults
+    }
+
+    var mappedCurriculumItemsForCurrentAssignment: [CurriculumItem] {
+        let ids = assignment.curriculumMappings
+            .filter { $0.teacherSelected }
+            .map(\.curriculumItemID)
+        return CurriculumCatalogService.items(ids: ids, in: curriculumCatalog)
+    }
+
+    func clearCurriculumFilters() {
+        curriculumSearchText = ""
+        curriculumCatalogKindFilter = ""
+        curriculumSubjectFilter = ""
+        curriculumLearningAreaFilter = ""
+        curriculumYearLevelFilter = ""
+        curriculumResultLimit = 50
+    }
+
+    func loadMoreCurriculumResults() {
+        curriculumResultLimit += 50
+    }
+
     func mapCurriculumItemToCurrentAssignment(_ item: CurriculumItem, mappingKind: String = "assignment") {
+        guard item.isOfficial || !item.isEditable else { return }
         updateAssignment { assignment in
-            if !assignment.curriculumMappings.contains(where: { $0.curriculumItemID == item.id && $0.mappingKind == mappingKind }) {
-                assignment.curriculumMappings.append(CurriculumMapping(curriculumItemID: item.id, mappingKind: mappingKind))
+            if !assignment.curriculumMappings.contains(where: { $0.curriculumItemID == item.id && $0.mappingKind == mappingKind && $0.teacherSelected }) {
+                assignment.curriculumMappings.append(CurriculumMapping(curriculumItemID: item.id, mappingKind: mappingKind, teacherSelected: true))
             }
-            let selectedItems = assignment.curriculumMappings.compactMap { CurriculumCatalogService.item(id: $0.curriculumItemID, in: curriculumCatalog) }
-            assignment.curriculumReference = CurriculumCatalogService.selectedReferenceSummary(items: selectedItems)
+            let selectedItems = assignment.curriculumMappings
+                .filter { $0.teacherSelected }
+                .compactMap { CurriculumCatalogService.item(id: $0.curriculumItemID, in: curriculumCatalog) }
+            assignment.curriculumReference = CurriculumCatalogService.selectedReferenceSummary(items: selectedItems, catalog: curriculumCatalog)
             assignment.latestDraft = nil
             assignment.finalReview = nil
-            assignment.appendAuditEvent(.inputChanged, detail: "Mapped local curriculum item \(item.code) to assignment.")
+            assignment.appendAuditEvent(.inputChanged, detail: "Teacher mapped Australian Curriculum reference \(item.code) to assignment from \(item.sourceVersion).")
         }
         persistOrSurfaceError()
-        statusMessage = "Curriculum item mapped locally with source provenance."
+        statusMessage = "Mapped Australian Curriculum reference locally. Confirm jurisdiction reporting requirements before final reporting."
+    }
+
+    func unmapCurriculumItemFromCurrentAssignment(_ item: CurriculumItem) {
+        updateAssignment { assignment in
+            assignment.curriculumMappings.removeAll { $0.curriculumItemID == item.id }
+            let selectedItems = assignment.curriculumMappings
+                .filter { $0.teacherSelected }
+                .compactMap { CurriculumCatalogService.item(id: $0.curriculumItemID, in: curriculumCatalog) }
+            assignment.curriculumReference = CurriculumCatalogService.selectedReferenceSummary(items: selectedItems, catalog: curriculumCatalog)
+            assignment.latestDraft = nil
+            assignment.finalReview = nil
+            assignment.appendAuditEvent(.inputChanged, detail: "Teacher removed Australian Curriculum reference \(item.code) from assignment.")
+        }
+        persistOrSurfaceError()
+        statusMessage = "Curriculum reference removed from the current assignment."
+    }
+
+    private func uniqueCurriculumValues(_ transform: (CurriculumItem) -> String) -> [String] {
+        Array(Set(curriculumCatalog.items.map(transform).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
     func importCurriculumReference(from url: URL) {
@@ -1043,10 +1111,11 @@ final class GradeDraftViewModel: ObservableObject {
                 assignment.curriculumReference = summary
                 assignment.latestDraft = nil
                 assignment.finalReview = nil
-                assignment.appendAuditEvent(.inputChanged, detail: "Imported local curriculum/reference material from \(url.lastPathComponent).")
+                assignment.curriculumMappings.removeAll()
+                assignment.appendAuditEvent(.inputChanged, detail: "Imported teacher-provided curriculum/reference material from \(url.lastPathComponent).")
             }
             persistOrSurfaceError()
-            statusMessage = "Curriculum/reference material imported locally. Confirm it matches your jurisdiction before grading."
+            statusMessage = "Teacher-provided curriculum/reference material imported locally. Confirm it matches the current jurisdiction source before grading."
         } catch {
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
         }
@@ -1623,7 +1692,7 @@ final class GradeDraftViewModel: ObservableObject {
             .appendingPathExtension(ext)
         if fileManager.fileExists(atPath: destination.path) { try fileManager.removeItem(at: destination) }
         try fileManager.copyItem(at: url, to: destination)
-        ExportFileHardening.applyBestEffortProtection(to: destination)
+        LocalDataProtection.protectSensitiveFile(destination, fileManager: fileManager)
         return destination
     }
 
@@ -1862,9 +1931,7 @@ final class GradeDraftViewModel: ObservableObject {
         let sourceDirectory = appDirectory
             .appendingPathComponent("Sources", isDirectory: true)
             .appendingPathComponent(assignmentID.uuidString, isDirectory: true)
-        if !fileManager.fileExists(atPath: sourceDirectory.path) {
-            try fileManager.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
-        }
+        try LocalDataProtection.prepareSensitiveDirectory(sourceDirectory, fileManager: fileManager)
 
         return try images.enumerated().map { index, image in
             guard let data = image.pngData() else {
@@ -1873,6 +1940,7 @@ final class GradeDraftViewModel: ObservableObject {
             let filename = "page-\(index + 1)-\(UUID().uuidString).png"
             let url = sourceDirectory.appendingPathComponent(filename)
             try data.write(to: url, options: [.atomic])
+            LocalDataProtection.protectSensitiveFile(url, fileManager: fileManager)
             let relativePath = "Sources/\(assignmentID.uuidString)/\(filename)"
             return SourceInputRef(
                 sourceType: sourceType,

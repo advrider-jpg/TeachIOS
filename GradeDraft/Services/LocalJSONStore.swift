@@ -30,7 +30,7 @@ final class LocalJSONStore: AssignmentStoring {
     private let rosterURL: URL
     private let appDirectory: URL
 
-    init(fileManager: FileManager = .default) {
+    init(fileManager: FileManager = .default, applicationSupportURL: URL? = nil) {
         self.fileManager = fileManager
         encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -38,7 +38,8 @@ final class LocalJSONStore: AssignmentStoring {
         decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
-        let supportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        let supportURL = applicationSupportURL
+            ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
         appDirectory = supportURL.appendingPathComponent("GradeDraft", isDirectory: true)
         assignmentsURL = appDirectory.appendingPathComponent("assignments-v3.json")
@@ -48,9 +49,7 @@ final class LocalJSONStore: AssignmentStoring {
     }
 
     func applicationSupportDirectory() throws -> URL {
-        if !fileManager.fileExists(atPath: appDirectory.path) {
-            try fileManager.createDirectory(at: appDirectory, withIntermediateDirectories: true)
-        }
+        try LocalDataProtection.prepareSensitiveDirectory(appDirectory, fileManager: fileManager)
         return appDirectory
     }
 
@@ -61,12 +60,7 @@ final class LocalJSONStore: AssignmentStoring {
     }
 
     func saveAssignments(_ assignments: [AssignmentRecord]) throws {
-        let directory = assignmentsURL.deletingLastPathComponent()
-        if !fileManager.fileExists(atPath: directory.path) {
-            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        }
-        let data = try encoder.encode(assignments.sorted { $0.updatedAt > $1.updatedAt })
-        try data.write(to: assignmentsURL, options: [.atomic])
+        try writeEncoded(assignments.sorted { $0.updatedAt > $1.updatedAt }, to: assignmentsURL)
     }
 
     func deleteAssignment(id: UUID) throws {
@@ -87,13 +81,13 @@ final class LocalJSONStore: AssignmentStoring {
         } else {
             groups.append(classGroup)
         }
-        try encoder.encode(groups).write(to: classGroupsURL, options: [.atomic])
+        try writeEncoded(groups, to: classGroupsURL)
     }
 
     func deleteClassGroup(id: UUID) throws {
         var groups = try loadClassGroups()
         groups.removeAll { $0.id == id }
-        try encoder.encode(groups).write(to: classGroupsURL, options: [.atomic])
+        try writeEncoded(groups, to: classGroupsURL)
     }
 
     func loadStudents() throws -> [StudentRecord] {
@@ -108,13 +102,13 @@ final class LocalJSONStore: AssignmentStoring {
         } else {
             students.append(student)
         }
-        try encoder.encode(students).write(to: studentsURL, options: [.atomic])
+        try writeEncoded(students, to: studentsURL)
     }
 
     func deleteStudent(id: UUID) throws {
         var students = try loadStudents()
         students.removeAll { $0.id == id }
-        try encoder.encode(students).write(to: studentsURL, options: [.atomic])
+        try writeEncoded(students, to: studentsURL)
     }
 
     func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] {
@@ -126,7 +120,14 @@ final class LocalJSONStore: AssignmentStoring {
         var all = try loadAllRosterEntries()
         all.removeAll { assignmentIDs.contains($0.assignmentID) }
         all.append(contentsOf: entries)
-        try encoder.encode(all).write(to: rosterURL, options: [.atomic])
+        try writeEncoded(all, to: rosterURL)
+    }
+
+    private func writeEncoded<T: Encodable>(_ value: T, to url: URL) throws {
+        _ = try applicationSupportDirectory()
+        let data = try encoder.encode(value)
+        try data.write(to: url, options: [.atomic])
+        LocalDataProtection.protectSensitiveFile(url, fileManager: fileManager)
     }
 
     private func loadAllRosterEntries() throws -> [AssignmentRosterEntry] {

@@ -51,8 +51,27 @@ jobs:
       - name: Xcode project membership guardrail
         run: python3 scripts/ci/check_xcode_project_membership.py
 
+      - name: Curriculum generator check
+        run: python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+
+      - name: Curriculum catalog validator
+        run: python3 scripts/ci/check_curriculum_catalog.py
+
       - name: CI contract guardrail
         run: python3 scripts/ci/check_ci_contract.py
+
+      - name: Production static readiness guardrail
+        run: python3 scripts/ci/check_release_readiness_static.py
+
+      - name: Plist parse guardrail
+        run: |
+          python3 - <<'PY'
+          import plistlib
+          for path in ["GradeDraft/Resources/Info.plist", "GradeDraft/Resources/PrivacyInfo.xcprivacy"]:
+              with open(path, "rb") as handle:
+                  plistlib.load(handle)
+              print(f"plist OK: {path}")
+          PY
 
       - name: Write static policy summary
         if: always()
@@ -378,10 +397,49 @@ jobs:
             echo "- Local reproduction: \`bash scripts/ci/select_xcode.sh && xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -configuration Release -destination generic/platform=iOS -derivedDataPath /tmp/GradeDraftReleaseDerivedData CODE_SIGNING_ALLOWED=NO build\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  unsigned-archive-validation:
+    name: unsigned-archive-validation
+    runs-on: macos-26
+    needs: xcode-unit-tests
+    timeout-minutes: 40
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26+
+        run: bash scripts/ci/select_xcode.sh
+
+      - name: Resolve Swift package dependencies
+        run: xcodebuild -resolvePackageDependencies -project "$PROJECT" -scheme "$SCHEME"
+
+      - name: Unsigned archive build gate
+        run: |
+          set -euo pipefail
+          mkdir -p xcode-logs
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/GradeDraft.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            archive \
+            | tee xcode-logs/xcode-unsigned-archive.log
+
+      - name: Upload unsigned archive log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-unsigned-archive-output
+          retention-days: 30
+          if-no-files-found: warn
+          path: xcode-logs/xcode-unsigned-archive.log
+
+
   ci-summary:
     name: ci-summary
     runs-on: ubuntu-latest
-    needs: [static-policy, workflow-lint, swiftlint, xcode-unit-tests, screenshot-smoke, release-build]
+    needs: [static-policy, workflow-lint, swiftlint, xcode-unit-tests, screenshot-smoke, release-build, unsigned-archive-validation]
     timeout-minutes: 5
     if: always()
     steps:
@@ -398,9 +456,10 @@ jobs:
             echo "| xcode-unit-tests | ${{ needs.xcode-unit-tests.result }} |"
             echo "| screenshot-smoke | ${{ needs.screenshot-smoke.result }} |"
             echo "| release-build | ${{ needs.release-build.result }} |"
+            echo "| unsigned-archive-validation | ${{ needs.unsigned-archive-validation.result }} |"
             echo ""
             echo "Required for PR merge: static-policy, workflow-lint, swiftlint, xcode-unit-tests."
-            echo "Release/tag readiness: all jobs, including screenshot-smoke and release-build."
+            echo "Release/tag readiness: all jobs, including screenshot-smoke, release-build, and unsigned-archive-validation."
           } >> "$GITHUB_STEP_SUMMARY"
 
           for required in \

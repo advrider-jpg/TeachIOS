@@ -1,82 +1,70 @@
 import Foundation
 
 enum CurriculumCatalogService {
-    static let sourceWarning = "Local curriculum references are imported from offline source materials bundled with the repository or provided by the teacher. They are reference aids only; GradeDraft does not claim official endorsement, certification, compliance, or reporting approval."
+    static let bundledResourceName = "curriculum_catalog_acara_v9"
+    static let manifestResourceName = "curriculum_catalog_acara_v9_manifest"
+    static let summaryResourceName = "curriculum_catalog_acara_v9_summary"
 
-    static let localCatalog = CurriculumCatalog(
-        sources: [
-            CurriculumSource(
-                id: "australian-curriculum-local-docs",
-                name: "Australian Curriculum local source package",
-                version: "repository-local",
-                provenance: "docs/australiancurriculum/SOURCES.md and related local Markdown source files",
-                localPath: "docs/australiancurriculum/"
-            )
-        ],
-        items: [
-            CurriculumItem(
-                id: "AC-ENG-Y7-RESPOND",
-                source: "Australian Curriculum local source package",
-                version: "repository-local",
-                learningArea: "English",
-                subject: "English",
-                yearLevel: "Year 7",
-                strand: "Literature",
-                organizer: "Responding to texts",
-                itemType: "content-description",
-                code: "AC-ENG-Y7-RESPOND",
-                title: "Respond to texts using evidence",
-                shortDescription: "Students identify, explain, and support responses to texts using relevant textual evidence.",
-                sourceURL: "docs/australiancurriculum/SOURCES.md",
-                provenance: "Conservative seed derived from the repository's local Australian Curriculum source package."
-            ),
-            CurriculumItem(
-                id: "AC-MATH-Y6-REASON",
-                source: "Australian Curriculum local source package",
-                version: "repository-local",
-                learningArea: "Mathematics",
-                subject: "Mathematics",
-                yearLevel: "Year 6",
-                strand: "Number",
-                organizer: "Reasoning",
-                itemType: "content-description",
-                code: "AC-MATH-Y6-REASON",
-                title: "Explain mathematical reasoning",
-                shortDescription: "Students communicate mathematical reasoning and justify conclusions using appropriate language and representations.",
-                sourceURL: "docs/australiancurriculum/SOURCES.md",
-                provenance: "Conservative seed derived from the repository's local Australian Curriculum source package."
-            ),
-            CurriculumItem(
-                id: "AC-HASS-Y8-SOURCE",
-                source: "Australian Curriculum local source package",
-                version: "repository-local",
-                learningArea: "Humanities and Social Sciences",
-                subject: "History",
-                yearLevel: "Year 8",
-                strand: "Skills",
-                organizer: "Source analysis",
-                itemType: "content-description",
-                code: "AC-HASS-Y8-SOURCE",
-                title: "Use evidence from sources",
-                shortDescription: "Students analyse sources and use evidence to support historical explanations.",
-                sourceURL: "docs/australiancurriculum/SOURCES.md",
-                provenance: "Conservative seed derived from the repository's local Australian Curriculum source package."
-            )
-        ],
-        warning: sourceWarning
-    )
+    static let sourceWarning = "Australian Curriculum references are bundled for offline teacher-controlled reference only. GradeDraft does not claim ACARA endorsement, certification, compliance, or jurisdiction reporting approval. Teachers must explicitly map each reference before it is used in grading context."
 
-    static func displaySummary(for item: CurriculumItem) -> String {
-        "\(item.code): \(item.title) — \(item.learningArea), \(item.subject), \(item.yearLevel). Source: \(item.source); provenance: \(item.provenance)"
+    static let localCatalog: CurriculumCatalog = {
+        do {
+            return try loadBundledCatalog()
+        } catch {
+            return emptyCatalog(reason: error.localizedDescription)
+        }
+    }()
+
+    static func loadBundledCatalog(bundle: Bundle = .main) throws -> CurriculumCatalog {
+        guard let url = bundle.url(forResource: bundledResourceName, withExtension: "json", subdirectory: "JSON")
+            ?? bundle.url(forResource: bundledResourceName, withExtension: "json") else {
+            throw GradeDraftError.persistenceFailed("Bundled Australian Curriculum catalog resource was not found.")
+        }
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(CurriculumCatalog.self, from: data)
     }
 
-    static func selectedReferenceSummary(items: [CurriculumItem]) -> String {
+    static func emptyCatalog(reason: String) -> CurriculumCatalog {
+        CurriculumCatalog(
+            schemaVersion: "empty-local-catalog",
+            catalogID: "empty-australian-curriculum-catalog",
+            displayName: "Australian Curriculum catalog unavailable",
+            sourceVersion: "unloaded",
+            generatedBy: "GradeDraft",
+            nonEndorsementWarning: sourceWarning,
+            icipWarning: "Confirm Aboriginal and Torres Strait Islander Histories and Cultures material against current cultural protocols before use.",
+            sources: [],
+            items: [],
+            warning: "Australian Curriculum catalog could not be loaded from the app bundle. Manual teacher-provided curriculum import remains available. Reason: \(reason)"
+        )
+    }
+
+    static func displaySummary(for item: CurriculumItem) -> String {
+        let sourceDetail = item.sourceVersion.isEmpty ? item.sourceName : "\(item.sourceName) / \(item.sourceVersion)"
+        let level = item.yearLevel.isEmpty ? item.band : item.yearLevel
+        return "\(item.code): \(item.title) — \(item.learningArea), \(item.subject), \(level). Source: \(sourceDetail); provenance: \(item.externalURI)"
+    }
+
+    static func selectedReferenceSummary(items: [CurriculumItem], catalog: CurriculumCatalog = localCatalog) -> String {
         guard !items.isEmpty else { return "" }
-        let lines = items.map { "- \(displaySummary(for: $0))" }
-        return ([sourceWarning] + lines).joined(separator: "\n")
+        let header = [
+            catalog.nonEndorsementWarning.isEmpty ? sourceWarning : catalog.nonEndorsementWarning,
+            catalog.icipWarning,
+            "Catalog: \(catalog.displayName) / \(catalog.sourceVersion); generated by \(catalog.generatedBy). Only teacher-selected references are included."
+        ].filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let lines = items.map { item in
+            "- \(displaySummary(for: item))"
+        }
+        return (header + lines).joined(separator: "\n")
     }
 
     static func item(id: String, in catalog: CurriculumCatalog = localCatalog) -> CurriculumItem? {
         catalog.items.first { $0.id == id }
+    }
+
+    static func items(ids: [String], in catalog: CurriculumCatalog = localCatalog) -> [CurriculumItem] {
+        ids.compactMap { item(id: $0, in: catalog) }
     }
 }

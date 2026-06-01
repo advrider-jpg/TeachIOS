@@ -41,8 +41,12 @@ final class GradeDraftDatabase {
         guard let baseURL else { throw GradeDraftDatabaseError.missingStoreRoot }
 
         resolvedDatabaseFolder = baseURL.appendingPathComponent("GradeDraft", isDirectory: true)
-        try FileManager.default.createDirectory(at: resolvedDatabaseFolder, withIntermediateDirectories: true)
-        databaseQueue = try DatabaseQueue(path: resolvedDatabaseFolder.appendingPathComponent("gradedraft.sqlite").path)
+        try LocalDataProtection.prepareSensitiveDirectory(resolvedDatabaseFolder)
+        let databaseURL = resolvedDatabaseFolder.appendingPathComponent("gradedraft.sqlite")
+        databaseQueue = try DatabaseQueue(path: databaseURL.path)
+        LocalDataProtection.protectSensitiveFile(databaseURL)
+        LocalDataProtection.protectSensitiveFile(resolvedDatabaseFolder.appendingPathComponent("gradedraft.sqlite-wal"))
+        LocalDataProtection.protectSensitiveFile(resolvedDatabaseFolder.appendingPathComponent("gradedraft.sqlite-shm"))
     }
 
     func bootstrapIfNeeded() throws {

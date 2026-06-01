@@ -44,6 +44,7 @@ def main() -> int:
         "xcode-unit-tests",
         "screenshot-smoke",
         "release-build",
+        "unsigned-archive-validation",
         "ci-summary",
     ]
 
@@ -71,6 +72,9 @@ def main() -> int:
     require("scripts/ci/check_native_ui_refactor.py" in text, failures, "Native UI refactor guardrail must run.")
     require("scripts/ci/check_xcode_project_membership.py" in text, failures, "Xcode project membership scan must run.")
     require("scripts/ci/check_ci_contract.py" in text, failures, "CI contract scan must run.")
+    require("scripts/curriculum/build_acara_curriculum_catalog.py --check" in text, failures, "Curriculum generator check must run.")
+    require("scripts/ci/check_curriculum_catalog.py" in text, failures, "Curriculum catalog validator must run.")
+    require("scripts/ci/check_release_readiness_static.py" in text, failures, "Production static readiness guardrail must run.")
     require("scripts/ci/select_xcode.sh" in text, failures, "Xcode selection must use the shared script.")
     require("scripts/ci/select_ios_simulator.py" in text, failures, "Simulator selection must use the shared script.")
     require("scripts/ci/select_xcode.sh" in screenshot_text, failures, "Core page screenshots workflow must use the shared Xcode selector.")
@@ -85,6 +89,7 @@ def main() -> int:
     unit = job_block(text, "xcode-unit-tests")
     screenshot = job_block(text, "screenshot-smoke")
     release = job_block(text, "release-build")
+    unsigned_archive = job_block(text, "unsigned-archive-validation")
     require("continue-on-error: true" not in unit, failures, "Deterministic Xcode tests must not use broad continue-on-error.")
     require("-skip-testing:GradeDraftTests/GradeDraftScreenshotTests" in unit, failures, "Deterministic Xcode tests must skip screenshot tests.")
     require("ARCHS=arm64" in unit, failures, "Deterministic Xcode tests must pin simulator builds to arm64.")
@@ -92,6 +97,8 @@ def main() -> int:
     require("ARCHS=arm64" in screenshot, failures, "Screenshot tests must pin simulator builds to arm64.")
     require("CODE_SIGNING_ALLOWED=NO" in release, failures, "Release build must disable signing for CI.")
     require("configuration Release" in release or "-configuration Release" in release, failures, "Release build must use Release configuration.")
+    require("CODE_SIGNING_ALLOWED=NO" in unsigned_archive, failures, "Unsigned archive validation must disable signing for CI.")
+    require("archive" in unsigned_archive and "GradeDraft.xcarchive" in unsigned_archive, failures, "Unsigned archive validation must produce an xcarchive.")
 
     core_screenshots = job_block(screenshot_text, "core-page-screenshots")
     require(core_screenshots, failures, "Missing core-page-screenshots job.")
@@ -110,6 +117,7 @@ def main() -> int:
         "xcode-unit-tests-output",
         "xcode-screenshot-smoke-output",
         "xcode-release-build-output",
+        "xcode-unsigned-archive-output",
     ]
     for token in artifact_tokens:
         require(token in text, failures, f"Workflow must upload artifact/log token: {token}.")
