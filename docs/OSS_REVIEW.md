@@ -1,6 +1,6 @@
 # OSS dependency review
 
-GradeDraft remains local-first and does not require backend credentials, telemetry, analytics, accounts, hosted curriculum downloads, remote inference, or cloud OCR for grading, OCR, rubric, curriculum, or export paths.
+Mark My Work remains local-first and does not require backend credentials, telemetry, analytics, accounts, hosted curriculum downloads, remote inference, or cloud OCR for grading, OCR, rubric, curriculum, or export paths.
 
 ## Reviewed package set
 
@@ -20,11 +20,11 @@ GradeDraft remains local-first and does not require backend credentials, telemet
 |---|---|
 | LicensePlist / LicenseList | Not added because the current patch adds no new third-party runtime packages; manual notices and dependency docs are sufficient for source review, and adding another tool would require package resolution and license review. |
 | Runtime JSON-LD/RDF parser packages | Not added because the curriculum pipeline is developer-side and Python stdlib parsing is sufficient for committed resources; adding a runtime parser would increase app size and review surface. |
-| Cloud OCR, cloud AI, Firebase, RevenueCat, Sentry, Amplitude, Mixpanel, login/OAuth SDKs | Rejected because they conflict with GradeDraft's local-first, no-runtime-network, no-cloud-fallback, no-telemetry boundaries. |
+| Cloud OCR, cloud AI, Firebase, RevenueCat, Sentry, Amplitude, Mixpanel, login/OAuth SDKs | Rejected because they conflict with Mark My Work's local-first, no-runtime-network, no-cloud-fallback, no-telemetry boundaries. |
 | Hosted curriculum download clients | Rejected because runtime curriculum download is outside the product boundary; only developer-side source refresh is permitted. |
 
 ## Privacy posture
 
-The accepted package set does not add runtime network calls, telemetry, analytics, accounts, cloud services, or SaaS dependencies in GradeDraft's app target. Third-party code ships only where necessary for local persistence, local parsing, local exports, and dependency control. SnapshotTesting is test-only.
+The accepted package set does not add runtime network calls, telemetry, analytics, accounts, cloud services, or SaaS dependencies in Mark My Work's app target. Third-party code ships only where necessary for local persistence, local parsing, local exports, and dependency control. SnapshotTesting is test-only.
 
 `Package.resolved` and exact resolved revisions remain pending Xcode package resolution before TestFlight. This is documented as a release blocker rather than silently treated as complete.

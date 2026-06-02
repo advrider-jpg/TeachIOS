@@ -84,5 +84,7 @@ Patch application and static scripts are run on a clean copy after patch generat
 
 # 2026-06-02 — Stationery redesign implementation
 
-- Implemented the native SwiftUI stationery redesign across GradeDraft’s shared design system, dashboard/class/assignment/review/rubric/export/privacy surfaces, and local capability banner while preserving native `List`/`Form` roots and teacher-gated flows.
+- Implemented the native SwiftUI stationery redesign across Mark My Work’s shared design system, dashboard/class/assignment/review/rubric/export/privacy surfaces, and local capability banner while preserving native `List`/`Form` roots and teacher-gated flows.
+- Fixed hosted CI follow-up issues for the stationery redesign: a SwiftLint identifier violation and a rubric-instructions compile failure from an unclosed stationery page closure.
+- Renamed the user-facing app, privacy prompts, report/export copy, content catalog, and curriculum attribution surfaces to Mark My Work while preserving internal GradeDraft project/module/schema identifiers.
 - Ran local static validation and diff hygiene checks in this Windows environment; Xcode, XCTest, simulator, and SwiftLint validation remain unavailable because Apple tooling is not installed here.

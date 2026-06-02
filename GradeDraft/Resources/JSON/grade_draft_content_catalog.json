@@ -1,6 +1,6 @@
 {
   "catalogVersion": "v3-runtime-content-suite",
-  "generatedFrom": "GradeDraft typed runtime catalogs; raw planning source excluded from app resource",
+  "generatedFrom": "Mark My Work typed runtime catalogs; raw planning source excluded from app resource",
   "generatedAt": "2026-05-30T00:00:00Z",
   "rubricTemplates": [
     {
@@ -453,7 +453,7 @@
       "primaryButton": "Copy",
       "secondaryButton": "Cancel",
       "finalButton": "Copy",
-      "acknowledgementText": "I understand copied content may be exposed outside GradeDraft.",
+      "acknowledgementText": "I understand copied content may be exposed outside Mark My Work.",
       "requiresAcknowledgement": true,
       "blocksStudentFacingExportByDefault": false,
       "securityNote": null,
@@ -466,7 +466,7 @@
       "id": "share-sheet-warning",
       "name": "Share sheet warning",
       "title": "Share outside the app?",
-      "body": "You are about to send a file or text to another app. GradeDraft cannot control how that destination app stores, syncs, forwards, or protects the information.",
+      "body": "You are about to send a file or text to another app. Mark My Work cannot control how that destination app stores, syncs, forwards, or protects the information.",
       "warningLine": "The destination app controls the shared content after you send it.",
       "checklist": [
         "Confirm the destination app is approved.",
@@ -488,7 +488,7 @@
       "id": "backup-toggle-warning",
       "name": "Backup toggle warning",
       "title": "Include student records in device backup?",
-      "body": "By default, GradeDraft keeps student records local and excludes sensitive app files from backup where supported. If you enable backup for student records, copies may be stored outside this device according to your device and account settings.",
+      "body": "By default, Mark My Work keeps student records local and excludes sensitive app files from backup where supported. If you enable backup for student records, copies may be stored outside this device according to your device and account settings.",
       "warningLine": "Device backup may copy local student records outside this device.",
       "securityNote": "Confirm this is permitted before changing the local backup exclusion setting.",
       "checklist": [
@@ -512,7 +512,7 @@
       "name": "Delete local data warning",
       "title": "Delete local student records?",
       "body": "This will remove the selected records from this device. This action may delete scans, OCR text, scores, feedback, and teacher notes stored in the app. Export a permitted backup first if your school requires retention.",
-      "warningLine": "This destructive action cannot be undone from inside GradeDraft.",
+      "warningLine": "This destructive action cannot be undone from inside Mark My Work.",
       "checklist": [
         "Confirm the selected local records should be deleted.",
         "Confirm required retention or backup obligations are satisfied.",
@@ -522,7 +522,7 @@
       "secondaryButton": "Cancel",
       "finalButton": "Delete Records",
       "escalatedConfirmation": "Type DELETE to confirm local record deletion.",
-      "acknowledgementText": "I understand this local deletion cannot be undone from inside GradeDraft.",
+      "acknowledgementText": "I understand this local deletion cannot be undone from inside Mark My Work.",
       "requiresAcknowledgement": true,
       "blocksStudentFacingExportByDefault": false,
       "securityNote": null,
@@ -577,13 +577,13 @@
   ],
   "reportTemplates": {
     "studentReport": [
-      "# GradeDraft Student Feedback\n\n**Assignment:** {{assignmentTitle}}\n**Student:** {{studentDisplayNameOrLocalIdentifier}}\n**Class:** {{classNameOrNotSpecified}}\n**Subject:** {{subjectOrNotSpecified}}\n**Grade/year level:** {{gradeLevelOrNotSpecified}}\n**Assignment type:** {{assignmentTypeDisplayName}}\n**Updated:** {{updatedDate}}\n\n> Generated from local app state. GradeDraft does not upload this report.\n> This student-facing report excludes private teacher notes and raw model responses.",
+      "# Mark My Work Student Feedback\n\n**Assignment:** {{assignmentTitle}}\n**Student:** {{studentDisplayNameOrLocalIdentifier}}\n**Class:** {{classNameOrNotSpecified}}\n**Subject:** {{subjectOrNotSpecified}}\n**Grade/year level:** {{gradeLevelOrNotSpecified}}\n**Assignment type:** {{assignmentTypeDisplayName}}\n**Updated:** {{updatedDate}}\n\n> Generated from local app state. Mark My Work does not upload this report.\n> This student-facing report excludes private teacher notes and raw model responses.",
       "## Final teacher-approved grade\n\n**Score:** {{finalTotalScore}} / {{finalMaxScore}}\n\n### Feedback\n\n{{teacherFinalStudentFeedback}}\n\n### Criteria\n\n{{#criteria}}\n#### {{criterionName}}\n- Final score: {{finalPoints}} / {{maxPoints}}\n- Rating: {{ratingOrNotSpecified}}\n- Evidence: {{studentFacingEvidence}}\n- Explanation: {{studentFacingExplanation}}\n{{/criteria}}",
       "## Draft grade for teacher review\n\nThis is not a finalized grade. A teacher must review and approve it before use.",
       "## Formative feedback\n\n**Learning focus:** {{formativeFocus}}\n\n### Evidence noticed\n\n{{evidenceSummary}}\n\n### Current understanding\n\n{{currentUnderstandingFeedback}}\n\n### Next step\n\n{{nextStep}}\n\n> This formative feedback is for learning support and is not a final grade unless the teacher marks it as summative."
     ],
     "teacherAuditReport": [
-      "# GradeDraft Teacher Audit Report\n\n**Assignment:** {{assignmentTitle}}\n**Student:** {{studentDisplayNameOrLocalIdentifier}}\n**Class:** {{classNameOrNotSpecified}}\n**Subject:** {{subjectOrNotSpecified}}\n**Grade/year level:** {{gradeLevelOrNotSpecified}}\n**Assignment type:** {{assignmentTypeDisplayName}}\n**Updated:** {{updatedDate}}\n\n> This teacher audit report may include private notes, reviewed text, OCR warnings, source fingerprints, and grading-state metadata. Treat it as sensitive student data.\n> Generated from local app state. GradeDraft does not upload this report.",
+      "# Mark My Work Teacher Audit Report\n\n**Assignment:** {{assignmentTitle}}\n**Student:** {{studentDisplayNameOrLocalIdentifier}}\n**Class:** {{classNameOrNotSpecified}}\n**Subject:** {{subjectOrNotSpecified}}\n**Grade/year level:** {{gradeLevelOrNotSpecified}}\n**Assignment type:** {{assignmentTypeDisplayName}}\n**Updated:** {{updatedDate}}\n\n> This teacher audit report may include private notes, reviewed text, OCR warnings, source fingerprints, and grading-state metadata. Treat it as sensitive student data.\n> Generated from local app state. Mark My Work does not upload this report.",
       "## Readiness and source state\n- OCR review status: {{ocrReviewStatus}}\n- Source inputs: {{sourceInputCount}}\n- Current grading packet fingerprint: {{packetFingerprint}}\n- Draft stale: {{yesNo}}\n- Final review stale: {{yesNo}}\n\n## Source inputs\n{{sourceInputList}}\n\n## OCR summary\n- Engine: {{ocrEngine}}\n- Review status: {{ocrReviewStatus}}\n- Quality: {{ocrQualitySummary}}\n- Reviewed at: {{ocrReviewedAtOrNotReviewed}}\n\n## Reviewed student text\n\n{{reviewedStudentText}}\n\n## Rubric and grading materials\n\n### Rubric\n{{rubricText}}\n\n### Custom teacher instructions\n{{customInstructions}}\n\n### Answer key\n{{answerKeyText}}\n\n### Exemplar\n{{exemplarText}}\n\n## Model draft\n- Draft status: {{draftStatus}}\n- Score: {{draftTotalScore}} / {{draftMaxScore}}\n- Packet fingerprint: {{draftPacketFingerprint}}\n\n{{draftCriteria}}\n\n### Uncertainty flags\n{{uncertaintyFlags}}\n\n### Compliance flags\n{{complianceFlags}}\n\n### Private model/teacher notes\n{{draftTeacherNotes}}\n\n## Final teacher review\n- Status: {{finalStatus}}\n- Score: {{finalTotalScore}} / {{finalMaxScore}}\n- Packet fingerprint: {{finalPacketFingerprint}}\n- Finalized at: {{finalizedAtOrNotFinalized}}\n\n{{finalCriteria}}\n\n### Private teacher notes\n{{privateTeacherNotes}}\n\n## Export records\n{{exportRecords}}\n\n## Audit events\n{{auditEvents}}",
       "Teacher audit reports may include private notes, OCR uncertainty, source references, draft scoring, final scoring, and reviewed student text. They are sensitive student records and should not be shared with students or families unless reviewed and redacted."
     ]

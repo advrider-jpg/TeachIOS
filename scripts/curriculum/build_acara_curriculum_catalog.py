@@ -43,7 +43,7 @@ LICENSE_NAME = "CC BY 4.0, subject to Australian Curriculum website terms and ex
 NON_ENDORSEMENT = (
     "Australian Curriculum references are provided as local reference aids only. "
     "Confirm requirements with your school, sector, and jurisdiction before reporting. "
-    "GradeDraft does not claim ACARA endorsement, certification, compliance, or reporting approval."
+    "Mark My Work does not claim ACARA endorsement, certification, compliance, or reporting approval."
 )
 ICIP_WARNING = (
     "Some Australian Curriculum material relates to Aboriginal and Torres Strait Islander Histories and Cultures "
@@ -53,8 +53,8 @@ ICIP_WARNING = (
 ATTRIBUTION = (
     "© Australian Curriculum, Assessment and Reporting Authority (ACARA) 2010 to present, unless otherwise indicated. "
     "This material was downloaded from the Australian Curriculum website or machine-readable Australian Curriculum "
-    "source files and was normalized for offline reference display in GradeDraft. ACARA does not endorse GradeDraft. "
-    "ACARA has not authorized GradeDraft, and GradeDraft is not affiliated with or sponsored by ACARA."
+    "source files and was normalized for offline reference display in Mark My Work. ACARA does not endorse Mark My Work. "
+    "ACARA has not authorized Mark My Work, and Mark My Work is not affiliated with or sponsored by ACARA."
 )
 
 
@@ -214,7 +214,7 @@ def source_object(source: SourceDefinition, retrieved_at: str, sha: str, mode: s
         "id": source.key,
         "name": source.name,
         "version": SOURCE_VERSION,
-        "provenance": f"{mode}. Normalized for local GradeDraft search and mapping.",
+        "provenance": f"{mode}. Normalized for local Mark My Work search and mapping.",
         "localPath": "",
         "importedAt": retrieved_at,
         "kind": source.kind,
@@ -705,7 +705,7 @@ def base_summary(generated_at: str, catalog: dict[str, Any], per_source: dict[st
 
 def write_json(path: pathlib.Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_bytes((json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8"))
 
 
 def generate(refresh_jsonld: bool) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:

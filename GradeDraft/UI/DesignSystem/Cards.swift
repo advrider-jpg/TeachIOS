@@ -139,9 +139,9 @@ private struct RuledPaperLines: View {
             let count = max(1, Int(proxy.size.height / GradeDraftLayout.stationeryRuleSpacing))
             ForEach(0..<count, id: \.self) { index in
                 Path { path in
-                    let y = CGFloat(index) * GradeDraftLayout.stationeryRuleSpacing + GradeDraftLayout.stationeryRuleSpacing
-                    path.move(to: CGPoint(x: 0, y: y))
-                    path.addLine(to: CGPoint(x: proxy.size.width, y: y))
+                    let lineY = CGFloat(index) * GradeDraftLayout.stationeryRuleSpacing + GradeDraftLayout.stationeryRuleSpacing
+                    path.move(to: CGPoint(x: 0, y: lineY))
+                    path.addLine(to: CGPoint(x: proxy.size.width, y: lineY))
                 }
                 .stroke(theme.ruledLine, lineWidth: 0.5)
             }

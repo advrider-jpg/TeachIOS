@@ -1,5 +1,11 @@
 # Decisions Ledger
 
+## D012 — App display name
+
+Decision: The user-facing app name is now **Mark My Work**.
+
+Rationale: User explicitly requested a global app-name change, including user-facing copy. Internal Swift module, target, schema, and path identifiers remain `GradeDraft` where changing them would create a separate project-rename migration or compatibility risk.
+
 ## D001 — Local-only source completion
 
 Decision: The all-features completion patch implements requested behavior with local SwiftUI, local file storage, local ZIP/PDF writing, GRDB, PDFKit/UIKit, Vision/VisionKit, and Foundation Models availability gates.

@@ -665,7 +665,7 @@ struct RestoreConflictRow: View {
     var body: some View {
         BlockingIssueRow(
             title: "Matching records found",
-            detail: "\(count) record(s) already exist on this device. Choose how GradeDraft should handle them.",
+            detail: "\(count) record(s) already exist on this device. Choose how Mark My Work should handle them.",
             status: .needsAttention
         )
     }

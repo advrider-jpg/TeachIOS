@@ -4,11 +4,11 @@ This file is descriptive repository memory. It records the current product and s
 
 ## Project name
 
-GradeDraft v3.
+Mark My Work v3.
 
 ## Current purpose
 
-GradeDraft is a local-first, teacher-controlled iOS/iPadOS grading assistant for text-based student work. The core lane is:
+Mark My Work is a local-first, teacher-controlled iOS/iPadOS grading assistant for text-based student work. The core lane is:
 
 ```text
 source import -> OCR/PDF extraction -> teacher OCR review -> grading packet -> local AI draft or manual review -> teacher final review -> export/archive/backup

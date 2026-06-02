@@ -364,11 +364,11 @@ private extension Array where Element == String {
 
 final class UnavailableLocalGradingService: GradingServicing, CapabilityChecking, Sendable {
     var localAIStatus: LocalAIStatus {
-        .unavailable("Local AI grading is unavailable. GradeDraft will not send this student work to a cloud model as a fallback.")
+        .unavailable("Local AI grading is unavailable. Mark My Work will not send this student work to a cloud model as a fallback.")
     }
 
     func draftGrade(input: GradingInput) async throws -> GradeDraftResult {
         try LocalOnlyGradingValidator.validate(input)
-        throw GradeDraftError.localModelUnavailable("Local AI grading is unavailable. GradeDraft will not send this student work to a cloud model as a fallback.")
+        throw GradeDraftError.localModelUnavailable("Local AI grading is unavailable. Mark My Work will not send this student work to a cloud model as a fallback.")
     }
 }

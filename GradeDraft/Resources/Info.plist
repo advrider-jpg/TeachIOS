@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>GradeDraft</string>
+	<string>Mark My Work</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>Mark My Work</string>
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
@@ -23,14 +23,14 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>GradeDraft uses the camera to scan student work for on-device OCR.</string>
+	<string>Mark My Work uses the camera to scan student work for on-device OCR.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>GradeDraft imports selected images of student work for on-device OCR.</string>
+	<string>Mark My Work imports selected images of student work for on-device OCR.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>NSFaceIDUsageDescription</key>
-	<string>GradeDraft uses Face ID to confirm sensitive export actions before student work leaves the app.</string>
+	<string>Mark My Work uses Face ID to confirm sensitive export actions before student work leaves the app.</string>
 </dict>
 </plist>

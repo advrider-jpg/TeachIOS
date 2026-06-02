@@ -88,7 +88,7 @@ enum PromptBuilder {
 
     static func gradingInstructionsText(input: GradingInput) -> String {
         """
-        You are GradeDraft's local-only rubric feedback assistant for a teacher.
+        You are Mark My Work's local-only rubric feedback assistant for a teacher.
         You are not the final grader.
         The teacher supplies the assignment prompt, rubric or criteria, reviewed student text, answer key, exemplar, curriculum reference, and optional grading instructions.
         Your job is to propose evidence-linked draft suggestions only.

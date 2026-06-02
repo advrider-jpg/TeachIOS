@@ -183,7 +183,7 @@ struct ReviewScannedTextScreen: View {
             }
             Button("Keep Reviewing", role: .cancel) {}
         } message: {
-            Text("Only continue if the text shown here accurately reflects the student work you want GradeDraft to use. The app will draft feedback from this reviewed text, not from the original image.")
+            Text("Only continue if the text shown here accurately reflects the student work you want Mark My Work to use. The app will draft feedback from this reviewed text, not from the original image.")
         }
     }
 
@@ -227,7 +227,7 @@ struct ReviewScannedTextScreen: View {
         if document.unresolvedLineCount > 0 {
             return "Confirm or reject every text line before marking the scanned text reviewed."
         }
-        return "Only continue if the text shown here accurately reflects the student work you want GradeDraft to use."
+        return "Only continue if the text shown here accurately reflects the student work you want Mark My Work to use."
     }
 
     private func reviewSubtitle(for assignment: AssignmentRecord) -> String {

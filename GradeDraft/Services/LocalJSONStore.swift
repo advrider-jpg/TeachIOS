@@ -138,7 +138,7 @@ final class LocalJSONStore: AssignmentStoring {
 
 enum MarkdownReportBuilder {
     static func studentMarkdown(for assignment: AssignmentRecord) -> String {
-        var output = reportHeader(title: "GradeDraft Student Report", assignment: assignment)
+        var output = reportHeader(title: "Mark My Work Student Report", assignment: assignment)
         output.append("\n> This student-facing report includes only teacher-approved student-facing content and excludes private teacher notes, review history, scanned-text review details, original-file details, and unreviewed AI suggestions.\n")
 
         if let final = assignment.finalReview, final.status == .approved, !assignment.finalReviewIsStale {
@@ -157,7 +157,7 @@ enum MarkdownReportBuilder {
     }
 
     static func teacherAuditMarkdown(for assignment: AssignmentRecord, generatedAt: Date = Date(), generatedForExportKind: ExportKind? = nil) -> String {
-        var output = reportHeader(title: "GradeDraft Teacher Review", assignment: assignment)
+        var output = reportHeader(title: "Mark My Work Teacher Review", assignment: assignment)
         output.append("\n> This teacher-only review may include private notes, reviewed student work, scanned-text review details, original-file details, and local review history. Treat it as sensitive student data.\n")
         output.append("\n**Report generated:** \(generatedAt)\n")
         if let generatedForExportKind {
@@ -355,7 +355,7 @@ enum MarkdownReportBuilder {
         output += "**Grade level:** \(assignment.gradeLevel.isEmpty ? "Not specified" : assignment.gradeLevel)\n"
         output += "**Assignment type:** \(assignment.assignmentType.displayName)\n"
         output += "**Updated:** \(dateFormatter.string(from: assignment.updatedAt))\n"
-        output += "\n> Generated from local app state. GradeDraft does not upload this report.\n"
+        output += "\n> Generated from local app state. Mark My Work does not upload this report.\n"
         return output
     }
 

@@ -7,14 +7,14 @@ struct HomeScreen: View {
         List {
             StationeryPageHeader(
                 eyebrow: "Home",
-                title: "GradeDraft",
+                title: "Mark My Work",
                 subtitle: "Local records, teacher-reviewed work, and export readiness at a glance."
             )
 
             HomeStationeryCard(tapeLabel: "Local first", showsPaperclip: true) {
                 VStack(alignment: .leading, spacing: 12) {
                     LocalCapabilityBanner(status: viewModel.localAIStatus, message: viewModel.statusMessage)
-                    HandwrittenAnnotation("GradeDraft stores student work and grading records locally on this device.", status: .teacherOnly)
+                    HandwrittenAnnotation("Mark My Work stores student work and grading records locally on this device.", status: .teacherOnly)
                 }
             }
 
@@ -113,7 +113,7 @@ struct HomeScreen: View {
             }
         }
         .gradeDraftNativeGroupedList()
-        .navigationTitle("GradeDraft")
+        .navigationTitle("Mark My Work")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {

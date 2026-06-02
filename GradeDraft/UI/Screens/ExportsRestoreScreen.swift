@@ -314,7 +314,7 @@ struct ExportsRestoreScreen: View {
     }
 
     private var shareSheetWarningBody: String {
-        ExportWarningCatalog.warning(id: "share-sheet-warning")?.body.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Confirm before sharing this export outside GradeDraft."
+        ExportWarningCatalog.warning(id: "share-sheet-warning")?.body.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Confirm before sharing this export outside Mark My Work."
     }
 
     private var shareSheetPrimaryButton: String {

@@ -184,7 +184,7 @@ struct RubricInstructionsScreen: View {
             RubricStationeryCard(
                 title: "AI Grading Constraints",
                 tapeLabel: "Local AI",
-                annotation: "GradeDraft drafts suggestions only. The teacher approves the final grade.",
+                annotation: "Mark My Work drafts suggestions only. The teacher approves the final grade.",
                 status: .teacherOnly
             ) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -231,7 +231,7 @@ struct RubricInstructionsScreen: View {
                                         .font(.footnote)
                                         .foregroundStyle(.secondary)
                                     if template.sensitiveContextRequired {
-                                        Label("Select only when teacher-provided context exists. GradeDraft must not infer it.", systemImage: "exclamationmark.triangle")
+                                        Label("Select only when teacher-provided context exists. Mark My Work must not infer it.", systemImage: "exclamationmark.triangle")
                                             .font(.caption)
                                             .foregroundStyle(.orange)
                                     }
@@ -322,6 +322,7 @@ struct RubricInstructionsScreen: View {
                         textEditor("Exemplar response", text: binding(\.exemplarText), minHeight: 100)
                     }
                 }
+                }
             }
             .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
             .listRowBackground(Color.clear)
@@ -348,7 +349,7 @@ struct RubricInstructionsScreen: View {
             Button("Append Again") { performPendingTemplateApplication(mode: .appendAgain) }
             Button("Cancel", role: .cancel) { pendingTemplateApplication = nil }
         } message: {
-            Text("Choose how GradeDraft should insert this template. Teacher-entered content is not deleted unless you choose Replace.")
+            Text("Choose how Mark My Work should insert this template. Teacher-entered content is not deleted unless you choose Replace.")
         }
         .fileImporter(isPresented: $showingRubricImporter, allowedContentTypes: [.plainText, .item]) { result in
             switch result {

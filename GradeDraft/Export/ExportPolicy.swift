@@ -193,7 +193,7 @@ extension ExportKind {
             return ExportContentPolicy(
                 kind: self,
                 warningTitle: "Full local backup archive",
-                warningBody: "This backup includes GradeDraft records stored on this device, including teacher-only records and original files when available. Store it only in school-approved locations.",
+                warningBody: "This backup includes Mark My Work records stored on this device, including teacher-only records and original files when available. Store it only in school-approved locations.",
                 primaryButtonTitle: "Create Full Backup",
                 secondaryButtonTitle: "Cancel",
                 isStudentFacing: false,
