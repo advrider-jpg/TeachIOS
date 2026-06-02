@@ -14,6 +14,16 @@ struct ExportsRestoreScreen: View {
     var body: some View {
         Form {
             let assignment = selectedAssignment
+            Section {
+                ExportStationeryHeaderCard(
+                    eyebrow: "Local files",
+                    title: "Exports & Backup",
+                    note: "Create only the export the current teacher-reviewed state actually allows.",
+                    status: .teacherOnly
+                )
+            }
+            .listRowBackground(Color.clear)
+
             if !assignment.isStudentFacingExportReady {
                 Section {
                     WarningBanner(
@@ -22,6 +32,7 @@ struct ExportsRestoreScreen: View {
                         status: .teacherOnly
                     )
                 }
+                .listRowBackground(Color.clear)
             }
 
             Section {
@@ -40,28 +51,40 @@ struct ExportsRestoreScreen: View {
             } footer: {
                 Text("Audience labels show whether a file is student-facing or teacher-only. Student-facing exports omit private teacher notes.")
             }
+            .listRowBackground(Color.clear)
 
             Section {
-                Picker("Backup import option", selection: $viewModel.backupConflictResolution) {
-                    ForEach(BackupConflictResolution.allCases) { option in
-                        Text(option.displayName).tag(option)
+                ExportStationeryCard(status: .teacherOnly, showsPerforation: true) {
+                    HStack(alignment: .top, spacing: 10) {
+                        TapeLabel("Preview first", theme: .exportPrivacy)
+                        Spacer(minLength: 8)
+                        StatusChip(.teacherOnly, compact: true, theme: .exportPrivacy)
+                        PaperclipDecoration(theme: .exportPrivacy)
+                            .frame(width: 28, height: 40)
                     }
-                }
-                Button {
-                    showingResolutionSheet = true
-                } label: {
-                    Label("Choose Option", systemImage: "slider.horizontal.3")
-                }
-                Button {
-                    showingBackupImporter = true
-                } label: {
-                    Label("Choose Backup", systemImage: "tray.and.arrow.down")
+                    HandwrittenAnnotation("Backup imports preview records before changing anything.", status: .teacherOnly, theme: .exportPrivacy)
+                    Picker("Backup import option", selection: $viewModel.backupConflictResolution) {
+                        ForEach(BackupConflictResolution.allCases) { option in
+                            Text(option.displayName).tag(option)
+                        }
+                    }
+                    Button {
+                        showingResolutionSheet = true
+                    } label: {
+                        Label("Choose Option", systemImage: "slider.horizontal.3")
+                    }
+                    Button {
+                        showingBackupImporter = true
+                    } label: {
+                        Label("Choose Backup", systemImage: "tray.and.arrow.down")
+                    }
                 }
             } header: {
                 Text("Import Backup")
             } footer: {
                 Text("Choose a backup to preview records before importing. Records are not changed until you confirm.")
             }
+            .listRowBackground(Color.clear)
 
             if let preview = viewModel.pendingRestorePreview {
                 restorePreviewSection(preview, title: "Preview Import", pending: true)
@@ -71,40 +94,47 @@ struct ExportsRestoreScreen: View {
 
             if let url = viewModel.exportURL {
                 Section {
-                    HStack(spacing: 12) {
-                        Image(systemName: "doc")
-                            .foregroundStyle(.blue)
-                            .frame(width: 28)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(viewModel.exportKind?.v6DisplayName ?? "Local export")
-                                .font(.headline)
-                                .lineLimit(1)
-                            Text(url.lastPathComponent)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                    ExportStationeryCard(status: viewModel.exportKind?.v6AudienceStatus ?? .teacherOnly, showsPerforation: true) {
+                        HStack(alignment: .top, spacing: 10) {
+                            TapeLabel("Ready", theme: .exportPrivacy)
+                            Spacer(minLength: 8)
+                            StatusChip(viewModel.exportKind?.v6AudienceStatus ?? .teacherOnly, compact: true, theme: .exportPrivacy)
+                            PaperclipDecoration(theme: .exportPrivacy)
+                                .frame(width: 28, height: 40)
                         }
-                        Spacer(minLength: 8)
-                        StatusChip(viewModel.exportKind?.v6AudienceStatus ?? .teacherOnly, compact: true)
-                    }
-                    LabeledContent("Audience", value: viewModel.exportKind?.v6DisplayName ?? "Unknown")
-                    LabeledContent("Stored", value: "Local file")
-                    if shareLinkApproved {
-                        ShareLink(item: url) {
-                            Label("Share Export", systemImage: "square.and.arrow.up")
+                        HStack(spacing: 12) {
+                            StatusIconBubble(viewModel.exportKind?.v6AudienceStatus ?? .teacherOnly, theme: .exportPrivacy)
+                                .frame(width: 34, height: 34)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(viewModel.exportKind?.v6DisplayName ?? "Local export")
+                                    .font(.system(.headline, design: .serif).weight(.semibold))
+                                    .lineLimit(1)
+                                Text(url.lastPathComponent)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 8)
                         }
-                    } else {
-                        Button {
-                            showingShareSheetWarning = true
-                        } label: {
-                            Label("Review Share Warning", systemImage: "exclamationmark.triangle")
+                        LabeledContent("Audience", value: viewModel.exportKind?.v6DisplayName ?? "Unknown")
+                        LabeledContent("Stored", value: "Local file")
+                        if shareLinkApproved {
+                            ShareLink(item: url) {
+                                Label("Share Export", systemImage: "square.and.arrow.up")
+                            }
+                        } else {
+                            Button {
+                                showingShareSheetWarning = true
+                            } label: {
+                                Label("Review Share Warning", systemImage: "exclamationmark.triangle")
+                            }
                         }
-                    }
-                    if clipboardCopyAvailable(for: viewModel.exportKind) {
-                        Button {
-                            showingClipboardWarning = true
-                        } label: {
-                            Label("Copy Text", systemImage: "doc.on.clipboard")
+                        if clipboardCopyAvailable(for: viewModel.exportKind) {
+                            Button {
+                                showingClipboardWarning = true
+                            } label: {
+                                Label("Copy Text", systemImage: "doc.on.clipboard")
+                            }
                         }
                     }
                 } header: {
@@ -112,6 +142,7 @@ struct ExportsRestoreScreen: View {
                 } footer: {
                     Text("Opening the share sheet sends the selected file to another app.")
                 }
+                .listRowBackground(Color.clear)
             }
 
             Section("Recent Exports") {
@@ -124,32 +155,40 @@ struct ExportsRestoreScreen: View {
                     )
                 } else {
                     ForEach(records) { record in
-                        HStack(spacing: 12) {
-                            Image(systemName: record.kind.v6AudienceStatus.systemImage)
-                                .foregroundStyle(record.kind.v6AudienceStatus.color)
-                                .frame(width: 28)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(record.kind.v6DisplayName)
-                                    .font(.headline)
-                                    .lineLimit(1)
-                                Text(record.assignmentTitle)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
+                        ExportStationeryCard(status: record.kind.v6AudienceStatus) {
+                            HStack(spacing: 12) {
+                                StatusIconBubble(record.kind.v6AudienceStatus, theme: .exportPrivacy)
+                                    .frame(width: 34, height: 34)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(record.kind.v6DisplayName)
+                                        .font(.system(.headline, design: .serif).weight(.semibold))
+                                        .lineLimit(1)
+                                    Text(record.assignmentTitle)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 8)
+                                StatusChip(record.kind.v6AudienceStatus, compact: true, theme: .exportPrivacy)
                             }
-                            Spacer(minLength: 8)
-                            StatusChip(record.kind.v6AudienceStatus, compact: true)
                         }
                     }
                 }
             }
+            .listRowBackground(Color.clear)
 
             Section("Export Safety") {
-                Label("Student-facing exports omit private teacher notes.", systemImage: "person.crop.circle.badge.checkmark")
-                Label("Teacher-only exports may include private notes, review history, and source details.", systemImage: "lock.doc")
-                Label("Backup import previews before mutating records.", systemImage: "archivebox")
+                ExportStationeryCard(status: .teacherOnly, showsPerforation: true) {
+                    TapeLabel("Warnings", theme: .exportPrivacy)
+                    Label("Student-facing exports omit private teacher notes.", systemImage: "person.crop.circle.badge.checkmark")
+                    Label("Teacher-only exports may include private notes, review history, and source details.", systemImage: "lock.doc")
+                    Label("Backup import previews before mutating records.", systemImage: "archivebox")
+                    HandwrittenAnnotation("Teacher-only files may include sensitive student records.", status: .teacherOnly, theme: .exportPrivacy)
+                }
             }
+            .listRowBackground(Color.clear)
         }
+        .stationeryScreen(theme: .exportPrivacy)
         .navigationTitle("Exports & Backup")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $confirmationKind) { kind in
@@ -200,27 +239,30 @@ struct ExportsRestoreScreen: View {
     @ViewBuilder
     private func restorePreviewSection(_ preview: BackupRestorePreview, title: String, pending: Bool) -> some View {
         Section {
-            Text(preview.summary)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            LabeledContent("Assignments", value: "\(preview.assignmentCount)")
-            LabeledContent("Classes", value: "\(preview.classCount)")
-            LabeledContent("Students", value: "\(preview.studentCount)")
-            LabeledContent("Original files", value: "\(preview.sourceFileCount)")
-            if preview.conflictAssignmentIDs.isEmpty {
-                BlockingIssueRow(title: "No matching records found", detail: "Import can continue with the selected option.", status: .onTrack)
-            } else {
-                RestoreConflictRow(count: preview.conflictAssignmentIDs.count)
-            }
-            ForEach(preview.warnings, id: \.self) { warning in
-                BlockingIssueRow(title: "Needs attention", detail: warning, status: .needsAttention)
-            }
-            if pending {
-                Button(role: .cancel, action: viewModel.cancelPendingRestore) {
-                    Label("Cancel Import", systemImage: "xmark")
+            ExportStationeryCard(status: pending ? .needsAttention : .teacherOnly, showsPerforation: true) {
+                TapeLabel(pending ? "Preview before import" : "Backup preview", theme: .exportPrivacy)
+                Text(preview.summary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                LabeledContent("Assignments", value: "\(preview.assignmentCount)")
+                LabeledContent("Classes", value: "\(preview.classCount)")
+                LabeledContent("Students", value: "\(preview.studentCount)")
+                LabeledContent("Original files", value: "\(preview.sourceFileCount)")
+                if preview.conflictAssignmentIDs.isEmpty {
+                    BlockingIssueRow(title: "No matching records found", detail: "Import can continue with the selected option.", status: .onTrack)
+                } else {
+                    RestoreConflictRow(count: preview.conflictAssignmentIDs.count)
                 }
-                Button(action: viewModel.confirmPendingRestore) {
-                    Label("Confirm Import", systemImage: "tray.and.arrow.down")
+                ForEach(preview.warnings, id: \.self) { warning in
+                    BlockingIssueRow(title: "Needs attention", detail: warning, status: .needsAttention)
+                }
+                if pending {
+                    Button(role: .cancel, action: viewModel.cancelPendingRestore) {
+                        Label("Cancel Import", systemImage: "xmark")
+                    }
+                    Button(action: viewModel.confirmPendingRestore) {
+                        Label("Confirm Import", systemImage: "tray.and.arrow.down")
+                    }
                 }
             }
         } header: {
@@ -228,6 +270,7 @@ struct ExportsRestoreScreen: View {
         } footer: {
             Text("Records are not changed until you confirm the import.")
         }
+        .listRowBackground(Color.clear)
     }
 
     private func confirm(_ kind: ExportConfirmationKind) {

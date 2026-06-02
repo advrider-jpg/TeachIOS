@@ -81,3 +81,8 @@ Patch application and static scripts are run on a clean copy after patch generat
 - Removed `MainActor.assumeIsolated` from document-scanner delegate handling.
 - Updated prompt, grading-packet, export/audit, dependency, OSS, Australian Curriculum, and release documentation to preserve local-first, teacher-controlled, no-runtime-network boundaries.
 - Xcode, package resolution, signing, archive, App Store Connect, and physical-device validation remain blocked in this Linux environment and are tracked in release docs.
+
+# 2026-06-02 — Stationery redesign implementation
+
+- Implemented the native SwiftUI stationery redesign across GradeDraft’s shared design system, dashboard/class/assignment/review/rubric/export/privacy surfaces, and local capability banner while preserving native `List`/`Form` roots and teacher-gated flows.
+- Ran local static validation and diff hygiene checks in this Windows environment; Xcode, XCTest, simulator, and SwiftLint validation remain unavailable because Apple tooling is not installed here.

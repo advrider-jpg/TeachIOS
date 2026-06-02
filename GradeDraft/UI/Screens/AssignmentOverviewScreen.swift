@@ -8,7 +8,18 @@ struct AssignmentOverviewScreen: View {
         Group {
             if let assignment = viewModel.assignment(for: assignmentID) {
                 Form {
-                    Section {
+                    AssignmentStationeryHeader(
+                        eyebrow: "Workflow",
+                        title: assignment.title.isEmpty ? "Assignment" : assignment.title,
+                        subtitle: nextUpDetail(for: assignment),
+                        status: viewModel.v6Status(for: assignment)
+                    )
+                    PaperStack(theme: AssignmentWorkflowStationery.theme) {
+                        HStack(alignment: .top) {
+                            TapeLabel("Next up", theme: AssignmentWorkflowStationery.theme)
+                            Spacer(minLength: 8)
+                            PaperclipDecoration(theme: AssignmentWorkflowStationery.theme)
+                        }
                         NavigationLink {
                             nextDestination(for: assignment)
                         } label: {
@@ -20,51 +31,61 @@ struct AssignmentOverviewScreen: View {
                                 actionLabel: viewModel.v6ActionLabel(for: assignment)
                             )
                         }
-                    } header: {
-                        Text("Next Up")
-                    } footer: {
-                        Text(nextUpDetail(for: assignment))
+                        .buttonStyle(.plain)
+                        HandwrittenAnnotation(nextUpDetail(for: assignment), status: viewModel.v6Status(for: assignment), theme: AssignmentWorkflowStationery.theme)
                     }
 
-                    Section {
+                    NotebookCard(theme: AssignmentWorkflowStationery.theme, showsPerforation: true) {
+                        TapeLabel("Timeline", theme: AssignmentWorkflowStationery.theme)
                         WorkflowProgressRail(steps: workflowSteps(for: assignment))
-                    } header: {
-                        Text("Workflow")
-                    } footer: {
-                        Text("Visible steps match the teacher workflow.")
+                        HandwrittenAnnotation("Visible steps match the teacher workflow.", theme: AssignmentWorkflowStationery.theme)
                     }
 
                     if !blockingIssues(for: assignment).isEmpty {
-                        Section {
+                        NotebookCard(theme: AssignmentWorkflowStationery.theme, status: .fixBeforeContinuing, showsPerforation: true) {
+                            TapeLabel("Fix first", theme: AssignmentWorkflowStationery.theme)
                             ForEach(blockingIssues(for: assignment), id: \.title) { issue in
                                 BlockingIssueRow(title: issue.title, detail: issue.detail, status: issue.status)
                             }
-                        } header: {
-                            Text("Fix Before Continuing")
-                        } footer: {
-                            Text("These items prevent grading or export.")
+                            HandwrittenAnnotation("These items prevent grading or export.", status: .fixBeforeContinuing, theme: AssignmentWorkflowStationery.theme)
                         }
                     }
 
-                    Section {
-                        TextField("Assignment title", text: binding(\.title))
-                        TextField("Assignment question or prompt", text: promptBinding, axis: .vertical)
-                            .lineLimit(2...6)
-                        TextField("Student name or local identifier", text: binding(\.studentDisplayName))
-                        TextField("Class or section", text: binding(\.className))
-                        TextField("Subject", text: binding(\.subject))
-                        TextField("Grade level", text: binding(\.gradeLevel))
-                        Picker("Assignment type", selection: binding(\.assignmentType)) {
-                            ForEach(AssignmentType.allCases) { type in
-                                Text(type.displayName).tag(type)
+                    NotebookCard(theme: AssignmentWorkflowStationery.theme, showsPerforation: true) {
+                        TapeLabel("Assignment details", theme: AssignmentWorkflowStationery.theme)
+                        VStack(spacing: 12) {
+                            assignmentField("Assignment title") {
+                                TextField("Assignment title", text: binding(\.title))
+                            }
+                            assignmentField("Assignment question or prompt") {
+                                TextField("Assignment question or prompt", text: promptBinding, axis: .vertical)
+                                    .lineLimit(2...6)
+                            }
+                            assignmentField("Student name or local identifier") {
+                                TextField("Student name or local identifier", text: binding(\.studentDisplayName))
+                            }
+                            assignmentField("Class or section") {
+                                TextField("Class or section", text: binding(\.className))
+                            }
+                            assignmentField("Subject") {
+                                TextField("Subject", text: binding(\.subject))
+                            }
+                            assignmentField("Grade level") {
+                                TextField("Grade level", text: binding(\.gradeLevel))
+                            }
+                            assignmentField("Assignment type") {
+                                Picker("Assignment type", selection: binding(\.assignmentType)) {
+                                    ForEach(AssignmentType.allCases) { type in
+                                        Text(type.displayName).tag(type)
+                                    }
+                                }
+                                .pickerStyle(.menu)
                             }
                         }
-                    } header: {
-                        Text("Assignment Details")
-                    } footer: {
-                        Text("Setup fields stay local and are used to build the teacher-reviewed grading packet.")
+                        HandwrittenAnnotation("Setup fields stay local and are used to build the teacher-reviewed grading packet.", theme: AssignmentWorkflowStationery.theme)
                     }
                 }
+                .stationeryScreen(theme: AssignmentWorkflowStationery.theme)
                 .navigationTitle(assignment.title.isEmpty ? "Assignment" : assignment.title)
             } else {
                 ContentUnavailableView(
@@ -84,6 +105,20 @@ struct AssignmentOverviewScreen: View {
             }
         }
         .onAppear { viewModel.selectAssignment(assignmentID) }
+    }
+
+    @ViewBuilder
+    private func assignmentField<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(GradeDraftTypography.helper.weight(.semibold))
+                .foregroundStyle(AssignmentWorkflowStationery.theme.mutedInk)
+            content()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AssignmentWorkflowStationery.theme.paperTint.opacity(0.72), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
     }
 
     private func workflowSteps(for assignment: AssignmentRecord) -> [WorkflowStepRow] {

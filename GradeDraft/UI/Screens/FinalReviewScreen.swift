@@ -7,217 +7,282 @@ struct FinalReviewScreen: View {
     var body: some View {
         Form {
             if let assignment = viewModel.assignment(for: assignmentID) {
+                Section {
+                    FinalReviewPaperHeader(
+                        assignmentTitle: assignment.title,
+                        studentName: assignment.studentDisplayName,
+                        status: assignment.finalReview?.status.v6Status ?? viewModel.v6Status(for: assignment),
+                        scoreText: finalReviewScoreText(for: assignment),
+                        exportReady: assignment.isStudentFacingExportReady
+                    )
+                }
+                .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
                 if assignment.finalReviewIsStale {
                     Section {
-                        WarningBanner(
-                            title: "This review needs rechecking.",
-                            message: "Student work, rubric, or evidence changed after this review was last saved.",
-                            status: .needsRecheck
-                        )
+                        FinalReviewPaperCard(status: .needsRecheck, tape: "recheck") {
+                            WarningBanner(
+                                title: "This review needs rechecking.",
+                                message: "Student work, rubric, or evidence changed after this review was last saved.",
+                                status: .needsRecheck
+                            )
+                        }
                     }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
 
                 Section {
-                    Button {
-                        viewModel.selectAssignment(assignmentID)
-                        Task { await viewModel.draftGrade() }
-                    } label: {
-                        Label(viewModel.isWorking ? "Drafting" : "Draft Feedback Suggestion", systemImage: "sparkles")
-                    }
-                    .disabled(!canDraftGrade(for: assignment))
+                    FinalReviewPaperCard(status: .reviewFinalGrade, tape: "review actions") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            PrimaryActionButton(
+                                title: viewModel.isWorking ? "Drafting" : "Draft Feedback Suggestion",
+                                systemImage: "sparkles",
+                                action: {
+                                    viewModel.selectAssignment(assignmentID)
+                                    Task { await viewModel.draftGrade() }
+                                },
+                                disabled: !canDraftGrade(for: assignment)
+                            )
 
-                    ForEach(draftReadinessIssues(for: assignment), id: \.self) { issue in
-                        Label(issue, systemImage: "info.circle")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
+                            ForEach(draftReadinessIssues(for: assignment), id: \.self) { issue in
+                                FinalReviewNoteRow(issue)
+                            }
 
-                    Button {
-                        viewModel.selectAssignment(assignmentID)
-                        viewModel.startFinalReviewFromLatestDraft()
-                    } label: {
-                        Label("Start Final Review", systemImage: "checklist")
-                    }
-                    .disabled(!canStartFromLatestDraft(for: assignment))
+                            SecondaryActionButton(
+                                title: "Start Final Review",
+                                systemImage: "checklist",
+                                action: {
+                                    viewModel.selectAssignment(assignmentID)
+                                    viewModel.startFinalReviewFromLatestDraft()
+                                },
+                                disabled: !canStartFromLatestDraft(for: assignment)
+                            )
 
-                    if let issue = latestDraftIssue(for: assignment) {
-                        Label(issue, systemImage: "info.circle")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
+                            if let issue = latestDraftIssue(for: assignment) {
+                                FinalReviewNoteRow(issue)
+                            }
 
-                    Button {
-                        viewModel.selectAssignment(assignmentID)
-                        viewModel.startManualFinalReview()
-                    } label: {
-                        Label("Start Manual Final Review", systemImage: "pencil.and.list.clipboard")
-                    }
-                    .disabled(!canStartManualFinalReview(for: assignment))
+                            SecondaryActionButton(
+                                title: "Start Manual Final Review",
+                                systemImage: "pencil.and.list.clipboard",
+                                action: {
+                                    viewModel.selectAssignment(assignmentID)
+                                    viewModel.startManualFinalReview()
+                                },
+                                disabled: !canStartManualFinalReview(for: assignment)
+                            )
 
-                    if !canStartManualFinalReview(for: assignment) {
-                        ForEach(manualGradingReadinessIssues(for: assignment), id: \.self) { issue in
-                            Label(issue, systemImage: "info.circle")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                            if !canStartManualFinalReview(for: assignment) {
+                                ForEach(manualGradingReadinessIssues(for: assignment), id: \.self) { issue in
+                                    FinalReviewNoteRow(issue)
+                                }
+                            }
                         }
                     }
                 } header: {
-                    Text("Review Actions")
+                    FinalReviewTapeSectionHeader(title: "Review Actions")
                 } footer: {
                     Text("GradeDraft drafts suggestions only. The teacher approves the final grade.")
                 }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
                 Section {
-                    if assignment.evidenceReferences.isEmpty {
-                        ContentUnavailableView(
-                            "No evidence added",
-                            systemImage: "quote.bubble",
-                            description: Text("Add evidence from reviewed text during final review.")
-                        )
-                    } else {
-                        ForEach(assignment.evidenceReferences) { item in
-                            EvidenceSourceRow(evidence: item)
+                    FinalReviewPaperCard(status: .teacherOnly, tape: "evidence") {
+                        if assignment.evidenceReferences.isEmpty {
+                            ContentUnavailableView(
+                                "No evidence added",
+                                systemImage: "quote.bubble",
+                                description: Text("Add evidence from reviewed text during final review.")
+                            )
+                        } else {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(assignment.evidenceReferences) { item in
+                                    EvidenceSourceRow(evidence: item)
+                                }
+                            }
                         }
                     }
                 } header: {
-                    Text("Evidence")
+                    FinalReviewTapeSectionHeader(title: "Evidence")
                 } footer: {
                     Text("Evidence remains linked to reviewed student work or teacher notes.")
                 }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
                 if let finalReview = assignment.finalReview {
                     Section {
-                        FinalGradeReviewView(
-                            review: finalReview,
-                            isStale: assignment.finalReviewIsStale,
-                            onChange: {
-                                viewModel.selectAssignment(assignmentID)
-                                viewModel.updateFinalReview($0)
-                            },
-                            onApprove: {
-                                viewModel.selectAssignment(assignmentID)
-                                viewModel.approveFinalReview()
-                            },
-                            onAddCriterion: {
-                                viewModel.selectAssignment(assignmentID)
-                                viewModel.addCriterionToFinalReview()
-                            },
-                            onDeleteCriterion: {
-                                viewModel.selectAssignment(assignmentID)
-                                viewModel.deleteCriterionFromFinalReview(id: $0)
-                            },
-                            onAddManualEvidence: { criterionID, quote in
-                                viewModel.selectAssignment(assignmentID)
-                                viewModel.addManualEvidenceToFinalReview(criterionID: criterionID, quote: quote)
-                            },
-                            onRemoveEvidence: { criterionID, index in
-                                viewModel.selectAssignment(assignmentID)
-                                viewModel.removeEvidenceFromFinalReview(criterionID: criterionID, evidenceIndex: index)
-                            },
-                            onClearEvidence: { criterionID in
-                                viewModel.selectAssignment(assignmentID)
-                                viewModel.clearEvidenceFromFinalReview(criterionID: criterionID)
-                            }
-                        )
-                        .id(finalReview.id)
+                        FinalReviewPaperCard(status: finalReview.status.v6Status, tape: "teacher final") {
+                            FinalGradeReviewView(
+                                review: finalReview,
+                                isStale: assignment.finalReviewIsStale,
+                                onChange: {
+                                    viewModel.selectAssignment(assignmentID)
+                                    viewModel.updateFinalReview($0)
+                                },
+                                onApprove: {
+                                    viewModel.selectAssignment(assignmentID)
+                                    viewModel.approveFinalReview()
+                                },
+                                onAddCriterion: {
+                                    viewModel.selectAssignment(assignmentID)
+                                    viewModel.addCriterionToFinalReview()
+                                },
+                                onDeleteCriterion: {
+                                    viewModel.selectAssignment(assignmentID)
+                                    viewModel.deleteCriterionFromFinalReview(id: $0)
+                                },
+                                onAddManualEvidence: { criterionID, quote in
+                                    viewModel.selectAssignment(assignmentID)
+                                    viewModel.addManualEvidenceToFinalReview(criterionID: criterionID, quote: quote)
+                                },
+                                onRemoveEvidence: { criterionID, index in
+                                    viewModel.selectAssignment(assignmentID)
+                                    viewModel.removeEvidenceFromFinalReview(criterionID: criterionID, evidenceIndex: index)
+                                },
+                                onClearEvidence: { criterionID in
+                                    viewModel.selectAssignment(assignmentID)
+                                    viewModel.clearEvidenceFromFinalReview(criterionID: criterionID)
+                                }
+                            )
+                            .id(finalReview.id)
+                        }
                     } header: {
-                        Text("Criterion Review")
+                        FinalReviewTapeSectionHeader(title: "Criterion Review")
                     } footer: {
                         Text("Approve every criterion before treating the score as final.")
                     }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 } else if let result = assignment.latestDraft {
                     Section {
-                        LabeledContent("Suggested Score", value: "\(GradeTotals.formatted(result.totalScore)) / \(GradeTotals.formatted(result.maxScore))")
-                        if assignment.latestDraftIsStale || result.status == .stale {
-                            Label("Needs recheck: student work, rubric, or evidence changed.", systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(.orange)
-                        }
-                        Text(result.studentResponseSummary)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        if !result.uncertaintyFlags.isEmpty {
-                            DisclosureGroup("Needs Attention") {
-                                ForEach(result.uncertaintyFlags, id: \.self) { flag in
-                                    Label(flag, systemImage: "exclamationmark.triangle")
-                                        .font(.subheadline)
+                        FinalReviewPaperCard(status: result.status.v6Status, tape: "draft note") {
+                            VStack(alignment: .leading, spacing: 12) {
+                                LabeledContent("Suggested Score", value: "\(GradeTotals.formatted(result.totalScore)) / \(GradeTotals.formatted(result.maxScore))")
+                                if assignment.latestDraftIsStale || result.status == .stale {
+                                    Label("Needs recheck: student work, rubric, or evidence changed.", systemImage: "exclamationmark.triangle")
                                         .foregroundStyle(.orange)
                                 }
-                            }
-                        }
-                        ForEach(result.criteria) { criterion in
-                            DisclosureGroup {
-                                Text(criterion.explanation.isEmpty ? "No explanation provided." : criterion.explanation)
-                                    .font(.subheadline)
-                                LabeledContent("Suggested Points", value: "\(GradeTotals.formatted(criterion.proposedPoints)) / \(GradeTotals.formatted(criterion.maxPoints))")
-                                if criterion.teacherReviewRequired {
-                                    Label("Teacher review required for this criterion.", systemImage: "exclamationmark.triangle")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.orange)
-                                }
-                                if !criterion.evidence.isEmpty {
-                                    ForEach(criterion.evidence, id: \.self) { evidence in
-                                        Text("\u{201C}\(evidence)\u{201D}")
-                                            .font(.caption)
-                                            .textSelection(.enabled)
+                                Text(result.studentResponseSummary)
+                                    .font(.system(.subheadline, design: .serif).italic())
+                                    .foregroundStyle(.secondary)
+                                if !result.uncertaintyFlags.isEmpty {
+                                    DisclosureGroup("Needs Attention") {
+                                        ForEach(result.uncertaintyFlags, id: \.self) { flag in
+                                            Label(flag, systemImage: "exclamationmark.triangle")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.orange)
+                                        }
                                     }
                                 }
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(criterion.criterion)
-                                        .font(.headline)
-                                    Text(criterion.rating.isEmpty ? "No rating selected" : criterion.rating)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
+                                ForEach(result.criteria) { criterion in
+                                    DisclosureGroup {
+                                        Text(criterion.explanation.isEmpty ? "No explanation provided." : criterion.explanation)
+                                            .font(.subheadline)
+                                        LabeledContent("Suggested Points", value: "\(GradeTotals.formatted(criterion.proposedPoints)) / \(GradeTotals.formatted(criterion.maxPoints))")
+                                        if criterion.teacherReviewRequired {
+                                            Label("Teacher review required for this criterion.", systemImage: "exclamationmark.triangle")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.orange)
+                                        }
+                                        if !criterion.evidence.isEmpty {
+                                            ForEach(criterion.evidence, id: \.self) { evidence in
+                                                Text("\u{201C}\(evidence)\u{201D}")
+                                                    .font(.caption)
+                                                    .textSelection(.enabled)
+                                            }
+                                        }
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(criterion.criterion)
+                                                .font(.headline)
+                                            Text(criterion.rating.isEmpty ? "No rating selected" : criterion.rating)
+                                                .font(.subheadline)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
                                 }
-                            }
-                        }
-                        Text(result.studentFeedback.isEmpty ? "No feedback suggested." : result.studentFeedback)
-                            .textSelection(.enabled)
-                        if !result.complianceFlags.isEmpty {
-                            DisclosureGroup("Review Notes") {
-                                ForEach(result.complianceFlags, id: \.self) { flag in
-                                    Label(flag, systemImage: "checkmark.shield")
-                                        .font(.subheadline)
+                                Text(result.studentFeedback.isEmpty ? "No feedback suggested." : result.studentFeedback)
+                                    .textSelection(.enabled)
+                                if !result.complianceFlags.isEmpty {
+                                    DisclosureGroup("Review Notes") {
+                                        ForEach(result.complianceFlags, id: \.self) { flag in
+                                            Label(flag, systemImage: "checkmark.shield")
+                                                .font(.subheadline)
+                                        }
+                                    }
                                 }
                             }
                         }
                     } header: {
-                        Text("Draft Suggestion")
+                        FinalReviewTapeSectionHeader(title: "Draft Suggestion")
                     } footer: {
                         Text("Review this suggestion and start final review before export.")
                     }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 } else {
-                    Section("Final Review") {
-                        ContentUnavailableView(
-                            "Review final grade",
-                            systemImage: "checklist",
-                            description: Text("Draft a feedback suggestion or start manual final review.")
-                        )
+                    Section {
+                        FinalReviewPaperCard(status: .reviewFinalGrade, tape: "final review") {
+                            ContentUnavailableView(
+                                "Review final grade",
+                                systemImage: "checklist",
+                                description: Text("Draft a feedback suggestion or start manual final review.")
+                            )
+                        }
+                    } header: {
+                        FinalReviewTapeSectionHeader(title: "Final Review")
                     }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
 
                 Section {
-                    GradeDraftStatusLabeledContent(
-                        title: "Approval Status",
-                        value: finalReviewStatusText(assignment.finalReview?.status),
-                        status: assignment.finalReview?.status.v6Status ?? .reviewFinalGrade
-                    )
-                    LabeledContent("Student-facing export", value: assignment.isStudentFacingExportReady ? "Ready" : "Blocked")
+                    FinalReviewPaperCard(status: assignment.isStudentFacingExportReady ? .readyToExport : .reviewFinalGrade, tape: "approval") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            GradeDraftStatusLabeledContent(
+                                title: "Approval Status",
+                                value: finalReviewStatusText(assignment.finalReview?.status),
+                                status: assignment.finalReview?.status.v6Status ?? .reviewFinalGrade
+                            )
+                            LabeledContent("Student-facing export", value: assignment.isStudentFacingExportReady ? "Ready" : "Blocked")
+                        }
+                    }
                 } header: {
-                    Text("Teacher Approval")
+                    FinalReviewTapeSectionHeader(title: "Teacher Approval")
                 } footer: {
                     Text("Student-facing export is blocked until the teacher approves the final grade.")
                 }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             } else {
                 Section {
-                    ContentUnavailableView(
-                        "Assignment not found",
-                        systemImage: "doc.text.magnifyingglass",
-                        description: Text("Return to Assignments and choose a saved assignment.")
-                    )
+                    FinalReviewPaperCard(status: .needsAttention, tape: "assignment") {
+                        ContentUnavailableView(
+                            "Assignment not found",
+                            systemImage: "doc.text.magnifyingglass",
+                            description: Text("Return to Assignments and choose a saved assignment.")
+                        )
+                    }
                 }
+                .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(FinalReviewPaperStyle.background.ignoresSafeArea())
         .navigationTitle("Final Review")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
@@ -296,5 +361,212 @@ struct FinalReviewScreen: View {
             issues.append("Review and confirm scanned text before manual final review.")
         }
         return issues
+    }
+
+    private func finalReviewScoreText(for assignment: AssignmentRecord) -> String {
+        if let review = assignment.finalReview {
+            return "\(GradeTotals.formatted(review.totalScore)) / \(GradeTotals.formatted(review.maxScore))"
+        }
+        if let draft = assignment.latestDraft {
+            return "\(GradeTotals.formatted(draft.totalScore)) / \(GradeTotals.formatted(draft.maxScore)) suggested"
+        }
+        return "Not scored"
+    }
+}
+
+private enum FinalReviewPaperStyle {
+    static let background = Color(red: 0.98, green: 0.95, blue: 0.88)
+    static let paper = Color(red: 1.0, green: 0.985, blue: 0.94)
+    static let ink = Color(red: 0.24, green: 0.18, blue: 0.13)
+    static let rule = Color(red: 0.74, green: 0.52, blue: 0.30)
+    static let tape = Color(red: 0.96, green: 0.84, blue: 0.55)
+    static let shadow = Color.black.opacity(0.08)
+}
+
+private struct FinalReviewPaperHeader: View {
+    var assignmentTitle: String
+    var studentName: String
+    var status: GradeDraftUIStatus
+    var scoreText: String
+    var exportReady: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Final Review")
+                        .font(.system(.title, design: .serif).weight(.semibold))
+                        .foregroundStyle(FinalReviewPaperStyle.ink)
+                    Text(headerNote)
+                        .font(.system(.subheadline, design: .serif).italic())
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "paperclip")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(FinalReviewPaperStyle.rule)
+                    .rotationEffect(.degrees(11))
+                    .accessibilityHidden(true)
+            }
+            HStack(spacing: 8) {
+                FinalReviewMetricPill(label: "Status", value: status.chipLabel, status: status)
+                FinalReviewMetricPill(label: "Score", value: scoreText, status: status)
+                FinalReviewMetricPill(label: "Export", value: exportReady ? "Ready" : "Blocked", status: exportReady ? .readyToExport : .reviewFinalGrade)
+            }
+        }
+        .padding(18)
+        .background(FinalReviewPaperStyle.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(alignment: .topLeading) {
+            FinalReviewTapeLabel(text: "teacher notes")
+                .offset(x: 18, y: -11)
+        }
+        .overlay(alignment: .leading) {
+            FinalReviewPerforation()
+                .offset(x: 7)
+        }
+        .shadow(color: FinalReviewPaperStyle.shadow, radius: 12, x: 0, y: 6)
+    }
+
+    private var headerNote: String {
+        let student = studentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = assignmentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if student.isEmpty && title.isEmpty { return "Teacher approval controls student-facing export." }
+        if student.isEmpty { return "\(title). Teacher approval controls student-facing export." }
+        if title.isEmpty { return "\(student). Teacher approval controls student-facing export." }
+        return "\(student) · \(title). Teacher approval controls student-facing export."
+    }
+}
+
+private struct FinalReviewMetricPill: View {
+    var label: String
+    var value: String
+    var status: GradeDraftUIStatus
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value)
+                .font(.caption.monospacedDigit().weight(.bold))
+                .foregroundStyle(status.color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .background(status.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(status.color.opacity(0.20), lineWidth: 1)
+        )
+    }
+}
+
+private struct FinalReviewPaperCard<Content: View>: View {
+    var status: GradeDraftUIStatus
+    var tape: String
+    let content: Content
+
+    init(status: GradeDraftUIStatus, tape: String, @ViewBuilder content: () -> Content) {
+        self.status = status
+        self.tape = tape
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(FinalReviewPaperStyle.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(status.color.opacity(0.25), lineWidth: 1)
+            )
+            .overlay(alignment: .topLeading) {
+                FinalReviewTapeLabel(text: tape)
+                    .offset(x: 14, y: -10)
+            }
+            .overlay(alignment: .leading) {
+                FinalReviewPerforation()
+                    .offset(x: 7)
+            }
+            .shadow(color: FinalReviewPaperStyle.shadow, radius: 8, x: 0, y: 4)
+    }
+}
+
+private struct FinalReviewNoteRow: View {
+    var issue: String
+
+    init(_ issue: String) {
+        self.issue = issue
+    }
+
+    var body: some View {
+        Label(issue, systemImage: "info.circle")
+            .font(.system(.subheadline, design: .serif).italic())
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct FinalReviewTapeSectionHeader: View {
+    var title: String
+
+    var body: some View {
+        Text(title.uppercased())
+            .font(.caption.weight(.bold))
+            .foregroundStyle(FinalReviewPaperStyle.ink)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(FinalReviewPaperStyle.tape.opacity(0.92), in: Capsule())
+            .overlay(Capsule().stroke(FinalReviewPaperStyle.rule.opacity(0.22), lineWidth: 1))
+            .padding(.top, 6)
+            .textCase(nil)
+    }
+}
+
+private struct FinalReviewTapeLabel: View {
+    var text: String
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(FinalReviewPaperStyle.ink.opacity(0.78))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(FinalReviewPaperStyle.tape.opacity(0.92), in: Capsule())
+            .rotationEffect(.degrees(-2))
+            .accessibilityHidden(true)
+    }
+}
+
+private struct FinalReviewPerforation: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            ForEach(0..<7, id: \.self) { _ in
+                Circle()
+                    .fill(FinalReviewPaperStyle.background)
+                    .frame(width: 5, height: 5)
+                    .overlay(Circle().stroke(FinalReviewPaperStyle.rule.opacity(0.18), lineWidth: 0.5))
+            }
+        }
+        .padding(.vertical, 8)
+        .accessibilityHidden(true)
+    }
+}
+
+private extension DraftStatus {
+    var v6Status: GradeDraftUIStatus {
+        switch self {
+        case .generated:
+            return .reviewFinalGrade
+        case .teacherReviewRequired:
+            return .needsAttention
+        case .stale:
+            return .needsRecheck
+        }
     }
 }

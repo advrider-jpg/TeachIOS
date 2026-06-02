@@ -5,13 +5,9 @@ hostedViewSize: 390x844
 expectedContainer: Form
 sourceContainerPresent: true
 sections:
-- Next Up
-- Workflow
-- Fix Before Continuing
-- Assignment Details
+- none
 nativeControls:
 - Form
-- Section
 - NavigationLink
 - ContentUnavailableView
 forbiddenScreenTokens:

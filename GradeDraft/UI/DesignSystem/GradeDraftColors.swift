@@ -1,5 +1,39 @@
 import SwiftUI
 
+struct StationeryTheme {
+    var deskBackground: Color
+    var paper: Color
+    var paperTint: Color
+    var ruledLine: Color
+    var ink: Color
+    var mutedInk: Color
+    var accent: Color
+    var tape: Color
+    var clip: Color
+    var shadow: Color
+
+    static let gradeDraft = StationeryTheme(
+        deskBackground: Color(red: 0.976, green: 0.941, blue: 0.855),
+        paper: Color(red: 1.0, green: 0.985, blue: 0.938),
+        paperTint: Color(red: 0.988, green: 0.956, blue: 0.878),
+        ruledLine: Color(red: 0.64, green: 0.54, blue: 0.39).opacity(0.22),
+        ink: Color(red: 0.18, green: 0.15, blue: 0.12),
+        mutedInk: Color(red: 0.45, green: 0.36, blue: 0.26),
+        accent: Color(red: 0.18, green: 0.45, blue: 0.28),
+        tape: Color(red: 0.96, green: 0.78, blue: 0.43).opacity(0.74),
+        clip: Color(red: 0.48, green: 0.31, blue: 0.16).opacity(0.72),
+        shadow: Color(red: 0.42, green: 0.29, blue: 0.14).opacity(0.14)
+    )
+
+    func statusFill(for status: GradeDraftUIStatus) -> Color {
+        status.color.opacity(0.12)
+    }
+
+    func statusStroke(for status: GradeDraftUIStatus) -> Color {
+        status.color.opacity(0.34)
+    }
+}
+
 enum GradeDraftUIStatus: String, CaseIterable, Identifiable {
     case notStarted = "Not started"
     case addStudentWork = "Add student work"
