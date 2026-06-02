@@ -1,6 +1,6 @@
-# GradeDraft Architecture
+# Mark My Work Architecture
 
-GradeDraft is an Apple-native, local-first iOS app scaffold. The architectural rule is that each state boundary remains explicit:
+Mark My Work is an Apple-native, local-first iOS app scaffold. The architectural rule is that each state boundary remains explicit:
 
 ```text
 source input -> OCR/PDF text extraction -> teacher-reviewed text -> grading packet -> model draft or manual review -> teacher final review -> export/archive/backup
@@ -91,7 +91,7 @@ No cloud services, remote AI, remote OCR, accounts, telemetry, analytics, subscr
 
 ## Foundation Models typed draft path
 
-GradeDraft uses Apple Foundation Models only as a local draft-assistance path. The production service requests typed guided-generation proposal objects, adapts those objects into `GradeDraftResult`, and then runs `GradeDraftValidator.normalizeAndValidate` before any draft is stored or shown for teacher final review.
+Mark My Work uses Apple Foundation Models only as a local draft-assistance path. The production service requests typed guided-generation proposal objects, adapts those objects into `GradeDraftResult`, and then runs `GradeDraftValidator.normalizeAndValidate` before any draft is stored or shown for teacher final review.
 
 The draft path is:
 

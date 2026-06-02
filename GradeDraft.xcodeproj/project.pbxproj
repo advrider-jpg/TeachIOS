@@ -138,7 +138,7 @@
 		F10000000000000000000009 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		F1000000000000000000000A /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 
-		D9730C12B890D116AC692E1F /* GradeDraft.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GradeDraft.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9730C12B890D116AC692E1F /* Mark My Work.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Mark My Work.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GradeDraftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2235988D2937F275CA4EA14B /* GradeDraftApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftApp.swift; sourceTree = "<group>"; };
 		8CBAC66372CFBDF2A09FD7CE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -360,7 +360,7 @@
 			path = GradeDraftTests;
 			sourceTree = "<group>";
 		};
-		5ADE8A4128725EB9150C196B /* Products */ = {isa = PBXGroup; children = ( D9730C12B890D116AC692E1F /* GradeDraft.app */, AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */, ); name = Products; sourceTree = "<group>"; };
+		5ADE8A4128725EB9150C196B /* Products */ = {isa = PBXGroup; children = ( D9730C12B890D116AC692E1F /* Mark My Work.app */, AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */, ); name = Products; sourceTree = "<group>"; };
 		76b6d5b0f6a84a6f8c3b4f17 /* Persistence */ = {
 			isa = PBXGroup;
 			children = (
@@ -524,9 +524,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		C9F45524962D088FBA96DA08 /* GradeDraft */ = {
+		C9F45524962D088FBA96DA08 /* Mark My Work */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 7D5CC26B5D8184F60C162E3E /* Build configuration list for PBXNativeTarget "GradeDraft" */;
+			buildConfigurationList = 7D5CC26B5D8184F60C162E3E /* Build configuration list for PBXNativeTarget "Mark My Work" */;
 			buildPhases = (
 				AD7F4DA0D2B5600DAD6CC1D4 /* Sources */,
 				61D85E48ABD4C58BF0072A49 /* Frameworks */,
@@ -534,7 +534,7 @@
 			);
 			buildRules = ( );
 			dependencies = ( );
-			name = GradeDraft;
+			name = "Mark My Work";
 			packageProductDependencies = (
 				3cb5e66df7814c5c88f70055 /* GRDB */,
 				6d3552c8565e4dfa821c11ec /* Markdown */,
@@ -543,7 +543,7 @@
 				f19535ba82fd46f1a2ff88f8 /* SwiftCSV */,
 				9f99f659a06b4432b272724b /* Dependencies */,
 			);
-			productReference = D9730C12B890D116AC692E1F /* GradeDraft.app */;
+			productReference = D9730C12B890D116AC692E1F /* Mark My Work.app */;
 			productType = "com.apple.product-type.application";
 		};
 		385F6D1BD8E774F956FF142E /* GradeDraftTests */ = {
@@ -910,7 +910,8 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(GRADEDRAFT_BUNDLE_ID)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = GradeDraft;
+				PRODUCT_NAME = "Mark My Work";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -932,7 +933,8 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(GRADEDRAFT_BUNDLE_ID)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = GradeDraft;
+				PRODUCT_NAME = "Mark My Work";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -951,7 +953,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GradeDraft.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GradeDraft";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Mark My Work.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Mark My Work";
 			};
 			name = Debug;
 		};
@@ -967,7 +969,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GradeDraft.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GradeDraft";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Mark My Work.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Mark My Work";
 			};
 			name = Release;
 		};
@@ -975,7 +977,7 @@
 
 /* Begin XCConfigurationList section */
 		4098280B01B3EBC6C4399C36 /* Build configuration list for PBXProject "GradeDraft" */ = {isa = XCConfigurationList; buildConfigurations = ( 44F8FE9E42EE10FA95BF5EC7 /* Debug */, 4716E1B4F36A39044E1BE345 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		7D5CC26B5D8184F60C162E3E /* Build configuration list for PBXNativeTarget "GradeDraft" */ = {isa = XCConfigurationList; buildConfigurations = ( AA42A96571B68018722E06D1 /* Debug */, D1EF6BA381CF098EC2C15B86 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		7D5CC26B5D8184F60C162E3E /* Build configuration list for PBXNativeTarget "Mark My Work" */ = {isa = XCConfigurationList; buildConfigurations = ( AA42A96571B68018722E06D1 /* Debug */, D1EF6BA381CF098EC2C15B86 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		97A2EC73EC7ED3717951F45B /* Build configuration list for PBXNativeTarget "GradeDraftTests" */ = {isa = XCConfigurationList; buildConfigurations = ( 7E49AA4734F9B1DA6D85775C /* Debug */, 71A699ED4E27E90F54E3EFE9 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 	};

@@ -1,6 +1,6 @@
-# GradeDraft v3 Implementation Notes
+# Mark My Work v3 Implementation Notes
 
-GradeDraft v3 is a source-level completion pass for the local-first, teacher-controlled grading workflow. The implementation keeps the product bounded to local iOS/iPadOS app behavior and does not add cloud services, remote AI, hosted OCR, accounts, telemetry, analytics, subscriptions, hosted assets, Firebase, RevenueCat, or server APIs.
+Mark My Work v3 is a source-level completion pass for the local-first, teacher-controlled grading workflow. The implementation keeps the product bounded to local iOS/iPadOS app behavior and does not add cloud services, remote AI, hosted OCR, accounts, telemetry, analytics, subscriptions, hosted assets, Firebase, RevenueCat, or server APIs.
 
 ## Source-implemented feature set
 

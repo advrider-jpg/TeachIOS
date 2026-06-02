@@ -1,6 +1,6 @@
 # v2 Implementation Notes
 
-This file is retained only as historical context for the prior scaffold. GradeDraft v3 supersedes the v2 implementation notes.
+This file is retained only as historical context for the prior scaffold. Mark My Work v3 supersedes the v2 implementation notes.
 
 Use these current files instead:
 

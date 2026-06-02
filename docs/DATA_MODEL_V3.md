@@ -1,6 +1,6 @@
-# GradeDraft v3 Data Model
+# Mark My Work v3 Data Model
 
-GradeDraft v3 uses normalized GRDB persistence as the primary path while retaining complete assignment JSON payloads only for compatibility and backup/export fallback.
+Mark My Work v3 uses normalized GRDB persistence as the primary path while retaining complete assignment JSON payloads only for compatibility and backup/export fallback.
 
 ## Core assignment graph
 

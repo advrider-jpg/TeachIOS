@@ -20,7 +20,7 @@ Rule:
 The core grading workflow must not require a server, backend, network connection, analytics SDK, cloud OCR, cloud grading, remote rubric processing, account login, or network entitlement.
 
 Why it matters:
-This is the project’s product and privacy posture; changing it materially changes what GradeDraft is.
+This is the project’s product and privacy posture; changing it materially changes what Mark My Work is.
 
 Evidence:
 `README.md` (explicitly lists no backend, no cloud OCR, no cloud grading, no analytics, no account login, no network entitlement); `docs/OFFLINE_CAPABILITY.md`.

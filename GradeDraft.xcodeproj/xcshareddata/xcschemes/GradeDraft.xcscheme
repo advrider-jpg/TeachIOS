@@ -15,8 +15,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "C9F45524962D088FBA96DA08"
-               BuildableName = "GradeDraft.app"
-               BlueprintName = "GradeDraft"
+               BuildableName = "Mark My Work.app"
+               BlueprintName = "Mark My Work"
                ReferencedContainer = "container:GradeDraft.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -55,8 +55,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "C9F45524962D088FBA96DA08"
-            BuildableName = "GradeDraft.app"
-            BlueprintName = "GradeDraft"
+            BuildableName = "Mark My Work.app"
+            BlueprintName = "Mark My Work"
             ReferencedContainer = "container:GradeDraft.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -72,8 +72,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "C9F45524962D088FBA96DA08"
-            BuildableName = "GradeDraft.app"
-            BlueprintName = "GradeDraft"
+            BuildableName = "Mark My Work.app"
+            BlueprintName = "Mark My Work"
             ReferencedContainer = "container:GradeDraft.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

@@ -1,4 +1,4 @@
-# GradeDraft Test Plan
+# Mark My Work Test Plan
 
 ## Current source-level tests
 

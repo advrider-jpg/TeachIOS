@@ -1,4 +1,4 @@
-# Australian Curriculum extraction package for GradeDraft / TeachIOS
+# Australian Curriculum extraction package for Mark My Work / TeachIOS
 
 Prepared: 2026-05-28
 
