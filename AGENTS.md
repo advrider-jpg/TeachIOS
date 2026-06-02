@@ -32,6 +32,67 @@ If the user provides a PR link after a prompt was drafted, review the live PR ag
 - Do not give the implementing AI phased follow-up or optional cleanup.
 - Use a strict, hard completion standard.
 
+## iOS CI Debugging Rules
+
+When CI fails, first use `gh-fix-ci` to inspect the failing GitHub Actions run and retrieve the exact failing log section. Do not infer the failure from file names or recent edits alone.
+
+For local iOS reproduction, use XcodeBuildMCP rather than hand-written `xcodebuild`, `xcrun`, or `simctl` commands unless XcodeBuildMCP cannot produce complete logs. Always identify the workspace/project, scheme, destination simulator, and failing test target before changing code.
+
+After each fix, rerun the narrowest relevant build or test command first. Only run the full suite after the targeted failure is resolved.
+
+## iOS CI and iOS/Codex debugging skill stack (ranked)
+
+For this repo’s CI/debugging workflow, use this order:
+
+| Rank | Skill / repo                                                      | GitHub signal | Why it matters for your iOS CI work |
+| ---: | ----------------------------------------------------------------- | ------------- | ---------------------------------- |
+|    1 | **OpenAI `gh-fix-ci`** (inside `openai/skills`)                    | `openai/skills` (about 21.1k stars) | Uses `gh` to inspect PR checks, fetch logs, identify failing jobs, summarize failures, and propose a fix plan. |
+|    2 | **`getsentry/XcodeBuildMCP`** (`xcodebuildmcp` skill)             | `getsentry/XcodeBuildMCP` (~5.8k stars, latest release v2.6.0, June 1, 2026) | Best iOS-specific debugging companion with build, test, run, simulator, log capture, LLDB, screenshots, view hierarchy, and automation workflows. |
+|    3 | **twostraws/SwiftUI-Agent-Skill**                                 | ~4k stars | Targets common SwiftUI mistakes (deprecated API, accessibility, performance) when CI failures are SwiftUI-subtle. |
+|    4 | **Dimillian/Skills** (`ios-debugger-agent`)                         | ~3.6k stars | Builds on XcodeBuildMCP for simulator launch, inspection, and log capture when local runtime differs from CI behavior. |
+|    5 | **AvdLee/SwiftUI-Agent-Skill**                                    | ~2.9k stars | Useful second-pass SwiftUI/code quality review for state management and composition issues. |
+
+Practical first-line setup:
+
+```bash
+# In Codex, install the official CI fixer:
+skill-installer gh-fix-ci
+```
+
+```bash
+# Install XcodeBuildMCP:
+brew tap getsentry/xcodebuildmcp
+brew install xcodebuildmcp
+
+# Or:
+npm install -g xcodebuildmcp@latest
+
+# Then initialize agent skills:
+xcodebuildmcp init
+```
+
+Broad Swift coverage (secondary):
+
+```bash
+npx skills add dpearson2699/swift-ios-skills --all
+```
+
+Suggested invocation for a failing PR:
+
+```text
+Use the gh-fix-ci skill first. Inspect the failing GitHub Actions checks for the current PR using gh, pull the failing job logs, identify the exact failing command and error, and produce a concise root-cause analysis.
+
+Then use XcodeBuildMCP to reproduce the closest equivalent build/test locally for the relevant scheme, simulator, and test target. Do not guess. Compare the CI failure against the local XcodeBuildMCP result. Make the smallest production-quality fix that addresses the actual failure, then rerun the targeted build/test command and summarize the diff and remaining risks.
+```
+
+GitHub references:
+- https://github.com/openai/skills
+- https://github.com/getsentry/XcodeBuildMCP
+- https://github.com/twostraws/SwiftUI-Agent-Skill
+- https://github.com/Dimillian/Skills
+- https://github.com/AvdLee/SwiftUI-Agent-Skill
+- https://github.com/dpearson2699/swift-ios-skills
+
 ## Validation commands
 
 - `python3 scripts/no_network_scan.py`
