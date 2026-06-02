@@ -5,15 +5,10 @@ hostedViewSize: 390x844
 expectedContainer: List
 sourceContainerPresent: true
 sections:
-- Summary
-- Needs Attention
-- Assignments Needing Action
-- Recent Exports & Backups
+- none
 nativeControls:
 - List
-- Section
 - NavigationLink
 - ContentUnavailableView
-- LabeledContent
 forbiddenScreenTokens:
 - none

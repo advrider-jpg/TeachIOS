@@ -8,4 +8,7 @@ enum GradeDraftTypography {
     static let rowMetadata: Font = .subheadline
     static let helper: Font = .footnote
     static let chip: Font = .caption.weight(.semibold)
+    static let stationeryEyebrow: Font = .caption.weight(.semibold)
+    static let stationeryAnnotation: Font = .callout.italic()
+    static let stationeryMetricValue: Font = .title3.weight(.semibold).monospacedDigit()
 }

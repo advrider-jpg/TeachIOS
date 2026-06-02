@@ -5,9 +5,9 @@ import Foundation
 /// Copy and label rules generated from the grading content source of truth.
 enum GradeDraftCopyCatalog {
     enum ProductIdentity {
-        static let appName = "GradeDraft"
+        static let appName = "Mark My Work"
         static let shortDescription = "An offline teacher-assist tool that helps teachers turn reviewed student work, rubrics, and teacher instructions into draft grading feedback."
-        static let teacherPositioning = "GradeDraft proposes draft feedback. Teachers remain responsible for final judgment."
+        static let teacherPositioning = "Mark My Work proposes draft feedback. Teachers remain responsible for final judgment."
     }
 
     enum Labels {
@@ -96,7 +96,7 @@ One-click grade
     }
 
     enum LocalAI {
-        static let noCloudFallback = "GradeDraft uses local processing for draft feedback. If local processing is unavailable, draft feedback is unavailable."
+        static let noCloudFallback = "Mark My Work uses local processing for draft feedback. If local processing is unavailable, draft feedback is unavailable."
         static let unavailable = "Local draft feedback is unavailable on this device or configuration."
     }
 

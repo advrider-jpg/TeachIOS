@@ -1,5 +1,68 @@
 import SwiftUI
 
+extension StationeryTheme {
+    static let exportPrivacy = StationeryTheme(
+        deskBackground: Color(red: 0.96, green: 0.91, blue: 0.80),
+        paper: Color(red: 0.99, green: 0.96, blue: 0.86),
+        paperTint: Color(red: 0.94, green: 0.88, blue: 0.73),
+        ruledLine: Color(red: 0.45, green: 0.58, blue: 0.76).opacity(0.22),
+        ink: Color(red: 0.22, green: 0.17, blue: 0.12),
+        mutedInk: Color(red: 0.42, green: 0.34, blue: 0.25),
+        accent: Color(red: 0.16, green: 0.38, blue: 0.62),
+        tape: Color(red: 1.00, green: 0.86, blue: 0.46).opacity(0.72),
+        clip: Color(red: 0.47, green: 0.43, blue: 0.38),
+        shadow: Color(red: 0.25, green: 0.18, blue: 0.10).opacity(0.16)
+    )
+}
+
+struct ExportStationeryHeaderCard: View {
+    var eyebrow: String
+    var title: String
+    var note: String
+    var status: GradeDraftUIStatus
+
+    var body: some View {
+        ExportStationeryCard(status: status, showsPerforation: true) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 9) {
+                    TapeLabel(eyebrow, theme: .exportPrivacy)
+                    Text(title)
+                        .font(.system(.largeTitle, design: .serif).weight(.bold))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HandwrittenAnnotation(note, status: status, theme: .exportPrivacy)
+                }
+                .layoutPriority(1)
+                Spacer(minLength: 8)
+                PaperclipDecoration(theme: .exportPrivacy)
+                    .frame(width: 32, height: 44)
+            }
+        }
+    }
+}
+
+struct ExportStationeryCard<Content: View>: View {
+    var status: GradeDraftUIStatus?
+    var showsPerforation: Bool
+    private let content: Content
+
+    init(
+        status: GradeDraftUIStatus? = nil,
+        showsPerforation: Bool = false,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.status = status
+        self.showsPerforation = showsPerforation
+        self.content = content()
+    }
+
+    var body: some View {
+        NotebookCard(theme: .exportPrivacy, status: status, showsPerforation: showsPerforation) {
+            content
+        }
+    }
+}
+
 struct ExportOptionRow: View {
     var title: String
     var subtitle: String
@@ -10,40 +73,42 @@ struct ExportOptionRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: status == .studentFacing ? "person.crop.circle.badge.checkmark" : "lock.doc")
-                    .foregroundStyle(status.color)
-                    .frame(width: 28)
-                    .padding(.top, 2)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(4)
-                        .fixedSize(horizontal: false, vertical: true)
+            ExportStationeryCard(status: status, showsPerforation: true) {
+                HStack(alignment: .top, spacing: 10) {
+                    TapeLabel(status == .studentFacing ? "Student copy" : "Teacher file", theme: .exportPrivacy)
+                    Spacer(minLength: 8)
+                    StatusChip(status, compact: true, theme: .exportPrivacy)
+                    if status == .teacherOnly {
+                        PaperclipDecoration(theme: .exportPrivacy)
+                            .frame(width: 24, height: 34)
+                    }
                 }
-                .layoutPriority(1)
-                Spacer(minLength: 8)
-                VStack(alignment: .trailing, spacing: 6) {
-                    StatusChip(status, compact: true)
+                HStack(alignment: .top, spacing: 12) {
+                    StatusIconBubble(status, theme: .exportPrivacy)
+                        .frame(width: 34, height: 34)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.system(.headline, design: .serif).weight(.semibold))
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .layoutPriority(1)
+                    Spacer(minLength: 8)
                     Text(actionLabel)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(disabled ? Color(.secondaryLabel) : Color.blue)
                         .multilineTextAlignment(.trailing)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 96, alignment: .trailing)
+                        .layoutPriority(2)
                 }
-                .frame(maxWidth: 132, alignment: .trailing)
-                .layoutPriority(2)
             }
-            .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-            .padding(.vertical, 10)
-            .frame(minHeight: 62)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -600,7 +665,7 @@ struct RestoreConflictRow: View {
     var body: some View {
         BlockingIssueRow(
             title: "Matching records found",
-            detail: "\(count) record(s) already exist on this device. Choose how GradeDraft should handle them.",
+            detail: "\(count) record(s) already exist on this device. Choose how Mark My Work should handle them.",
             status: .needsAttention
         )
     }

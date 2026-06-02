@@ -18,7 +18,7 @@ enum PDFExportError: LocalizedError {
 struct PDFExportService {
     static func studentReportPDF(for assignment: AssignmentRecord, destination: URL) throws -> URL {
         try writePDF(
-            title: "GradeDraft Student Report",
+            title: "Mark My Work Student Report",
             body: MarkdownReportBuilder.studentMarkdown(for: assignment),
             destination: destination
         )
@@ -26,7 +26,7 @@ struct PDFExportService {
 
     static func teacherAuditPDF(for assignment: AssignmentRecord, destination: URL) throws -> URL {
         try writePDF(
-            title: "GradeDraft Teacher Review",
+            title: "Mark My Work Teacher Review",
             body: MarkdownReportBuilder.teacherAuditMarkdown(for: assignment),
             destination: destination
         )
@@ -64,7 +64,7 @@ struct PDFExportService {
                     pageNumber += 1
                     context.beginPage()
                     title.draw(in: CGRect(x: margin, y: margin, width: contentWidth, height: 34), withAttributes: titleAttributes)
-                    let footer = "GradeDraft local export · Page \(pageNumber)"
+                    let footer = "Mark My Work local export · Page \(pageNumber)"
                     footer.draw(
                         in: CGRect(x: margin, y: pageBounds.height - margin + 12, width: contentWidth, height: 18),
                         withAttributes: footerAttributes

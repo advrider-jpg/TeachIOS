@@ -12,99 +12,128 @@ struct ClassDetailRosterScreen: View {
 
     var body: some View {
         Form {
-            Section {
-                LabeledContent("Name", value: classSummary.name.isEmpty ? "Class" : classSummary.name)
-                LabeledContent("Subject", value: classSummary.subject.nilIfBlank ?? "Not set")
-                LabeledContent("Students", value: "\(students.count)")
-                LabeledContent("Assignments", value: "\(assignments.count)")
-                GradeDraftStatusLabeledContent(title: "Approved", value: "\(approvedCount)", status: .approved)
-                GradeDraftStatusLabeledContent(title: "Missing Grades", value: "\(missingGradeCount)", status: missingGradeCount == 0 ? .onTrack : .needsAttention)
+            StationeryPageHeader(
+                eyebrow: "Roster",
+                title: classSummary.name.isEmpty ? "Class" : classSummary.name,
+                subtitle: "Roster records, import review, and local assignment progress."
+            )
+
+            RosterStationeryCard(title: "Class Summary", tapeLabel: "Roster cover", showsPaperclip: true) {
+                VStack(spacing: 10) {
+                    RosterMetricRow(title: "Name", value: classSummary.name.isEmpty ? "Class" : classSummary.name, status: nil)
+                    RosterMetricRow(title: "Subject", value: classSummary.subject.nilIfBlank ?? "Not set", status: nil)
+                    RosterMetricRow(title: "Students", value: "\(students.count)", status: nil)
+                    RosterMetricRow(title: "Assignments", value: "\(assignments.count)", status: nil)
+                    RosterMetricRow(title: "Approved", value: "\(approvedCount)", status: .approved)
+                    RosterMetricRow(title: "Missing Grades", value: "\(missingGradeCount)", status: missingGradeCount == 0 ? .onTrack : .needsAttention)
+                }
             }
 
-            Section("Roster") {
-                TextField("Student name", text: $newStudentName)
-                    .submitLabel(.next)
-                TextField("Local ID", text: $newStudentLocalID)
-                    .submitLabel(.done)
-                    .onSubmit(saveStudent)
-                Button(action: saveStudent) {
-                    Label("Add Student", systemImage: "person.badge.plus")
-                }
-                .disabled(newStudentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            RosterStationeryCard(title: "Roster", tapeLabel: "Student list") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Student name", text: $newStudentName)
+                        .submitLabel(.next)
+                    TextField("Local ID", text: $newStudentLocalID)
+                        .submitLabel(.done)
+                        .onSubmit(saveStudent)
+                    Button(action: saveStudent) {
+                        Label("Add Student", systemImage: "person.badge.plus")
+                            .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(newStudentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-                if students.isEmpty {
-                    ContentUnavailableView(
-                        "Roster not started",
-                        systemImage: "person.crop.circle.badge.plus",
-                        description: Text("Add student names or paste a roster CSV below.")
-                    )
-                } else {
-                    ForEach(students) { student in
-                        StudentRow(student: student, status: student.isActive ? .onTrack : .needsAttention, scoreText: scoreText(for: student))
+                    if students.isEmpty {
+                        ContentUnavailableView(
+                            "Roster not started",
+                            systemImage: "person.crop.circle.badge.plus",
+                            description: Text("Add student names or paste a roster CSV below.")
+                        )
+                    } else {
+                        LazyVStack(spacing: 12) {
+                            ForEach(students) { student in
+                                StudentRow(student: student, status: student.isActive ? .onTrack : .needsAttention, scoreText: scoreText(for: student))
+                                    .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
+                            }
+                        }
                     }
                 }
             }
 
-            Section {
-                Button {
-                    showingRosterImporter = true
-                } label: {
-                    Label("Choose CSV", systemImage: "doc.badge.plus")
+            RosterStationeryCard(title: "Import Roster CSV", tapeLabel: "Review before create", showsPaperclip: true) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Button {
+                        showingRosterImporter = true
+                    } label: {
+                        Label("Choose CSV", systemImage: "doc.badge.plus")
+                            .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                    }
+                    .buttonStyle(.bordered)
+
+                    TextEditor(text: $rosterCSV)
+                        .frame(minHeight: 110)
+                        .accessibilityLabel("Pasted roster CSV")
+                        .onChange(of: rosterCSV) { _, _ in reviewedRosterCSV = nil }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            previewRosterCSV()
+                        } label: {
+                            Label("Preview Import", systemImage: "list.bullet.rectangle")
+                                .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button {
+                            createAssignmentsFromReviewedRoster()
+                        } label: {
+                            Label("Create Assignments", systemImage: "doc.badge.plus")
+                                .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!rosterPreviewReadyForCreate)
+                    }
+
+                    if !rosterPreviewReadyForCreate && !rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        HandwrittenAnnotation("Preview the current roster CSV before creating local assignment records.", status: .needsAttention)
+                    }
+
+                    HandwrittenAnnotation("Review new students, duplicates, and rejected rows before creating assignment records.", status: .teacherOnly)
                 }
-                TextEditor(text: $rosterCSV)
-                    .frame(minHeight: 110)
-                    .accessibilityLabel("Pasted roster CSV")
-                    .onChange(of: rosterCSV) { _, _ in reviewedRosterCSV = nil }
-                Button {
-                    previewRosterCSV()
-                } label: {
-                    Label("Preview Import", systemImage: "list.bullet.rectangle")
-                }
-                .disabled(rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Button {
-                    createAssignmentsFromReviewedRoster()
-                } label: {
-                    Label("Create Assignments", systemImage: "doc.badge.plus")
-                }
-                .disabled(!rosterPreviewReadyForCreate)
-                if !rosterPreviewReadyForCreate && !rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Label("Preview the current roster CSV before creating local assignment records.", systemImage: "info.circle")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            } header: {
-                Text("Import Roster CSV")
-            } footer: {
-                Text("Review new students, duplicates, and rejected rows before creating assignment records.")
             }
 
             if let preview = viewModel.latestRosterPreview {
-                Section("Preview Import") {
-                    GradeDraftStatusLabeledContent(title: "New Students", value: "\(preview.students.count)", status: preview.rejectedRowDetails.isEmpty ? .onTrack : .needsAttention)
-                    LabeledContent("Header Row", value: preview.hasHeaderRow ? "Detected" : "Not detected")
-                    if !preview.duplicateNames.isEmpty {
-                        BlockingIssueRow(title: "Duplicates", detail: preview.duplicateNames.joined(separator: ", "), status: .needsAttention)
-                    }
-                    if !preview.warnings.isEmpty {
-                        DisclosureGroup("Warnings") {
-                            ForEach(preview.warnings, id: \.self) { warning in
-                                Text(warning)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                RosterStationeryCard(title: "Preview Import", tapeLabel: "Checked rows") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        RosterMetricRow(title: "New Students", value: "\(preview.students.count)", status: preview.rejectedRowDetails.isEmpty ? .onTrack : .needsAttention)
+                        RosterMetricRow(title: "Header Row", value: preview.hasHeaderRow ? "Detected" : "Not detected", status: nil)
+                        if !preview.duplicateNames.isEmpty {
+                            BlockingIssueRow(title: "Duplicates", detail: preview.duplicateNames.joined(separator: ", "), status: .needsAttention)
+                                .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
+                        }
+                        if !preview.warnings.isEmpty {
+                            DisclosureGroup("Warnings") {
+                                ForEach(preview.warnings, id: \.self) { warning in
+                                    Text(warning)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
-                    }
-                    if !preview.rejectedRowDetails.isEmpty {
-                        DisclosureGroup("Rejected Rows") {
-                            ForEach(preview.rejectedRowDetails) { rejected in
-                                BlockingIssueRow(title: "Row \(rejected.rowNumber)", detail: rejected.reason, status: .fixBeforeContinuing)
+                        if !preview.rejectedRowDetails.isEmpty {
+                            DisclosureGroup("Rejected Rows") {
+                                ForEach(preview.rejectedRowDetails) { rejected in
+                                    BlockingIssueRow(title: "Row \(rejected.rowNumber)", detail: rejected.reason, status: .fixBeforeContinuing)
+                                        .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
+                                }
                             }
                         }
                     }
                 }
             }
 
-            Section("Assignments in Class") {
+            RosterStationeryCard(title: "Assignments in Class", tapeLabel: "Grade sheets") {
                 if assignments.isEmpty {
                     ContentUnavailableView(
                         "No saved assignments",
@@ -112,16 +141,21 @@ struct ClassDetailRosterScreen: View {
                         description: Text("Create assignments from roster or add an assignment from the Assignments tab.")
                     )
                 } else {
-                    ForEach(assignments) { assignment in
-                        NavigationLink {
-                            AssignmentOverviewScreen(viewModel: viewModel, assignmentID: assignment.id)
-                        } label: {
-                            AssignmentRow(assignment: assignment, status: viewModel.v6Status(for: assignment), actionLabel: viewModel.v6ActionLabel(for: assignment))
+                    LazyVStack(spacing: 12) {
+                        ForEach(assignments) { assignment in
+                            NavigationLink {
+                                AssignmentOverviewScreen(viewModel: viewModel, assignmentID: assignment.id)
+                            } label: {
+                                AssignmentRow(assignment: assignment, status: viewModel.v6Status(for: assignment), actionLabel: viewModel.v6ActionLabel(for: assignment))
+                                    .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
             }
         }
+        .stationeryScreen()
         .navigationTitle(classSummary.name.isEmpty ? "Class" : classSummary.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
@@ -204,6 +238,76 @@ struct ClassDetailRosterScreen: View {
             previewRosterCSV()
         } catch {
             viewModel.errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct RosterMetricRow: View {
+    var title: String
+    var value: String
+    var status: GradeDraftUIStatus?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 12)
+            Text(value)
+                .font(.headline)
+                .multilineTextAlignment(.trailing)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            if let status {
+                StatusChip(status, compact: true)
+            }
+        }
+        .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
+        .padding(.vertical, 8)
+        .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+        .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct RosterStationeryCard<Content: View>: View {
+    var title: String?
+    var tapeLabel: String?
+    var showsPaperclip: Bool
+    private let content: Content
+
+    init(title: String? = nil, tapeLabel: String? = nil, showsPaperclip: Bool = false, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.tapeLabel = tapeLabel
+        self.showsPaperclip = showsPaperclip
+        self.content = content()
+    }
+
+    var body: some View {
+        NotebookCard(showsPerforation: true) {
+            if title != nil || tapeLabel != nil || showsPaperclip {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 10) {
+                        if let tapeLabel {
+                            TapeLabel(tapeLabel)
+                        }
+                        Spacer(minLength: 8)
+                        if showsPaperclip {
+                            PaperclipDecoration()
+                                .frame(width: 32, height: 44)
+                        }
+                    }
+                    if let title {
+                        Text(title)
+                            .font(.system(.title3, design: .serif).weight(.semibold))
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            content
         }
     }
 }

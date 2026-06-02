@@ -5,7 +5,7 @@ import Foundation
 enum ReportTemplateCatalog {
     static let studentReportTemplates = [
         #"""
-# GradeDraft Student Feedback
+# Mark My Work Student Feedback
 
 **Assignment:** {{assignmentTitle}}
 **Student:** {{studentDisplayNameOrLocalIdentifier}}
@@ -15,7 +15,7 @@ enum ReportTemplateCatalog {
 **Assignment type:** {{assignmentTypeDisplayName}}
 **Updated:** {{updatedDate}}
 
-> Generated from local app state. GradeDraft does not upload this report.
+> Generated from local app state. Mark My Work does not upload this report.
 > This student-facing report excludes private teacher notes and raw model responses.
 """#,
         #"""
@@ -59,7 +59,7 @@ enum ReportTemplateCatalog {
     ]
     static let teacherAuditReportTemplates = [
         #"""
-# GradeDraft Teacher Audit Report
+# Mark My Work Teacher Audit Report
 
 **Assignment:** {{assignmentTitle}}
 **Student:** {{studentDisplayNameOrLocalIdentifier}}
@@ -70,7 +70,7 @@ enum ReportTemplateCatalog {
 **Updated:** {{updatedDate}}
 
 > This teacher audit report may include private notes, reviewed text, OCR warnings, source fingerprints, and grading-state metadata. Treat it as sensitive student data.
-> Generated from local app state. GradeDraft does not upload this report.
+> Generated from local app state. Mark My Work does not upload this report.
 """#,
         #"""
 ## Readiness and source state

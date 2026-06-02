@@ -1,6 +1,6 @@
 # Data Ledger
 
-This ledger summarizes durable data entities and persistence behavior for GradeDraft v3.
+This ledger summarizes durable data entities and persistence behavior for Mark My Work v3.
 
 ## Assignment graph
 

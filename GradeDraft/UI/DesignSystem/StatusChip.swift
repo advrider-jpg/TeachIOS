@@ -3,11 +3,13 @@ import SwiftUI
 struct StatusChip: View {
     var status: GradeDraftUIStatus
     var compact: Bool
+    var theme: StationeryTheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    init(_ status: GradeDraftUIStatus, compact: Bool = false) {
+    init(_ status: GradeDraftUIStatus, compact: Bool = false, theme: StationeryTheme = .gradeDraft) {
         self.status = status
         self.compact = compact
+        self.theme = theme
     }
 
     var body: some View {
@@ -39,7 +41,8 @@ struct StatusChip: View {
         .padding(.horizontal, compact ? 8 : 10)
         .frame(minHeight: compact ? 24 : 28)
         .foregroundStyle(status.color)
-        .background(status.color.opacity(0.13), in: Capsule())
+        .background(theme.statusFill(for: status), in: Capsule())
+        .overlay(Capsule().stroke(theme.statusStroke(for: status), lineWidth: 0.5))
         .fixedSize(horizontal: true, vertical: false)
     }
 
@@ -49,6 +52,7 @@ struct StatusChip: View {
             .font(GradeDraftTypography.chip)
             .frame(width: compact ? 24 : 28, height: compact ? 24 : 28)
             .foregroundStyle(status.color)
-            .background(status.color.opacity(0.13), in: Capsule())
+            .background(theme.statusFill(for: status), in: Capsule())
+            .overlay(Capsule().stroke(theme.statusStroke(for: status), lineWidth: 0.5))
     }
 }

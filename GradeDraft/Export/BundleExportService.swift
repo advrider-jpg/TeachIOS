@@ -56,7 +56,7 @@ struct BackupDatabaseExport: Codable {
 struct BundleExportService {
     static func preflightDestination(for assignmentID: UUID) throws -> URL {
         let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        let root = documents.appendingPathComponent("GradeDraftExports", isDirectory: true)
+        let root = documents.appendingPathComponent("MarkMyWorkExports", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let filename = ExportFilenameBuilder.filename(kind: .zipArchive, assignmentID: assignmentID, extension: "zip")
         return root.appendingPathComponent(filename, isDirectory: false)
@@ -85,7 +85,7 @@ struct BundleExportService {
             try addCodable(manifest, named: "manifest.json", category: "manifest", sensitivity: .internalMetadata, description: "Archive manifest and restore compatibility metadata.", inventory: &inventory, to: archive)
             try addData(MarkdownReportBuilder.studentMarkdown(for: assignment).data(using: .utf8) ?? Data(), named: "student_report.md", category: "studentReport", sensitivity: .studentReport, description: "Final-only student-facing report content.", inventory: &inventory, to: archive)
             try addData(MarkdownReportBuilder.teacherAuditMarkdown(for: assignment).data(using: .utf8) ?? Data(), named: "teacher_audit_report.md", category: "teacherAuditReport", sensitivity: .teacherAudit, description: "Teacher-only audit report with private notes and provenance.", inventory: &inventory, to: archive)
-            let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftArchivePDFs", isDirectory: true)
+            let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent("MarkMyWorkArchivePDFs", isDirectory: true)
             try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
             let studentPDF = try PDFExportService.studentReportPDF(for: assignment, destination: tempRoot.appendingPathComponent(ExportFilenameBuilder.filename(kind: .studentPDF, assignmentID: assignment.id, extension: "pdf")))
             let auditPDF = try PDFExportService.teacherAuditPDF(for: assignment, destination: tempRoot.appendingPathComponent(ExportFilenameBuilder.filename(kind: .teacherAuditPDF, assignmentID: assignment.id, extension: "pdf")))
@@ -454,7 +454,7 @@ struct BundleExportService {
 
     private static func addDataWithoutInventory(_ data: Data, named name: String, to archive: Archive) throws {
         let safeName = safeArchivePath(name)
-        let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftArchiveData-\(UUID().uuidString).data")
+        let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("MarkMyWorkArchiveData-\(UUID().uuidString).data")
         try data.write(to: scratch, options: [.atomic])
         defer { try? FileManager.default.removeItem(at: scratch) }
         try archive.addEntry(with: safeName, fileURL: scratch)

@@ -1,10 +1,16 @@
 # Decisions Ledger
 
+## D012 — App display name
+
+Decision: The user-facing app name is now **Mark My Work**.
+
+Rationale: User explicitly requested a global app-name change, including user-facing copy. Internal Swift module, target, schema, and path identifiers remain `GradeDraft` where changing them would create a separate project-rename migration or compatibility risk.
+
 ## D001 — Local-only source completion
 
 Decision: The all-features completion patch implements requested behavior with local SwiftUI, local file storage, local ZIP/PDF writing, GRDB, PDFKit/UIKit, Vision/VisionKit, and Foundation Models availability gates.
 
-Rationale: GradeDraft is a local-first teacher tool. The patch must not introduce hosted services or network dependencies.
+Rationale: Mark My Work is a local-first teacher tool. The patch must not introduce hosted services or network dependencies.
 
 ## D002 — Student report and teacher audit report remain separate
 
@@ -58,4 +64,4 @@ Rationale: The app must grade from teacher-reviewed student text and teacher-sup
 
 Decision: EAL/D-sensitive and adjustment-context AI grading constraint templates are never auto-selected. Teachers may select them only when they have supplied the relevant context.
 
-Rationale: GradeDraft must not infer language background, disability, support needs, adjustment status, effort, or intent.
+Rationale: Mark My Work must not infer language background, disability, support needs, adjustment status, effort, or intent.

@@ -252,7 +252,7 @@ struct FinalGradeReviewView: View {
             }
             Button("Keep Reviewing", role: .cancel) {}
         } message: {
-            Text("Approve this as the final grade? GradeDraft will keep the unreviewed suggestion in teacher-only review history, and the final score and feedback will reflect your reviewed edits.")
+            Text("Approve this as the final grade? Mark My Work will keep the unreviewed suggestion in teacher-only review history, and the final score and feedback will reflect your reviewed edits.")
         }
     }
 

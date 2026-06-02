@@ -1688,7 +1688,7 @@ final class GradeDraftViewModel: ObservableObject {
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         let ext = url.pathExtension.isEmpty ? "backup" : url.pathExtension.lowercased()
         let destination = fileManager.temporaryDirectory
-            .appendingPathComponent("GradeDraft-PendingRestore-\(UUID().uuidString)")
+            .appendingPathComponent("MarkMyWork-PendingRestore-\(UUID().uuidString)")
             .appendingPathExtension(ext)
         if fileManager.fileExists(atPath: destination.path) { try fileManager.removeItem(at: destination) }
         try fileManager.copyItem(at: url, to: destination)
@@ -1881,7 +1881,7 @@ final class GradeDraftViewModel: ObservableObject {
         } catch {
             exportURL = nil
             exportKind = nil
-            errorMessage = "GradeDraft could not create the export. No file was shared. Could not fingerprint the exported file."
+            errorMessage = "Mark My Work could not create the export. No file was shared. Could not fingerprint the exported file."
         }
     }
 
@@ -1904,7 +1904,7 @@ final class GradeDraftViewModel: ObservableObject {
         exportURL = nil
         exportKind = nil
         let detail = error.localizedDescription.replacingOccurrences(of: fileManager.temporaryDirectory.path, with: "[temporary directory]")
-        errorMessage = "GradeDraft could not create the export. No file was shared. \(detail)"
+        errorMessage = "Mark My Work could not create the export. No file was shared. \(detail)"
     }
 
     private func upsertAssignment(_ updated: AssignmentRecord) {

@@ -895,7 +895,7 @@ struct CurriculumCatalog: Codable, Equatable {
         sourceVersion: String = "repository-local",
         filesUpdated: String = "",
         generatedAt: Date = Date(),
-        generatedBy: String = "GradeDraft",
+        generatedBy: String = "Mark My Work",
         licenseName: String = "",
         attributionText: String = "",
         nonEndorsementWarning: String = "",
@@ -936,7 +936,7 @@ struct CurriculumCatalog: Codable, Equatable {
         sourceVersion = (try? container.decode(String.self, forKey: .sourceVersion)) ?? "repository-local"
         filesUpdated = (try? container.decode(String.self, forKey: .filesUpdated)) ?? ""
         generatedAt = (try? container.decode(Date.self, forKey: .generatedAt)) ?? Date()
-        generatedBy = (try? container.decode(String.self, forKey: .generatedBy)) ?? "GradeDraft"
+        generatedBy = (try? container.decode(String.self, forKey: .generatedBy)) ?? "Mark My Work"
         licenseName = (try? container.decode(String.self, forKey: .licenseName)) ?? ""
         attributionText = (try? container.decode(String.self, forKey: .attributionText)) ?? ""
         nonEndorsementWarning = (try? container.decode(String.self, forKey: .nonEndorsementWarning)) ?? ""
@@ -1050,7 +1050,7 @@ struct BackupArchiveManifest: Codable, Equatable {
     var sourceFileCount: Int
     var recordCounts: [String: Int]
     var contentHashes: [String: String]
-    var restoreCompatibility: String = "Compatible with GradeDraft local backup restore v3 when schemaVersion begins with gradedraft-backup-v."
+    var restoreCompatibility: String = "Compatible with Mark My Work local backup restore v3 when schemaVersion begins with gradedraft-backup-v."
 }
 
 struct ExportArchiveInventoryItem: Codable, Equatable, Identifiable {
@@ -2107,7 +2107,7 @@ enum DeviceBackupPolicyStatus: Equatable {
         case .included:
             return "Student records may be included in device backup according to this device and account configuration."
         case .unknown(let detail):
-            return "GradeDraft could not verify whether local student records are excluded from device backup. \(detail)"
+            return "Mark My Work could not verify whether local student records are excluded from device backup. \(detail)"
         }
     }
 }

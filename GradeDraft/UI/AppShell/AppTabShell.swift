@@ -48,7 +48,7 @@ struct AppTabShell: View {
     var body: some View {
         rootShell
         .task { viewModel.refreshCapabilityStatus() }
-        .alert("GradeDraft", isPresented: Binding(
+        .alert("Mark My Work", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
         )) {
@@ -74,7 +74,7 @@ struct AppTabShell: View {
                         .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
                     }
                 }
-                .navigationTitle("GradeDraft")
+                .navigationTitle("Mark My Work")
             } detail: {
                 NavigationStack {
                     selectedRootScreen

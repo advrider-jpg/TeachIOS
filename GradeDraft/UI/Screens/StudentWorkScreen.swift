@@ -74,7 +74,18 @@ struct StudentWorkScreen: View {
 
     var body: some View {
         Form {
-            Section {
+            AssignmentStationeryHeader(
+                eyebrow: "Input",
+                title: "Student Work",
+                subtitle: assignment.studentDisplayName.nilIfBlank ?? "Teacher-reviewed text intake",
+                status: assignment.ocrReviewStatus.v6Status
+            )
+            PaperStack(theme: AssignmentWorkflowStationery.theme) {
+                HStack(alignment: .top) {
+                    TapeLabel("Attached files", theme: AssignmentWorkflowStationery.theme)
+                    Spacer(minLength: 8)
+                    PaperclipDecoration(theme: AssignmentWorkflowStationery.theme)
+                }
                 if assignment.sourceInputs.isEmpty {
                     ContentUnavailableView(
                         "Add student work",
@@ -82,50 +93,54 @@ struct StudentWorkScreen: View {
                         description: Text("Scan, import a photo or PDF, or paste text directly.")
                     )
                 } else {
-                    ForEach(assignment.sourceInputs) { source in
-                        WorkAttachmentRow(source: source)
+                    LazyVStack(spacing: 10) {
+                        ForEach(assignment.sourceInputs) { source in
+                            WorkAttachmentRow(source: source)
+                                .background(AssignmentWorkflowStationery.theme.paperTint.opacity(0.64), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
+                        }
                     }
                 }
-            } header: {
-                    Text("Attached Files")
-                } footer: {
-                Text("Original files stay on this device unless you export them.")
+                HandwrittenAnnotation("Original files stay on this device unless you export them.", theme: AssignmentWorkflowStationery.theme)
             }
 
-            Section {
-                Button {
-                    showingScanner = true
-                } label: {
-                    Label("Scan Paper Work", systemImage: "doc.viewfinder")
-                }
-                .disabled(!VNDocumentCameraViewController.isSupported || viewModel.isWorking)
+            NotebookCard(theme: AssignmentWorkflowStationery.theme, showsPerforation: true) {
+                TapeLabel("Add student work", theme: AssignmentWorkflowStationery.theme)
+                VStack(alignment: .leading, spacing: 12) {
+                    Button {
+                        showingScanner = true
+                    } label: {
+                        Label("Scan Paper Work", systemImage: "doc.viewfinder")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!VNDocumentCameraViewController.isSupported || viewModel.isWorking)
 
-                if !VNDocumentCameraViewController.isSupported {
-                    BlockingIssueRow(
-                        title: "Scanning unavailable",
-                        detail: "Document camera scanning is not available on this device. Choose a photo, import a PDF, or paste text instead.",
-                        status: .needsAttention
-                    )
-                }
+                    if !VNDocumentCameraViewController.isSupported {
+                        BlockingIssueRow(
+                            title: "Scanning unavailable",
+                            detail: "Document camera scanning is not available on this device. Choose a photo, import a PDF, or paste text instead.",
+                            status: .needsAttention
+                        )
+                    }
 
-                PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Label("Choose Photo", systemImage: "photo")
-                }
-                .disabled(viewModel.isWorking)
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        Label("Choose Photo", systemImage: "photo")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.isWorking)
 
-                Button {
-                    showingPDFImporter = true
-                } label: {
-                    Label("Import PDF", systemImage: "doc.richtext")
+                    Button {
+                        showingPDFImporter = true
+                    } label: {
+                        Label("Import PDF", systemImage: "doc.richtext")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.isWorking)
                 }
-                .disabled(viewModel.isWorking)
-            } header: {
-                    Text("Add Student Work")
-                } footer: {
-                Text("Import locally. No student work is uploaded.")
+                HandwrittenAnnotation("Import locally. No student work is uploaded.", theme: AssignmentWorkflowStationery.theme)
             }
 
-            Section {
+            NotebookCard(theme: AssignmentWorkflowStationery.theme, showsPerforation: true) {
+                TapeLabel("Work preview", theme: AssignmentWorkflowStationery.theme)
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Current reviewed text")
                         .font(.caption.weight(.semibold))
@@ -135,9 +150,15 @@ struct StudentWorkScreen: View {
                         .foregroundStyle(assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .secondary : .primary)
                         .textSelection(.enabled)
                 }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AssignmentWorkflowStationery.theme.paperTint.opacity(0.72), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
 
                 TextEditor(text: $pastedStudentText)
                     .frame(minHeight: 140)
+                    .padding(8)
+                    .scrollContentBackground(.hidden)
+                    .background(AssignmentWorkflowStationery.theme.paperTint.opacity(0.72), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
                     .accessibilityLabel("Paste student work text")
                 Button {
                     viewModel.selectAssignment(assignmentID)
@@ -146,50 +167,49 @@ struct StudentWorkScreen: View {
                 } label: {
                     Label("Save Pasted Text as Reviewed", systemImage: "checkmark.circle")
                 }
+                .buttonStyle(.borderedProminent)
                 .disabled(pastedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isWorking)
-            } header: {
-                    Text("Work Preview")
-                } footer: {
-                Text("Saving pasted text records it as teacher-reviewed input and replaces current attached work for this assignment. OCR text must be reviewed before grading.")
+                HandwrittenAnnotation("Saving pasted text records it as teacher-reviewed input and replaces current attached work for this assignment. OCR text must be reviewed before grading.", theme: AssignmentWorkflowStationery.theme)
             }
 
-            Section {
+            NotebookCard(theme: AssignmentWorkflowStationery.theme, status: assignment.ocrReviewStatus.v6Status, showsPerforation: true) {
+                TapeLabel("Student work status", theme: AssignmentWorkflowStationery.theme)
                 BlockingIssueRow(
                     title: assignment.ocrReviewStatus.v6Status.rawValue,
                     detail: assignment.ocrReviewStatus.blocksGrading ? GradeDraftWorkflowLanguage.reviewScannedTextExplanation : "Student work is ready for teacher review.",
                     status: assignment.ocrReviewStatus.v6Status
                 )
-            } header: {
-                    Text("Student Work Status")
-                } footer: {
-                Text("Teacher review gates remain required.")
+                HandwrittenAnnotation("Teacher review gates remain required.", status: assignment.ocrReviewStatus.v6Status, theme: AssignmentWorkflowStationery.theme)
             }
 
-            Section {
-                Button(role: .destructive) {
-                    showingClearConfirm = true
-                } label: {
-                    Label("Clear Work", systemImage: "trash")
-                }
-                .disabled((assignment.reviewedStudentText.isEmpty && assignment.sourceInputs.isEmpty) || viewModel.isWorking)
-
-                if let deleteWarning = ExportWarningCatalog.warning(id: "delete-local-data-warning") {
-                    Text(deleteWarning.body.trimmingCharacters(in: .whitespacesAndNewlines))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            NotebookCard(theme: AssignmentWorkflowStationery.theme, status: .teacherOnly, showsPerforation: true) {
+                TapeLabel("Danger zone", theme: AssignmentWorkflowStationery.theme)
+                VStack(alignment: .leading, spacing: 12) {
                     Button(role: .destructive) {
-                        showingDeleteConfirm = true
+                        showingClearConfirm = true
                     } label: {
-                        Label("Delete Assignment", systemImage: "trash")
+                        Label("Clear Work", systemImage: "trash")
                     }
-                    .disabled(viewModel.isWorking)
+                    .buttonStyle(.bordered)
+                    .disabled((assignment.reviewedStudentText.isEmpty && assignment.sourceInputs.isEmpty) || viewModel.isWorking)
+
+                    if let deleteWarning = ExportWarningCatalog.warning(id: "delete-local-data-warning") {
+                        Text(deleteWarning.body.trimmingCharacters(in: .whitespacesAndNewlines))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Button(role: .destructive) {
+                            showingDeleteConfirm = true
+                        } label: {
+                            Label("Delete Assignment", systemImage: "trash")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(viewModel.isWorking)
+                    }
                 }
-            } header: {
-                    Text("Danger Zone")
-                } footer: {
-                Text("Permanent actions cannot be undone.")
+                HandwrittenAnnotation("Permanent actions cannot be undone.", status: .teacherOnly, theme: AssignmentWorkflowStationery.theme)
             }
         }
+        .stationeryScreen(theme: AssignmentWorkflowStationery.theme)
         .navigationTitle("Student Work")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)

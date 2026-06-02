@@ -1,4 +1,4 @@
-# GradeDraft Grading Content Source of Truth
+# Mark My Work Grading Content Source of Truth
 
 **Status:** Canonical product/content specification for implementation agents  
 **Audience:** Codex, product, design, Swift implementation, QA, legal/compliance review  
@@ -34,13 +34,13 @@ This file is the human-authored answer to the questions Codex should not answer 
 
 ### 1.1 Working name
 
-Use **GradeDraft** as the current app name.
+Use **Mark My Work** as the current app name.
 
 Rationale: the name communicates that the app produces draft grading support, not final autonomous grading.
 
 ### 1.2 One-sentence product promise
 
-**GradeDraft helps teachers draft rubric-linked feedback from teacher-confirmed student work while keeping the final grading judgement in the teacher's hands.**
+**Mark My Work helps teachers draft rubric-linked feedback from teacher-confirmed student work while keeping the final grading judgement in the teacher's hands.**
 
 ### 1.3 Short app description
 
@@ -52,13 +52,13 @@ Use this where a compact product description is needed:
 
 Use this for onboarding, website copy, and App Store long description drafts:
 
-> GradeDraft is a local-first iPhone and iPad grading workspace for teachers. It helps you review student text, apply a rubric or answer key, draft criterion-by-criterion score suggestions, cite student evidence, flag uncertainty, and prepare feedback. The app is designed for teacher review and final approval. It is not an autonomous grader.
+> Mark My Work is a local-first iPhone and iPad grading workspace for teachers. It helps you review student text, apply a rubric or answer key, draft criterion-by-criterion score suggestions, cite student evidence, flag uncertainty, and prepare feedback. The app is designed for teacher review and final approval. It is not an autonomous grader.
 
 ### 1.5 Local-first privacy position
 
 Use this exact meaning whenever local-first privacy is described:
 
-> In the core workflow, student work, OCR text, rubrics, grading drafts, teacher notes, final grades, and feedback reports are processed and stored locally on the teacher's device. GradeDraft does not upload student work for cloud OCR, cloud AI grading, analytics, advertising, or model training.
+> In the core workflow, student work, OCR text, rubrics, grading drafts, teacher notes, final grades, and feedback reports are processed and stored locally on the teacher's device. Mark My Work does not upload student work for cloud OCR, cloud AI grading, analytics, advertising, or model training.
 
 Do not say: "we do not handle student data." The app does handle student data locally.
 
@@ -78,7 +78,7 @@ scan/import/paste student work
 
 ### 1.7 Product posture
 
-GradeDraft is:
+Mark My Work is:
 
 - a teacher-controlled grading assistant;
 - a rubric-assisted feedback drafting tool;
@@ -86,7 +86,7 @@ GradeDraft is:
 - a local-first Apple-native app;
 - a draft-generation tool that requires teacher final judgement.
 
-GradeDraft is not:
+Mark My Work is not:
 
 - an autonomous grader;
 - a replacement for teacher judgement;
@@ -1677,7 +1677,7 @@ Force teacher OCR review when:
 #### OCR review banner
 
 ```text
-Review extracted text before grading. GradeDraft can draft feedback only from text you have confirmed.
+Review extracted text before grading. Mark My Work can draft feedback only from text you have confirmed.
 ```
 
 #### Low-confidence line warning
@@ -1703,7 +1703,7 @@ Text extraction failed. You can try another scan, import a clearer image, or ent
 ```text
 Mark OCR reviewed?
 
-Only continue if the text shown here accurately reflects the student work you want GradeDraft to use. The app will draft feedback from this reviewed text, not from the original image.
+Only continue if the text shown here accurately reflects the student work you want Mark My Work to use. The app will draft feedback from this reviewed text, not from the original image.
 ```
 
 Primary button:
@@ -1721,7 +1721,7 @@ Keep Reviewing
 #### Manual transcription mode
 
 ```text
-Enter the student text manually. GradeDraft will treat this as teacher-confirmed text for grading.
+Enter the student text manually. Mark My Work will treat this as teacher-confirmed text for grading.
 ```
 
 ### 12.6 Side-by-side OCR review layout
@@ -1779,12 +1779,12 @@ Do not offer `Export Anyway` for student-facing final reports.
 | Model not ready | Local AI model is not ready | The local model may still be preparing on this device. Continue with manual grading or try again later. |
 | Unsupported language/region | Local AI unavailable for this language or region | Continue with manual grading. Do not use cloud fallback in the core workflow. |
 | Context too large | Assignment too large for one local draft | Shorten the input, draft by criterion, or split the submission. |
-| Unknown unavailable | Local AI grading unavailable | GradeDraft cannot generate a local AI draft right now. Manual review and export remain available. |
+| Unknown unavailable | Local AI grading unavailable | Mark My Work cannot generate a local AI draft right now. Manual review and export remain available. |
 
 ### 13.2 Unavailable-state copy
 
 ```text
-Local AI grading is unavailable in this build or on this device. GradeDraft will not send student work to a cloud model as a fallback. You can continue reviewing text, editing the rubric, and grading manually.
+Local AI grading is unavailable in this build or on this device. Mark My Work will not send student work to a cloud model as a fallback. You can continue reviewing text, editing the rubric, and grading manually.
 ```
 
 ### 13.3 Draft button labels
@@ -1824,7 +1824,7 @@ The local model returned a response the app could not use. No grade was saved. T
 ### 13.5 Invalid model grade error
 
 ```text
-The local model returned an invalid draft. GradeDraft rejected it because it did not meet the rubric/evidence rules.
+The local model returned an invalid draft. Mark My Work rejected it because it did not meet the rubric/evidence rules.
 ```
 
 ---
@@ -2001,7 +2001,7 @@ Avoid:
 ### 16.1 Student report header
 
 ```markdown
-# GradeDraft Student Feedback
+# Mark My Work Student Feedback
 
 **Assignment:** {{assignmentTitle}}
 **Student:** {{studentDisplayNameOrLocalIdentifier}}
@@ -2011,7 +2011,7 @@ Avoid:
 **Assignment type:** {{assignmentTypeDisplayName}}
 **Updated:** {{updatedDate}}
 
-> Generated from local app state. GradeDraft does not upload this report.
+> Generated from local app state. Mark My Work does not upload this report.
 > This student-facing report excludes private teacher notes and raw model responses.
 ```
 
@@ -2078,7 +2078,7 @@ Teacher audit reports may include sensitive records. They are not student-facing
 ### 17.1 Header
 
 ```markdown
-# GradeDraft Teacher Audit Report
+# Mark My Work Teacher Audit Report
 
 **Assignment:** {{assignmentTitle}}
 **Student:** {{studentDisplayNameOrLocalIdentifier}}
@@ -2089,7 +2089,7 @@ Teacher audit reports may include sensitive records. They are not student-facing
 **Updated:** {{updatedDate}}
 
 > This teacher audit report may include private notes, reviewed text, OCR warnings, source fingerprints, and grading-state metadata. Treat it as sensitive student data.
-> Generated from local app state. GradeDraft does not upload this report.
+> Generated from local app state. Mark My Work does not upload this report.
 ```
 
 ### 17.2 Required sections
@@ -2334,7 +2334,7 @@ This CSV may include student names, scores, grades, rubric labels, and comments.
 Security note:
 
 ```text
-GradeDraft neutralizes spreadsheet formula-injection risks before export. Review free-text fields before sharing.
+Mark My Work neutralizes spreadsheet formula-injection risks before export. Review free-text fields before sharing.
 ```
 
 Primary button:
@@ -2462,7 +2462,7 @@ Share outside the app?
 Body:
 
 ```text
-You are about to send a file or text to another app. GradeDraft cannot control how that destination app stores, syncs, forwards, or protects the information.
+You are about to send a file or text to another app. Mark My Work cannot control how that destination app stores, syncs, forwards, or protects the information.
 ```
 
 Primary button:
@@ -2494,7 +2494,7 @@ Include student records in device backup?
 Body:
 
 ```text
-By default, GradeDraft keeps student records local and excludes sensitive app files from backup where supported. If you enable backup for student records, copies may be stored outside this device according to your device and account settings.
+By default, Mark My Work keeps student records local and excludes sensitive app files from backup where supported. If you enable backup for student records, copies may be stored outside this device according to your device and account settings.
 ```
 
 Primary button:
@@ -2614,13 +2614,13 @@ Required default: block student-facing export until all draft items are finalize
 ### 19.1 Privacy policy summary
 
 ```text
-GradeDraft stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The developer does not receive, upload, or access this information in the core app workflow. Because this information is processed only on device and is not transmitted to the developer or third-party partners, it is not collected by the developer in the core workflow. You should still treat local app data and exported files as sensitive student information.
+Mark My Work stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The developer does not receive, upload, or access this information in the core app workflow. Because this information is processed only on device and is not transmitted to the developer or third-party partners, it is not collected by the developer in the core workflow. You should still treat local app data and exported files as sensitive student information.
 ```
 
 ### 19.2 App Review notes draft
 
 ```text
-GradeDraft is a teacher-facing local-first grading assistant. The core workflow runs on device. The app does not upload student work, OCR text, rubrics, grading drafts, teacher notes, final grades, or feedback reports to the developer or third-party services. The app does not include third-party analytics, advertising, tracking, or cloud AI grading. Student work may be imported or scanned by the teacher and remains in local app storage unless the teacher explicitly exports it through the iOS share sheet. The app includes in-app warnings for sensitive exports and is intended for teachers, not direct child use.
+Mark My Work is a teacher-facing local-first grading assistant. The core workflow runs on device. The app does not upload student work, OCR text, rubrics, grading drafts, teacher notes, final grades, or feedback reports to the developer or third-party services. The app does not include third-party analytics, advertising, tracking, or cloud AI grading. Student work may be imported or scanned by the teacher and remains in local app storage unless the teacher explicitly exports it through the iOS share sheet. The app includes in-app warnings for sensitive exports and is intended for teachers, not direct child use.
 ```
 
 If no accounts exist, add:
@@ -2638,13 +2638,13 @@ The app includes local device authentication for sensitive areas and exports whe
 ### 19.3 Local lock description
 
 ```text
-Local lock helps prevent casual access to GradeDraft on this device. It does not make exported files encrypted and does not replace school-approved device security, passcodes, or records policies.
+Local lock helps prevent casual access to Mark My Work on this device. It does not make exported files encrypted and does not replace school-approved device security, passcodes, or records policies.
 ```
 
 ### 19.4 Data protection description
 
 ```text
-GradeDraft uses iOS/iPadOS local storage protections where implemented. Device passcode, Face ID or Touch ID, school device management, and careful export handling remain important.
+Mark My Work uses iOS/iPadOS local storage protections where implemented. Device passcode, Face ID or Touch ID, school device management, and careful export handling remain important.
 ```
 
 Avoid:
@@ -2662,7 +2662,7 @@ Exports are protected after they leave the app.
 ### 19.5 Student/parent notice short form
 
 ```text
-[School/District] uses GradeDraft, a teacher-facing iPad/iPhone tool, to help teachers review student work and draft rubric-based feedback. The app is designed for teacher use, not student sign-in or direct student use. In the core workflow, student work and grading information are processed locally on the teacher's device and are not uploaded to the app developer, cloud AI services, cloud OCR services, analytics providers, or advertisers. Teachers review and finalize all grades and feedback. Exported files, if created by the teacher, may contain student information and must be handled under [School/District] privacy and records policies.
+[School/District] uses Mark My Work, a teacher-facing iPad/iPhone tool, to help teachers review student work and draft rubric-based feedback. The app is designed for teacher use, not student sign-in or direct student use. In the core workflow, student work and grading information are processed locally on the teacher's device and are not uploaded to the app developer, cloud AI services, cloud OCR services, analytics providers, or advertisers. Teachers review and finalize all grades and feedback. Exported files, if created by the teacher, may contain student information and must be handled under [School/District] privacy and records policies.
 ```
 
 ### 19.6 Local data inventory copy
@@ -2670,7 +2670,7 @@ Exports are protected after they leave the app.
 Use in privacy settings or help:
 
 ```text
-Depending on how you use GradeDraft, local records may include student identifiers, scanned work, pasted text, OCR text, rubrics, answer keys, exemplars, draft scores, final scores, feedback, private teacher notes, export records, and audit events. These records stay on this device in the core workflow unless you export or share them.
+Depending on how you use Mark My Work, local records may include student identifiers, scanned work, pasted text, OCR text, rubrics, answer keys, exemplars, draft scores, final scores, feedback, private teacher notes, export records, and audit events. These records stay on this device in the core workflow unless you export or share them.
 ```
 
 ---
@@ -2703,13 +2703,13 @@ Create an assignment to start reviewing student work.
 No rubric:
 
 ```text
-Add a rubric, answer key, exemplar, or grading criteria so GradeDraft knows what to assess.
+Add a rubric, answer key, exemplar, or grading criteria so Mark My Work knows what to assess.
 ```
 
 No student text:
 
 ```text
-Scan, import, or paste student text. GradeDraft drafts feedback only from reviewed text.
+Scan, import, or paste student text. Mark My Work drafts feedback only from reviewed text.
 ```
 
 No OCR text:
@@ -2796,7 +2796,7 @@ Review and confirm OCR text before drafting feedback.
 Local model unavailable:
 
 ```text
-Local AI grading is unavailable. GradeDraft will not send this student work to a cloud model as a fallback.
+Local AI grading is unavailable. Mark My Work will not send this student work to a cloud model as a fallback.
 ```
 
 Malformed model response:
@@ -2814,13 +2814,13 @@ The local model returned a draft that failed validation. No grade was saved.
 Persistence failure:
 
 ```text
-GradeDraft could not save local data. Do not close the app until you have copied or exported any important work.
+Mark My Work could not save local data. Do not close the app until you have copied or exported any important work.
 ```
 
 Export failure:
 
 ```text
-GradeDraft could not create the export. No file was shared.
+Mark My Work could not create the export. No file was shared.
 ```
 
 ---
@@ -2926,7 +2926,7 @@ Achievement standards support teacher judgement. Your school, sector, or jurisdi
 Official import warning when not implemented:
 
 ```text
-These curriculum references were entered by the teacher. GradeDraft has not verified them against an official curriculum import in this version.
+These curriculum references were entered by the teacher. Mark My Work has not verified them against an official curriculum import in this version.
 ```
 
 Jurisdiction warning:
@@ -2984,7 +2984,7 @@ Assess content separately from language control where appropriate.
 Help text:
 
 ```text
-Use this when you want feedback to focus on content understanding unless the rubric specifically assesses language control. GradeDraft will not infer a student's language background.
+Use this when you want feedback to focus on content understanding unless the rubric specifically assesses language control. Mark My Work will not infer a student's language background.
 ```
 
 ### 22.4 Adjustment notes warning

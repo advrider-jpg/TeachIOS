@@ -1,6 +1,6 @@
-# GradeDraft v3
+# Mark My Work v3
 
-GradeDraft is a local-first iOS/iPadOS repository for a teacher-controlled grading assistant for text-based student work.
+Mark My Work is a local-first iOS/iPadOS repository for a teacher-controlled grading assistant for text-based student work.
 
 The core lane is:
 
@@ -28,7 +28,7 @@ This patch level implements the complete v3 feature set in source code, tests, d
 
 ## Product promise
 
-GradeDraft is not an autonomous grader. It is a teacher-controlled assistant:
+Mark My Work is not an autonomous grader. It is a teacher-controlled assistant:
 
 1. The teacher supplies or confirms the rubric, answer key, exemplar, and custom grading instructions.
 2. The app extracts text locally with Apple Vision and PDFKit where needed.
@@ -37,18 +37,18 @@ GradeDraft is not an autonomous grader. It is a teacher-controlled assistant:
 5. The teacher edits or approves each criterion before treating the grade as final.
 6. The app preserves source input, OCR output, reviewed text, model proposal, final review, exports, archive records, curriculum mappings, and audit events as separate local records.
 
-GradeDraft does **not** upload student work, rubrics, prompts, draft grades, or final grades to a server.
+Mark My Work does **not** upload student work, rubrics, prompts, draft grades, or final grades to a server.
 
 
 ## Export hardening posture
 
-GradeDraft's export layer is intentionally separated by audience and sensitivity:
+Mark My Work's export layer is intentionally separated by audience and sensitivity:
 
 - Student-facing Markdown/PDF reports are final-only. They are blocked until a teacher-approved final review exists and the final review is not stale, and the student report builder does not render draft-only grade content.
 - Student-facing reports exclude private teacher notes, teacher rationale, raw model responses, audit events, source file paths, OCR internals, evidence source references, and bounding-box coordinates.
 - CSV gradebook exports quote every cell, escape embedded quotes, preserve commas/newlines as valid CSV content, and neutralize formula-like text values before writing.
 - Teacher audit reports, teacher archive ZIPs, and full local backups are teacher-only sensitive records. Archives include `archive_inventory.json` so teachers and restore tooling can see what categories of data were included.
-- Generated export filenames avoid assignment titles, student names, class names, and prompts by default. Filenames use the GradeDraft prefix, export kind, timestamp, short identifier, and extension.
+- Generated export filenames avoid assignment titles, student names, class names, and prompts by default. Filenames use the MarkMyWork prefix, export kind, timestamp, short identifier, and extension.
 - Export files receive best-effort platform file-protection and exclude-from-backup attributes where supported. This does not make files encrypted after they leave the app.
 
 ## Apple framework posture
@@ -56,13 +56,13 @@ GradeDraft's export layer is intentionally separated by audience and sensitivity
 - OCR: Vision / VisionKit.
 - PDF import/export: PDFKit and UIKit local rendering.
 - Local grading draft: Foundation Models typed guided generation, when available on supported devices.
-- Long grading packets may be drafted criterion-by-criterion or blocked with an explicit local-too-large message; GradeDraft does not silently truncate reviewed student text.
+- Long grading packets may be drafted criterion-by-criterion or blocked with an explicit local-too-large message; Mark My Work does not silently truncate reviewed student text.
 - Storage: local-first GRDB database with normalized tables.
 - Export: teacher-controlled local Markdown, PDF, CSV, ZIP/archive, and backup files.
 - Minimum deployment target in this scaffold: iOS 17.0.
 - Foundation Models code is guarded with `canImport(FoundationModels)` and iOS availability checks.
 
-If Foundation Models is unavailable, GradeDraft shows a local-unavailable state and refuses to generate an AI grade. It does not fall back to a cloud model. Manual final review remains available.
+If Foundation Models is unavailable, Mark My Work shows a local-unavailable state and refuses to generate an AI grade. It does not fall back to a cloud model. Manual final review remains available.
 
 ## Local-only constraints
 

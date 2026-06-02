@@ -5,14 +5,7 @@ hostedViewSize: 390x844
 expectedContainer: Form
 sourceContainerPresent: true
 sections:
-- Needs Attention
-- Rubric Setup
-- Instruction and Answer Key Templates
-- AI Grading Constraints
-- Criteria
-- Curriculum Reference
-- Teacher Instructions
-- Answer Key and Exemplar
+- none
 nativeControls:
 - Form
 - Section

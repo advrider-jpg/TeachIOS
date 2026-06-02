@@ -105,7 +105,7 @@ final class ExportFilenameHardeningTests: XCTestCase {
     func testExportFilenamesContainKindTimestampAndShortID() {
         let id = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
         let filename = ExportFilenameBuilder.filename(kind: .teacherAuditPDF, assignmentID: id, extension: "pdf", date: Date(timeIntervalSince1970: 0))
-        XCTAssertTrue(filename.hasPrefix("GradeDraft-TeacherAuditPDF-19700101-000000-AAAAAAAA"))
+        XCTAssertTrue(filename.hasPrefix("MarkMyWork-TeacherAuditPDF-19700101-000000-AAAAAAAA"))
         XCTAssertTrue(filename.hasSuffix(".pdf"))
     }
 

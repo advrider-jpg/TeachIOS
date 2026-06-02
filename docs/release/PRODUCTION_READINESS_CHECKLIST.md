@@ -1,4 +1,4 @@
-# GradeDraft Production Readiness Checklist
+# Mark My Work Production Readiness Checklist
 
 ## Source and configuration
 - [x] Build settings no longer use sample bundle identifiers.

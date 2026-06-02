@@ -1,7 +1,7 @@
 {
   "catalogID": "acara-australian-curriculum-v9-mrac-2024-04",
   "filesUpdated": "2024-06-07",
-  "generatedAt": "2026-06-01T00:01:56Z",
+  "generatedAt": "2026-06-02T03:25:32Z",
   "generatedBy": "scripts/curriculum/build_acara_curriculum_catalog.py",
   "requiredSourceKeys": [
     "CCP_AA",
@@ -24,8 +24,8 @@
     "LA_TEC"
   ],
   "resourceChecksums": {
-    "curriculum_catalog_acara_v9.json": "836ab623a8a304c30ebbe7eaa9d215a6ef943a04620498180c7d4075e6ca66f8",
-    "curriculum_catalog_acara_v9_summary.json": "d25d9a2d288ad5581aa0a7b60200d8535c99c08abb2e68143b3519388a86eb72"
+    "curriculum_catalog_acara_v9.json": "50c1eb159ab60be6fc8385c7f0639c008cbb7b12aed0ae45e1d52f5c18f568e6",
+    "curriculum_catalog_acara_v9_summary.json": "5711f07656b1fe51dd3fb412e7a12cd66aa406cdba1a6c3e9fcdfc889b648b59"
   },
   "schemaVersion": "1.0.0",
   "sourceMode": "Official Australian Curriculum workbook fallback used because MRAC JSON-LD source refresh could not run in this environment",

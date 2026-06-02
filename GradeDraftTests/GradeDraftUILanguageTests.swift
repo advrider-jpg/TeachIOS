@@ -61,7 +61,7 @@ final class GradeDraftUITabAndLanguageTests: XCTestCase {
             .joined(separator: "\n")
 
         XCTAssertTrue(uiSource.contains("Student-facing exports omit private teacher notes"))
-        XCTAssertTrue(uiSource.contains("GradeDraft drafts suggestions only"))
+        XCTAssertTrue(uiSource.contains("Mark My Work drafts suggestions only"))
         XCTAssertTrue(uiSource.contains("No student work is uploaded"))
         XCTAssertTrue(uiSource.contains("Opening the share sheet sends the selected file to another app"))
         XCTAssertTrue(uiSource.contains(GradeDraftWorkflowLanguage.reviewScannedTextExplanation))
