@@ -1,5 +1,12 @@
 # Worklog
 
+## 2026-06-04 — Guided pipeline: explicit stage progress
+
+- The per-assignment `AssignmentOverviewScreen` already implements the guided grading pipeline (a "Next up" card that routes to the correct next screen by status, a 6-step `WorkflowProgressRail`, and a blocking-issues card). The remaining gap was an explicit sense of position in the pipeline.
+- Added a compact progress summary to the Timeline card: "Step N of 6" (or "All steps complete") with a percentage and a `ProgressView` bar, derived from how many workflow steps are in a completed state (`onTrack`/`approved`/`readyToExport`/`exported`). Purely additive; reuses the existing `workflowSteps` model and stationery theme.
+- No new dependencies or screen files. The native source-fingerprint snapshot for this screen is unchanged (`ProgressView` is not a tracked control token; no new `Section`/headers).
+- Validation: local guardrails pass (`repo_health`, `bad_string_scan`, `check_xcode_project_membership`). Xcode compile + the overview snapshot/screenshot tests run in CI (currently blocked by the GitHub Actions spending limit; PR left for CI before merge).
+
 ## 2026-06-04 — Markdown rubric parser now AST-driven (swift-markdown)
 
 - `MarkdownRubricParser` previously parsed the rubric with swift-markdown and then discarded the result (`_ = Document(parsing: text)`), doing all real work with a hand-rolled line scanner — the reviewed dependency was decorative. Rewrote `candidateRows` to genuinely walk the swift-markdown `Document` AST: headings, tables (header + body rows, with the delimiter row handled natively rather than string-matched), lists, block quotes, and paragraphs.
