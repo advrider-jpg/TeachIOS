@@ -1,5 +1,12 @@
 # Worklog
 
+## 2026-06-04 — Class-set grading throughput
+
+- Added a "Class Grading" hero to `ClassDetailRosterScreen`: a progress gauge ("X of Y approved" + percent), a **Continue** button that jumps to the next ungraded student's overview via `navigationDestination`, and class-scoped batch export (gradebook archive ZIP + gradebook CSV) with a Share action. Turns single-record grading into whole-class throughput.
+- Added view-model support: `classAssignments(for:)` (records for a class, ordered by student), `nextUngradedAssignment(in:)` (first not-approved or stale), and `exportClassGradebookCSV(for:)` / `exportClassArchive(for:)` — class-scoped mirrors of the existing gradebook exports, routed through the same `authenticateForExportIfNeeded` gate so sensitive teacher-only exports keep their auth requirement.
+- No new dependencies; reuses existing export plumbing (`CSVExportService`, `BundleExportService`, `ExportFileHardening`, export records). No new screen file (built into the existing class detail screen), so project membership and the screenshot manifest are unchanged.
+- Validation: local guardrails pass (`check_xcode_project_membership`, `bad_string_scan`, `repo_health`). Xcode compile/tests run in CI (currently blocked by the GitHub Actions spending limit; PR left for CI before merge).
+
 ## 2026-06-04 — Markdown rubric parser now AST-driven (swift-markdown)
 
 - `MarkdownRubricParser` previously parsed the rubric with swift-markdown and then discarded the result (`_ = Document(parsing: text)`), doing all real work with a hand-rolled line scanner — the reviewed dependency was decorative. Rewrote `candidateRows` to genuinely walk the swift-markdown `Document` AST: headings, tables (header + body rows, with the delimiter row handled natively rather than string-matched), lists, block quotes, and paragraphs.

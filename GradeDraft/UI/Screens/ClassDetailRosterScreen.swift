@@ -9,6 +9,9 @@ struct ClassDetailRosterScreen: View {
     @State private var rosterCSV = ""
     @State private var showingRosterImporter = false
     @State private var reviewedRosterCSV: String?
+    @State private var gradingTarget: GradingTarget?
+
+    private struct GradingTarget: Identifiable { let id: UUID }
 
     var body: some View {
         Form {
@@ -26,6 +29,72 @@ struct ClassDetailRosterScreen: View {
                     RosterMetricRow(title: "Assignments", value: "\(assignments.count)", status: nil)
                     RosterMetricRow(title: "Approved", value: "\(approvedCount)", status: .approved)
                     RosterMetricRow(title: "Missing Grades", value: "\(missingGradeCount)", status: missingGradeCount == 0 ? .onTrack : .needsAttention)
+                }
+            }
+
+            RosterStationeryCard(title: "Class Grading", tapeLabel: "Grade the set", showsPaperclip: true) {
+                if assignments.isEmpty {
+                    ContentUnavailableView(
+                        "Nothing to grade yet",
+                        systemImage: "checklist",
+                        description: Text("Create assignments for this class to grade the whole set in one pass.")
+                    )
+                } else {
+                    VStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text("\(approvedCount) of \(assignments.count) approved")
+                                    .font(.headline)
+                                Spacer(minLength: 8)
+                                Text("\(Int((progressFraction * 100).rounded()))%")
+                                    .font(.subheadline.monospacedDigit().weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            ProgressView(value: Double(approvedCount), total: Double(max(assignments.count, 1)))
+                                .tint(.green)
+                                .accessibilityLabel("Class grading progress")
+                                .accessibilityValue("\(approvedCount) of \(assignments.count) approved")
+                        }
+
+                        if let next = nextUngraded {
+                            Button {
+                                viewModel.selectAssignment(next.id)
+                                gradingTarget = GradingTarget(id: next.id)
+                            } label: {
+                                Label("Continue: \(next.studentDisplayName.nilIfBlank ?? "Next student")", systemImage: "play.circle")
+                                    .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                        } else {
+                            HandwrittenAnnotation("Every student in this class is approved. You can export the set below.", status: .approved)
+                        }
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            Button {
+                                Task { await viewModel.exportClassArchive(for: classSummary.name) }
+                            } label: {
+                                Label("Export Class Archive (ZIP)", systemImage: "tray.and.arrow.up")
+                                    .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                            }
+                            .buttonStyle(.bordered)
+                            Button {
+                                Task { await viewModel.exportClassGradebookCSV(for: classSummary.name) }
+                            } label: {
+                                Label("Export Class Gradebook (CSV)", systemImage: "tablecells")
+                                    .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                            }
+                            .buttonStyle(.bordered)
+                            if let url = viewModel.exportURL {
+                                ShareLink(item: url) {
+                                    Label("Share Last Export", systemImage: "square.and.arrow.up")
+                                        .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                                }
+                            }
+                        }
+
+                        HandwrittenAnnotation("Batch exports are teacher-only records and may prompt for device authentication.", status: .teacherOnly)
+                    }
                 }
             }
 
@@ -159,6 +228,9 @@ struct ClassDetailRosterScreen: View {
         .navigationTitle(classSummary.name.isEmpty ? "Class" : classSummary.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
+        .navigationDestination(item: $gradingTarget) { target in
+            AssignmentOverviewScreen(viewModel: viewModel, assignmentID: target.id)
+        }
         .fileImporter(isPresented: $showingRosterImporter, allowedContentTypes: [.commaSeparatedText, .plainText, .item]) { result in
             switch result {
             case .success(let url):
@@ -176,7 +248,7 @@ struct ClassDetailRosterScreen: View {
     }
 
     private var assignments: [AssignmentRecord] {
-        viewModel.assignments.filter { $0.className.caseInsensitiveCompare(classSummary.name) == .orderedSame }
+        viewModel.classAssignments(for: classSummary.name)
     }
 
     private var approvedCount: Int {
@@ -185,6 +257,15 @@ struct ClassDetailRosterScreen: View {
 
     private var missingGradeCount: Int {
         max(assignments.count - approvedCount, 0)
+    }
+
+    private var progressFraction: Double {
+        guard !assignments.isEmpty else { return 0 }
+        return Double(approvedCount) / Double(assignments.count)
+    }
+
+    private var nextUngraded: AssignmentRecord? {
+        viewModel.nextUngradedAssignment(in: classSummary.name)
     }
 
     private var rosterPreviewReadyForCreate: Bool {
