@@ -12,13 +12,13 @@ This document records Mark My Work's Swift Package Manager dependency set, targe
 | swift-markdown | `https://github.com/swiftlang/swift-markdown.git` | up to next major from `0.2.0` | Markdown | Mark My Work | Markdown/rubric parsing support. | Apache-2.0 | yes | Local parsing only. |
 | TPPDF | `https://github.com/techprimate/TPPDF.git` | up to next major from `2.0.0` | TPPDF | Mark My Work | Styled student and teacher PDF export rendering in `Export/PDFExportService.swift` (heading hierarchy, inline emphasis, lists, repeating header/footer, page numbers, automatic pagination), with a `UIGraphicsPDFRenderer` fallback. | MIT | yes | Local document rendering only. |
 | ZIPFoundation | `https://github.com/weichsel/ZIPFoundation` | up to next major from `0.9.0` | ZIPFoundation | Mark My Work | ZIP archive export/import and backup archive handling. | MIT | yes | Local archive code only; project docs note recent ZIPFoundation releases include privacy-manifest maintenance. |
-| swift-dependencies | `https://github.com/pointfreeco/swift-dependencies.git` | up to next major from `0.1.0` | Dependencies | Mark My Work | Dependency-control foundation for local services. | MIT | yes | Local dependency injection/control only. |
 
 ## Removed from the dependency set
 
 | Package | Reason removed | Replacement |
 |---|---|---|
 | SwiftCSV | Library is parse-only and provides no spreadsheet formula-injection hardening. | CSV is implemented natively in `Export/CSVCodec.swift` (RFC 4180 quoting and parsing) and `Export/CSVExportService.swift`, which neutralizes formula-like cells (`=`, `+`, `-`, `@`) before writing. This is safer and more complete than the library, so SwiftCSV was unlinked from the app target. |
+| swift-dependencies | The app already uses initializer-based dependency injection throughout (`GradeDraftViewModel` receives its store, OCR, grading, file-manager, and export-authentication collaborators as `init` parameters). The Point-Free `Dependencies` container in `Core/AppDependencies.swift` was defined but referenced nowhere — dead scaffolding. | Removed the package and deleted `Core/AppDependencies.swift`, leaving one coherent DI approach. |
 
 ## Test-only library
 
