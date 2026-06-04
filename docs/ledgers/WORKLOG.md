@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-06-04 — Remove unused Swift package dependencies
+
+- Removed three declared-but-unused Swift package product dependencies from the app target: `TPPDF`, `SwiftCSV`, and point-free `Dependencies` (`swift-dependencies`). None were imported in any source file — PDF export uses PDFKit/UIKit, CSV uses the in-house `CSVCodec`, and the app uses its own `AppDependencies` container.
+- Cleaned every reference site in `GradeDraft.xcodeproj/project.pbxproj`: `PBXBuildFile` entries, the app `PBXFrameworksBuildPhase`, the target `packageProductDependencies`, the project `packageReferences`, `XCRemoteSwiftPackageReference`, and `XCSwiftPackageProductDependency` sections (42 lines removed). Reduces dependency resolution time and third-party supply-chain surface for the local-first build. Kept: `GRDB`, `swift-markdown`, `ZIPFoundation`, `swift-snapshot-testing`.
+- Validation: static guardrails (`repo_health.py`) pass; Xcode build/test validation runs in CI on the feature branch.
+
 ## 2026-05-31 — Core page screenshot workflow
 
 - Added a separate `GradeDraft Core Page Screenshots` GitHub Actions workflow that runs the screenshot XCTest suite on pull requests, pushes to `main`, and manual dispatch, then verifies and uploads the complete core-page PNG set.
