@@ -41,15 +41,12 @@
 		b94f1056aaf4457384e4c22a /* PDFExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = e5dee6955ae64bbf9feecd7c /* PDFExportService.swift */; };
 		2dc5694454014afbb605d4ab /* CSVExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = e027b94ab7db4d8d96e95435 /* CSVExportService.swift */; };
 		6003cc01ccc64fc9be4830ef /* BundleExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ef318821d8b4bd997e1debc /* BundleExportService.swift */; };
-		ff7c133b40a048fc9d77c779 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2799b34fb3fc4e4ab80bcc16 /* AppDependencies.swift */; };
 		83fb1a487f92415bb6a08568 /* GradeDraftSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */; };
 		C3D4E5F6A7B8C9D0E1F2A3B4 /* GradeDraftScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* GradeDraftScreenshotTests.swift */; };
 		111111111111111111111111 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 3cb5e66df7814c5c88f70055 /* GRDB */; };
 		222222222222222222222222 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 6d3552c8565e4dfa821c11ec /* Markdown */; };
 		333333333333333333333333 /* TPPDF in Frameworks */ = {isa = PBXBuildFile; productRef = 6007a9e299f6471da0e60897 /* TPPDF */; };
 		444444444444444444444444 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 39a5973c95874d3383ccd429 /* ZIPFoundation */; };
-		555555555555555555555555 /* SwiftCSV in Frameworks */ = {isa = PBXBuildFile; productRef = f19535ba82fd46f1a2ff88f8 /* SwiftCSV */; };
-		666666666666666666666666 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = 9f99f659a06b4432b272724b /* Dependencies */; };
 		777777777777777777777777 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 139742736e6d4f7889df30a6 /* SnapshotTesting */; };
 		9C0011111111111111110001 /* RosterImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0011111111111111110002 /* RosterImportService.swift */; };
 		9C0011111111111111110003 /* CurriculumCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0011111111111111110004 /* CurriculumCatalogService.swift */; };
@@ -167,7 +164,6 @@
 		e5dee6955ae64bbf9feecd7c /* PDFExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFExportService.swift; sourceTree = "<group>"; };
 		e027b94ab7db4d8d96e95435 /* CSVExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVExportService.swift; sourceTree = "<group>"; };
 		4ef318821d8b4bd997e1debc /* BundleExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleExportService.swift; sourceTree = "<group>"; };
-		2799b34fb3fc4e4ab80bcc16 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
 		9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftSnapshotTests.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A7B8C9D0E1F2A3 /* GradeDraftScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftScreenshotTests.swift; sourceTree = "<group>"; };
 		9C0011111111111111110002 /* RosterImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterImportService.swift; sourceTree = "<group>"; };
@@ -242,8 +238,6 @@
 				222222222222222222222222 /* Markdown in Frameworks */,
 				333333333333333333333333 /* TPPDF in Frameworks */,
 				444444444444444444444444 /* ZIPFoundation in Frameworks */,
-				555555555555555555555555 /* SwiftCSV in Frameworks */,
-				666666666666666666666666 /* Dependencies in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -394,7 +388,6 @@
 		7e8a6d2b1c3f4a9f8d5e7b60 /* Core */ = {
 			isa = PBXGroup;
 			children = (
-				2799b34fb3fc4e4ab80bcc16 /* AppDependencies.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -540,8 +533,6 @@
 				6d3552c8565e4dfa821c11ec /* Markdown */,
 				6007a9e299f6471da0e60897 /* TPPDF */,
 				39a5973c95874d3383ccd429 /* ZIPFoundation */,
-				f19535ba82fd46f1a2ff88f8 /* SwiftCSV */,
-				9f99f659a06b4432b272724b /* Dependencies */,
 			);
 			productReference = D9730C12B890D116AC692E1F /* Mark My Work.app */;
 			productType = "com.apple.product-type.application";
@@ -592,8 +583,6 @@
 				df62dcd3a3fb42508fa24c7f /* XCRemoteSwiftPackageReference "swift-markdown" */,
 				0faababa1c004f16a92686ac /* XCRemoteSwiftPackageReference "TPPDF" */,
 				c8e0d6aabf7c4b98ba263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
-				aecea9b512a14b58acf25f81 /* XCRemoteSwiftPackageReference "SwiftCSV" */,
-				4a438b9c3c1f44e8a3b05f86 /* XCRemoteSwiftPackageReference "Dependencies" */,
 				13164971737547e2884e1c6e /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
 			);
 			targets = ( C9F45524962D088FBA96DA08 /* GradeDraft */, 385F6D1BD8E774F956FF142E /* GradeDraftTests */, );
@@ -674,7 +663,6 @@
 				b94f1056aaf4457384e4c22a /* PDFExportService.swift in Sources */,
 				2dc5694454014afbb605d4ab /* CSVExportService.swift in Sources */,
 				6003cc01ccc64fc9be4830ef /* BundleExportService.swift in Sources */,
-				ff7c133b40a048fc9d77c779 /* AppDependencies.swift in Sources */,
 				b1c2d3e4f5a6b7c8d9e0f1a2 /* GRDBAssignmentStore.swift in Sources */,
 				9C0011111111111111110001 /* RosterImportService.swift in Sources */,
 				9C0011111111111111110003 /* CurriculumCatalogService.swift in Sources */,
@@ -733,16 +721,6 @@
 			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
 			requirement = { kind = upToNextMajorVersion; minimumVersion = 0.9.0; };
 		};
-		aecea9b512a14b58acf25f81 /* XCRemoteSwiftPackageReference "SwiftCSV" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/swiftcsv/SwiftCSV.git";
-			requirement = { kind = upToNextMajorVersion; minimumVersion = 0.8.0; };
-		};
-		4a438b9c3c1f44e8a3b05f86 /* XCRemoteSwiftPackageReference "Dependencies" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/pointfreeco/swift-dependencies.git";
-			requirement = { kind = upToNextMajorVersion; minimumVersion = 0.1.0; };
-		};
 		13164971737547e2884e1c6e /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing.git";
@@ -770,16 +748,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = c8e0d6aabf7c4b98ba263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
 			productName = ZIPFoundation;
-		};
-		f19535ba82fd46f1a2ff88f8 /* SwiftCSV */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = aecea9b512a14b58acf25f81 /* XCRemoteSwiftPackageReference "SwiftCSV" */;
-			productName = SwiftCSV;
-		};
-		9f99f659a06b4432b272724b /* Dependencies */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 4a438b9c3c1f44e8a3b05f86 /* XCRemoteSwiftPackageReference "Dependencies" */;
-			productName = Dependencies;
 		};
 		139742736e6d4f7889df30a6 /* SnapshotTesting */ = {
 			isa = XCSwiftPackageProductDependency;
