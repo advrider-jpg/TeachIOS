@@ -174,14 +174,25 @@ enum MarkdownRubricParser {
     private static func paragraphLines(_ paragraph: Paragraph) -> [String] {
         var lines: [String] = []
         var current = ""
-        for inline in paragraph.children {
-            if inline is SoftBreak || inline is LineBreak {
+
+        // Walk inline markup by concrete type. `plainText` is not exposed on the
+        // `any Markup` existential in this swift-markdown version, so recurse into
+        // container inlines (emphasis, strong, links) and read leaf text directly.
+        func accumulate(_ markup: Markup) {
+            switch markup {
+            case is SoftBreak, is LineBreak:
                 lines.append(current)
                 current = ""
-            } else {
-                current += inline.plainText
+            case let text as Text:
+                current += text.string
+            case let code as InlineCode:
+                current += code.code
+            default:
+                for child in markup.children { accumulate(child) }
             }
         }
+
+        for inline in paragraph.children { accumulate(inline) }
         lines.append(current)
         return lines
             .map { $0.trimmingCharacters(in: .whitespaces) }
