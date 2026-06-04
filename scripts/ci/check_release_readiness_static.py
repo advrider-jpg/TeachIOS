@@ -108,7 +108,7 @@ if icon.exists():
             fail(f"AppIcon-1024.png must be 1024x1024, got {(width, height)}.")
 
 # 7. Dependency docs include every current Swift package.
-package_names = ["GRDB.swift", "swift-markdown", "TPPDF", "ZIPFoundation", "SwiftCSV", "swift-dependencies", "swift-snapshot-testing"]
+package_names = ["GRDB.swift", "swift-markdown", "TPPDF", "ZIPFoundation", "swift-dependencies", "swift-snapshot-testing"]
 for rel in ["docs/DEPENDENCIES.md", "docs/OSS_REVIEW.md"]:
     path = ROOT / rel
     if not path.exists():

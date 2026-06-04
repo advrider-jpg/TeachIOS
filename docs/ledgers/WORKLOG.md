@@ -1,5 +1,13 @@
 # Worklog
 
+## 2026-06-04 — Rich PDF reports (TPPDF) and CSV dependency consolidation
+
+- Reworked `Export/PDFExportService.swift` to render student and teacher reports with TPPDF: real heading hierarchy, inline `**bold**` emphasis, block quotes, indented (and nested) lists, a repeating page header/footer, page numbers, and automatic pagination. This replaces the prior single-font plain-text flattening. TPPDF was already an OSS-reviewed, app-linked dependency that the source had not yet used; it is now genuinely consumed.
+- Kept the previous `UIGraphicsPDFRenderer` output as an internal fallback: if the styled layout pass throws for an unusual report, export still produces a valid PDF rather than failing. The public API, destination-URL contract, safe filenames, and `ExportFileHardening` protection are unchanged.
+- Removed the **SwiftCSV** package: it is parse-only and lacks spreadsheet formula-injection hardening. CSV stays on the native `Export/CSVCodec.swift` + `Export/CSVExportService.swift` path, which both reads/writes RFC 4180 CSV and neutralizes formula-like cells (`=`, `+`, `-`, `@`). Unlinked SwiftCSV from the app target in `GradeDraft.xcodeproj/project.pbxproj`.
+- Synced governance docs to match: `docs/OSS_REVIEW.md`, `docs/DEPENDENCIES.md`, and the `scripts/ci/check_release_readiness_static.py` package contract no longer list SwiftCSV; TPPDF entries now record actual PDF-rendering usage.
+- Validation: all local guardrails pass (`no_network_scan`, `export_hardening_scan`, `check_release_readiness_static`, `check_xcode_project_membership`, `check_ci_contract`, `bad_string_scan`, `check_native_ui_refactor`, `repo_health`). Xcode compile/test of the TPPDF path runs in CI on this branch (no Apple SDK on the Windows dev host).
+
 ## 2026-05-31 — Core page screenshot workflow
 
 - Added a separate `GradeDraft Core Page Screenshots` GitHub Actions workflow that runs the screenshot XCTest suite on pull requests, pushes to `main`, and manual dispatch, then verifies and uploads the complete core-page PNG set.

@@ -10,10 +10,15 @@ This document records Mark My Work's Swift Package Manager dependency set, targe
 |---|---|---|---|---|---|---|---:|---|
 | GRDB.swift | `https://github.com/groue/GRDB.swift.git` | up to next major from `6.0.0` | GRDB | Mark My Work | SQLite/GRDB persistence for assignments, rubrics, records, audits, rosters, source records, and final reviews. | MIT | yes | Local SQLite code only; no runtime network path used by Mark My Work. |
 | swift-markdown | `https://github.com/swiftlang/swift-markdown.git` | up to next major from `0.2.0` | Markdown | Mark My Work | Markdown/rubric parsing support. | Apache-2.0 | yes | Local parsing only. |
-| TPPDF | `https://github.com/techprimate/TPPDF.git` | up to next major from `2.0.0` | TPPDF | Mark My Work | Student and teacher PDF export rendering. | MIT | yes | Local document rendering only. |
+| TPPDF | `https://github.com/techprimate/TPPDF.git` | up to next major from `2.0.0` | TPPDF | Mark My Work | Styled student and teacher PDF export rendering in `Export/PDFExportService.swift` (heading hierarchy, inline emphasis, lists, repeating header/footer, page numbers, automatic pagination), with a `UIGraphicsPDFRenderer` fallback. | MIT | yes | Local document rendering only. |
 | ZIPFoundation | `https://github.com/weichsel/ZIPFoundation` | up to next major from `0.9.0` | ZIPFoundation | Mark My Work | ZIP archive export/import and backup archive handling. | MIT | yes | Local archive code only; project docs note recent ZIPFoundation releases include privacy-manifest maintenance. |
-| SwiftCSV | `https://github.com/swiftcsv/SwiftCSV.git` | up to next major from `0.8.0` | SwiftCSV | Mark My Work | CSV roster import and gradebook/export interoperability. | MIT | yes | Local CSV parsing/writing only. |
 | swift-dependencies | `https://github.com/pointfreeco/swift-dependencies.git` | up to next major from `0.1.0` | Dependencies | Mark My Work | Dependency-control foundation for local services. | MIT | yes | Local dependency injection/control only. |
+
+## Removed from the dependency set
+
+| Package | Reason removed | Replacement |
+|---|---|---|
+| SwiftCSV | Library is parse-only and provides no spreadsheet formula-injection hardening. | CSV is implemented natively in `Export/CSVCodec.swift` (RFC 4180 quoting and parsing) and `Export/CSVExportService.swift`, which neutralizes formula-like cells (`=`, `+`, `-`, `@`) before writing. This is safer and more complete than the library, so SwiftCSV was unlinked from the app target. |
 
 ## Test-only library
 
