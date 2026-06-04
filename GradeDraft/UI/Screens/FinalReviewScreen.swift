@@ -3,6 +3,9 @@ import SwiftUI
 struct FinalReviewScreen: View {
     @ObservedObject var viewModel: GradeDraftViewModel
     var assignmentID: UUID
+    @State private var gradingTarget: GradingTarget?
+
+    private struct GradingTarget: Identifiable { let id: UUID }
 
     var body: some View {
         Form {
@@ -255,6 +258,9 @@ struct FinalReviewScreen: View {
                                 value: finalReviewStatusText(assignment.finalReview?.status),
                                 status: assignment.finalReview?.status.v6Status ?? .reviewFinalGrade
                             )
+                            if let review = assignment.finalReview, !review.criteria.isEmpty {
+                                LabeledContent("Criteria approved", value: "\(review.criteria.filter(\.teacherApproved).count) / \(review.criteria.count)")
+                            }
                             LabeledContent("Student-facing export", value: assignment.isStudentFacingExportReady ? "Ready" : "Blocked")
                         }
                     }
@@ -266,6 +272,33 @@ struct FinalReviewScreen: View {
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+
+                if let next = nextStudent(after: assignment) {
+                    Section {
+                        FinalReviewPaperCard(status: .reviewFinalGrade, tape: "next up") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Keep grading \(assignment.className.nilIfBlank ?? "this class")")
+                                    .font(.system(.headline, design: .serif))
+                                Button {
+                                    viewModel.selectAssignment(next.id)
+                                    gradingTarget = GradingTarget(id: next.id)
+                                } label: {
+                                    Label("Next student: \(next.studentDisplayName.nilIfBlank ?? "Untitled")", systemImage: "arrow.right.circle")
+                                        .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                        }
+                    } header: {
+                        FinalReviewTapeSectionHeader(title: "Class Throughput")
+                    } footer: {
+                        Text("Jump straight to the next student in this class who still needs grading.")
+                    }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
             } else {
                 Section {
                     FinalReviewPaperCard(status: .needsAttention, tape: "assignment") {
@@ -286,8 +319,22 @@ struct FinalReviewScreen: View {
         .navigationTitle("Final Review")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
+        .navigationDestination(item: $gradingTarget) { target in
+            FinalReviewScreen(viewModel: viewModel, assignmentID: target.id)
+        }
         .onAppear { viewModel.selectAssignment(assignmentID) }
     }
+
+    private func nextStudent(after assignment: AssignmentRecord) -> AssignmentRecord? {
+        guard !assignment.className.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return viewModel.assignments
+            .filter { $0.className.caseInsensitiveCompare(assignment.className) == .orderedSame }
+            .sorted { $0.studentDisplayName.localizedCaseInsensitiveCompare($1.studentDisplayName) == .orderedAscending }
+            .first { record in
+                record.id != assignment.id && (record.finalReview?.status != .approved || record.finalReviewIsStale)
+            }
+    }
+
     private func finalReviewStatusText(_ status: FinalReviewStatus?) -> String {
         switch status {
         case .approved:

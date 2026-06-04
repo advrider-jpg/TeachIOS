@@ -1,5 +1,12 @@
 # Worklog
 
+## 2026-06-04 — Final Review workspace: criteria progress + class throughput
+
+- Added a "Criteria approved" count (approved / total) to the Teacher Approval card so the teacher can see review completeness at a glance, alongside the existing approval status and export-readiness rows.
+- Added a "Class Throughput" section with a **Next student** button that jumps straight to the next student in the same class who still needs grading (not approved, or approved-but-stale), via `navigationDestination`. This completes the class-set grading loop from inside the review screen so a teacher can grade straight through a stack.
+- Self-contained: the next-student lookup filters `viewModel.assignments` directly (no dependency on other in-flight branches). Reuses existing review components and the approval/export plumbing; no new dependencies or screen files.
+- Validation: local guardrails pass (`check_xcode_project_membership`, `bad_string_scan`, `repo_health`). Xcode compile + the Final Review snapshot/screenshot tests run in CI (currently blocked by the GitHub Actions spending limit; PR left for CI before merge).
+
 ## 2026-06-04 — Markdown rubric parser now AST-driven (swift-markdown)
 
 - `MarkdownRubricParser` previously parsed the rubric with swift-markdown and then discarded the result (`_ = Document(parsing: text)`), doing all real work with a hand-rolled line scanner — the reviewed dependency was decorative. Rewrote `candidateRows` to genuinely walk the swift-markdown `Document` AST: headings, tables (header + body rows, with the delimiter row handled natively rather than string-matched), lists, block quotes, and paragraphs.
