@@ -1,5 +1,12 @@
 # Worklog
 
+## 2026-06-04 — Markdown rubric parser now AST-driven (swift-markdown)
+
+- `MarkdownRubricParser` previously parsed the rubric with swift-markdown and then discarded the result (`_ = Document(parsing: text)`), doing all real work with a hand-rolled line scanner — the reviewed dependency was decorative. Rewrote `candidateRows` to genuinely walk the swift-markdown `Document` AST: headings, tables (header + body rows, with the delimiter row handled natively rather than string-matched), lists, block quotes, and paragraphs.
+- Paragraphs are split on `SoftBreak`/`LineBreak` so consecutive criterion lines without a blank line remain separate criteria (preserving existing behavior and the parser tests). Inline text is read via concrete node types (`Text.string`, `InlineCode.code`) with recursion through emphasis/strong/link containers, because `plainText` is not exposed on the `any Markup` existential in the resolved swift-markdown version. Point/title/ID/level extraction still reuses the shared `RubricParser` helpers, so downstream dedup, stable IDs, ordering, and issue reporting are unchanged.
+- Net effect: more robust handling of real teacher markdown (multi-line tables, nested lists, emphasis spans) and swift-markdown is now a genuinely used dependency rather than a faked one.
+- Validation: local guardrails pass (`bad_string_scan`, `check_xcode_project_membership`, `repo_health`); Xcode compile + the rubric-parser XCTests run in CI on this branch.
+
 ## 2026-06-04 — Rich PDF reports (TPPDF) and CSV dependency consolidation
 
 - Reworked `Export/PDFExportService.swift` to render student and teacher reports with TPPDF: real heading hierarchy, inline `**bold**` emphasis, block quotes, indented (and nested) lists, a repeating page header/footer, page numbers, and automatic pagination. This replaces the prior single-font plain-text flattening. TPPDF was already an OSS-reviewed, app-linked dependency that the source had not yet used; it is now genuinely consumed.
