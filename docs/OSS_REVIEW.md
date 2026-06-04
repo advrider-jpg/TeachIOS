@@ -8,16 +8,16 @@ Mark My Work remains local-first and does not require backend credentials, telem
 |---|---|---|---|---|
 | GRDB.swift | MIT | Widely used Swift SQLite toolkit; current public information showed active releases. | Runtime persistence. | No runtime network/API service dependency accepted. |
 | swift-markdown | Apache-2.0 | Official Swift project package for parsing/building/analyzing Markdown. | Runtime rubric/Markdown parsing support. | No hosted parsing service accepted. |
-| TPPDF | MIT | Swift Package Index and upstream repository show maintained PDF generation package. | Runtime PDF export rendering. | No SaaS PDF rendering accepted. |
+| TPPDF | MIT | Swift Package Index and upstream repository show maintained PDF generation package. | Runtime PDF export rendering (styled student/teacher reports in `PDFExportService`). | No SaaS PDF rendering accepted. |
 | ZIPFoundation | MIT | Upstream project supports reading/creating/modifying ZIP archives and has privacy-manifest-related release maintenance. | Runtime archive/backup export. | No cloud storage/sync accepted. |
-| SwiftCSV | MIT | Lightweight local CSV parser. | Runtime roster/gradebook CSV handling. | No hosted CSV import accepted. |
-| swift-dependencies | MIT | Point-Free dependency-control package; public package index indicates Swift 6 readiness. | Runtime dependency wiring. | No account/telemetry layer accepted. |
 | swift-snapshot-testing | MIT | Point-Free snapshot test package. | Test target only. | Must not link into app target. |
 
 ## Packages/examples considered but not added
 
 | Candidate | Reason rejected |
 |---|---|
+| SwiftCSV | Removed from the dependency set. CSV is implemented natively in `Export/CSVCodec.swift` (RFC 4180 quoting/parsing) and `Export/CSVExportService.swift`, which additionally neutralizes spreadsheet formula-injection (`=`, `+`, `-`, `@` leading cells) before writing — a hardening step SwiftCSV does not provide, and SwiftCSV does not write CSV at all. Keeping the native implementation is safer and more complete than the library. |
+| swift-dependencies | Removed from the dependency set. The app already uses plain initializer-based dependency injection (the view model takes its store, OCR, grading, file-manager, and export-authentication collaborators as `init` parameters). The Point-Free `Dependencies` container was defined once and referenced nowhere, so it was dead scaffolding rather than wiring. Removing it leaves a single, coherent DI style. |
 | LicensePlist / LicenseList | Not added because the current patch adds no new third-party runtime packages; manual notices and dependency docs are sufficient for source review, and adding another tool would require package resolution and license review. |
 | Runtime JSON-LD/RDF parser packages | Not added because the curriculum pipeline is developer-side and Python stdlib parsing is sufficient for committed resources; adding a runtime parser would increase app size and review surface. |
 | Cloud OCR, cloud AI, Firebase, RevenueCat, Sentry, Amplitude, Mixpanel, login/OAuth SDKs | Rejected because they conflict with Mark My Work's local-first, no-runtime-network, no-cloud-fallback, no-telemetry boundaries. |
