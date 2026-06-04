@@ -1,5 +1,13 @@
 # Worklog
 
+## 2026-06-04 — Rubric setup screen redesigned for the iPhone
+
+- `RubricInstructionsScreen` was one Form section stacking nine always-expanded stationery cards plus several 100–150pt editors — an enormous undifferentiated scroll on a phone. Reworked it into a progressive-disclosure layout: a tappable "Setup Checklist" overview at the top (status + one-line state per area), then **collapsible** section cards. Rubric and Detected Criteria start expanded; templates, AI constraints, curriculum, instructions, and answer-key/exemplar start collapsed. Tapping a checklist row expands and scrolls to that section via `ScrollViewReader`.
+- Added source-dropped, dependency-free building blocks to `RubricComponents.swift`: `RubricCollapsibleCard` (tap-to-fold stationery card), `RubricOverviewRow` (checklist row), `RubricFlowLayout` (native `Layout`-protocol wrapping flow for chips; reference tevelee/SwiftUI-Flow, krishkumar/FlowLayout, MIT — no package added), `RubricChip`, and `inlineRubricMarkdown` (renders inline Markdown in descriptors via native `AttributedString(markdown:)`).
+- Criterion detail now renders descriptors as inline Markdown and shows scoring bands as compact chips that reflow to the screen width. Curriculum mappings show as chips. Body split into per-section computed views to keep type-check load low.
+- No new dependencies (decision: native + source-drop). The native source-fingerprint snapshot for this screen is unchanged (same root `Form`, control tokens, and no titled sections).
+- Validation: local guardrails pass (`check_xcode_project_membership`, `bad_string_scan`, `repo_health`). Xcode compile + the screen snapshot/screenshot tests run in CI (currently blocked by the GitHub Actions spending limit; PR left for CI before merge).
+
 ## 2026-06-04 — Markdown rubric parser now AST-driven (swift-markdown)
 
 - `MarkdownRubricParser` previously parsed the rubric with swift-markdown and then discarded the result (`_ = Document(parsing: text)`), doing all real work with a hand-rolled line scanner — the reviewed dependency was decorative. Rewrote `candidateRows` to genuinely walk the swift-markdown `Document` AST: headings, tables (header + body rows, with the delimiter row handled natively rather than string-matched), lists, block quotes, and paragraphs.
