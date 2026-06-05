@@ -75,7 +75,7 @@ struct AIReadinessScreen: View {
                     }
                 }
 
-                Section("Actions") {
+                Section {
                     Button {
                         viewModel.selectAssignment(assignmentID)
                         viewModel.buildAIPacketPreview()
@@ -102,6 +102,8 @@ struct AIReadinessScreen: View {
                     } label: {
                         Label("Open Final Review", systemImage: "checklist")
                     }
+                } header: {
+                    Text("Actions")
                 } footer: {
                     Text("This screen prepares and explains the local AI packet. It does not generate a draft, approve a grade, export a report, upload data, or read other students.")
                 }

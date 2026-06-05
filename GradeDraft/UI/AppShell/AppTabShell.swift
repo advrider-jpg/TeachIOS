@@ -204,19 +204,19 @@ struct AppTabShell: View {
         case .home, .review:
             return nil
         case .assignments:
-            return currentAssignmentRoute(.assignmentOverview)
+            return currentAssignmentRoute(AppLaunchRoute.assignmentOverview)
         case .aiReadiness:
-            return currentAssignmentRoute(.aiReadiness)
+            return currentAssignmentRoute(AppLaunchRoute.aiReadiness)
         case .finalReview, .latestDraft:
-            return currentAssignmentRoute(.finalReview)
+            return currentAssignmentRoute(AppLaunchRoute.finalReview)
         case .packetPreview:
-            return currentAssignmentRoute(.packetPreview)
+            return currentAssignmentRoute(AppLaunchRoute.packetPreview)
         case .ocrReview:
-            return currentAssignmentRoute(.ocrReview)
+            return currentAssignmentRoute(AppLaunchRoute.ocrReview)
         case .curriculum:
-            return currentAssignmentRoute(.curriculum)
+            return currentAssignmentRoute(AppLaunchRoute.curriculum)
         case .studentWork:
-            return currentAssignmentRoute(.studentWork)
+            return currentAssignmentRoute(AppLaunchRoute.studentWork)
         case .exports:
             return .exports(viewModel.selectedAssignmentID)
         }

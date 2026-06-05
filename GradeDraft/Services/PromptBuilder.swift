@@ -38,7 +38,7 @@ enum PromptBuilder {
     static func gradingPrompt(packet: GradingPacket, fallbackInput: GradingInput? = nil) -> String {
         let modelPacket = GradingPacketBuilder.modelVisiblePacket(from: packet)
         let assignment = modelPacket.assignment
-        let evidence = packet.studentEvidence
+        let evidence = modelPacket.studentEvidence
         let reviewedText = preferredReviewedText(
             reviewedWithRefs: evidence.reviewedTextWithSourceRefs,
             reviewedText: evidence.reviewedText
@@ -52,7 +52,7 @@ enum PromptBuilder {
             ocrQualityText = evidence.ocrQualitySummary
         }
 
-        let teacherInstructions = packet.teacherInstructions
+        let teacherInstructions = modelPacket.teacherInstructions
             .map(\.text)
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .joined(separator: "\n\n")
@@ -69,14 +69,14 @@ enum PromptBuilder {
             "{{sourceInputCount}}": "\(evidence.sourceInputCount)",
             "{{ocrReviewStatus}}": evidence.ocrReviewStatus.displayName,
             "{{ocrQualitySummary}}": ocrQualityText,
-            "{{packetVersion}}": packet.packetVersion,
-            "{{curriculumReferenceSection}}": optionalTripleQuotedSection(title: "Curriculum reference", body: packet.curriculumReference?.rawText ?? ""),
-            "{{structuredRubricCriteria}}": structuredCriteriaText(from: packet.rubric.criteria),
-            "{{rubricText}}": notSupplied(packet.rubric.rawText),
+            "{{packetVersion}}": modelPacket.packetVersion,
+            "{{curriculumReferenceSection}}": optionalTripleQuotedSection(title: "Curriculum reference", body: modelPacket.curriculumReference?.rawText ?? ""),
+            "{{structuredRubricCriteria}}": structuredCriteriaText(from: modelPacket.rubric.criteria),
+            "{{rubricText}}": notSupplied(modelPacket.rubric.rawText),
             "{{customInstructionsSection}}": optionalTripleQuotedSection(title: "Custom teacher instructions", body: teacherInstructions),
-            "{{formativeFocusSection}}": optionalTripleQuotedSection(title: "Formative focus", body: packet.formativeFocus?.rawText ?? ""),
-            "{{answerKeySection}}": optionalTripleQuotedSection(title: "Answer key", body: packet.answerKey?.rawText ?? ""),
-            "{{exemplarSection}}": optionalTripleQuotedSection(title: "Exemplar response", body: packet.exemplar?.rawText ?? ""),
+            "{{formativeFocusSection}}": optionalTripleQuotedSection(title: "Formative focus", body: modelPacket.formativeFocus?.rawText ?? ""),
+            "{{answerKeySection}}": optionalTripleQuotedSection(title: "Answer key", body: modelPacket.answerKey?.rawText ?? ""),
+            "{{exemplarSection}}": optionalTripleQuotedSection(title: "Exemplar response", body: modelPacket.exemplar?.rawText ?? ""),
             "{{reviewedStudentText}}": reviewedText
         ]
 

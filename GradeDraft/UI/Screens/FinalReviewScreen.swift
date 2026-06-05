@@ -6,8 +6,8 @@ struct FinalReviewScreen: View {
     @State private var gradingTarget: GradingTarget?
     @State private var sourceReviewTarget: SourceReviewTarget?
 
-    private struct GradingTarget: Identifiable { let id: UUID }
-    private struct SourceReviewTarget: Identifiable { let id: UUID }
+    private struct GradingTarget: Identifiable, Hashable { let id: UUID }
+    private struct SourceReviewTarget: Identifiable, Hashable { let id: UUID }
 
     var body: some View {
         Form {
