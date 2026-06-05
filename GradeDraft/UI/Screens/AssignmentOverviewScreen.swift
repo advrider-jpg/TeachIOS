@@ -3,6 +3,7 @@ import SwiftUI
 struct AssignmentOverviewScreen: View {
     @ObservedObject var viewModel: GradeDraftViewModel
     var assignmentID: UUID
+    @State private var showWizard = false
 
     var body: some View {
         Group {
@@ -33,6 +34,16 @@ struct AssignmentOverviewScreen: View {
                         }
                         .buttonStyle(.plain)
                         HandwrittenAnnotation(nextUpDetail(for: assignment), status: viewModel.v6Status(for: assignment), theme: AssignmentWorkflowStationery.theme)
+                        Button {
+                            viewModel.selectAssignment(assignmentID)
+                            showWizard = true
+                        } label: {
+                            Label("Start Guided Grading", systemImage: "wand.and.stars")
+                                .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityHint("Walk through every grading step for this student")
                     }
 
                     NotebookCard(theme: AssignmentWorkflowStationery.theme, showsPerforation: true) {
@@ -106,6 +117,9 @@ struct AssignmentOverviewScreen: View {
             }
         }
         .onAppear { viewModel.selectAssignment(assignmentID) }
+        .fullScreenCover(isPresented: $showWizard) {
+            GradeWizardView(viewModel: viewModel, assignmentID: assignmentID)
+        }
     }
 
     @ViewBuilder

@@ -3,6 +3,9 @@ import SwiftUI
 struct AssignmentsScreen: View {
     @ObservedObject var viewModel: GradeDraftViewModel
     @State private var searchText = ""
+    @State private var wizardTarget: WizardTarget?
+
+    private struct WizardTarget: Identifiable { let id: UUID }
 
     var body: some View {
         List {
@@ -44,6 +47,14 @@ struct AssignmentsScreen: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    viewModel.selectAssignment(assignment.id)
+                                    wizardTarget = WizardTarget(id: assignment.id)
+                                } label: {
+                                    Label("Start Guided Grading", systemImage: "wand.and.stars")
+                                }
+                            }
                         }
                     }
                 }
@@ -54,6 +65,9 @@ struct AssignmentsScreen: View {
         .gradeDraftNativeGroupedList()
         .navigationTitle("Assignments")
         .searchable(text: $searchText, prompt: "Search assignments")
+        .fullScreenCover(item: $wizardTarget) { target in
+            GradeWizardView(viewModel: viewModel, assignmentID: target.id)
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

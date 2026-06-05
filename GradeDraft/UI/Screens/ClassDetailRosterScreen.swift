@@ -228,8 +228,8 @@ struct ClassDetailRosterScreen: View {
         .navigationTitle(classSummary.name.isEmpty ? "Class" : classSummary.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
-        .navigationDestination(item: $gradingTarget) { target in
-            AssignmentOverviewScreen(viewModel: viewModel, assignmentID: target.id)
+        .fullScreenCover(item: $gradingTarget) { target in
+            GradeWizardView(viewModel: viewModel, assignmentID: target.id)
         }
         .fileImporter(isPresented: $showingRosterImporter, allowedContentTypes: [.commaSeparatedText, .plainText, .item]) { result in
             switch result {
