@@ -349,7 +349,7 @@ final class LocalGradingToolSession {
                     confidence: nil
                 )
             }
-            return output(tool, query: query, snippets: snippets, truncated: false, emptyWarning: report.warnings.joined(separator: " ").nilIfBlank)
+            return output(tool, query: query, snippets: snippets, truncated: false, emptyWarning: report.warnings.joined(separator: " ").localToolNilIfBlank)
         }
     }
 
@@ -390,7 +390,7 @@ final class LocalGradingToolSession {
 }
 
 private extension String {
-    var nilIfBlank: String? {
+    var localToolNilIfBlank: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }

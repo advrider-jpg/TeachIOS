@@ -325,15 +325,15 @@ struct RubricFlowLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
-        var y = bounds.minY
+        var currentY = bounds.minY
         for row in rows(maxWidth: bounds.width, subviews: subviews) {
-            var x = bounds.minX
+            var currentX = bounds.minX
             for index in row.indices {
                 let size = subviews[index].sizeThatFits(.unspecified)
-                subviews[index].place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: ProposedViewSize(size))
-                x += size.width + spacing
+                subviews[index].place(at: CGPoint(x: currentX, y: currentY), anchor: .topLeading, proposal: ProposedViewSize(size))
+                currentX += size.width + spacing
             }
-            y += row.height + lineSpacing
+            currentY += row.height + lineSpacing
         }
     }
 }

@@ -14,8 +14,8 @@ enum GradeDraftIntentDestination: String, AppEnum {
     case curriculum
     case studentWork
 
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Mark My Work Destination")
-    static var caseDisplayRepresentations: [GradeDraftIntentDestination: DisplayRepresentation] = [
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Mark My Work Destination")
+    static let caseDisplayRepresentations: [GradeDraftIntentDestination: DisplayRepresentation] = [
         .assignments: "Assignments",
         .review: "Review",
         .aiReadiness: "AI Readiness",
@@ -52,8 +52,8 @@ enum GradeDraftIntentDestination: String, AppEnum {
 }
 
 struct AssignmentEntity: AppEntity, Identifiable {
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Assignment")
-    static var defaultQuery = AssignmentEntityQuery()
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Assignment")
+    static let defaultQuery = AssignmentEntityQuery()
 
     let id: UUID
     let title: String
@@ -134,25 +134,26 @@ enum AssignmentIntentResolver {
 }
 
 struct OpenGradeDraftDestinationIntent: AppIntent {
-    static var title: LocalizedStringResource = "Open Mark My Work"
-    static var description = IntentDescription("Opens a safe Mark My Work workflow. AI drafts, final approval, and exports still require in-app teacher action.")
-    static var openAppWhenRun: Bool = true
+    static let title: LocalizedStringResource = "Open Mark My Work"
+    static let description = IntentDescription("Opens a safe Mark My Work workflow. AI drafts, final approval, and exports still require in-app teacher action.")
+    static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Destination")
-    var destination: GradeDraftIntentDestination = .review
+    var destination: GradeDraftIntentDestination?
 
     @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity? = nil
+    var assignment: AssignmentEntity?
 
     @Parameter(title: "Assignment ID")
-    var assignmentIDText: String? = nil
+    var assignmentIDText: String?
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        let resolvedDestination = destination ?? .review
         let assignmentID = AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText)
-        let action: AppLaunchAction = (destination == .packetPreview || destination == .aiReadiness) ? .preparePacketPreview : .none
+        let action: AppLaunchAction = (resolvedDestination == .packetPreview || resolvedDestination == .aiReadiness) ? .preparePacketPreview : .none
         AppLaunchRequestStore.save(
             AppLaunchRequest(
-                destination: destination.launchDestination,
+                destination: resolvedDestination.launchDestination,
                 assignmentID: assignmentID,
                 action: action
             )
@@ -162,15 +163,15 @@ struct OpenGradeDraftDestinationIntent: AppIntent {
 }
 
 struct OpenAIReadinessIntent: AppIntent {
-    static var title: LocalizedStringResource = "Open AI Readiness"
-    static var description = IntentDescription("Opens Mark My Work to the deterministic local AI readiness center for teacher review. It does not generate a draft.")
-    static var openAppWhenRun: Bool = true
+    static let title: LocalizedStringResource = "Open AI Readiness"
+    static let description = IntentDescription("Opens Mark My Work to the deterministic local AI readiness center for teacher review. It does not generate a draft.")
+    static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity? = nil
+    var assignment: AssignmentEntity?
 
     @Parameter(title: "Assignment ID")
-    var assignmentIDText: String? = nil
+    var assignmentIDText: String?
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         AppLaunchRequestStore.save(
@@ -185,15 +186,15 @@ struct OpenAIReadinessIntent: AppIntent {
 }
 
 struct OpenLatestDraftIntent: AppIntent {
-    static var title: LocalizedStringResource = "Open Latest Draft"
-    static var description = IntentDescription("Opens Mark My Work to the latest local draft or final-review workflow. It does not generate or approve a grade.")
-    static var openAppWhenRun: Bool = true
+    static let title: LocalizedStringResource = "Open Latest Draft"
+    static let description = IntentDescription("Opens Mark My Work to the latest local draft or final-review workflow. It does not generate or approve a grade.")
+    static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity? = nil
+    var assignment: AssignmentEntity?
 
     @Parameter(title: "Assignment ID")
-    var assignmentIDText: String? = nil
+    var assignmentIDText: String?
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         AppLaunchRequestStore.save(
@@ -207,15 +208,15 @@ struct OpenLatestDraftIntent: AppIntent {
 }
 
 struct PrepareLocalAIPacketPreviewIntent: AppIntent {
-    static var title: LocalizedStringResource = "Prepare AI Packet Preview"
-    static var description = IntentDescription("Opens Mark My Work and prepares the local AI packet preview for teacher review. It does not generate a draft or approve a grade.")
-    static var openAppWhenRun: Bool = true
+    static let title: LocalizedStringResource = "Prepare AI Packet Preview"
+    static let description = IntentDescription("Opens Mark My Work and prepares the local AI packet preview for teacher review. It does not generate a draft or approve a grade.")
+    static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity? = nil
+    var assignment: AssignmentEntity?
 
     @Parameter(title: "Assignment ID")
-    var assignmentIDText: String? = nil
+    var assignmentIDText: String?
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         AppLaunchRequestStore.save(
@@ -230,9 +231,9 @@ struct PrepareLocalAIPacketPreviewIntent: AppIntent {
 }
 
 struct CreateGradeDraftAssignmentShellIntent: AppIntent {
-    static var title: LocalizedStringResource = "Create Assignment Shell"
-    static var description = IntentDescription("Opens Mark My Work and creates a local blank assignment record. Student work, grading, and export still require teacher action in the app.")
-    static var openAppWhenRun: Bool = true
+    static let title: LocalizedStringResource = "Create Assignment Shell"
+    static let description = IntentDescription("Opens Mark My Work and creates a local blank assignment record. Student work, grading, and export still require teacher action in the app.")
+    static let openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         AppLaunchRequestStore.save(
@@ -243,15 +244,15 @@ struct CreateGradeDraftAssignmentShellIntent: AppIntent {
 }
 
 struct StartManualFinalReviewIntent: AppIntent {
-    static var title: LocalizedStringResource = "Start Manual Final Review"
-    static var description = IntentDescription("Opens Mark My Work and starts a teacher-only manual final review when the assignment already has reviewed student work and a grading standard.")
-    static var openAppWhenRun: Bool = true
+    static let title: LocalizedStringResource = "Start Manual Final Review"
+    static let description = IntentDescription("Opens Mark My Work and starts a teacher-only manual final review when the assignment already has reviewed student work and a grading standard.")
+    static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity? = nil
+    var assignment: AssignmentEntity?
 
     @Parameter(title: "Assignment ID")
-    var assignmentIDText: String? = nil
+    var assignmentIDText: String?
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         AppLaunchRequestStore.save(
@@ -266,15 +267,15 @@ struct StartManualFinalReviewIntent: AppIntent {
 }
 
 struct ApplyRecommendedAIConstraintsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Apply Recommended AI Constraints"
-    static var description = IntentDescription("Opens Mark My Work and applies the app's recommended local-AI constraint templates to the selected assignment. Sensitive templates remain manual-only.")
-    static var openAppWhenRun: Bool = true
+    static let title: LocalizedStringResource = "Apply Recommended AI Constraints"
+    static let description = IntentDescription("Opens Mark My Work and applies the app's recommended local-AI constraint templates to the selected assignment. Sensitive templates remain manual-only.")
+    static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity? = nil
+    var assignment: AssignmentEntity?
 
     @Parameter(title: "Assignment ID")
-    var assignmentIDText: String? = nil
+    var assignmentIDText: String?
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         AppLaunchRequestStore.save(
@@ -289,18 +290,18 @@ struct ApplyRecommendedAIConstraintsIntent: AppIntent {
 }
 
 struct AddPastedStudentWorkIntent: AppIntent {
-    static var title: LocalizedStringResource = "Add Pasted Student Work"
-    static var description = IntentDescription("Opens Mark My Work and saves pasted student work as teacher-reviewed local input. Existing reviewed text for the selected assignment is replaced.")
-    static var openAppWhenRun: Bool = true
+    static let title: LocalizedStringResource = "Add Pasted Student Work"
+    static let description = IntentDescription("Opens Mark My Work and saves pasted student work as teacher-reviewed local input. Existing reviewed text for the selected assignment is replaced.")
+    static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Student Work Text")
-    var studentWorkText: String = ""
+    var studentWorkText: String
 
     @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity? = nil
+    var assignment: AssignmentEntity?
 
     @Parameter(title: "Assignment ID")
-    var assignmentIDText: String? = nil
+    var assignmentIDText: String?
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let trimmed = studentWorkText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -320,12 +321,12 @@ struct AddPastedStudentWorkIntent: AppIntent {
 }
 
 struct SearchLocalGradeDraftAssignmentsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Search Local Assignments"
-    static var description = IntentDescription("Searches local assignment titles on this device. It does not inspect roster records, generate grades, or export reports.")
-    static var openAppWhenRun: Bool = false
+    static let title: LocalizedStringResource = "Search Local Assignments"
+    static let description = IntentDescription("Searches local assignment titles on this device. It does not inspect roster records, generate grades, or export reports.")
+    static let openAppWhenRun: Bool = false
 
     @Parameter(title: "Search Text")
-    var searchText: String = ""
+    var searchText: String
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)

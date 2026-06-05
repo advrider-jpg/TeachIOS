@@ -91,14 +91,17 @@ def main() -> int:
     for intent_name, block in intent_blocks(source):
         if any(part in intent_name for part in DANGEROUS_INTENT_NAME_PARTS):
             failures.append(f"Dangerous intent name exposed: {intent_name}")
-        if intent_name != "SearchLocalGradeDraftAssignmentsIntent" and "static var openAppWhenRun: Bool = true" not in block:
+        if intent_name != "SearchLocalGradeDraftAssignmentsIntent" and not re.search(
+            r"static\s+(?:var|let)\s+openAppWhenRun\s*:\s*Bool\s*=\s*true",
+            block,
+        ):
             failures.append(f"{intent_name} must open the app for foreground teacher review")
         for snippet in DANGEROUS_BODY_SNIPPETS:
             if snippet in block:
                 failures.append(f"{intent_name} contains unsafe action snippet: {snippet}")
 
     search_block = block_after(source, "struct SearchLocalGradeDraftAssignmentsIntent", ["struct GradeDraftShortcutsProvider"])
-    if "static var openAppWhenRun: Bool = false" not in search_block:
+    if not re.search(r"static\s+(?:var|let)\s+openAppWhenRun\s*:\s*Bool\s*=\s*false", search_block):
         failures.append("SearchLocalGradeDraftAssignmentsIntent should not launch the app")
     if "studentDisplayName" in search_block or "className" in search_block or "uuidString" in search_block:
         failures.append("SearchLocalGradeDraftAssignmentsIntent leaks identity metadata or assignment UUIDs")
