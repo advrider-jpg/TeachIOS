@@ -479,6 +479,9 @@ enum RubricReadinessAnalyzer {
         if !duplicateTitles.isEmpty {
             warnings.append("Duplicate rubric criteria detected: \(duplicateTitles.joined(separator: ", ")).")
         }
+        if parsed.issues.contains(where: { $0.localizedCaseInsensitiveContains("Duplicate criterion") }) {
+            warnings.append("Duplicate rubric criteria detected in the imported rubric.")
+        }
         let missingPoints = parsed.criteria.filter { $0.maxPoints <= 0 }.map(\.title)
         if !missingPoints.isEmpty {
             warnings.append("Criteria without positive max points: \(missingPoints.joined(separator: ", ")).")

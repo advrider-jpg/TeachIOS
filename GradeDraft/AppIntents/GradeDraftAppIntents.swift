@@ -308,10 +308,13 @@ struct AddPastedStudentWorkIntent: AppIntent {
         guard !trimmed.isEmpty else {
             return .result(dialog: "Paste non-empty student work text before running this shortcut.")
         }
+        guard let assignmentID = AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText) else {
+            return .result(dialog: "Choose an assignment before saving pasted student work. Mark My Work did not change any student work.")
+        }
         AppLaunchRequestStore.save(
             AppLaunchRequest(
                 destination: .studentWork,
-                assignmentID: AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText),
+                assignmentID: assignmentID,
                 action: .applyPastedStudentText,
                 payloadText: trimmed
             )

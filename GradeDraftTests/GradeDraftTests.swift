@@ -979,6 +979,27 @@ final class GradeDraftTests: XCTestCase {
     }
 
     @MainActor
+    func testShortcutPastedStudentWorkRequiresExplicitAssignmentTarget() {
+        let assignment = AssignmentRecord(
+            title: "Do not replace",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Keep this reviewed text"
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        viewModel.handleLaunchRequest(AppLaunchRequest(
+            destination: .studentWork,
+            action: .applyPastedStudentText,
+            payloadText: "New shortcut text"
+        ))
+
+        XCTAssertEqual(viewModel.assignment.reviewedStudentText, "Keep this reviewed text")
+        XCTAssertEqual(store.assignments.first?.reviewedStudentText, "Keep this reviewed text")
+        XCTAssertTrue(viewModel.errorMessage?.contains("choose an assignment") == true)
+    }
+
+    @MainActor
     func testShortcutManualFinalReviewFailsOpenWhenAssignmentIsNotReady() {
         let assignment = AssignmentRecord(
             title: "Short answer",

@@ -352,6 +352,10 @@ final class GradeDraftViewModel: ObservableObject {
             applyRecommendedAIConstraintTemplates()
             buildAIPacketPreview()
         case .applyPastedStudentText:
+            guard request.assignmentID != nil else {
+                errorMessage = "Shortcut must choose an assignment before saving pasted student work."
+                return
+            }
             let text = request.payloadText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !text.isEmpty else {
                 errorMessage = "Shortcut did not include student work text to save."
