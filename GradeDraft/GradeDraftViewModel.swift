@@ -881,6 +881,59 @@ final class GradeDraftViewModel: ObservableObject {
         }
     }
 
+    /// Assignment records belonging to one class, ordered by student, for class-set grading throughput.
+    func classAssignments(for className: String) -> [AssignmentRecord] {
+        assignments
+            .filter { $0.className.caseInsensitiveCompare(className) == .orderedSame }
+            .sorted { $0.studentDisplayName.localizedCaseInsensitiveCompare($1.studentDisplayName) == .orderedAscending }
+    }
+
+    /// The next assignment in a class that still needs grading work (not approved, or approved-but-stale),
+    /// for the "continue grading" throughput action.
+    func nextUngradedAssignment(in className: String) -> AssignmentRecord? {
+        classAssignments(for: className).first { record in
+            record.finalReview?.status != .approved || record.finalReviewIsStale
+        }
+    }
+
+    /// Class-scoped gradebook CSV export, auth-gated like the all-class gradebook export.
+    func exportClassGradebookCSV(for className: String) async {
+        guard await authenticateForExportIfNeeded(.csvGradebook) else { return }
+        let scoped = classAssignments(for: className)
+        let records = scoped.isEmpty ? [assignment] : scoped
+        do {
+            let csv = CSVExportService.exportedCSV(from: records)
+            let destination = temporaryExportURL(kind: .csvGradebook, extension: "csv", assignmentID: nil)
+            try csv.write(to: destination, atomically: true, encoding: .utf8)
+            ExportFileHardening.applyBestEffortProtection(to: destination)
+            exportURL = destination
+            exportKind = .csvGradebook
+            recordExport(kind: .csvGradebook, content: csv, includesPrivateNotes: false, includesOriginalSources: false)
+            statusMessage = "Class gradebook CSV is ready to share. Treat it as a teacher-only record."
+        } catch {
+            handleExportFailure(error)
+        }
+    }
+
+    /// Class-scoped gradebook archive (per-student reports + records), auth-gated.
+    func exportClassArchive(for className: String) async {
+        guard await authenticateForExportIfNeeded(.assignmentGradebookArchive) else { return }
+        let scoped = classAssignments(for: className)
+        let records = scoped.isEmpty ? [assignment] : scoped
+        do {
+            let archiveSourceFiles = records.flatMap { sourceFiles(for: $0) }
+            let destination = temporaryExportURL(kind: .assignmentGradebookArchive, extension: "zip", assignmentID: nil)
+            exportURL = try BundleExportService.writeAssignmentArchive(assignments: records, sourceFiles: archiveSourceFiles, to: destination)
+            exportKind = .assignmentGradebookArchive
+            if let exportURL {
+                recordExport(kind: .assignmentGradebookArchive, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: !archiveSourceFiles.isEmpty)
+            }
+            statusMessage = "Class gradebook archive ZIP is ready to share. Treat it as sensitive teacher-only student data."
+        } catch {
+            handleExportFailure(error)
+        }
+    }
+
     func applyPDFFile(_ url: URL) async {
         isWorking = true
         errorMessage = nil
