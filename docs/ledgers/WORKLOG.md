@@ -6,6 +6,25 @@
 - Added a compact progress summary to the Timeline card: "Step N of 6" (or "All steps complete") with a percentage and a `ProgressView` bar, derived from how many workflow steps are in a completed state (`onTrack`/`approved`/`readyToExport`/`exported`). Purely additive; reuses the existing `workflowSteps` model and stationery theme.
 - No new dependencies or screen files. The native source-fingerprint snapshot for this screen is unchanged (`ProgressView` is not a tracked control token; no new `Section`/headers).
 - Validation: local guardrails pass (`repo_health`, `bad_string_scan`, `check_xcode_project_membership`). Xcode compile + the overview snapshot/screenshot tests run in CI (currently blocked by the GitHub Actions spending limit; PR left for CI before merge).
+## 2026-06-04 — Final Review workspace: criteria progress + class throughput
+
+- Added a "Criteria approved" count (approved / total) to the Teacher Approval card so the teacher can see review completeness at a glance, alongside the existing approval status and export-readiness rows.
+- Added a "Class Throughput" section with a **Next student** button that jumps straight to the next student in the same class who still needs grading (not approved, or approved-but-stale), via `navigationDestination`. This completes the class-set grading loop from inside the review screen so a teacher can grade straight through a stack.
+- Self-contained: the next-student lookup filters `viewModel.assignments` directly (no dependency on other in-flight branches). Reuses existing review components and the approval/export plumbing; no new dependencies or screen files.
+- Validation: local guardrails pass (`check_xcode_project_membership`, `bad_string_scan`, `repo_health`). Xcode compile + the Final Review snapshot/screenshot tests run in CI (currently blocked by the GitHub Actions spending limit; PR left for CI before merge).
+## 2026-06-04 — Class-set grading throughput
+
+- Added a "Class Grading" hero to `ClassDetailRosterScreen`: a progress gauge ("X of Y approved" + percent), a **Continue** button that jumps to the next ungraded student's overview via `navigationDestination`, and class-scoped batch export (gradebook archive ZIP + gradebook CSV) with a Share action. Turns single-record grading into whole-class throughput.
+- Added view-model support: `classAssignments(for:)` (records for a class, ordered by student), `nextUngradedAssignment(in:)` (first not-approved or stale), and `exportClassGradebookCSV(for:)` / `exportClassArchive(for:)` — class-scoped mirrors of the existing gradebook exports, routed through the same `authenticateForExportIfNeeded` gate so sensitive teacher-only exports keep their auth requirement.
+- No new dependencies; reuses existing export plumbing (`CSVExportService`, `BundleExportService`, `ExportFileHardening`, export records). No new screen file (built into the existing class detail screen), so project membership and the screenshot manifest are unchanged.
+- Validation: local guardrails pass (`check_xcode_project_membership`, `bad_string_scan`, `repo_health`). Xcode compile/tests run in CI (currently blocked by the GitHub Actions spending limit; PR left for CI before merge).
+## 2026-06-04 — Rubric setup screen redesigned for the iPhone
+
+- `RubricInstructionsScreen` was one Form section stacking nine always-expanded stationery cards plus several 100–150pt editors — an enormous undifferentiated scroll on a phone. Reworked it into a progressive-disclosure layout: a tappable "Setup Checklist" overview at the top (status + one-line state per area), then **collapsible** section cards. Rubric and Detected Criteria start expanded; templates, AI constraints, curriculum, instructions, and answer-key/exemplar start collapsed. Tapping a checklist row expands and scrolls to that section via `ScrollViewReader`.
+- Added source-dropped, dependency-free building blocks to `RubricComponents.swift`: `RubricCollapsibleCard` (tap-to-fold stationery card), `RubricOverviewRow` (checklist row), `RubricFlowLayout` (native `Layout`-protocol wrapping flow for chips; reference tevelee/SwiftUI-Flow, krishkumar/FlowLayout, MIT — no package added), `RubricChip`, and `inlineRubricMarkdown` (renders inline Markdown in descriptors via native `AttributedString(markdown:)`).
+- Criterion detail now renders descriptors as inline Markdown and shows scoring bands as compact chips that reflow to the screen width. Curriculum mappings show as chips. Body split into per-section computed views to keep type-check load low.
+- No new dependencies (decision: native + source-drop). The native source-fingerprint snapshot for this screen is unchanged (same root `Form`, control tokens, and no titled sections).
+- Validation: local guardrails pass (`check_xcode_project_membership`, `bad_string_scan`, `repo_health`). Xcode compile + the screen snapshot/screenshot tests run in CI (currently blocked by the GitHub Actions spending limit; PR left for CI before merge).
 
 ## 2026-06-04 — Markdown rubric parser now AST-driven (swift-markdown)
 
