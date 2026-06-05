@@ -1,5 +1,9 @@
 # Worklog
 
+## 2026-06-04 — Fix native-UI guardrail false positive on ScrollViewReader
+
+- `check_native_ui_refactor.py` flagged any `"ScrollView"` substring as a forbidden root scroll container, which falsely tripped on `ScrollViewReader` (added to `RubricInstructionsScreen` for tap-to-scroll). `ScrollViewReader`/`ScrollViewProxy` coordinate scrolling within a native `List`/`Form` and are not root containers. Switched the check to a word-boundary regex (`\bScrollView\b`) so it still forbids a real `ScrollView` container but allows the reader/proxy. No real `ScrollView` containers exist in `UI/Screens`.
+
 ## 2026-06-04 — Guided pipeline: explicit stage progress
 
 - The per-assignment `AssignmentOverviewScreen` already implements the guided grading pipeline (a "Next up" card that routes to the correct next screen by status, a 6-step `WorkflowProgressRail`, and a blocking-issues card). The remaining gap was an explicit sense of position in the pipeline.

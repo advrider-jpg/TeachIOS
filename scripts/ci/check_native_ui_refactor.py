@@ -17,9 +17,13 @@ for path in SCREEN_DIR.glob("*.swift"):
             failures.append(f"{path.relative_to(ROOT)}: forbidden token {token}")
 
 scroll_allowed = {"ReviewScannedTextScreen.swift"}
+# Match the `ScrollView` container type only. A word boundary avoids false positives on
+# `ScrollViewReader`/`ScrollViewProxy`, which coordinate scrolling within a native List/Form
+# (the proxy lets a row scroll a Form section into view) and are not root scroll containers.
+scrollview_pattern = re.compile(r"\bScrollView\b")
 for path in SCREEN_DIR.glob("*.swift"):
     text = path.read_text(encoding="utf-8")
-    if "ScrollView" in text and path.name not in scroll_allowed:
+    if scrollview_pattern.search(text) and path.name not in scroll_allowed:
         failures.append(f"{path.relative_to(ROOT)}: root ScrollView is not allowed after native UI refactor")
 
 list_required = ["HomeScreen.swift", "AssignmentsScreen.swift", "ClassesScreen.swift", "ReviewScreen.swift"]
