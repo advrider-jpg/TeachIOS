@@ -288,6 +288,8 @@ enum AIEvaluationChecker {
             prompt: evaluationCase.assignment.prompt,
             subject: evaluationCase.assignment.subject,
             gradeLevel: evaluationCase.assignment.gradeLevel,
+            assessmentPurpose: evaluationCase.assignment.assessmentPurpose,
+            curriculumReference: evaluationCase.curriculumReference,
             className: evaluationCase.assignment.className,
             studentDisplayName: evaluationCase.assignment.studentDisplayName,
             assignmentType: evaluationCase.assignment.assignmentType,
@@ -295,8 +297,6 @@ enum AIEvaluationChecker {
             customInstructions: evaluationCase.assignment.customInstructions,
             answerKeyText: evaluationCase.answerKeyText,
             exemplarText: evaluationCase.exemplarText,
-            assessmentPurpose: evaluationCase.assignment.assessmentPurpose,
-            curriculumReference: evaluationCase.curriculumReference,
             reviewedStudentText: evaluationCase.reviewedStudentText,
             ocrReviewStatus: evaluationCase.ocrReviewStatus
         )

@@ -100,11 +100,11 @@ enum LocalAIGradingToolbox {
     }
 
     static func findRubricCriterion(query: String, in input: GradingInput) -> LocalAIToolResult {
-        let matches = input.parsedRubric.criteria
-            .filter { criterion in matches(query: query, fields: [criterion.id, criterion.title, criterion.descriptor, criterion.groupTitle ?? ""]) }
+        let matchingCriteria = input.parsedRubric.criteria
+            .filter { criterion in Self.matches(query: query, fields: [criterion.id, criterion.title, criterion.descriptor, criterion.groupTitle ?? ""]) }
             .prefix(maxMatches)
             .map { criterion in "\(criterion.id): \(criterion.title), max \(GradeTotals.formatted(criterion.maxPoints)). \(criterion.descriptor)" }
-        return result(.findRubricCriterion, query: query, matches: Array(matches))
+        return result(.findRubricCriterion, query: query, matches: Array(matchingCriteria))
     }
 
     static func findStudentEvidence(query: String, in input: GradingInput) -> LocalAIToolResult {
@@ -119,14 +119,14 @@ enum LocalAIGradingToolbox {
     }
 
     static func findSourceReference(query: String, in packet: GradingPacket) -> LocalAIToolResult {
-        let matches = packet.evidenceReferences
-            .filter { matches(query: query, fields: [$0.id.uuidString, $0.quote, $0.sourceKind, $0.sourceInputID?.uuidString ?? ""]) }
+        let matchingReferences = packet.evidenceReferences
+            .filter { Self.matches(query: query, fields: [$0.id.uuidString, $0.quote, $0.sourceKind, $0.sourceInputID?.uuidString ?? ""]) }
             .prefix(maxMatches)
             .map { evidence in
                 let source = evidence.sourceInputID?.uuidString ?? "unknown-source"
                 return "source:\(source) page:\(evidence.pageIndex.map { "\($0)" } ?? "unknown") quote:\(snippet(evidence.quote))"
             }
-        return result(.findSourceReference, query: query, matches: Array(matches))
+        return result(.findSourceReference, query: query, matches: Array(matchingReferences))
     }
 
     static func findAnswerKeySegment(query: String, in input: GradingInput) -> LocalAIToolResult {

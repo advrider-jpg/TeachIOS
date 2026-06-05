@@ -181,7 +181,7 @@ enum PromptBuilder {
 
     static func singleCriterionPromptText(input: GradingInput, criterion: RubricCriterion, mode: PromptPacketMode = .compact) -> String {
         let modelInput = GradingPacketBuilder.modelVisibleInput(from: input)
-        """
+        return """
         Draft an evidence-linked suggestion for one rubric criterion only.
         Return one generated SingleCriterionDraft object using the app schema.
         Do not score any other criterion.
