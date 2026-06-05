@@ -77,6 +77,72 @@ def main() -> int:
         print(release_scan.stderr.strip())
         return release_scan.returncode
 
+    ai_eval_scan = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_evaluation_fixtures.py")],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    print(ai_eval_scan.stdout.strip())
+    if ai_eval_scan.returncode != 0:
+        print(ai_eval_scan.stderr.strip())
+        return ai_eval_scan.returncode
+
+    app_intents_scan = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "ci" / "check_app_intents_safety.py")],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    print(app_intents_scan.stdout.strip())
+    if app_intents_scan.returncode != 0:
+        print(app_intents_scan.stderr.strip())
+        return app_intents_scan.returncode
+
+    local_ai_tools_scan = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "ci" / "check_local_ai_tools.py")],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    print(local_ai_tools_scan.stdout.strip())
+    if local_ai_tools_scan.returncode != 0:
+        print(local_ai_tools_scan.stderr.strip())
+        return local_ai_tools_scan.returncode
+
+    ai_prompt_safety_scan = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_prompt_safety.py")],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    print(ai_prompt_safety_scan.stdout.strip())
+    if ai_prompt_safety_scan.returncode != 0:
+        print(ai_prompt_safety_scan.stderr.strip())
+        return ai_prompt_safety_scan.returncode
+
+    ai_batch_readiness_scan = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_batch_readiness.py")],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    print(ai_batch_readiness_scan.stdout.strip())
+    if ai_batch_readiness_scan.returncode != 0:
+        print(ai_batch_readiness_scan.stderr.strip())
+        return ai_batch_readiness_scan.returncode
+
+    ai_packet_preview_screen_scan = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_packet_preview_screen.py")],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    print(ai_packet_preview_screen_scan.stdout.strip())
+    if ai_packet_preview_screen_scan.returncode != 0:
+        print(ai_packet_preview_screen_scan.stderr.strip())
+        return ai_packet_preview_screen_scan.returncode
+
     print("Required files present.")
     print("Health check passed. Use Xcode to compile and run unit tests.")
     return 0

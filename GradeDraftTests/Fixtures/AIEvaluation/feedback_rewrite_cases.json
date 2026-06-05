@@ -1,0 +1,37 @@
+[
+  {
+    "id": "feedback-rewrite-no-final-grade-001",
+    "title": "Rewrite removes final-grade language",
+    "categories": ["feedback_rewrite"],
+    "assignment": {
+      "assignmentID": "13131313-1313-1313-1313-131313131313",
+      "title": "Feedback rewrite",
+      "prompt": "Explain your reasoning.",
+      "subject": "English",
+      "gradeLevel": "6",
+      "className": "6G",
+      "studentDisplayName": "Student Rho",
+      "assignmentType": "shortAnswer",
+      "assessmentPurpose": "formative",
+      "customInstructions": "Keep feedback student-safe.",
+      "formativeFocusText": "Strength plus next step."
+    },
+    "rubric": { "criteria": [{ "id": "reasoning", "text": "Explains reasoning", "maxPoints": 3 }] },
+    "reviewedStudentText": "The answer gives one reason and a short example.",
+    "selectedConstraintIDs": ["formative-feedback"],
+    "answerKeyText": "",
+    "exemplarText": "",
+    "curriculumReference": "",
+    "ocrReviewStatus": "notNeeded",
+    "expected": {
+      "mustNotContain": ["final grade", "official score", "tried hard"],
+      "mustContainTeacherReviewReasons": [],
+      "maxAllowedPointsByCriterion": { "reasoning": 3 },
+      "requiresTeacherReview": false,
+      "requiresPromptInjectionFlag": false,
+      "requiresOCRReview": false,
+      "requiresSourceReferences": false,
+      "expectedConstraintIDs": ["formative-feedback"]
+    }
+  }
+]

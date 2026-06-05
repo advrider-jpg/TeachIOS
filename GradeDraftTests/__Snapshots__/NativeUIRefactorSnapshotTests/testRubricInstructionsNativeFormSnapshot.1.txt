@@ -5,7 +5,8 @@ hostedViewSize: 390x844
 expectedContainer: Form
 sourceContainerPresent: true
 sections:
-- none
+- Teacher-Provided Context Required
+- Template
 nativeControls:
 - Form
 - Section

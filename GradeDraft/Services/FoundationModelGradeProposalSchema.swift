@@ -95,6 +95,15 @@ enum FoundationModelGradeProposalSchema {
         @Guide(description: "Short statements describing how the summary was constrained to rubric, reviewed text, and teacher-provided materials.")
         let complianceFlags: [String]
     }
+
+    @Generable
+    struct FeedbackRewriteDraft: Sendable {
+        @Guide(description: "Rewritten student-facing feedback. Preserve teacher meaning, do not change scores, do not add evidence, and do not use final-grade language.")
+        let rewrittenFeedback: String
+
+        @Guide(description: "Teacher-facing notes describing any limitation, ambiguity, or reason the teacher must review before export.")
+        let teacherReviewNotes: [String]
+    }
 }
 
 @available(iOS 26.0, *)
@@ -135,6 +144,16 @@ extension FoundationModelGradeProposalSchema.GradeDraftProposal {
             complianceFlags: complianceFlags,
             rawModelResponse: nil,
             localModelAudit: audit
+        )
+    }
+}
+
+@available(iOS 26.0, *)
+extension FoundationModelGradeProposalSchema.FeedbackRewriteDraft {
+    func asFeedbackRewriteResult() -> FeedbackRewriteResult {
+        FeedbackRewriteResult(
+            rewrittenFeedback: rewrittenFeedback,
+            teacherReviewNotes: teacherReviewNotes
         )
     }
 }

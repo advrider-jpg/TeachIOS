@@ -1,0 +1,37 @@
+[
+  {
+    "id": "answer-key-strict-missing-element-001",
+    "title": "Strict answer key should not award missing element",
+    "categories": ["answer_key_strict"],
+    "assignment": {
+      "assignmentID": "55555555-5555-5555-5555-555555555555",
+      "title": "Definition response",
+      "prompt": "Define evaporation and give one example.",
+      "subject": "Science",
+      "gradeLevel": "6",
+      "className": "6D",
+      "studentDisplayName": "Student Epsilon",
+      "assignmentType": "shortAnswer",
+      "assessmentPurpose": "summative",
+      "customInstructions": "Use the answer key as the main scoring reference.",
+      "formativeFocusText": ""
+    },
+    "rubric": { "criteria": [{ "id": "definition", "text": "Definition and example", "maxPoints": 4 }] },
+    "reviewedStudentText": "Evaporation is when water disappears.",
+    "selectedConstraintIDs": ["strict-answer-key", "summative-caution"],
+    "answerKeyText": "A complete response says liquid changes to gas and gives an example such as puddles drying.",
+    "exemplarText": "",
+    "curriculumReference": "",
+    "ocrReviewStatus": "notNeeded",
+    "expected": {
+      "mustNotContain": ["complete answer", "final grade"],
+      "mustContainTeacherReviewReasons": [],
+      "maxAllowedPointsByCriterion": { "definition": 2 },
+      "requiresTeacherReview": true,
+      "requiresPromptInjectionFlag": false,
+      "requiresOCRReview": false,
+      "requiresSourceReferences": false,
+      "expectedConstraintIDs": ["strict-answer-key", "summative-caution"]
+    }
+  }
+]

@@ -25,6 +25,8 @@ enum StableFingerprint {
 
 enum GradeDraftPromptVersion {
     static let foundationModelsTypedV1 = "gradedraft.foundationmodels.typed.v1"
+    static let foundationModelsTypedV2 = "gradedraft.foundationmodels.typed.v2"
+    static let currentFoundationModelsTyped = foundationModelsTypedV2
     static let schemaVersion = "gradedraft.gradeproposal.schema.v1"
     static let validatorVersion = "gradedraft.validator.v1"
 }
@@ -67,7 +69,7 @@ struct LocalModelDraftAudit: Codable, Equatable, Sendable {
     init(
         provider: String = "Apple Foundation Models",
         framework: String = "FoundationModels",
-        promptVersion: String = GradeDraftPromptVersion.foundationModelsTypedV1,
+        promptVersion: String = GradeDraftPromptVersion.currentFoundationModelsTyped,
         schemaVersion: String = GradeDraftPromptVersion.schemaVersion,
         validatorVersion: String = GradeDraftPromptVersion.validatorVersion,
         generationMode: LocalModelGenerationMode,
@@ -2149,6 +2151,7 @@ enum AuditEventType: String, Codable, Equatable {
     case localFileCleanupFailed
     case finalReviewStarted
     case finalApproved
+    case feedbackRewritten
     case exportPrepared
     case persistenceSaved
 }
@@ -2227,4 +2230,3 @@ enum GradeDraftError: LocalizedError, Equatable {
         }
     }
 }
-

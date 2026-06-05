@@ -1,0 +1,37 @@
+[
+  {
+    "id": "summative-caution-borderline-001",
+    "title": "Summative borderline response requires caution",
+    "categories": ["summative_caution"],
+    "assignment": {
+      "assignmentID": "88888888-8888-8888-8888-888888888888",
+      "title": "End of unit response",
+      "prompt": "Explain the cause and effect in the passage.",
+      "subject": "English",
+      "gradeLevel": "8",
+      "className": "8A",
+      "studentDisplayName": "Student Theta",
+      "assignmentType": "paragraphResponse",
+      "assessmentPurpose": "summative",
+      "customInstructions": "Apply conservative scoring when evidence is borderline.",
+      "formativeFocusText": ""
+    },
+    "rubric": { "criteria": [{ "id": "cause-effect", "text": "Explains cause and effect", "maxPoints": 5 }] },
+    "reviewedStudentText": "The flood happened and people moved away. It was bad.",
+    "selectedConstraintIDs": ["summative-caution", "general-evidence-first"],
+    "answerKeyText": "A complete answer explains that heavy rain caused flooding, which forced residents to move.",
+    "exemplarText": "",
+    "curriculumReference": "",
+    "ocrReviewStatus": "notNeeded",
+    "expected": {
+      "mustNotContain": ["definitely complete", "final grade"],
+      "mustContainTeacherReviewReasons": [],
+      "maxAllowedPointsByCriterion": { "cause-effect": 3 },
+      "requiresTeacherReview": true,
+      "requiresPromptInjectionFlag": false,
+      "requiresOCRReview": false,
+      "requiresSourceReferences": false,
+      "expectedConstraintIDs": ["summative-caution", "general-evidence-first"]
+    }
+  }
+]

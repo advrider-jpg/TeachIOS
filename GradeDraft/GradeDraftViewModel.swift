@@ -29,6 +29,9 @@ final class GradeDraftViewModel: ObservableObject {
     @Published var curriculumLearningAreaFilter = ""
     @Published var curriculumYearLevelFilter = ""
     @Published var curriculumResultLimit = 50
+    @Published var aiReadinessReport: AIReadinessReport?
+    @Published var aiPacketPreview: AIPacketPreview?
+    @Published var aiGenerationProgress: AIGenerationProgress = .idle
     @Published private(set) var deviceBackupPolicyStatus: DeviceBackupPolicyStatus = .unknown("Backup exclusion has not been checked yet.")
 
     private let ocrService: OCRServicing
@@ -36,6 +39,7 @@ final class GradeDraftViewModel: ObservableObject {
     private let store: AssignmentStoring
     private let fileManager: FileManager
     private let exportAuthenticationService: ExportAuthenticationServicing
+    private var draftGenerationTask: Task<Void, Never>?
     @Published private(set) var persistenceMode: String
 
     init(
@@ -318,6 +322,7 @@ final class GradeDraftViewModel: ObservableObject {
         case .unavailable(let message):
             statusMessage = message
         }
+        refreshAIReadiness()
     }
 
     func selectAssignment(_ id: UUID) {
@@ -325,6 +330,44 @@ final class GradeDraftViewModel: ObservableObject {
         exportURL = nil
         exportKind = nil
         refreshCapabilityStatus()
+    }
+
+    func handleLaunchRequest(_ request: AppLaunchRequest) {
+        if let assignmentID = request.assignmentID {
+            guard assignments.contains(where: { $0.id == assignmentID }) else {
+                errorMessage = "Shortcut could not open that assignment because it is not saved on this device."
+                return
+            }
+            selectAssignment(assignmentID)
+        }
+        switch request.action {
+        case .createAssignmentShell:
+            newAssignment()
+            statusMessage = "Assignment shell created locally from Shortcut. Add student work and grading materials before drafting."
+        case .preparePacketPreview:
+            buildAIPacketPreview()
+        case .startManualFinalReview:
+            startManualFinalReview()
+        case .applyRecommendedAIConstraints:
+            applyRecommendedAIConstraintTemplates()
+            buildAIPacketPreview()
+        case .applyPastedStudentText:
+            guard request.assignmentID != nil else {
+                errorMessage = "Shortcut must choose an assignment before saving pasted student work."
+                return
+            }
+            let text = request.payloadText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !text.isEmpty else {
+                errorMessage = "Shortcut did not include student work text to save."
+                return
+            }
+            applyPastedStudentText(text)
+            statusMessage = "Pasted student work was saved locally from Shortcut. Review setup before drafting feedback."
+        case .none:
+            if let assignmentID = request.assignmentID, assignments.contains(where: { $0.id == assignmentID }) {
+                statusMessage = "Opened assignment locally. Student work stays on this device."
+            }
+        }
     }
 
     func newAssignment(from template: RubricTemplate? = nil) {
@@ -481,17 +524,23 @@ final class GradeDraftViewModel: ObservableObject {
     }
 
     func applyPastedStudentText(_ text: String) {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else {
+            errorMessage = "Paste non-empty student work before saving it as reviewed input."
+            return
+        }
         updateAssignment { assignment in
-            assignment.reviewedStudentText = text
+            assignment.reviewedStudentText = cleaned
             assignment.ocrDocument = nil
             assignment.ocrReviewStatus = .notNeeded
             assignment.ocrReviewedAt = nil
-            assignment.sourceInputs = [SourceInputRef(sourceType: .pastedText, contentDigest: StableFingerprint.fingerprint([text]), digestAlgorithm: "fnv1a64")]
+            assignment.sourceInputs = [SourceInputRef(sourceType: .pastedText, contentDigest: StableFingerprint.fingerprint([cleaned]), digestAlgorithm: "fnv1a64")]
             assignment.latestDraft = nil
             assignment.finalReview = nil
             assignment.appendAuditEvent(.inputChanged, detail: "Pasted student text applied as teacher-reviewed input.")
         }
         persistOrSurfaceError()
+        statusMessage = "Pasted student work saved locally as teacher-reviewed input."
     }
 
     func applyScannedImages(_ images: [UIImage]) async {
@@ -587,6 +636,60 @@ final class GradeDraftViewModel: ObservableObject {
         statusMessage = "Scanned text reviewed. Draft feedback is now available if Local AI and rubric are ready."
     }
 
+    func refreshAIReadiness() {
+        let budgetResult = localPromptBudgetPlan()
+        aiReadinessReport = AIReadinessAnalyzer.report(
+            for: assignment,
+            localAIStatus: localAIStatus,
+            budgetPlan: budgetResult.plan,
+            budgetError: budgetResult.error
+        )
+        if let plan = budgetResult.plan {
+            aiPacketPreview = AIPacketPreviewBuilder.preview(for: assignment, plan: plan)
+        } else {
+            aiPacketPreview = nil
+        }
+    }
+
+    func buildAIPacketPreview() {
+        refreshAIReadiness()
+        guard aiPacketPreview?.assignmentID == assignment.id else {
+            errorMessage = aiReadinessReport?.recommendedNextAction ?? "The local AI packet is not ready for preview."
+            return
+        }
+        statusMessage = "Local AI packet preview prepared. Review it before drafting feedback."
+    }
+
+    func confirmAndDraftGrade() {
+        guard draftGenerationTask == nil else {
+            statusMessage = "A local draft operation is already running."
+            return
+        }
+        buildAIPacketPreview()
+        guard aiPacketPreview?.assignmentID == assignment.id else { return }
+        draftGenerationTask = Task { [weak self] in
+            await self?.draftGrade()
+        }
+    }
+
+    var canCancelDraftGeneration: Bool {
+        draftGenerationTask != nil && aiGenerationProgress.canCancel
+    }
+
+    func cancelDraftGeneration() {
+        guard let draftGenerationTask else {
+            statusMessage = "No local draft is running."
+            return
+        }
+        aiGenerationProgress = AIGenerationProgress(
+            stage: .cancellationRequested,
+            detail: "Cancelling the local draft request. No draft will be saved if cancellation completes.",
+            canCancel: false
+        )
+        statusMessage = aiGenerationProgress.detail
+        draftGenerationTask.cancel()
+    }
+
     func draftGrade() async {
         guard canDraftGrade else {
             errorMessage = readinessIssues.first ?? "Draft feedback is not ready."
@@ -596,11 +699,27 @@ final class GradeDraftViewModel: ObservableObject {
         errorMessage = nil
         exportURL = nil
         exportKind = nil
-        defer { isWorking = false }
+        defer {
+            isWorking = false
+            draftGenerationTask = nil
+            if aiGenerationProgress.stage != .completed && aiGenerationProgress.stage != .cancelled && aiGenerationProgress.stage != .failed {
+                aiGenerationProgress = .idle
+            }
+        }
 
         do {
             let input = assignment.gradingInput
-            let result = try await gradingService.draftGrade(input: input)
+            let progressHandler: AIGenerationProgressHandler = { [weak self] progress in
+                self?.aiGenerationProgress = progress
+                self?.statusMessage = progress.detail
+            }
+            let result = try await gradingService.draftGrade(input: input, progress: progressHandler)
+            try Task.checkCancellation()
+            aiGenerationProgress = AIGenerationProgress(
+                stage: .storingDraft,
+                detail: "Saving the validated local draft to this assignment.",
+                canCancel: false
+            )
             updateAssignment { assignment in
                 assignment.latestDraft = result
                 assignment.finalReview = nil
@@ -612,8 +731,115 @@ final class GradeDraftViewModel: ObservableObject {
                 statusMessage = "Draft feedback suggestion generated locally using Apple Foundation Models. Start teacher final review before using it."
             }
             try saveCurrentAssignment()
+            aiGenerationProgress = AIGenerationProgress(
+                stage: .completed,
+                detail: "Local draft saved. Start teacher final review before using it.",
+                completedUnitCount: 1,
+                totalUnitCount: 1,
+                canCancel: false
+            )
         } catch {
+            if Task.isCancelled || error.localizedDescription.localizedCaseInsensitiveContains("cancel") {
+                aiGenerationProgress = AIGenerationProgress(
+                    stage: .cancelled,
+                    detail: "Local draft cancelled. No draft was saved.",
+                    canCancel: false
+                )
+                statusMessage = aiGenerationProgress.detail
+            } else {
+                aiGenerationProgress = AIGenerationProgress(
+                    stage: .failed,
+                    detail: error.localizedDescription,
+                    canCancel: false
+                )
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func rewriteFinalReviewFeedback(mode: FeedbackRewriteMode) async {
+        guard !isWorking else {
+            statusMessage = "A local operation is already running."
+            return
+        }
+        guard let review = assignment.finalReview else {
+            errorMessage = "Start final review before using the feedback rewrite assistant."
+            return
+        }
+        guard review.status != .approved else {
+            errorMessage = "Approved final feedback cannot be rewritten by AI. Reopen or edit the review manually if a correction is needed."
+            return
+        }
+        guard case .available = localAIStatus else {
+            if case .unavailable(let message) = localAIStatus {
+                errorMessage = message
+            } else {
+                errorMessage = "Local AI is unavailable for feedback rewriting."
+            }
+            return
+        }
+        let rewriteInput = FeedbackRewriteInput(
+            assignmentID: assignment.id,
+            mode: mode,
+            currentStudentFeedback: review.studentFeedback,
+            selectedTeacherNotes: mode == .teacherNotesToStudentSafe ? review.privateTeacherNotes : "",
+            gradeLevel: assignment.gradeLevel,
+            criteria: review.criteria,
+            reviewedStudentText: assignment.reviewedStudentText,
+            packetFingerprint: assignment.gradingPacketFingerprint
+        )
+        isWorking = true
+        errorMessage = nil
+        aiGenerationProgress = AIGenerationProgress(
+            stage: .rewritingFeedback,
+            detail: "Rewriting feedback locally for teacher review.",
+            canCancel: true
+        )
+        defer {
+            isWorking = false
+            if aiGenerationProgress.stage != .completed && aiGenerationProgress.stage != .failed {
+                aiGenerationProgress = .idle
+            }
+        }
+        do {
+            let progressHandler: AIGenerationProgressHandler = { [weak self] progress in
+                self?.aiGenerationProgress = progress
+                self?.statusMessage = progress.detail
+            }
+            let result = try await gradingService.rewriteFeedback(input: rewriteInput, progress: progressHandler)
+            var updatedReview = review
+            updatedReview.studentFeedback = result.rewrittenFeedback
+            updatedReview.teacherEdited = true
+            updatedReview.status = .inProgress
+            updateAssignment { assignment in
+                assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: updatedReview)
+                assignment.appendAuditEvent(.feedbackRewritten, detail: "Student-facing feedback rewritten locally in \(mode.displayName) mode. Teacher approval remains required.")
+            }
+            try saveCurrentAssignment()
+            aiGenerationProgress = AIGenerationProgress(
+                stage: .completed,
+                detail: "Rewritten feedback saved for teacher review. Approve final review before export.",
+                completedUnitCount: 1,
+                totalUnitCount: 1,
+                canCancel: false
+            )
+            statusMessage = result.teacherReviewNotes.joined(separator: " ")
+        } catch {
+            aiGenerationProgress = AIGenerationProgress(
+                stage: .failed,
+                detail: error.localizedDescription,
+                canCancel: false
+            )
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func localPromptBudgetPlan() -> (plan: PromptBudgetPlan?, error: Error?) {
+        do {
+            try LocalOnlyGradingValidator.validate(assignment.gradingInput)
+            return (try GradingPromptBudgeter.makePlan(input: assignment.gradingInput), nil)
+        } catch {
+            return (nil, error)
         }
     }
 
@@ -745,6 +971,44 @@ final class GradeDraftViewModel: ObservableObject {
         persistOrSurfaceError()
     }
 
+    func acceptFinalReviewCriterion(id: UUID) {
+        guard var review = assignment.finalReview,
+              let index = review.criteria.firstIndex(where: { $0.id == id }) else { return }
+        review.criteria[index].finalPoints = clampedFinalPoints(
+            review.criteria[index].proposedPoints,
+            maxPoints: review.criteria[index].maxPoints
+        )
+        review.criteria[index].teacherApproved = true
+        if review.criteria[index].teacherRationale.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            review.criteria[index].teacherRationale = "Teacher accepted this criterion suggestion after review."
+        }
+        review.teacherEdited = true
+        review.status = .inProgress
+        review.finalizedAt = nil
+        updateAssignment { assignment in
+            assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: review)
+            assignment.appendAuditEvent(.inputChanged, detail: "Teacher accepted a final-review criterion suggestion.")
+        }
+        persistOrSurfaceError()
+        statusMessage = "Criterion suggestion accepted locally. Final approval is still required."
+    }
+
+    func rejectFinalReviewCriterion(id: UUID) {
+        guard var review = assignment.finalReview,
+              let index = review.criteria.firstIndex(where: { $0.id == id }) else { return }
+        review.criteria[index].teacherApproved = false
+        review.criteria[index].teacherRationale = "Teacher rejected this criterion suggestion; edit score, evidence, and feedback before approval."
+        review.teacherEdited = true
+        review.status = .inProgress
+        review.finalizedAt = nil
+        updateAssignment { assignment in
+            assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: review)
+            assignment.appendAuditEvent(.inputChanged, detail: "Teacher rejected a final-review criterion suggestion.")
+        }
+        persistOrSurfaceError()
+        statusMessage = "Criterion suggestion rejected locally. Edit it before final approval."
+    }
+
     func approveFinalReview() {
         guard var review = assignment.finalReview else { return }
         guard canApproveFinalReview else {
@@ -765,6 +1029,13 @@ final class GradeDraftViewModel: ObservableObject {
         }
         persistOrSurfaceError()
         statusMessage = "Final grade approved and saved locally."
+    }
+
+    private func clampedFinalPoints(_ value: Double, maxPoints: Double) -> Double {
+        if maxPoints > 0 {
+            return max(0, min(value, maxPoints))
+        }
+        return max(0, value)
     }
 
     func saveCurrentAssignment() throws {

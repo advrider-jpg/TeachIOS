@@ -17,6 +17,15 @@
 		87C11B82C1B3493DEB9EF36F /* GradeDraftApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2235988D2937F275CA4EA14B /* GradeDraftApp.swift */; };
 		1A2F1E13B4A601B308F525EE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CBAC66372CFBDF2A09FD7CE /* ContentView.swift */; };
 		5228B779E078711C4ADE8832 /* GradeDraftViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D671A939D9C358A3A671EFC /* GradeDraftViewModel.swift */; };
+		AI2000000000000000000002 /* AppRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI2000000000000000000001 /* AppRouting.swift */; };
+		AI2000000000000000000004 /* LocalAIGradingTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI2000000000000000000003 /* LocalAIGradingTools.swift */; };
+		AI2000000000000000000006 /* GradeDraftAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI2000000000000000000005 /* GradeDraftAppIntents.swift */; };
+		AI2000000000000000000010 /* AIReadinessScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI2000000000000000000009 /* AIReadinessScreen.swift */; };
+		AI6000000000000000000002 /* AIPacketPreviewScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI6000000000000000000001 /* AIPacketPreviewScreen.swift */; };
+		AI3000000000000000000002 /* AIEvaluation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI3000000000000000000001 /* AIEvaluation.swift */; };
+		AI3000000000000000000004 /* AIEvaluationFixtureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI3000000000000000000003 /* AIEvaluationFixtureTests.swift */; };
+		AI4000000000000000000002 /* LocalGradingToolSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI4000000000000000000001 /* LocalGradingToolSupport.swift */; };
+		AI5000000000000000000002 /* AIBatchReadiness.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI5000000000000000000001 /* AIBatchReadiness.swift */; };
 		98C89CBBC31867AF0C9BF5BE /* GradeDraftModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA58224F166E200203BADA /* GradeDraftModels.swift */; };
 		E9EF92B5433A17AD97549061 /* OCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A94B846A0C77767D20D29EA /* OCRService.swift */; };
 		FEE33A184259891884610082 /* GradingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4149F0A80F5AEF370D2C6F /* GradingService.swift */; };
@@ -142,6 +151,15 @@
 		2235988D2937F275CA4EA14B /* GradeDraftApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftApp.swift; sourceTree = "<group>"; };
 		8CBAC66372CFBDF2A09FD7CE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		4D671A939D9C358A3A671EFC /* GradeDraftViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftViewModel.swift; sourceTree = "<group>"; };
+		AI2000000000000000000001 /* AppRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouting.swift; sourceTree = "<group>"; };
+		AI2000000000000000000003 /* LocalAIGradingTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAIGradingTools.swift; sourceTree = "<group>"; };
+		AI2000000000000000000005 /* GradeDraftAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftAppIntents.swift; sourceTree = "<group>"; };
+		AI2000000000000000000009 /* AIReadinessScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReadinessScreen.swift; sourceTree = "<group>"; };
+		AI6000000000000000000001 /* AIPacketPreviewScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIPacketPreviewScreen.swift; sourceTree = "<group>"; };
+		AI3000000000000000000001 /* AIEvaluation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEvaluation.swift; sourceTree = "<group>"; };
+		AI3000000000000000000003 /* AIEvaluationFixtureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEvaluationFixtureTests.swift; sourceTree = "<group>"; };
+		AI4000000000000000000001 /* LocalGradingToolSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalGradingToolSupport.swift; sourceTree = "<group>"; };
+		AI5000000000000000000001 /* AIBatchReadiness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIBatchReadiness.swift; sourceTree = "<group>"; };
 		BEAA58224F166E200203BADA /* GradeDraftModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftModels.swift; sourceTree = "<group>"; };
 		9A94B846A0C77767D20D29EA /* OCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRService.swift; sourceTree = "<group>"; };
 		FB4149F0A80F5AEF370D2C6F /* GradingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradingService.swift; sourceTree = "<group>"; };
@@ -275,11 +293,14 @@
 				76b6d5b0f6a84a6f8c3b4f17 /* Persistence */,
 				4c7d9c2b1eaa4f8b9d0f7c58 /* Rubrics */,
 				5c3d7f6a2bda4f5d9e1c8a7b /* Export */,
+				AI3000000000000000000005 /* AI */,
+				AI2000000000000000000007 /* AppIntents */,
 				F20000000000000000000001 /* Security */,
 				7e8a6d2b1c3f4a9f8d5e7b60 /* Core */,
 				2235988D2937F275CA4EA14B /* GradeDraftApp.swift */,
 				8CBAC66372CFBDF2A09FD7CE /* ContentView.swift */,
 				4D671A939D9C358A3A671EFC /* GradeDraftViewModel.swift */,
+				AI2000000000000000000001 /* AppRouting.swift */,
 				BF657CFE8769AAE6C0570C29 /* Models */,
 				6EE67047A4B2648DDBB08231 /* Services */,
 				58492F208780FA5EF3807E8F /* Views */,
@@ -312,8 +333,51 @@
 				9C0011111111111111110002 /* RosterImportService.swift */,
 				9C0011111111111111110004 /* CurriculumCatalogService.swift */,
 				E00000000000000000000104 /* ExportAuthenticationService.swift */,
+				AI2000000000000000000003 /* LocalAIGradingTools.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		AI2000000000000000000007 /* AppIntents */ = {
+			isa = PBXGroup;
+			children = (
+				AI2000000000000000000005 /* GradeDraftAppIntents.swift */,
+			);
+			path = AppIntents;
+			sourceTree = "<group>";
+		};
+		AI3000000000000000000005 /* AI */ = {
+			isa = PBXGroup;
+			children = (
+				AI5000000000000000000003 /* Batch */,
+				AI3000000000000000000006 /* Evaluation */,
+				AI4000000000000000000003 /* Tools */,
+			);
+			path = AI;
+			sourceTree = "<group>";
+		};
+		AI3000000000000000000006 /* Evaluation */ = {
+			isa = PBXGroup;
+			children = (
+				AI3000000000000000000001 /* AIEvaluation.swift */,
+			);
+			path = Evaluation;
+			sourceTree = "<group>";
+		};
+		AI4000000000000000000003 /* Tools */ = {
+			isa = PBXGroup;
+			children = (
+				AI4000000000000000000001 /* LocalGradingToolSupport.swift */,
+			);
+			path = Tools;
+			sourceTree = "<group>";
+		};
+		AI5000000000000000000003 /* Batch */ = {
+			isa = PBXGroup;
+			children = (
+				AI5000000000000000000001 /* AIBatchReadiness.swift */,
+			);
+			path = Batch;
 			sourceTree = "<group>";
 		};
 		58492F208780FA5EF3807E8F /* Views */ = {
@@ -356,6 +420,7 @@
 				E00000000000000000000116 /* GradeDraftProductionPathTests.swift */,
 				AI0000000000000000000009 /* AppleIntelligenceImplementationTests.swift */,
 				F10000000000000000000003 /* CurriculumCatalogProductionTests.swift */,
+				AI3000000000000000000003 /* AIEvaluationFixtureTests.swift */,
 			);
 			path = GradeDraftTests;
 			sourceTree = "<group>";
@@ -450,6 +515,8 @@
 			isa = PBXGroup;
 			children = (
 				B60000000000000000000018 /* AssignmentOverviewScreen.swift */,
+				AI2000000000000000000009 /* AIReadinessScreen.swift */,
+				AI6000000000000000000001 /* AIPacketPreviewScreen.swift */,
 				B60000000000000000000019 /* AssignmentsScreen.swift */,
 				B60000000000000000000020 /* ClassDetailRosterScreen.swift */,
 				B60000000000000000000021 /* ClassesScreen.swift */,
@@ -617,6 +684,8 @@
 				B70000000000000000000016 /* RubricComponents.swift in Sources */,
 				B70000000000000000000017 /* StatusChip.swift in Sources */,
 				B70000000000000000000018 /* AssignmentOverviewScreen.swift in Sources */,
+				AI2000000000000000000010 /* AIReadinessScreen.swift in Sources */,
+				AI6000000000000000000002 /* AIPacketPreviewScreen.swift in Sources */,
 				B70000000000000000000019 /* AssignmentsScreen.swift in Sources */,
 				B70000000000000000000020 /* ClassDetailRosterScreen.swift in Sources */,
 				B70000000000000000000021 /* ClassesScreen.swift in Sources */,
@@ -650,12 +719,14 @@
 				87C11B82C1B3493DEB9EF36F /* GradeDraftApp.swift in Sources */,
 				1A2F1E13B4A601B308F525EE /* ContentView.swift in Sources */,
 				5228B779E078711C4ADE8832 /* GradeDraftViewModel.swift in Sources */,
+				AI2000000000000000000002 /* AppRouting.swift in Sources */,
 				98C89CBBC31867AF0C9BF5BE /* GradeDraftModels.swift in Sources */,
 				E9EF92B5433A17AD97549061 /* OCRService.swift in Sources */,
 				FEE33A184259891884610082 /* GradingService.swift in Sources */,
 				38EF17C83955F218F2C36DF9 /* FoundationModelGradingService.swift in Sources */,
 				BCC3F811BD918D685A21A9DC /* GradeTotals.swift in Sources */,
 				D0893F41B415EF5F02392764 /* LocalJSONStore.swift in Sources */,
+				AI2000000000000000000004 /* LocalAIGradingTools.swift in Sources */,
 				EFE9E48E698998BB5031EAD6 /* PromptBuilder.swift in Sources */,
 				AI0000000000000000000002 /* GradingConstraintTemplates.swift in Sources */,
 				AI0000000000000000000004 /* FoundationModelGradeProposalSchema.swift in Sources */,
@@ -679,6 +750,10 @@
 				E00000000000000000000004 /* ExportAuthenticationService.swift in Sources */,
 				F00000000000000000000001 /* LocalDataProtection.swift in Sources */,
 				F00000000000000000000002 /* CurriculumBrowserScreen.swift in Sources */,
+				AI2000000000000000000006 /* GradeDraftAppIntents.swift in Sources */,
+				AI3000000000000000000002 /* AIEvaluation.swift in Sources */,
+				AI4000000000000000000002 /* LocalGradingToolSupport.swift in Sources */,
+				AI5000000000000000000002 /* AIBatchReadiness.swift in Sources */,
 				); runOnlyForDeploymentPostprocessing = 0; };
 		C2C867FEB507DB914C2126B0 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
 				E92F15694F5C9C14E9C64B87 /* GradeDraftTests.swift in Sources */,
@@ -697,6 +772,7 @@
 				E00000000000000000000016 /* GradeDraftProductionPathTests.swift in Sources */,
 				AI0000000000000000000010 /* AppleIntelligenceImplementationTests.swift in Sources */,
 				F00000000000000000000003 /* CurriculumCatalogProductionTests.swift in Sources */,
+				AI3000000000000000000004 /* AIEvaluationFixtureTests.swift in Sources */,
 			); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

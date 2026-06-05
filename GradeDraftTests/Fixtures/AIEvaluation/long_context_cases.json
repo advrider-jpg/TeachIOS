@@ -1,0 +1,42 @@
+[
+  {
+    "id": "long-context-budget-001",
+    "title": "Long packet must plan or fail openly",
+    "categories": ["long_context"],
+    "assignment": {
+      "assignmentID": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+      "title": "Extended essay",
+      "prompt": "Analyze the causes and effects in the source package.",
+      "subject": "History",
+      "gradeLevel": "9",
+      "className": "9A",
+      "studentDisplayName": "Student Xi",
+      "assignmentType": "essay",
+      "assessmentPurpose": "summative",
+      "customInstructions": "Do not silently truncate reviewed student work.",
+      "formativeFocusText": ""
+    },
+    "rubric": {
+      "criteria": [
+        { "id": "cause", "text": "Explains causes", "maxPoints": 5 },
+        { "id": "effect", "text": "Explains effects", "maxPoints": 5 }
+      ]
+    },
+    "reviewedStudentText": "Cause and effect paragraph. Cause and effect paragraph. Cause and effect paragraph. Cause and effect paragraph.",
+    "selectedConstraintIDs": ["general-evidence-first", "summative-caution"],
+    "answerKeyText": "The response should connect each cause to a supported effect.",
+    "exemplarText": "A strong essay uses precise source evidence for each causal link.",
+    "curriculumReference": "Local reference: analyze causes and effects using historical sources.",
+    "ocrReviewStatus": "notNeeded",
+    "expected": {
+      "mustNotContain": ["silently omitted", "final grade"],
+      "mustContainTeacherReviewReasons": [],
+      "maxAllowedPointsByCriterion": { "cause": 5, "effect": 5 },
+      "requiresTeacherReview": true,
+      "requiresPromptInjectionFlag": false,
+      "requiresOCRReview": false,
+      "requiresSourceReferences": false,
+      "expectedConstraintIDs": ["general-evidence-first", "summative-caution"]
+    }
+  }
+]

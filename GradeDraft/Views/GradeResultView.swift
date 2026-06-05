@@ -120,6 +120,10 @@ struct FinalGradeReviewView: View {
     var onAddManualEvidence: ((UUID, String) -> Void)?
     var onRemoveEvidence: ((UUID, Int) -> Void)?
     var onClearEvidence: ((UUID) -> Void)?
+    var onAcceptCriterionSuggestion: ((UUID) -> Void)?
+    var onRejectCriterionSuggestion: ((UUID) -> Void)?
+    var onReviewEvidenceSources: (() -> Void)?
+    var onRewriteFeedback: ((FeedbackRewriteMode) -> Void)?
 
     @State private var workingReview: FinalGradeReview
     @State private var showingApproveConfirm = false
@@ -133,7 +137,11 @@ struct FinalGradeReviewView: View {
         onDeleteCriterion: ((UUID) -> Void)? = nil,
         onAddManualEvidence: ((UUID, String) -> Void)? = nil,
         onRemoveEvidence: ((UUID, Int) -> Void)? = nil,
-        onClearEvidence: ((UUID) -> Void)? = nil
+        onClearEvidence: ((UUID) -> Void)? = nil,
+        onAcceptCriterionSuggestion: ((UUID) -> Void)? = nil,
+        onRejectCriterionSuggestion: ((UUID) -> Void)? = nil,
+        onReviewEvidenceSources: (() -> Void)? = nil,
+        onRewriteFeedback: ((FeedbackRewriteMode) -> Void)? = nil
     ) {
         self.review = review
         self.isStale = isStale
@@ -144,6 +152,10 @@ struct FinalGradeReviewView: View {
         self.onAddManualEvidence = onAddManualEvidence
         self.onRemoveEvidence = onRemoveEvidence
         self.onClearEvidence = onClearEvidence
+        self.onAcceptCriterionSuggestion = onAcceptCriterionSuggestion
+        self.onRejectCriterionSuggestion = onRejectCriterionSuggestion
+        self.onReviewEvidenceSources = onReviewEvidenceSources
+        self.onRewriteFeedback = onRewriteFeedback
         _workingReview = State(initialValue: review)
     }
 
@@ -173,7 +185,10 @@ struct FinalGradeReviewView: View {
                     onDelete: onDeleteCriterion.map { del in { del(criterion.id) } },
                     onAddManualEvidence: onAddManualEvidence.map { callback in { quote in callback(criterion.id, quote) } },
                     onRemoveEvidence: onRemoveEvidence.map { callback in { index in callback(criterion.id, index) } },
-                    onClearEvidence: onClearEvidence.map { callback in { callback(criterion.id) } }
+                    onClearEvidence: onClearEvidence.map { callback in { callback(criterion.id) } },
+                    onAcceptSuggestion: onAcceptCriterionSuggestion.map { callback in { callback(criterion.id) } },
+                    onRejectSuggestion: onRejectCriterionSuggestion.map { callback in { callback(criterion.id) } },
+                    onReviewEvidenceSources: onReviewEvidenceSources
                 )
                 .onChange(of: criterion) { _, _ in
                     var updated = workingReview
@@ -202,6 +217,27 @@ struct FinalGradeReviewView: View {
                     .foregroundStyle(.secondary)
                 TextEditor(text: $workingReview.studentFeedback)
                     .frame(minHeight: 120)
+            }
+
+            if onRewriteFeedback != nil && workingReview.status != .approved {
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Rewrites use local AI only when available and save back to this final review as teacher-edited feedback. Scores and evidence are not changed.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        ForEach(FeedbackRewriteMode.allCases) { mode in
+                            Button {
+                                onRewriteFeedback?(mode)
+                            } label: {
+                                Label(mode.displayName, systemImage: "text.badge.checkmark")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                } label: {
+                    Label("Rewrite Feedback Locally", systemImage: "sparkles")
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -291,6 +327,9 @@ private struct FinalCriterionEditor: View {
     var onAddManualEvidence: ((String) -> Void)?
     var onRemoveEvidence: ((Int) -> Void)?
     var onClearEvidence: (() -> Void)?
+    var onAcceptSuggestion: (() -> Void)?
+    var onRejectSuggestion: (() -> Void)?
+    var onReviewEvidenceSources: (() -> Void)?
 
     @State private var newEvidenceText = ""
     @State private var showingEvidenceEntry = false
@@ -335,6 +374,37 @@ private struct FinalCriterionEditor: View {
                     .labelsHidden()
                 Text("Approved")
                     .font(.caption)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    if let onAcceptSuggestion {
+                        onAcceptSuggestion()
+                    } else {
+                        criterion.finalPoints = clampedFinalPoints(criterion.proposedPoints, maxPoints: criterion.maxPoints)
+                        criterion.teacherApproved = true
+                        if criterion.teacherRationale.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            criterion.teacherRationale = "Teacher accepted this criterion suggestion after review."
+                        }
+                    }
+                } label: {
+                    Label("Accept Suggestion", systemImage: "checkmark.seal")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button(role: .destructive) {
+                    if let onRejectSuggestion {
+                        onRejectSuggestion()
+                    } else {
+                        criterion.teacherApproved = false
+                        criterion.teacherRationale = "Teacher rejected this criterion suggestion; edit score, evidence, and feedback before approval."
+                    }
+                } label: {
+                    Label("Reject Suggestion", systemImage: "xmark.seal")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
 
             TextField("Rating (optional, e.g. Proficient)", text: $criterion.rating, axis: .vertical)
@@ -421,9 +491,26 @@ private struct FinalCriterionEditor: View {
                 }
                 if criterion.evidenceSourceRefs?.isEmpty == false {
                     DisclosureGroup("Evidence details") {
-                        Text("Linked to reviewed student work or teacher-added evidence. Use Review Scanned Text to check line context.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Linked to reviewed student work or teacher-added evidence.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            ForEach(criterion.evidenceSourceRefs ?? [], id: \.self) { sourceRef in
+                                Text(sourceRef)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                            }
+                            if let onReviewEvidenceSources {
+                                Button {
+                                    onReviewEvidenceSources()
+                                } label: {
+                                    Label("Review Source Text", systemImage: "text.viewfinder")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
                     }
                 }
                 if criterion.evidence.isEmpty && !showingEvidenceEntry {
@@ -447,5 +534,12 @@ private struct FinalCriterionEditor: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func clampedFinalPoints(_ value: Double, maxPoints: Double) -> Double {
+        if maxPoints > 0 {
+            return max(0, min(value, maxPoints))
+        }
+        return max(0, value)
     }
 }

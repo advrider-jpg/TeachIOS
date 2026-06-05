@@ -66,6 +66,37 @@ struct GradingPromptBudgeter: GradingPromptBudgeting {
     }
 
     func plan(input: GradingInput) async throws -> PromptBudgetPlan {
+        try Self.makePlan(input: input, contextSizeTokens: contextSizeTokens)
+    }
+
+    static func makePlan(
+        input: GradingInput,
+        contextSizeTokens: Int = PromptBudgetPolicy.defaultContextSizeTokens
+    ) throws -> PromptBudgetPlan {
+        try makePlan(input: input, contextSizeTokens: contextSizeTokens, allowFullPacket: true, allowCompactPacket: true)
+    }
+
+    static func recoveryPlan(
+        input: GradingInput,
+        contextSizeTokens: Int = PromptBudgetPolicy.defaultContextSizeTokens,
+        afterRuntimeContextFailureOf failedMode: LocalModelGenerationMode
+    ) throws -> PromptBudgetPlan {
+        switch failedMode {
+        case .fullPacket:
+            return try makePlan(input: input, contextSizeTokens: contextSizeTokens, allowFullPacket: false, allowCompactPacket: true)
+        case .compactFullPacket:
+            return try makePlan(input: input, contextSizeTokens: contextSizeTokens, allowFullPacket: false, allowCompactPacket: false)
+        case .perCriterion, .unavailable:
+            throw GradeDraftError.promptTooLargeForLocalModel(tooLargeMessage)
+        }
+    }
+
+    private static func makePlan(
+        input: GradingInput,
+        contextSizeTokens: Int,
+        allowFullPacket: Bool,
+        allowCompactPacket: Bool
+    ) throws -> PromptBudgetPlan {
         let fullPrompt = PromptBuilder.gradingInstructionsText(input: input) + "\n\n" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
         let compactPrompt = PromptBuilder.gradingInstructionsText(input: input) + "\n\n" + PromptBuilder.fullPacketPromptText(input: input, mode: .compact)
         let fullTokens = estimateTokenCount(fullPrompt)
@@ -77,7 +108,7 @@ struct GradingPromptBudgeter: GradingPromptBudgeting {
         let fullFingerprint = StableFingerprint.fingerprint([fullPrompt])
         var warnings: [String] = []
 
-        if fullTokens <= fullBudget {
+        if allowFullPacket && fullTokens <= fullBudget {
             return PromptBudgetPlan(
                 mode: .fullPacket,
                 report: PromptBudgetReport(
@@ -93,8 +124,12 @@ struct GradingPromptBudgeter: GradingPromptBudgeting {
             )
         }
 
-        if compactTokens <= compactBudget {
-            warnings.append("Compact full-packet prompt was used because the full prompt was too large for the conservative local-model budget.")
+        if allowCompactPacket && compactTokens <= compactBudget {
+            if allowFullPacket {
+                warnings.append("Compact full-packet prompt was used because the full prompt was too large for the conservative local-model budget.")
+            } else {
+                warnings.append("Compact full-packet prompt was used after the runtime rejected the full packet for context size.")
+            }
             return PromptBudgetPlan(
                 mode: .compactFullPacket,
                 report: PromptBudgetReport(
@@ -129,7 +164,11 @@ struct GradingPromptBudgeter: GradingPromptBudgeting {
             }
         }
 
-        warnings.append("Per-criterion generation was selected because the full grading packet exceeded the conservative local-model budget.")
+        if allowCompactPacket {
+            warnings.append("Per-criterion generation was selected because the full grading packet exceeded the conservative local-model budget.")
+        } else {
+            warnings.append("Per-criterion generation was selected after the runtime rejected the previous packet mode for context size.")
+        }
         return PromptBudgetPlan(
             mode: .perCriterion,
             report: PromptBudgetReport(
@@ -147,7 +186,7 @@ struct GradingPromptBudgeter: GradingPromptBudgeting {
 
     func summaryFits(input: GradingInput, criteria: [CriterionScore]) async -> Bool {
         let prompt = PromptBuilder.gradingInstructionsText(input: input) + "\n\n" + PromptBuilder.summaryFeedbackPromptText(input: input, criteria: criteria)
-        let tokens = estimateTokenCount(prompt)
+        let tokens = Self.estimateTokenCount(prompt)
         let budget = PromptBudgetPolicy.usableInputBudget(
             contextSizeTokens: contextSizeTokens,
             reservedOutputTokens: PromptBudgetPolicy.summaryReservedOutputTokens
@@ -158,7 +197,7 @@ struct GradingPromptBudgeter: GradingPromptBudgeting {
     // Conservative approximation used before the official token counter is available.
     // The runtime still catches Foundation Models context-window errors and fails openly
     // without truncating student work.
-    private func estimateTokenCount(_ text: String) -> Int {
+    private static func estimateTokenCount(_ text: String) -> Int {
         max(1, Int(ceil(Double(text.count) / 3.2)))
     }
 

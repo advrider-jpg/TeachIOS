@@ -130,6 +130,9 @@ jobs:
             10-exports-restore.png
             11-settings-local-privacy.png
             12-rubric-instructions.png
+            13-curriculum-browser.png
+            14-ai-readiness.png
+            15-ai-packet-preview.png
           )
 
           missing=0

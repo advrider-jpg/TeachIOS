@@ -30,9 +30,83 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
         #endif
     }
 
-    func draftGrade(input: GradingInput) async throws -> GradeDraftResult {
+    func draftGrade(input: GradingInput, progress: AIGenerationProgressHandler? = nil) async throws -> GradeDraftResult {
+        await progress?(
+            AIGenerationProgress(
+                stage: .validatingInputs,
+                detail: "Checking reviewed text, OCR review, and grading standards.",
+                canCancel: true
+            )
+        )
         try LocalOnlyGradingValidator.validate(input)
+        try Task.checkCancellation()
 
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *) {
+            await progress?(
+                AIGenerationProgress(
+                    stage: .checkingAvailability,
+                    detail: "Checking Apple Foundation Models availability on this device.",
+                    canCancel: true
+                )
+            )
+            try Task.checkCancellation()
+            guard localAIStatus == .available else {
+                if case .unavailable(let message) = localAIStatus {
+                    throw GradeDraftError.localModelUnavailable(message)
+                }
+                throw GradeDraftError.localModelUnavailable("The on-device language model is unavailable.")
+            }
+
+            await progress?(
+                AIGenerationProgress(
+                    stage: .planningPacket,
+                    detail: "Planning the local prompt budget without truncating reviewed student text.",
+                    canCancel: true
+                )
+            )
+            try Task.checkCancellation()
+            let plan = try await budgeter.plan(input: input)
+            try Task.checkCancellation()
+            do {
+                return try await generateDraft(input: input, plan: plan, progress: progress)
+            } catch {
+                if FoundationModelErrorMapper.isContextWindowError(error),
+                   let recoveryPlan = try? GradingPromptBudgeter.recoveryPlan(
+                    input: input,
+                    contextSizeTokens: plan.report.contextSizeTokens ?? PromptBudgetPolicy.defaultContextSizeTokens,
+                    afterRuntimeContextFailureOf: plan.mode
+                   ),
+                   recoveryPlan.mode != plan.mode {
+                    await progress?(
+                        AIGenerationProgress(
+                            stage: .planningPacket,
+                            detail: "The runtime rejected the planned packet for context size. Retrying with \(recoveryPlan.mode.displayName) without truncating reviewed text.",
+                            canCancel: true
+                        )
+                    )
+                    try Task.checkCancellation()
+                    return try await generateDraft(input: input, plan: recoveryPlan, progress: progress)
+                }
+                throw FoundationModelErrorMapper.map(error)
+            }
+        } else {
+            throw GradeDraftError.localModelUnavailable("Foundation Models requires a newer operating system.")
+        }
+        #else
+        throw GradeDraftError.localModelUnavailable("This build was compiled without the Foundation Models framework.")
+        #endif
+    }
+
+    func rewriteFeedback(input: FeedbackRewriteInput, progress: AIGenerationProgressHandler? = nil) async throws -> FeedbackRewriteResult {
+        await progress?(
+            AIGenerationProgress(
+                stage: .rewritingFeedback,
+                detail: "Streaming a local feedback rewrite for teacher review.",
+                canCancel: true
+            )
+        )
+        try Task.checkCancellation()
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             guard localAIStatus == .available else {
@@ -41,23 +115,17 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
                 }
                 throw GradeDraftError.localModelUnavailable("The on-device language model is unavailable.")
             }
-
-            let plan = try await budgeter.plan(input: input)
-            do {
-                switch plan.mode {
-                case .fullPacket, .compactFullPacket:
-                    return try await generateFullPacketDraft(input: input, plan: plan)
-                case .perCriterion:
-                    return try await generatePerCriterionDraft(input: input, plan: plan)
-                case .unavailable:
-                    throw GradeDraftError.localModelUnavailable("The on-device language model is unavailable.")
-                }
-            } catch {
-                throw FoundationModelErrorMapper.map(error)
-            }
-        } else {
-            throw GradeDraftError.localModelUnavailable("Foundation Models requires a newer operating system.")
+            let session = LanguageModelSession(instructions: PromptBuilder.gradingInstructions(input: Self.feedbackRewriteSafetyInput))
+            let stream = session.streamResponse(
+                to: PromptBuilder.feedbackRewritePrompt(input: input),
+                generating: FoundationModelGradeProposalSchema.FeedbackRewriteDraft.self,
+                includeSchemaInPrompt: false
+            )
+            let response = try await stream.collect()
+            try Task.checkCancellation()
+            return try FeedbackRewriteValidator.validate(response.content.asFeedbackRewriteResult(), input: input)
         }
+        throw GradeDraftError.localModelUnavailable("Foundation Models requires a newer operating system.")
         #else
         throw GradeDraftError.localModelUnavailable("This build was compiled without the Foundation Models framework.")
         #endif
@@ -74,13 +142,54 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
 
     #if canImport(FoundationModels)
     @available(iOS 26.0, *)
-    private func generateFullPacketDraft(input: GradingInput, plan: PromptBudgetPlan) async throws -> GradeDraftResult {
+    private func generateDraft(
+        input: GradingInput,
+        plan: PromptBudgetPlan,
+        progress: AIGenerationProgressHandler?
+    ) async throws -> GradeDraftResult {
+        switch plan.mode {
+        case .fullPacket, .compactFullPacket:
+            return try await generateFullPacketDraft(input: input, plan: plan, progress: progress)
+        case .perCriterion:
+            return try await generatePerCriterionDraft(input: input, plan: plan, progress: progress)
+        case .unavailable:
+            throw GradeDraftError.localModelUnavailable("The on-device language model is unavailable.")
+        }
+    }
+
+    @available(iOS 26.0, *)
+    private func generateFullPacketDraft(
+        input: GradingInput,
+        plan: PromptBudgetPlan,
+        progress: AIGenerationProgressHandler?
+    ) async throws -> GradeDraftResult {
         let mode: PromptPacketMode = plan.mode == .compactFullPacket ? .compact : .full
+        await progress?(
+            AIGenerationProgress(
+                stage: .requestingModel,
+                detail: "Streaming one typed local draft from Apple Foundation Models.",
+                completedUnitCount: 0,
+                totalUnitCount: 1,
+                canCancel: true
+            )
+        )
+        try Task.checkCancellation()
         let session = LanguageModelSession(instructions: PromptBuilder.gradingInstructions(input: input))
-        let response = try await session.respond(
+        let stream = session.streamResponse(
             to: PromptBuilder.fullPacketPrompt(input: input, mode: mode),
             generating: FoundationModelGradeProposalSchema.GradeDraftProposal.self,
             includeSchemaInPrompt: false
+        )
+        let response = try await stream.collect()
+        try Task.checkCancellation()
+        await progress?(
+            AIGenerationProgress(
+                stage: .validatingDraft,
+                detail: "Validating the typed draft against rubric, evidence, and safety rules.",
+                completedUnitCount: 1,
+                totalUnitCount: 1,
+                canCancel: true
+            )
         )
         let audit = LocalModelDraftAudit.make(input: input, plan: plan, generatedCriteriaCount: response.content.criteria.count)
         let draft = response.content.asGradeDraftResult(input: input, audit: audit)
@@ -88,23 +197,60 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
     }
 
     @available(iOS 26.0, *)
-    private func generatePerCriterionDraft(input: GradingInput, plan: PromptBudgetPlan) async throws -> GradeDraftResult {
+    private func generatePerCriterionDraft(
+        input: GradingInput,
+        plan: PromptBudgetPlan,
+        progress: AIGenerationProgressHandler?
+    ) async throws -> GradeDraftResult {
         guard !input.parsedRubric.criteria.isEmpty else {
             throw GradeDraftError.promptTooLargeForLocalModel(GradingPromptBudgeter.tooLargeMessage)
         }
 
         var criteria: [CriterionScore] = []
-        for rubricCriterion in input.parsedRubric.criteria {
+        let totalCriteria = input.parsedRubric.criteria.count
+        for (index, rubricCriterion) in input.parsedRubric.criteria.enumerated() {
+            await progress?(
+                AIGenerationProgress(
+                    stage: .generatingCriteria,
+                    detail: "Streaming local draft for criterion \(index + 1) of \(totalCriteria): \(rubricCriterion.title).",
+                    completedUnitCount: index,
+                    totalUnitCount: totalCriteria,
+                    canCancel: true
+                )
+            )
+            try Task.checkCancellation()
             let session = LanguageModelSession(instructions: PromptBuilder.gradingInstructions(input: input))
-            let response = try await session.respond(
+            let stream = session.streamResponse(
                 to: PromptBuilder.singleCriterionPrompt(input: input, criterion: rubricCriterion, mode: .compact),
                 generating: FoundationModelGradeProposalSchema.SingleCriterionDraft.self,
                 includeSchemaInPrompt: false
             )
+            let response = try await stream.collect()
+            try Task.checkCancellation()
             criteria.append(response.content.criterion.asCriterionScore())
         }
 
-        let summary = try await maybeGenerateSummaryFeedback(input: input, criteria: criteria)
+        await progress?(
+            AIGenerationProgress(
+                stage: .synthesizingSummary,
+                detail: "Synthesizing draft summary from criterion suggestions.",
+                completedUnitCount: totalCriteria,
+                totalUnitCount: totalCriteria,
+                canCancel: true
+            )
+        )
+        try Task.checkCancellation()
+        let summary = try await maybeGenerateSummaryFeedback(input: input, criteria: criteria, progress: progress)
+        try Task.checkCancellation()
+        await progress?(
+            AIGenerationProgress(
+                stage: .validatingDraft,
+                detail: "Validating criterion drafts against rubric, evidence, and safety rules.",
+                completedUnitCount: totalCriteria,
+                totalUnitCount: totalCriteria,
+                canCancel: true
+            )
+        )
         let extraWarnings = summary.generatedByModel ? [] : ["Student feedback summary was generated deterministically because the packet was too large for a summary generation pass."]
         let audit = LocalModelDraftAudit.make(input: input, plan: plan, generatedCriteriaCount: criteria.count, extraWarnings: extraWarnings)
         let draft = GradeDraftResult(
@@ -125,16 +271,30 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
     }
 
     @available(iOS 26.0, *)
-    private func maybeGenerateSummaryFeedback(input: GradingInput, criteria: [CriterionScore]) async throws -> SummaryFeedbackResult {
+    private func maybeGenerateSummaryFeedback(
+        input: GradingInput,
+        criteria: [CriterionScore],
+        progress: AIGenerationProgressHandler?
+    ) async throws -> SummaryFeedbackResult {
         guard await budgeter.summaryFits(input: input, criteria: criteria) else {
             return SummaryFeedbackResult.deterministic(criteria: criteria)
         }
+        await progress?(
+            AIGenerationProgress(
+                stage: .synthesizingSummary,
+                detail: "Streaming a local summary synthesis from Apple Foundation Models.",
+                canCancel: true
+            )
+        )
+        try Task.checkCancellation()
         let session = LanguageModelSession(instructions: PromptBuilder.gradingInstructions(input: input))
-        let response = try await session.respond(
+        let stream = session.streamResponse(
             to: PromptBuilder.summaryFeedbackPrompt(input: input, criteria: criteria),
             generating: FoundationModelGradeProposalSchema.DraftSummaryFeedback.self,
             includeSchemaInPrompt: false
         )
+        let response = try await stream.collect()
+        try Task.checkCancellation()
         return SummaryFeedbackResult(
             studentResponseSummary: response.content.studentResponseSummary,
             studentFeedback: response.content.studentFeedback,
@@ -206,6 +366,31 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
         ocrReviewStatus: .notNeeded,
         sourceInputCount: 0,
         packetFingerprint: "prewarm",
+        hasGradingStandard: true
+    )
+
+    private static let feedbackRewriteSafetyInput = GradingInput(
+        assignmentID: UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID(),
+        assignmentTitle: "Feedback rewrite",
+        prompt: "",
+        subject: "",
+        gradeLevel: "",
+        className: "",
+        studentDisplayName: "",
+        assignmentType: .shortAnswer,
+        rubricText: "Feedback rewrite: 0-1 points",
+        parsedRubric: RubricParser.parse("Feedback rewrite: 0-1 points"),
+        customInstructions: "",
+        answerKeyText: "",
+        exemplarText: "",
+        assessmentPurpose: .formative,
+        curriculumReference: "",
+        reviewedStudentText: "Teacher-reviewed text.",
+        reviewedTextWithSourceRefs: "Teacher-reviewed text.",
+        ocrQualitySummary: OCRQualitySummary(),
+        ocrReviewStatus: .notNeeded,
+        sourceInputCount: 0,
+        packetFingerprint: "feedback-rewrite",
         hasGradingStandard: true
     )
 }

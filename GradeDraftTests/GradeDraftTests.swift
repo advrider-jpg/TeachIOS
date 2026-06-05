@@ -42,6 +42,102 @@ struct StubExportAuthenticationService: ExportAuthenticationServicing {
     func authenticateForSensitiveExport(reason: String) async -> ExportAuthenticationResult { result }
 }
 
+final class SlowCancellableGradingService: GradingServicing, CapabilityChecking, @unchecked Sendable {
+    var localAIStatus: LocalAIStatus { .available }
+
+    func draftGrade(input: GradingInput, progress: AIGenerationProgressHandler?) async throws -> GradeDraftResult {
+        await progress?(
+            AIGenerationProgress(
+                stage: .requestingModel,
+                detail: "Test service is waiting.",
+                completedUnitCount: 0,
+                totalUnitCount: 1,
+                canCancel: true
+            )
+        )
+        try await Task.sleep(nanoseconds: 5_000_000_000)
+        try Task.checkCancellation()
+        return GradeDraftResult(
+            packetFingerprint: input.packetFingerprint,
+            studentResponseSummary: "Summary",
+            criteria: [
+                CriterionScore(
+                    criterionID: input.parsedRubric.criteria.first?.id,
+                    criterion: input.parsedRubric.criteria.first?.title ?? "Claim",
+                    rating: "Draft",
+                    proposedPoints: 1,
+                    maxPoints: input.parsedRubric.criteria.first?.maxPoints ?? 1,
+                    evidence: [input.reviewedStudentText],
+                    explanation: "Draft explanation.",
+                    teacherReviewRequired: false
+                )
+            ],
+            totalScore: 1,
+            maxScore: input.parsedRubric.criteria.first?.maxPoints ?? 1,
+            studentFeedback: "Draft feedback.",
+            teacherNotes: "Teacher review required before final approval.",
+            uncertaintyFlags: []
+        )
+    }
+}
+
+final class ImmediateProgressGradingService: GradingServicing, CapabilityChecking, @unchecked Sendable {
+    var localAIStatus: LocalAIStatus { .available }
+
+    func draftGrade(input: GradingInput, progress: AIGenerationProgressHandler?) async throws -> GradeDraftResult {
+        await progress?(
+            AIGenerationProgress(
+                stage: .validatingInputs,
+                detail: "Inputs checked.",
+                canCancel: true
+            )
+        )
+        return GradeDraftResult(
+            packetFingerprint: input.packetFingerprint,
+            studentResponseSummary: "Summary",
+            criteria: [
+                CriterionScore(
+                    criterionID: input.parsedRubric.criteria.first?.id,
+                    criterion: input.parsedRubric.criteria.first?.title ?? "Claim",
+                    rating: "Draft",
+                    proposedPoints: 1,
+                    maxPoints: input.parsedRubric.criteria.first?.maxPoints ?? 1,
+                    evidence: [input.reviewedStudentText],
+                    explanation: "Draft explanation.",
+                    teacherReviewRequired: false
+                )
+            ],
+            totalScore: 1,
+            maxScore: input.parsedRubric.criteria.first?.maxPoints ?? 1,
+            studentFeedback: "Draft feedback.",
+            teacherNotes: "Teacher review required before final approval.",
+            uncertaintyFlags: []
+        )
+    }
+}
+
+final class ImmediateRewriteGradingService: GradingServicing, CapabilityChecking, @unchecked Sendable {
+    var localAIStatus: LocalAIStatus { .available }
+
+    func draftGrade(input: GradingInput, progress: AIGenerationProgressHandler?) async throws -> GradeDraftResult {
+        try await ImmediateProgressGradingService().draftGrade(input: input, progress: progress)
+    }
+
+    func rewriteFeedback(input: FeedbackRewriteInput, progress: AIGenerationProgressHandler?) async throws -> FeedbackRewriteResult {
+        await progress?(
+            AIGenerationProgress(
+                stage: .rewritingFeedback,
+                detail: "Rewriting feedback.",
+                canCancel: true
+            )
+        )
+        return FeedbackRewriteResult(
+            rewrittenFeedback: "The response states a clear claim and can improve by adding one more supporting detail.",
+            teacherReviewNotes: ["Review rewritten feedback before export."]
+        )
+    }
+}
+
 final class GradeDraftTests: XCTestCase {
     func testDeterministicTotalsIgnoreModelTotals() throws {
         let draft = GradeDraftResult(
@@ -813,6 +909,203 @@ final class GradeDraftTests: XCTestCase {
         XCTAssertEqual(viewModel.assignment.finalReview?.status, .inProgress)
     }
 
+    func testLaunchRequestPayloadRoundTripsThroughStore() {
+        let defaults = UserDefaults(suiteName: "GradeDraftTests.\(UUID().uuidString)")!
+        let id = UUID()
+        let request = AppLaunchRequest(
+            destination: .studentWork,
+            assignmentID: id,
+            action: .applyPastedStudentText,
+            payloadText: "Student answer"
+        )
+
+        AppLaunchRequestStore.save(request, defaults: defaults)
+
+        XCTAssertEqual(AppLaunchRequestStore.consume(defaults: defaults), request)
+        XCTAssertNil(AppLaunchRequestStore.consume(defaults: defaults))
+    }
+
+    @MainActor
+    func testShortcutPastedStudentWorkActionSavesReviewedInputLocally() {
+        var assignment = AssignmentRecord(
+            title: "Short answer",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Old text"
+        )
+        assignment.latestDraft = GradeDraftResult(
+            packetFingerprint: "old-packet",
+            studentResponseSummary: "Old",
+            criteria: [],
+            totalScore: 0,
+            maxScore: 0,
+            studentFeedback: "Old",
+            teacherNotes: "Old",
+            uncertaintyFlags: []
+        )
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: "old-packet",
+            criteria: [FinalCriterionScore(
+                criterion: "Claim",
+                rating: "",
+                proposedPoints: 1,
+                finalPoints: 1,
+                maxPoints: 2,
+                evidence: [],
+                explanation: "",
+                teacherApproved: true
+            )],
+            totalScore: 1,
+            maxScore: 2,
+            studentFeedback: "",
+            privateTeacherNotes: "",
+            teacherEdited: true
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        viewModel.handleLaunchRequest(AppLaunchRequest(
+            destination: .studentWork,
+            assignmentID: assignment.id,
+            action: .applyPastedStudentText,
+            payloadText: "  New student answer  "
+        ))
+
+        XCTAssertEqual(viewModel.assignment.reviewedStudentText, "New student answer")
+        XCTAssertEqual(viewModel.assignment.ocrReviewStatus, .notNeeded)
+        XCTAssertEqual(viewModel.assignment.sourceInputs.first?.sourceType, .pastedText)
+        XCTAssertNil(viewModel.assignment.latestDraft)
+        XCTAssertNil(viewModel.assignment.finalReview)
+        XCTAssertTrue(viewModel.statusMessage.contains("saved locally"))
+    }
+
+    @MainActor
+    func testShortcutPastedStudentWorkRequiresExplicitAssignmentTarget() {
+        let assignment = AssignmentRecord(
+            title: "Do not replace",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Keep this reviewed text"
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        viewModel.handleLaunchRequest(AppLaunchRequest(
+            destination: .studentWork,
+            action: .applyPastedStudentText,
+            payloadText: "New shortcut text"
+        ))
+
+        XCTAssertEqual(viewModel.assignment.reviewedStudentText, "Keep this reviewed text")
+        XCTAssertEqual(store.assignments.first?.reviewedStudentText, "Keep this reviewed text")
+        XCTAssertTrue(viewModel.errorMessage?.contains("choose an assignment") == true)
+    }
+
+    @MainActor
+    func testShortcutManualFinalReviewFailsOpenWhenAssignmentIsNotReady() {
+        let assignment = AssignmentRecord(
+            title: "Short answer",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: ""
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        viewModel.handleLaunchRequest(AppLaunchRequest(
+            destination: .finalReview,
+            assignmentID: assignment.id,
+            action: .startManualFinalReview
+        ))
+
+        XCTAssertNil(viewModel.assignment.finalReview)
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+
+    @MainActor
+    func testShortcutRecommendedAIConstraintsPersistWithoutSensitiveTemplates() {
+        let assignment = AssignmentRecord(
+            title: "Short answer",
+            assessmentPurpose: .summative,
+            rubricText: "Claim: 0-2 points",
+            answerKeyText: "Expected claim.",
+            reviewedStudentText: "Student wrote a claim.",
+            ocrReviewStatus: .notNeeded
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        viewModel.handleLaunchRequest(AppLaunchRequest(
+            destination: .packetPreview,
+            assignmentID: assignment.id,
+            action: .applyRecommendedAIConstraints
+        ))
+
+        XCTAssertFalse(viewModel.assignment.selectedInstructionTemplateIDs.isEmpty)
+        XCTAssertFalse(viewModel.assignment.selectedInstructionTemplateIDs.contains("eald-sensitive"))
+        XCTAssertFalse(viewModel.assignment.selectedInstructionTemplateIDs.contains("adjustment-context"))
+    }
+
+    @MainActor
+    func testAIReadinessLaunchRequestPreparesPreviewWithoutDrafting() {
+        let assignment = AssignmentRecord(
+            title: "Short answer",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student wrote a claim.",
+            ocrReviewStatus: .notNeeded
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        viewModel.handleLaunchRequest(AppLaunchRequest(
+            destination: .aiReadiness,
+            assignmentID: assignment.id,
+            action: .preparePacketPreview
+        ))
+
+        XCTAssertEqual(viewModel.aiReadinessReport?.assignmentID, assignment.id)
+        XCTAssertEqual(viewModel.aiPacketPreview?.assignmentID, assignment.id)
+        XCTAssertNil(viewModel.assignment.latestDraft)
+        XCTAssertNil(viewModel.assignment.finalReview)
+    }
+
+    @MainActor
+    func testCriterionAcceptAndRejectActionsPersistTeacherDecision() {
+        var assignment = AssignmentRecord(
+            title: "Essay",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student text."
+        )
+        let criterionID = UUID()
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            criteria: [FinalCriterionScore(
+                id: criterionID,
+                criterion: "Claim",
+                rating: "Developing",
+                proposedPoints: 3,
+                finalPoints: 0,
+                maxPoints: 2,
+                evidence: [],
+                explanation: "Draft explanation.",
+                teacherApproved: false
+            )],
+            totalScore: 0,
+            maxScore: 2,
+            studentFeedback: "",
+            privateTeacherNotes: "",
+            teacherEdited: false
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        viewModel.acceptFinalReviewCriterion(id: criterionID)
+        XCTAssertEqual(viewModel.assignment.finalReview?.criteria.first?.finalPoints, 2)
+        XCTAssertEqual(viewModel.assignment.finalReview?.criteria.first?.teacherApproved, true)
+        XCTAssertEqual(viewModel.assignment.finalReview?.status, .inProgress)
+
+        viewModel.rejectFinalReviewCriterion(id: criterionID)
+        XCTAssertEqual(viewModel.assignment.finalReview?.criteria.first?.teacherApproved, false)
+        XCTAssertTrue(viewModel.assignment.finalReview?.criteria.first?.teacherRationale.contains("rejected") == true)
+    }
+
     @MainActor
     func testManualFinalReviewBlockedWithoutReviewedText() {
         let assignment = AssignmentRecord(
@@ -867,6 +1160,120 @@ final class GradeDraftTests: XCTestCase {
         let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
 
         XCTAssertFalse(viewModel.canStartManualFinalReview, "Manual review blocked without any grading standard")
+    }
+
+    @MainActor
+    func testCancellingLocalDraftDoesNotSaveDraft() async throws {
+        let assignment = AssignmentRecord(
+            title: "Cancelable draft",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student text"
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(
+            assignments: [assignment],
+            gradingService: SlowCancellableGradingService(),
+            store: store
+        )
+
+        viewModel.confirmAndDraftGrade()
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(viewModel.canCancelDraftGeneration)
+        XCTAssertEqual(viewModel.aiGenerationProgress.stage, .requestingModel)
+
+        viewModel.cancelDraftGeneration()
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(viewModel.aiGenerationProgress.stage, .cancelled)
+        XCTAssertNil(viewModel.assignment.latestDraft)
+        XCTAssertFalse(viewModel.isWorking)
+        XCTAssertEqual(viewModel.statusMessage, "Local draft cancelled. No draft was saved.")
+    }
+
+    @MainActor
+    func testCompletedLocalDraftProgressRequiresSavedDraft() async throws {
+        let assignment = AssignmentRecord(
+            title: "Fast draft",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student text"
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(
+            assignments: [assignment],
+            gradingService: ImmediateProgressGradingService(),
+            store: store
+        )
+
+        viewModel.confirmAndDraftGrade()
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(viewModel.aiGenerationProgress.stage, .completed)
+        XCTAssertNotNil(viewModel.assignment.latestDraft)
+        XCTAssertFalse(viewModel.isWorking)
+        XCTAssertEqual(viewModel.assignment.auditEvents.last?.eventType, .draftGenerated)
+    }
+
+    @MainActor
+    func testFeedbackRewriteSavesTeacherEditedFinalReviewWithoutApproving() async {
+        let draft = GradeDraftResult(
+            packetFingerprint: "test-packet",
+            studentResponseSummary: "Summary",
+            criteria: [
+                CriterionScore(
+                    criterion: "Claim",
+                    rating: "Draft",
+                    proposedPoints: 1,
+                    maxPoints: 2,
+                    evidence: ["Student text"],
+                    explanation: "Draft explanation.",
+                    teacherReviewRequired: false
+                )
+            ],
+            totalScore: 1,
+            maxScore: 2,
+            studentFeedback: "Original feedback.",
+            teacherNotes: "Private note.",
+            uncertaintyFlags: []
+        )
+        var assignment = AssignmentRecord(
+            title: "Rewrite",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Student text"
+        )
+        assignment.latestDraft = GradeDraftResult(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: draft.status,
+            studentResponseSummary: draft.studentResponseSummary,
+            criteria: draft.criteria,
+            totalScore: draft.totalScore,
+            maxScore: draft.maxScore,
+            studentFeedback: draft.studentFeedback,
+            teacherNotes: draft.teacherNotes,
+            uncertaintyFlags: draft.uncertaintyFlags
+        )
+        assignment.finalReview = FinalGradeReview(
+            packetFingerprint: assignment.gradingPacketFingerprint,
+            status: .inProgress,
+            criteria: assignment.latestDraft?.criteria.map(FinalCriterionScore.init(from:)) ?? [],
+            totalScore: 1,
+            maxScore: 2,
+            studentFeedback: "Original feedback.",
+            privateTeacherNotes: "Private note.",
+            teacherEdited: true
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(
+            assignments: [assignment],
+            gradingService: ImmediateRewriteGradingService(),
+            store: store
+        )
+
+        await viewModel.rewriteFinalReviewFeedback(mode: .strengthsNextStep)
+
+        XCTAssertEqual(viewModel.assignment.finalReview?.studentFeedback, "The response states a clear claim and can improve by adding one more supporting detail.")
+        XCTAssertEqual(viewModel.assignment.finalReview?.status, .inProgress)
+        XCTAssertTrue(viewModel.assignment.finalReview?.teacherEdited == true)
+        XCTAssertEqual(viewModel.assignment.auditEvents.last?.eventType, .feedbackRewritten)
     }
 
     @MainActor
