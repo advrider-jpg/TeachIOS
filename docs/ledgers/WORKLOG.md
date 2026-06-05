@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-06-04 — Guided pipeline: explicit stage progress
+
+- The per-assignment `AssignmentOverviewScreen` already implements the guided grading pipeline (a "Next up" card that routes to the correct next screen by status, a 6-step `WorkflowProgressRail`, and a blocking-issues card). The remaining gap was an explicit sense of position in the pipeline.
+- Added a compact progress summary to the Timeline card: "Step N of 6" (or "All steps complete") with a percentage and a `ProgressView` bar, derived from how many workflow steps are in a completed state (`onTrack`/`approved`/`readyToExport`/`exported`). Purely additive; reuses the existing `workflowSteps` model and stationery theme.
+- No new dependencies or screen files. The native source-fingerprint snapshot for this screen is unchanged (`ProgressView` is not a tracked control token; no new `Section`/headers).
+- Validation: local guardrails pass (`repo_health`, `bad_string_scan`, `check_xcode_project_membership`). Xcode compile + the overview snapshot/screenshot tests run in CI (currently blocked by the GitHub Actions spending limit; PR left for CI before merge).
 ## 2026-06-04 — Final Review workspace: criteria progress + class throughput
 
 - Added a "Criteria approved" count (approved / total) to the Teacher Approval card so the teacher can see review completeness at a glance, alongside the existing approval status and export-readiness rows.

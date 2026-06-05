@@ -37,6 +37,7 @@ struct AssignmentOverviewScreen: View {
 
                     NotebookCard(theme: AssignmentWorkflowStationery.theme, showsPerforation: true) {
                         TapeLabel("Timeline", theme: AssignmentWorkflowStationery.theme)
+                        workflowProgressSummary(for: assignment)
                         WorkflowProgressRail(steps: workflowSteps(for: assignment))
                         HandwrittenAnnotation("Visible steps match the teacher workflow.", theme: AssignmentWorkflowStationery.theme)
                     }
@@ -119,6 +120,38 @@ struct AssignmentOverviewScreen: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AssignmentWorkflowStationery.theme.paperTint.opacity(0.72), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
+    }
+
+    private func workflowProgressSummary(for assignment: AssignmentRecord) -> some View {
+        let steps = workflowSteps(for: assignment)
+        let total = steps.count
+        let done = steps.filter { isStepComplete($0.status) }.count
+        let currentStep = min(done + 1, total)
+        let percent = total == 0 ? 0 : Int((Double(done) / Double(total) * 100).rounded())
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(done >= total ? "All steps complete" : "Step \(currentStep) of \(total)")
+                    .font(.system(.headline, design: .serif))
+                    .foregroundStyle(AssignmentWorkflowStationery.theme.ink)
+                Spacer(minLength: 8)
+                Text("\(percent)%")
+                    .font(.subheadline.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(AssignmentWorkflowStationery.theme.mutedInk)
+            }
+            ProgressView(value: Double(done), total: Double(max(total, 1)))
+                .tint(AssignmentWorkflowStationery.theme.accent)
+                .accessibilityLabel("Workflow progress")
+                .accessibilityValue("\(done) of \(total) steps complete")
+        }
+    }
+
+    private func isStepComplete(_ status: GradeDraftUIStatus) -> Bool {
+        switch status {
+        case .onTrack, .approved, .readyToExport, .exported:
+            return true
+        default:
+            return false
+        }
     }
 
     private func workflowSteps(for assignment: AssignmentRecord) -> [WorkflowStepRow] {
