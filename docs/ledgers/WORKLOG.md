@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-06-04 — Class-set grading throughput
+
+- Added a "Class Grading" hero to `ClassDetailRosterScreen`: a progress gauge ("X of Y approved" + percent), a **Continue** button that jumps to the next ungraded student's overview via `navigationDestination`, and class-scoped batch export (gradebook archive ZIP + gradebook CSV) with a Share action. Turns single-record grading into whole-class throughput.
+- Added view-model support: `classAssignments(for:)` (records for a class, ordered by student), `nextUngradedAssignment(in:)` (first not-approved or stale), and `exportClassGradebookCSV(for:)` / `exportClassArchive(for:)` — class-scoped mirrors of the existing gradebook exports, routed through the same `authenticateForExportIfNeeded` gate so sensitive teacher-only exports keep their auth requirement.
+- No new dependencies; reuses existing export plumbing (`CSVExportService`, `BundleExportService`, `ExportFileHardening`, export records). No new screen file (built into the existing class detail screen), so project membership and the screenshot manifest are unchanged.
+- Validation: local guardrails pass (`check_xcode_project_membership`, `bad_string_scan`, `repo_health`). Xcode compile/tests run in CI (currently blocked by the GitHub Actions spending limit; PR left for CI before merge).
 ## 2026-06-04 — Rubric setup screen redesigned for the iPhone
 
 - `RubricInstructionsScreen` was one Form section stacking nine always-expanded stationery cards plus several 100–150pt editors — an enormous undifferentiated scroll on a phone. Reworked it into a progressive-disclosure layout: a tappable "Setup Checklist" overview at the top (status + one-line state per area), then **collapsible** section cards. Rubric and Detected Criteria start expanded; templates, AI constraints, curriculum, instructions, and answer-key/exemplar start collapsed. Tapping a checklist row expands and scrolls to that section via `ScrollViewReader`.
