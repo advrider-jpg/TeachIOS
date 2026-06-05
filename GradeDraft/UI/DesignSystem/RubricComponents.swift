@@ -271,3 +271,222 @@ struct CriterionSummaryRow: View {
         .background(Color.white.opacity(0.36), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
+
+// MARK: - iPhone-first rubric layout helpers
+
+/// Renders inline Markdown (bold, italic, links, inline code) in teacher-authored
+/// rubric descriptors and feedback using the native Foundation parser — no third-party
+/// dependency. Falls back to plain text if the string is not valid Markdown.
+func inlineRubricMarkdown(_ string: String) -> AttributedString {
+    (try? AttributedString(
+        markdown: string,
+        options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+    )) ?? AttributedString(string)
+}
+
+/// Lightweight wrapping flow layout (chips/tags) built on the native SwiftUI `Layout`
+/// protocol. Source-dropped rather than adding a package, to keep the local-first app's
+/// dependency surface flat. Reference: tevelee/SwiftUI-Flow, krishkumar/FlowLayout (MIT).
+struct RubricFlowLayout: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 8
+
+    private struct Row {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func rows(maxWidth: CGFloat, subviews: Subviews) -> [Row] {
+        var rows: [Row] = []
+        var current = Row()
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let projectedWidth = current.indices.isEmpty ? size.width : current.width + spacing + size.width
+            if !current.indices.isEmpty && projectedWidth > maxWidth {
+                rows.append(current)
+                current = Row(indices: [index], width: size.width, height: size.height)
+            } else {
+                current.width = projectedWidth
+                current.height = max(current.height, size.height)
+                current.indices.append(index)
+            }
+        }
+        if !current.indices.isEmpty { rows.append(current) }
+        return rows
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        let computed = rows(maxWidth: maxWidth, subviews: subviews)
+        let height = computed.reduce(0) { $0 + $1.height } + lineSpacing * CGFloat(max(0, computed.count - 1))
+        let width = proposal.width ?? (computed.map(\.width).max() ?? 0)
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+        var y = bounds.minY
+        for row in rows(maxWidth: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + lineSpacing
+        }
+    }
+}
+
+/// Compact, capsule-style tag for rubric level bands, AI constraints, and curriculum refs.
+struct RubricChip: View {
+    var text: String
+    var systemImage: String?
+    var emphasized: Bool
+
+    init(_ text: String, systemImage: String? = nil, emphasized: Bool = false) {
+        self.text = text
+        self.systemImage = systemImage
+        self.emphasized = emphasized
+    }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if let systemImage {
+                Image(systemName: systemImage).font(.caption2.weight(.bold))
+            }
+            Text(text).font(.caption.weight(.semibold)).lineLimit(1)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .foregroundStyle(RubricStationeryPalette.theme.accent)
+        .background(
+            RubricStationeryPalette.theme.tape.opacity(emphasized ? 0.4 : 0.22),
+            in: Capsule(style: .continuous)
+        )
+        .overlay(Capsule(style: .continuous).stroke(RubricStationeryPalette.theme.ruledLine, lineWidth: 0.5))
+    }
+}
+
+/// A stationery-styled card whose body collapses behind a tappable header, so the long
+/// rubric setup screen folds down to a scannable list of sections on a phone.
+struct RubricCollapsibleCard<Content: View>: View {
+    var title: String
+    var tapeLabel: String
+    var collapsedSummary: String?
+    var annotation: String?
+    var status: GradeDraftUIStatus?
+    var showsPaperclip: Bool
+    @Binding var isExpanded: Bool
+    private let content: Content
+
+    init(
+        title: String,
+        tapeLabel: String,
+        collapsedSummary: String? = nil,
+        annotation: String? = nil,
+        status: GradeDraftUIStatus? = nil,
+        showsPaperclip: Bool = false,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.tapeLabel = tapeLabel
+        self.collapsedSummary = collapsedSummary
+        self.annotation = annotation
+        self.status = status
+        self.showsPaperclip = showsPaperclip
+        self._isExpanded = isExpanded
+        self.content = content()
+    }
+
+    var body: some View {
+        NotebookCard(theme: RubricStationeryPalette.theme, status: status, showsPerforation: true) {
+            VStack(alignment: .leading, spacing: 14) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.22)) { isExpanded.toggle() }
+                } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            TapeLabel(tapeLabel, theme: RubricStationeryPalette.theme)
+                            Text(title)
+                                .font(.system(.title3, design: .serif).weight(.semibold))
+                                .foregroundStyle(RubricStationeryPalette.theme.ink)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let collapsedSummary, !isExpanded {
+                                Text(collapsedSummary)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        VStack(alignment: .trailing, spacing: 8) {
+                            if let status {
+                                RubricStationeryStatusChip(status, compact: true)
+                            }
+                            Image(systemName: "chevron.down")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(RubricStationeryPalette.theme.mutedInk)
+                                .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                        }
+                        if showsPaperclip {
+                            PaperclipDecoration(theme: RubricStationeryPalette.theme)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(title)
+                .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+                .accessibilityHint("Double tap to \(isExpanded ? "collapse" : "expand")")
+                .accessibilityAddTraits(.isButton)
+
+                if isExpanded {
+                    content
+                    if let annotation {
+                        RubricHandwrittenNote(annotation, status: status)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// A tappable summary row for the setup checklist at the top of the rubric screen.
+struct RubricOverviewRow: View {
+    var label: String
+    var value: String
+    var status: GradeDraftUIStatus
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                RubricStationeryStatusChip(status, compact: true)
+                Text(label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(RubricStationeryPalette.theme.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text(value)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(RubricStationeryPalette.theme.mutedInk)
+            }
+            .contentShape(Rectangle())
+            .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
+        .accessibilityHint("Double tap to open this section")
+    }
+}
