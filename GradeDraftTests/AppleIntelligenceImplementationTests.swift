@@ -521,10 +521,11 @@ final class AppleIntelligenceImplementationTests: XCTestCase {
         selectedTemplateIDs: [String] = [],
         answerKey: String = "",
         reviewedText: String = "Clear claim",
-        reviewedTextWithSourceRefs: String = "Clear claim"
+        reviewedTextWithSourceRefs: String? = nil
     ) -> GradingInput {
         let rubric = "Claim: 0-4 points"
         let parsed = RubricParser.parse(rubric)
+        let sourceReferencedText = reviewedTextWithSourceRefs ?? reviewedText
         return GradingInput(
             assignmentID: UUID(),
             assignmentTitle: "Short answer",
@@ -545,7 +546,7 @@ final class AppleIntelligenceImplementationTests: XCTestCase {
             assessmentPurpose: .summative,
             curriculumReference: "",
             reviewedStudentText: reviewedText,
-            reviewedTextWithSourceRefs: reviewedTextWithSourceRefs,
+            reviewedTextWithSourceRefs: sourceReferencedText,
             ocrQualitySummary: OCRQualitySummary(),
             ocrReviewStatus: .notNeeded,
             sourceInputCount: 1,

@@ -9,11 +9,13 @@ enum LocalCapabilityBannerCopy {
             if message.localizedCaseInsensitiveContains("Apple Intelligence is not enabled") {
                 return "Apple Intelligence disabled"
             }
-            if message.localizedCaseInsensitiveContains("does not support") || message.localizedCaseInsensitiveContains("device") {
-                return "Device not eligible"
-            }
             if message.localizedCaseInsensitiveContains("not ready") || message.localizedCaseInsensitiveContains("preparing") {
                 return "Model not ready"
+            }
+            if message.localizedCaseInsensitiveContains("does not support")
+                || message.localizedCaseInsensitiveContains("not eligible")
+                || message.localizedCaseInsensitiveContains("unsupported device") {
+                return "Device not eligible"
             }
             if message.localizedCaseInsensitiveContains("Foundation Models framework")
                 || message.localizedCaseInsensitiveContains("newer operating system") {
@@ -36,10 +38,12 @@ enum LocalCapabilityBannerCopy {
             var details = [trimmedMessage.isEmpty ? statusMessage : trimmedMessage]
             if statusMessage.localizedCaseInsensitiveContains("Apple Intelligence is not enabled") {
                 details.append("Enable Apple Intelligence in Settings before using local AI drafting.")
-            } else if statusMessage.localizedCaseInsensitiveContains("does not support") || statusMessage.localizedCaseInsensitiveContains("device") {
-                details.append("Use manual review on this device, or test local AI on an Apple Intelligence-capable device.")
             } else if statusMessage.localizedCaseInsensitiveContains("not ready") || statusMessage.localizedCaseInsensitiveContains("preparing") {
                 details.append("Wait for the on-device model to finish preparing, then refresh readiness.")
+            } else if statusMessage.localizedCaseInsensitiveContains("does not support")
+                || statusMessage.localizedCaseInsensitiveContains("not eligible")
+                || statusMessage.localizedCaseInsensitiveContains("unsupported device") {
+                details.append("Use manual review on this device, or test local AI on an Apple Intelligence-capable device.")
             } else if statusMessage.localizedCaseInsensitiveContains("newer operating system") {
                 details.append("Install the required iOS/iPadOS version before using Foundation Models.")
             } else if statusMessage.localizedCaseInsensitiveContains("Foundation Models framework") {

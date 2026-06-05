@@ -23,7 +23,9 @@ final class GradeDraftScreenshotTests: XCTestCase {
         CorePageScreenshotCase(imageName: "10-exports-restore", sourceFile: "ExportsRestoreScreen.swift"),
         CorePageScreenshotCase(imageName: "11-settings-local-privacy", sourceFile: "SettingsAboutLocalPrivacyScreen.swift"),
         CorePageScreenshotCase(imageName: "12-rubric-instructions", sourceFile: "RubricInstructionsScreen.swift"),
-        CorePageScreenshotCase(imageName: "13-curriculum-browser", sourceFile: "CurriculumBrowserScreen.swift")
+        CorePageScreenshotCase(imageName: "13-curriculum-browser", sourceFile: "CurriculumBrowserScreen.swift"),
+        CorePageScreenshotCase(imageName: "14-ai-readiness", sourceFile: "AIReadinessScreen.swift"),
+        CorePageScreenshotCase(imageName: "15-ai-packet-preview", sourceFile: "AIPacketPreviewScreen.swift")
     ]
 
     // MARK: - Coverage Contract
@@ -139,6 +141,24 @@ final class GradeDraftScreenshotTests: XCTestCase {
         viewModel.curriculumSearchText = "English"
         try snapshot("13-curriculum-browser",
                      NavigationStack { CurriculumBrowserScreen(viewModel: viewModel, assignmentID: assignmentID) },
+                     to: prepareScreenshotDirectory())
+    }
+
+    func testCaptureAIReadinessScreen() throws {
+        let viewModel = makeCorePageViewModel(selecting: .readyToExport)
+        let assignmentID = viewModel.assignment.id
+        viewModel.buildAIPacketPreview()
+        try snapshot("14-ai-readiness",
+                     NavigationStack { AIReadinessScreen(viewModel: viewModel, assignmentID: assignmentID) },
+                     to: prepareScreenshotDirectory())
+    }
+
+    func testCaptureAIPacketPreviewScreen() throws {
+        let viewModel = makeCorePageViewModel(selecting: .readyToExport)
+        let assignmentID = viewModel.assignment.id
+        viewModel.buildAIPacketPreview()
+        try snapshot("15-ai-packet-preview",
+                     NavigationStack { AIPacketPreviewScreen(viewModel: viewModel, assignmentID: assignmentID) },
                      to: prepareScreenshotDirectory())
     }
 

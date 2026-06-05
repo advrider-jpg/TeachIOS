@@ -138,7 +138,9 @@ enum MarkdownRubricParser {
     private static func candidateRows(from text: String) -> [CandidateRow] {
         var rows: [CandidateRow] = []
         collectRows(from: Document(parsing: text), into: &rows)
-        return rows
+        rows.append(contentsOf: pipeTableRows(fromRawMarkdown: text))
+        rows.append(contentsOf: explicitListRows(fromRawMarkdown: text))
+        return deduplicatedRows(rows)
     }
 
     /// Recursively walks block markup, emitting one candidate row per heading, per
@@ -230,6 +232,124 @@ enum MarkdownRubricParser {
             guard !rowCells.isEmpty else { continue }
             rows.append(tableRow(cells: rowCells, headers: headerCells))
         }
+    }
+
+    private static func pipeTableRows(fromRawMarkdown text: String) -> [CandidateRow] {
+        let lines = text.components(separatedBy: .newlines)
+        var rows: [CandidateRow] = []
+        var currentGroup: String?
+        var index = 0
+
+        while index < lines.count {
+            let line = lines[index].trimmingCharacters(in: .whitespaces)
+            if let heading = rawHeadingTitle(from: line) {
+                currentGroup = heading
+                index += 1
+                continue
+            }
+            guard isPipeTableLine(line),
+                  index + 1 < lines.count,
+                  isPipeDelimiterRow(splitPipeRow(lines[index + 1])) else {
+                index += 1
+                continue
+            }
+
+            let headers = splitPipeRow(line)
+            index += 2
+            while index < lines.count {
+                let bodyLine = lines[index].trimmingCharacters(in: .whitespaces)
+                guard isPipeTableLine(bodyLine) else { break }
+                var row = tableRow(cells: splitPipeRow(bodyLine), headers: headers)
+                row.groupTitle = currentGroup
+                rows.append(row)
+                index += 1
+            }
+        }
+
+        return rows
+    }
+
+    private static func explicitListRows(fromRawMarkdown text: String) -> [CandidateRow] {
+        var rows: [CandidateRow] = []
+        var currentGroup: String?
+        for rawLine in text.components(separatedBy: .newlines) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if let heading = rawHeadingTitle(from: line) {
+                currentGroup = heading
+                continue
+            }
+            guard let item = rawListItem(from: line) else { continue }
+            let plain = markdownPlain(item.text)
+            guard !plain.isEmpty else { continue }
+            rows.append(
+                CandidateRow(
+                    kind: item.kind,
+                    text: plain,
+                    title: RubricParser.criterionTitle(from: plain) ?? plain,
+                    descriptor: plain,
+                    groupTitle: currentGroup,
+                    explicitID: RubricParser.explicitCriterionID(in: item.text),
+                    maxPoints: RubricParser.maxPoints(in: plain),
+                    levelColumns: []
+                )
+            )
+        }
+        return rows
+    }
+
+    private static func rawHeadingTitle(from line: String) -> String? {
+        guard line.hasPrefix("#") else { return nil }
+        let withoutMarkers = String(line.drop(while: { $0 == "#" }))
+        let trimmed = withoutMarkers.trimmingCharacters(in: .whitespaces)
+        return markdownPlain(String(trimmed)).nilIfEmpty
+    }
+
+    private static func rawListItem(from line: String) -> (kind: RowKind, text: String)? {
+        if line.hasPrefix("- ") || line.hasPrefix("* ") || line.hasPrefix("+ ") {
+            return (.bullet, String(line.dropFirst(2)))
+        }
+        guard let markerRange = line.range(of: #"^\d+[\.)]\s+"#, options: .regularExpression) else {
+            return nil
+        }
+        return (.numbered, String(line[markerRange.upperBound...]))
+    }
+
+    private static func isPipeTableLine(_ line: String) -> Bool {
+        line.hasPrefix("|") && line.contains("|")
+    }
+
+    private static func splitPipeRow(_ line: String) -> [String] {
+        var value = line.trimmingCharacters(in: .whitespaces)
+        if value.hasPrefix("|") { value.removeFirst() }
+        if value.hasSuffix("|") { value.removeLast() }
+        return value
+            .components(separatedBy: "|")
+            .map { markdownPlain($0) }
+    }
+
+    private static func isPipeDelimiterRow(_ cells: [String]) -> Bool {
+        !cells.isEmpty && cells.allSatisfy { cell in
+            let marker = cell.trimmingCharacters(in: .whitespaces)
+            let stripped = marker.replacingOccurrences(of: ":", with: "")
+            return stripped.count >= 3 && stripped.allSatisfy { $0 == "-" }
+        }
+    }
+
+    private static func deduplicatedRows(_ rows: [CandidateRow]) -> [CandidateRow] {
+        var seen: Set<String> = []
+        var output: [CandidateRow] = []
+        for row in rows {
+            let key = [
+                row.explicitID ?? "",
+                RubricParser.normalized(row.title),
+                row.maxPoints.map { GradeTotals.formatted($0) } ?? "",
+                RubricParser.normalized(row.text)
+            ].joined(separator: "|")
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            output.append(row)
+        }
+        return output
     }
 
     private static func cells(in container: Markup) -> [String] {
