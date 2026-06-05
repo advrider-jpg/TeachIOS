@@ -17,6 +17,21 @@
 - [x] Curriculum catalog validator is available.
 - [x] Static policy scripts are wired into CI.
 - [x] Release static guardrail is wired into repo health and CI.
+- [x] Prompt v2 identity-redaction and packet-preview source tests are present.
+- [x] Prompt authority and custom-instruction lint static guardrail is wired into repo health.
+- [x] Dedicated AI packet preview route/screen guardrail is wired into repo health.
+- [x] Batch AI readiness table source model and static no-background-draft guardrail are wired into repo health.
+- [x] Local AI read-only tool policy and lookup tests are present.
+- [x] Structured local tool support includes source-labeled snippets, call/output limits, audit metadata, and a static safety guardrail.
+- [x] Feedback rewrite validator and persistence tests are present.
+- [x] Safe App Intent handoff, payload, and view-model action source tests are present.
+- [x] Final-review criterion accept/reject source tests are present.
+- [x] Draft criterion cards expose confidence, teacher-review reasons, evidence quotes, source-reference tags, reviewed-text navigation, and final-review entry before accept/edit/reject.
+- [x] Local AI evaluation fixture corpus and deterministic preflight source tests are present.
+- [x] Local AI availability banner source copy distinguishes disabled Apple Intelligence, ineligible device, model-not-ready, unavailable framework/OS, manual-review fallback, and Airplane Mode local-only QA reassurance.
+- [x] Sensitive AI constraint templates require explicit teacher confirmation before selection.
+- [x] AI evaluation fixture static guardrail is wired into repo health.
+- [x] Static App Intent safety guard checks safe assignment entities, foreground workflow routing, and absence of background grade/approval/export/upload intents.
 - [ ] Xcode package resolution has passed on macOS.
 - [ ] Xcode unit tests have passed on macOS.
 - [ ] Unsigned Release build has passed on macOS.
@@ -24,6 +39,14 @@
 
 ## Manual simulator smoke tests
 - [ ] Paste text, run manual final review, approve, and export student report.
+- [ ] Prepare AI packet preview and confirm the technical prompt preview excludes student name, student ID, class name, roster membership, source filenames, and local paths.
+- [ ] Confirm read-only local AI lookup tools cannot expose other students, write assignment state, approve grades, export reports, upload data, or fetch the web.
+- [ ] In an in-progress final review, run feedback rewrite modes and confirm scores, evidence, approval state, and export gates do not change.
+- [ ] Run safe App Intents/Shortcuts and confirm they only open workflows, open AI Readiness, prepare packet preview state, search local assignment titles, resolve redacted local assignment entities, create a blank local assignment shell, apply recommended non-sensitive constraints, or save pasted student work as local teacher-reviewed input.
+- [ ] Accept and reject individual final-review criterion suggestions and confirm final approval/export gates still behave correctly.
+- [ ] Confirm prompt-injection text in reviewed student work is flagged for teacher review before local drafting.
+- [ ] Start and cancel a local draft, then confirm no draft or final-review state is saved.
+- [ ] Review the batch AI readiness table and confirm it only reports row readiness, uses one-at-a-time local queue policy copy, and does not create drafts, final approvals, or exports.
 - [ ] Import rubric, review preview, confirm structured criteria.
 - [ ] Import roster CSV and verify preview warnings.
 - [ ] Verify student-facing export excludes private teacher/audit material.
@@ -35,7 +58,13 @@
 - [ ] Vision OCR produces reviewable lines and confidence values.
 - [ ] Face ID/Touch ID/passcode export authentication works.
 - [ ] Foundation Models draft generation works on an Apple Intelligence-capable device.
+- [ ] Foundation Models feedback rewrite works on an Apple Intelligence-capable device and remains blocked when local AI is unavailable.
+- [ ] App Intents are discoverable in Shortcuts and route to the expected in-app workflow without background grading, approval, or export.
+- [ ] AI packet preview and local draft generation agree on generation mode and prompt fingerprint.
+- [ ] Foundation Models cancellation behavior is verified on device while a model request is in flight.
+- [ ] Device-only local AI evaluation cases have been run and exported with anonymized report metadata.
 - [ ] Airplane Mode workflow confirms no cloud fallback.
+- [ ] Airplane Mode local AI test records device model, OS version, build number, date, and tester initials.
 - [ ] Share-sheet cancellation does not create a misleading sent state.
 - [ ] Backup restore preview occurs before mutation.
 

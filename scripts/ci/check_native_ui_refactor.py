@@ -31,6 +31,7 @@ form_required = [
     "ClassDetailRosterScreen.swift",
     "AssignmentOverviewScreen.swift",
     "RubricInstructionsScreen.swift",
+    "AIPacketPreviewScreen.swift",
     "StudentWorkScreen.swift",
     "FinalReviewScreen.swift",
     "ExportsRestoreScreen.swift",

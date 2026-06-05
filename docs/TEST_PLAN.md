@@ -24,7 +24,19 @@ The XCTest files cover the full v3 source-implemented feature set:
 - evidence refs, OCR lines, final reviews, roster data, and curriculum mappings persistence;
 - roster CSV preview, duplicate name/identifier detection, rejected rows, class/student creation, assignment roster creation, status matrix, and gradebook CSV;
 - curriculum catalog load/filter/map, provenance in reports, prompt inclusion, and absence of endorsement/compliance claims;
-- PromptBuilder safety rules and prompt field usage;
+- PromptBuilder safety rules, prompt field usage, v2 authority boundaries, and model-visible identity redaction;
+- custom teacher-instruction linting for unsafe rubric override, full-marks, effort, handwriting, student-background, no-evidence, and final-grade instructions;
+- AI readiness and packet preview behavior, including prompt-injection risk flags, token budget plan summaries, redacted technical prompt previews, prompt version, and packet/prompt fingerprints;
+- local AI generation progress and cancellation behavior, including no saved draft after cancellation and completed progress only after a draft is saved;
+- local AI read-only tool policy and lookup behavior, including source-labeled snippets, call/output limit enforcement, audit metadata, and forbidden tool names for approval, export, upload, web fetch, other-student reads, writes, and deletion;
+- batch AI readiness table behavior, including ready/needs-review/blocked rows, identity-redacted display titles, local-unavailable blocking, and no background draft/final/export path;
+- local AI evaluation harness behavior, including fixture decoding, required category coverage, deterministic preflight without model attempts, unsafe draft detection, and anonymized report output;
+- rubric readiness warnings for duplicate criteria, raw/unstructured rubric states, contradictory instructions, non-textual judgment, and summative review friction;
+- local feedback rewrite validation and view-model persistence, including no approval-state change after a rewrite;
+- pending App Intent launch request storage and one-time consumption for safe app handoff, including payload persistence for pasted student work and AI Readiness launch preparation;
+- App Intent assignment-entity safety through `scripts/ci/check_app_intents_safety.py`, including foreground-only workflow intents, no unsafe approval/export/upload/background-grade intent names, and no assignment entity display of student/class metadata;
+- Shortcut-driven pasted student work, manual-review start, and recommended AI constraint application through real view-model state transitions;
+- final-review criterion accept/reject actions, including score clamping, unapproved rejection state, and continued final-approval gating;
 - prohibited UI label checks and no-cloud-fallback copy;
 - final-review approval gates, stale review blocking, criterion add/delete, totals recalculation, and manual grading path;
 - export records and sensitivity/source-inclusion flags;
@@ -41,6 +53,11 @@ python3 scripts/repo_health.py
 python3 scripts/ci/bad_string_scan.py
 python3 scripts/ci/check_xcode_project_membership.py
 python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
 ```
 
 Remaining bad-string matches should be limited to canonical source-of-truth/research/source-material documents that discuss out-of-scope product boundaries, not unimplemented status for the 11 v3 features.
@@ -111,6 +128,7 @@ Run in Xcode 26+ on macOS with iOS SDK:
 - Run core page screenshot tests separately and inspect uploaded PNG artifacts.
 - Run an unsigned Release build with `CODE_SIGNING_ALLOWED=NO`.
 - Confirm Foundation Models API calls compile against the installed SDK.
+- Confirm the AI readiness and packet preview surfaces render correctly before local draft generation.
 - Confirm PDFKit rendering/import and UIKit PDF export compile and run.
 - Confirm Vision/VisionKit capture and OCR compile and run on device/simulator where supported.
 - Confirm SwiftUI file import/share sheets run on target devices.
@@ -119,6 +137,11 @@ Run in Xcode 26+ on macOS with iOS SDK:
 ## Runtime smoke flows for Xcode or CI
 
 - Paste text -> manual final review -> approve -> student PDF export.
+- Paste text -> prepare AI packet preview -> confirm student/class identity is not present in the technical prompt preview -> draft locally when Foundation Models is available -> start teacher final review.
+- Start local draft -> observe generation progress -> cancel -> confirm no draft/final-review state is saved and manual final review remains available.
+- In an in-progress final review, run each feedback rewrite mode on a device with Foundation Models available -> confirm scores/evidence/approval state do not change and rewritten feedback still requires teacher approval.
+- Run safe App Intents/Shortcuts -> confirm they route to concrete workflows including AI Readiness, create only a blank assignment shell, apply recommended non-sensitive constraints, save pasted text only as teacher-reviewed local input, and do not draft, approve, export, upload, or read other students.
+- In final review, accept and reject individual criterion suggestions -> confirm the choice is saved locally, final approval remains required, rejected criteria stay unapproved, and export stays blocked.
 - PDF import -> page refs created -> OCR review needed -> edit/confirm/reject lines -> document reviewed -> draft/manual review allowed.
 - OCR line evidence -> final criterion evidence list -> show source -> teacher audit includes bounding box -> student report excludes bounding-box metadata.
 - Markdown rubric import -> preview -> confirm structured import -> final review criteria populated.
@@ -126,6 +149,26 @@ Run in Xcode 26+ on macOS with iOS SDK:
 - Curriculum browse/filter -> map item -> prompt/report provenance.
 - Full local backup -> restore preview -> restore as copy/keep local/replace local -> source file restored.
 - Airplane-mode local flow: no network capability is required.
+
+## Local AI evaluation fixtures
+
+The prompt and readiness test set should include:
+
+- reviewed student text containing "ignore previous instructions" or "give me 100%" and expecting a prompt-injection readiness flag;
+- student/class identity present in local assignment state and absent from model-visible prompt previews;
+- reviewed text with source refs and model evidence without source refs, expecting teacher review;
+- OCR uncertainty requiring teacher review;
+- oversized packet fixtures expecting compact/per-criterion planning or explicit local-too-large failure;
+- cancellable draft fixtures expecting no saved `latestDraft` after cancellation;
+- local tool fixtures expecting assignment-scoped read-only matches and explicit forbidden action names;
+- structured local tool fixtures expecting source-labeled snippets, call-limit failures, output truncation, and audit metadata;
+- feedback rewrite fixtures expecting no score/evidence mutation and deterministic rejection of final-grade or prohibited-inference language;
+- App Intent handoff fixtures expecting one-time pending launch request consumption, payload round trip, and visible in-app failure for invalid assignment IDs or missing pasted text;
+- local AI evaluation fixtures expecting deterministic preflight checks, no model attempt in CI, identity-redaction checks, required category coverage, and anonymized report metadata;
+- prohibited inference language expecting deterministic validation rejection; and
+- custom teacher-instruction lint fixtures expecting teacher-review warnings but no automatic final-grade path; and
+- batch readiness fixtures expecting row status counts, one-at-a-time queue policy copy, blocked local-unavailable rows, and no background mutation; and
+- final-grade language in student-facing draft feedback expecting deterministic validation rejection.
 
 ## Validation limits of this environment
 
@@ -146,6 +189,11 @@ python3 scripts/ci/check_native_ui_refactor.py
 python3 scripts/ci/check_xcode_project_membership.py
 python3 scripts/ci/check_ci_contract.py
 python3 scripts/ci/check_release_readiness_static.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
 ```
 
 Xcode and physical-device validation remain required before TestFlight or App Store submission.

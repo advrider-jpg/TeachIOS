@@ -44,10 +44,12 @@ struct AppTabShell: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @ObservedObject var viewModel: GradeDraftViewModel
     @State private var selectedTab: GradeDraftTab = .home
+    @State private var launchRoute: AppLaunchRoute?
 
     var body: some View {
         rootShell
         .task { viewModel.refreshCapabilityStatus() }
+        .task { consumePendingLaunchRequest() }
         .alert("Mark My Work", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
@@ -79,11 +81,17 @@ struct AppTabShell: View {
                 NavigationStack {
                     selectedRootScreen
                 }
+                .navigationDestination(item: $launchRoute) { route in
+                    launchRouteDestination(route)
+                }
             }
         } else {
             TabView(selection: $selectedTab) {
                 NavigationStack {
                     HomeScreen(viewModel: viewModel)
+                }
+                .navigationDestination(item: $launchRoute) { route in
+                    launchRouteDestination(route)
                 }
                 .tabItem { Label(GradeDraftTab.home.title, systemImage: GradeDraftTab.home.systemImage) }
                 .tag(GradeDraftTab.home)
@@ -91,11 +99,17 @@ struct AppTabShell: View {
                 NavigationStack {
                     ClassesScreen(viewModel: viewModel)
                 }
+                .navigationDestination(item: $launchRoute) { route in
+                    launchRouteDestination(route)
+                }
                 .tabItem { Label(GradeDraftTab.classes.title, systemImage: GradeDraftTab.classes.systemImage) }
                 .tag(GradeDraftTab.classes)
 
                 NavigationStack {
                     AssignmentsScreen(viewModel: viewModel)
+                }
+                .navigationDestination(item: $launchRoute) { route in
+                    launchRouteDestination(route)
                 }
                 .tabItem { Label(GradeDraftTab.assignments.title, systemImage: GradeDraftTab.assignments.systemImage) }
                 .tag(GradeDraftTab.assignments)
@@ -103,11 +117,17 @@ struct AppTabShell: View {
                 NavigationStack {
                     ReviewScreen(viewModel: viewModel)
                 }
+                .navigationDestination(item: $launchRoute) { route in
+                    launchRouteDestination(route)
+                }
                 .tabItem { Label(GradeDraftTab.review.title, systemImage: GradeDraftTab.review.systemImage) }
                 .tag(GradeDraftTab.review)
 
                 NavigationStack {
                     ExportsRestoreScreen(viewModel: viewModel)
+                }
+                .navigationDestination(item: $launchRoute) { route in
+                    launchRouteDestination(route)
                 }
                 .tabItem { Label(GradeDraftTab.exports.title, systemImage: GradeDraftTab.exports.systemImage) }
                 .tag(GradeDraftTab.exports)
@@ -129,5 +149,81 @@ struct AppTabShell: View {
         case .exports:
             ExportsRestoreScreen(viewModel: viewModel)
         }
+    }
+
+    @ViewBuilder
+    private func launchRouteDestination(_ route: AppLaunchRoute) -> some View {
+        switch route {
+        case .assignmentOverview(let id):
+            AssignmentOverviewScreen(viewModel: viewModel, assignmentID: id)
+        case .aiReadiness(let id):
+            AIReadinessScreen(viewModel: viewModel, assignmentID: id)
+        case .finalReview(let id):
+            FinalReviewScreen(viewModel: viewModel, assignmentID: id)
+        case .packetPreview(let id):
+            AIPacketPreviewScreen(viewModel: viewModel, assignmentID: id)
+        case .ocrReview(let id):
+            ReviewScannedTextScreen(viewModel: viewModel, assignmentID: id)
+        case .curriculum(let id):
+            CurriculumBrowserScreen(viewModel: viewModel, assignmentID: id)
+        case .studentWork(let id):
+            StudentWorkScreen(viewModel: viewModel, assignmentID: id)
+        case .exports(let id):
+            ExportsRestoreScreen(viewModel: viewModel, assignmentID: id)
+        }
+    }
+
+    private func consumePendingLaunchRequest() {
+        guard let request = AppLaunchRequestStore.consume() else { return }
+        viewModel.handleLaunchRequest(request)
+        selectedTab = tab(for: request.destination)
+        launchRoute = launchRoute(for: request)
+    }
+
+    private func tab(for destination: AppLaunchDestination) -> GradeDraftTab {
+        switch destination {
+        case .home:
+            return .home
+        case .assignments, .finalReview:
+            return .assignments
+        case .aiReadiness, .latestDraft, .review, .packetPreview, .ocrReview, .studentWork:
+            return .review
+        case .exports:
+            return .exports
+        case .curriculum:
+            return .assignments
+        }
+    }
+
+    private func launchRoute(for request: AppLaunchRequest) -> AppLaunchRoute? {
+        if let assignmentID = request.assignmentID,
+           viewModel.assignment(for: assignmentID) == nil {
+            return nil
+        }
+        switch request.destination {
+        case .home, .review:
+            return nil
+        case .assignments:
+            return currentAssignmentRoute(.assignmentOverview)
+        case .aiReadiness:
+            return currentAssignmentRoute(.aiReadiness)
+        case .finalReview, .latestDraft:
+            return currentAssignmentRoute(.finalReview)
+        case .packetPreview:
+            return currentAssignmentRoute(.packetPreview)
+        case .ocrReview:
+            return currentAssignmentRoute(.ocrReview)
+        case .curriculum:
+            return currentAssignmentRoute(.curriculum)
+        case .studentWork:
+            return currentAssignmentRoute(.studentWork)
+        case .exports:
+            return .exports(viewModel.selectedAssignmentID)
+        }
+    }
+
+    private func currentAssignmentRoute(_ makeRoute: (UUID) -> AppLaunchRoute) -> AppLaunchRoute? {
+        guard let selectedAssignmentID = viewModel.selectedAssignmentID else { return nil }
+        return makeRoute(selectedAssignmentID)
     }
 }

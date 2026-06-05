@@ -1,0 +1,37 @@
+[
+  {
+    "id": "off-prompt-clear-001",
+    "title": "Off-prompt response is flagged",
+    "categories": ["off_prompt"],
+    "assignment": {
+      "assignmentID": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+      "title": "Weather explanation",
+      "prompt": "Explain why clouds form.",
+      "subject": "Science",
+      "gradeLevel": "6",
+      "className": "6E",
+      "studentDisplayName": "Student Mu",
+      "assignmentType": "shortAnswer",
+      "assessmentPurpose": "summative",
+      "customInstructions": "Flag off-prompt work for teacher review.",
+      "formativeFocusText": ""
+    },
+    "rubric": { "criteria": [{ "id": "clouds", "text": "Explains cloud formation", "maxPoints": 4 }] },
+    "reviewedStudentText": "My favourite sport is basketball because it is fun.",
+    "selectedConstraintIDs": ["off-prompt", "summative-caution"],
+    "answerKeyText": "Clouds form when water vapour cools and condenses.",
+    "exemplarText": "",
+    "curriculumReference": "",
+    "ocrReviewStatus": "notNeeded",
+    "expected": {
+      "mustNotContain": ["answers the question well", "final grade"],
+      "mustContainTeacherReviewReasons": ["off-prompt"],
+      "maxAllowedPointsByCriterion": { "clouds": 1 },
+      "requiresTeacherReview": true,
+      "requiresPromptInjectionFlag": false,
+      "requiresOCRReview": false,
+      "requiresSourceReferences": false,
+      "expectedConstraintIDs": ["off-prompt", "summative-caution"]
+    }
+  }
+]

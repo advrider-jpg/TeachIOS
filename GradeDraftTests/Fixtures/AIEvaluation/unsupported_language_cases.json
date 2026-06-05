@@ -1,0 +1,37 @@
+[
+  {
+    "id": "unsupported-language-review-001",
+    "title": "Unsupported language stays teacher-review-required",
+    "categories": ["unsupported_language"],
+    "assignment": {
+      "assignmentID": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+      "title": "Language sample",
+      "prompt": "Respond to the reading prompt.",
+      "subject": "Languages",
+      "gradeLevel": "8",
+      "className": "8B",
+      "studentDisplayName": "Student Omicron",
+      "assignmentType": "shortAnswer",
+      "assessmentPurpose": "formative",
+      "customInstructions": "If language support is uncertain, require teacher review.",
+      "formativeFocusText": ""
+    },
+    "rubric": { "criteria": [{ "id": "response", "text": "Responds to the prompt", "maxPoints": 4 }] },
+    "reviewedStudentText": "Je pense que le personnage est courageux.",
+    "selectedConstraintIDs": ["general-evidence-first"],
+    "answerKeyText": "",
+    "exemplarText": "",
+    "curriculumReference": "",
+    "ocrReviewStatus": "notNeeded",
+    "expected": {
+      "mustNotContain": ["confident translation", "final grade"],
+      "mustContainTeacherReviewReasons": [],
+      "maxAllowedPointsByCriterion": { "response": 4 },
+      "requiresTeacherReview": true,
+      "requiresPromptInjectionFlag": false,
+      "requiresOCRReview": false,
+      "requiresSourceReferences": false,
+      "expectedConstraintIDs": ["general-evidence-first"]
+    }
+  }
+]

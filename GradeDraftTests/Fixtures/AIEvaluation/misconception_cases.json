@@ -1,0 +1,37 @@
+[
+  {
+    "id": "misconception-common-001",
+    "title": "Misconception is identified without invented intent",
+    "categories": ["misconception"],
+    "assignment": {
+      "assignmentID": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+      "title": "Moon phases",
+      "prompt": "Explain why the Moon appears to change shape.",
+      "subject": "Science",
+      "gradeLevel": "6",
+      "className": "6F",
+      "studentDisplayName": "Student Nu",
+      "assignmentType": "shortAnswer",
+      "assessmentPurpose": "formative",
+      "customInstructions": "Name misconceptions from the response only.",
+      "formativeFocusText": "Give a corrective next step."
+    },
+    "rubric": { "criteria": [{ "id": "moon-phases", "text": "Explains Moon phases", "maxPoints": 4 }] },
+    "reviewedStudentText": "The Moon changes shape because Earth's shadow covers it every night.",
+    "selectedConstraintIDs": ["misconception", "formative-feedback"],
+    "answerKeyText": "Moon phases are caused by the portion of the lit half of the Moon visible from Earth.",
+    "exemplarText": "",
+    "curriculumReference": "",
+    "ocrReviewStatus": "notNeeded",
+    "expected": {
+      "mustNotContain": ["careless", "did not understand because", "final grade"],
+      "mustContainTeacherReviewReasons": [],
+      "maxAllowedPointsByCriterion": { "moon-phases": 2 },
+      "requiresTeacherReview": false,
+      "requiresPromptInjectionFlag": false,
+      "requiresOCRReview": false,
+      "requiresSourceReferences": false,
+      "expectedConstraintIDs": ["misconception", "formative-feedback"]
+    }
+  }
+]

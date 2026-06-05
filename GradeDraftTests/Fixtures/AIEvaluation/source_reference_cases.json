@@ -1,0 +1,38 @@
+[
+  {
+    "id": "source-reference-required-001",
+    "title": "Source-tagged reviewed text requires matching evidence refs",
+    "categories": ["source_reference"],
+    "assignment": {
+      "assignmentID": "33333333-3333-3333-3333-333333333333",
+      "title": "Evidence paragraph",
+      "prompt": "Identify the strongest evidence in the paragraph.",
+      "subject": "English",
+      "gradeLevel": "6",
+      "className": "6C",
+      "studentDisplayName": "Student Gamma",
+      "assignmentType": "paragraphResponse",
+      "assessmentPurpose": "formative",
+      "customInstructions": "Cite source references when tags are present.",
+      "formativeFocusText": ""
+    },
+    "rubric": { "criteria": [{ "id": "evidence", "text": "Uses relevant evidence", "maxPoints": 4 }] },
+    "reviewedStudentText": "The text says the river flooded after three days of rain.",
+    "reviewedTextWithSourceRefs": "[p1-l1-abc123ef] The text says the river flooded after three days of rain.",
+    "selectedConstraintIDs": ["general-evidence-first"],
+    "answerKeyText": "",
+    "exemplarText": "",
+    "curriculumReference": "",
+    "ocrReviewStatus": "notNeeded",
+    "expected": {
+      "mustNotContain": ["source unknown", "final grade"],
+      "mustContainTeacherReviewReasons": ["sourceReferenceRequired"],
+      "maxAllowedPointsByCriterion": { "evidence": 4 },
+      "requiresTeacherReview": true,
+      "requiresPromptInjectionFlag": false,
+      "requiresOCRReview": false,
+      "requiresSourceReferences": true,
+      "expectedConstraintIDs": ["general-evidence-first"]
+    }
+  }
+]

@@ -9,8 +9,22 @@ protocol CapabilityChecking {
     var localAIStatus: LocalAIStatus { get }
 }
 
+typealias AIGenerationProgressHandler = @MainActor @Sendable (AIGenerationProgress) async -> Void
+
 protocol GradingServicing: Sendable {
-    func draftGrade(input: GradingInput) async throws -> GradeDraftResult
+    func draftGrade(input: GradingInput, progress: AIGenerationProgressHandler?) async throws -> GradeDraftResult
+    func rewriteFeedback(input: FeedbackRewriteInput, progress: AIGenerationProgressHandler?) async throws -> FeedbackRewriteResult
+}
+
+extension GradingServicing {
+    func draftGrade(input: GradingInput) async throws -> GradeDraftResult {
+        try await draftGrade(input: input, progress: nil)
+    }
+
+    func rewriteFeedback(input: FeedbackRewriteInput, progress: AIGenerationProgressHandler? = nil) async throws -> FeedbackRewriteResult {
+        _ = progress
+        throw GradeDraftError.localModelUnavailable("Local feedback rewriting is unavailable. Mark My Work will not send teacher feedback to a cloud model as a fallback.")
+    }
 }
 
 enum LocalOnlyGradingValidator {
@@ -367,8 +381,33 @@ final class UnavailableLocalGradingService: GradingServicing, CapabilityChecking
         .unavailable("Local AI grading is unavailable. Mark My Work will not send this student work to a cloud model as a fallback.")
     }
 
-    func draftGrade(input: GradingInput) async throws -> GradeDraftResult {
+    func draftGrade(input: GradingInput, progress: AIGenerationProgressHandler? = nil) async throws -> GradeDraftResult {
+        await progress?(
+            AIGenerationProgress(
+                stage: .validatingInputs,
+                detail: "Checking local grading inputs.",
+                canCancel: true
+            )
+        )
         try LocalOnlyGradingValidator.validate(input)
+        await progress?(
+            AIGenerationProgress(
+                stage: .checkingAvailability,
+                detail: "Checking local AI availability.",
+                canCancel: true
+            )
+        )
         throw GradeDraftError.localModelUnavailable("Local AI grading is unavailable. Mark My Work will not send this student work to a cloud model as a fallback.")
+    }
+
+    func rewriteFeedback(input: FeedbackRewriteInput, progress: AIGenerationProgressHandler? = nil) async throws -> FeedbackRewriteResult {
+        await progress?(
+            AIGenerationProgress(
+                stage: .rewritingFeedback,
+                detail: "Checking local AI availability for feedback rewriting.",
+                canCancel: true
+            )
+        )
+        throw GradeDraftError.localModelUnavailable("Local feedback rewriting is unavailable. Mark My Work will not send teacher feedback to a cloud model as a fallback.")
     }
 }

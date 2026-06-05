@@ -3,7 +3,7 @@
 Mark My Work is an Apple-native, local-first iOS app scaffold. The architectural rule is that each state boundary remains explicit:
 
 ```text
-source input -> OCR/PDF text extraction -> teacher-reviewed text -> grading packet -> model draft or manual review -> teacher final review -> export/archive/backup
+source input -> OCR/PDF text extraction -> teacher-reviewed text -> grading packet -> prompt redaction -> AI readiness / packet preview -> read-only local lookup tools -> model draft / feedback rewrite / manual review -> teacher final review -> export/archive/backup
 ```
 
 The app must not collapse those layers into one mutable blob.
@@ -13,13 +13,13 @@ The app must not collapse those layers into one mutable blob.
 ```text
 GradeDraftApp.swift
 ContentView.swift           — NavigationSplitView with assignment list and feature sections
-GradeDraftViewModel.swift   — all state transitions; PDF import; OCR review; evidence; roster; curriculum; backup/restore
+GradeDraftViewModel.swift   — all state transitions; PDF import; OCR review; evidence; roster; curriculum; AI readiness/packet preview; feedback rewrite; safe App Intent handoff; backup/restore
 Models/GradeDraftModels.swift
 Services/
   OCRService.swift
   GradingService.swift      — protocols, validators, unavailable-local-grading service
   FoundationModelGradingService.swift
-  PromptBuilder.swift
+  PromptBuilder.swift       — model-visible prompt construction with identity redaction
   GradeTotals.swift
   LocalJSONStore.swift      — compatibility store and MarkdownReportBuilder
   RosterImportService.swift
@@ -33,6 +33,12 @@ Persistence/
   GRDBAssignmentStore.swift
 Rubrics/
   MarkdownRubricParser.swift
+AI/Evaluation/
+  AIEvaluation.swift        — deterministic evaluation fixtures, preflight checks, draft checks, anonymized reports
+AI/Tools/
+  LocalGradingToolSupport.swift — read-only local tool policy, source-labeled snippets, lexical evidence index, call audit
+AI/Batch/
+  AIBatchReadiness.swift    — deterministic batch readiness rows and one-at-a-time local queue policy
 Views/
   DocumentScannerView.swift
   LocalCapabilityBanner.swift
@@ -46,7 +52,8 @@ Resources/
 
 - `OCRServicing` owns local OCR. The default implementation uses Apple Vision.
 - `GradeDraftViewModel.applyPDFFile(_:)` owns local PDF import orchestration using PDFKit, rendered page images, source refs, digital text extraction, and OCR fallback.
-- `GradingServicing` owns local AI draft generation. The default implementation is guarded behind Foundation Models availability.
+- `GradingServicing` owns local AI draft generation and feedback rewrite. The default implementation is guarded behind Foundation Models availability.
+- `LocalGradingToolSession` owns assignment-scoped, read-only, source-labeled lookup helpers for rubric, evidence, OCR/source references, answer keys, exemplars, curriculum references, selected constraints, and packet limits. It enforces per-request call limits, output character limits, no writes, no network, and produces `LocalToolCallAudit` records. `LocalAIGradingToolbox` remains as compatibility wrappers for simple call sites.
 - `CapabilityChecking` exposes local AI availability so the UI only presents capabilities that are actually available.
 - `AssignmentStoring` owns local assignment, class, student, roster, source, OCR, final review, and evidence persistence.
 - `MarkdownReportBuilder` owns local Markdown reports with student/audit separation.
@@ -96,10 +103,28 @@ Mark My Work uses Apple Foundation Models only as a local draft-assistance path.
 The draft path is:
 
 ```text
-teacher-reviewed packet -> local validation -> prompt budget plan -> full/compact/per-criterion typed generation -> app validator -> teacher final review
+teacher-reviewed packet -> prompt redaction -> AI readiness report -> packet preview -> local validation -> read-only local lookup policy -> prompt budget plan -> full/compact/per-criterion typed generation with progress/cancellation -> app validator -> teacher final review
 ```
 
+The deterministic local tool session is source-implemented under `AI/Tools`. It does not claim Foundation Models runtime tool invocation in this environment; direct SDK `Tool` wrappers still require Xcode 26+ API compilation and physical-device validation. Required grading logic remains in app code and validators, never behind model-selected tool calls.
+
+`AIBatchReadinessAnalyzer` provides deterministic batch queue readiness rows. It only reports which assignments are ready, need review, or are blocked; it does not call the model, create drafts, approve grades, or export student-facing reports. Batch queue policy is one assignment at a time with teacher pause/cancel controls.
+
 The prompt budgeter must not silently truncate reviewed student text. When the packet cannot fit safely in the on-device model context, the app either drafts criterion-by-criterion from the full reviewed text and grading materials or fails with an explicit local-too-large message. Manual final review remains available when local AI is unavailable or blocked.
+
+Safe App Intents can hand off into review workflows, AI Readiness, packet preview, OCR review, curriculum, blank assignment-shell creation, pasted student-work save, recommended AI constraints, and local assignment-title search. Shortcuts resolve assignments through a local `AssignmentEntity` that redacts known student/class identity from display titles and does not expose class, roster, student-name, or student-ID properties. They do not perform background grading, final approval, student-facing export, upload, or network work.
+
+The App Intent handoff path stores a pending launch request locally, the app consumes it once, performs only the requested safe local action, and navigates to the concrete screen when an assignment can be resolved. Pasted student-work shortcuts save text through the same reviewed-input mutation path as the paste UI. Manual-review and recommended-constraint shortcuts reuse the existing view-model methods and surface normal in-app errors when gates are not met.
+
+The model-visible packet excludes student display name, student ID, class group ID, class name, roster membership, source filenames, and local source file paths by default. These fields remain in local assignment state where needed for teacher workflow, exports, and audit records, but prompt construction uses the redacted packet view.
+
+`AIReadinessAnalyzer` and `AIPacketPreviewBuilder` are deterministic app-side surfaces. They do not call the model, do not create a draft, and do not make final-review state durable. They expose the real capability status, OCR/rubric/student-text gates, prompt-injection warnings, custom-instruction lint warnings, prompt version, prompt fingerprint, packet fingerprint, and conservative budget plan before generation.
+
+`AIGenerationProgress` is also deterministic app-side state. `GradeDraftViewModel` owns the active draft task, publishes progress stages, and cancels that task before any validated draft is stored. A cancelled generation does not create `latestDraft` or final-review state.
+
+Final-review criterion accept/reject controls are persisted view-model actions. Accepting a criterion clamps the draft suggestion into the teacher-final point range and marks that criterion approved, while still requiring final-grade approval. Rejecting a criterion leaves it unapproved with teacher rationale so export remains blocked until the teacher edits and approves.
+
+The local AI evaluation harness is split between deterministic CI-safe checks and device-only model runs. Deterministic preflight builds real `GradingInput`, runs local validation, prompt budgeting, readiness analysis, identity-redaction checks, and expected constraint checks without attempting a model call. Device-only runs can inject the real Foundation Models service and use the same fixtures to capture validation results and anonymized report metadata.
 
 ## Production-readiness additions — 2026-05-31
 

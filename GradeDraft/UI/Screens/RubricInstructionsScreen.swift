@@ -34,6 +34,7 @@ struct RubricInstructionsScreen: View {
     @State private var showingRubricImporter = false
     @State private var showingCurriculumImporter = false
     @State private var pendingTemplateApplication: PlannedTemplateTarget?
+    @State private var pendingSensitiveTemplate: GradingConstraintTemplate?
     @State private var expandedSections: Set<RubricSection> = [.rubric, .criteria, .importPreview]
 
     private var assignment: AssignmentRecord { viewModel.assignment(for: assignmentID) ?? viewModel.assignment }
@@ -57,6 +58,7 @@ struct RubricInstructionsScreen: View {
                         status: assignment.hasGradingStandard ? .onTrack : .needsAttention
                     ) {
                         setupOverview(proxy: proxy)
+                        aiReadinessSetupCard
                         if !assignment.hasGradingStandard {
                             RubricStationeryCard(title: "Needs Attention", tapeLabel: "Fix first", status: .needsAttention, showsPaperclip: true) {
                                 WarningBanner(
@@ -96,6 +98,9 @@ struct RubricInstructionsScreen: View {
             } message: {
                 Text("Choose how Mark My Work should insert this template. Teacher-entered content is not deleted unless you choose Replace.")
             }
+            .sheet(item: $pendingSensitiveTemplate) { template in
+                sensitiveTemplateConfirmationSheet(template)
+            }
             .fileImporter(isPresented: $showingRubricImporter, allowedContentTypes: [.plainText, .item]) { result in
                 switch result {
                 case .success(let url):
@@ -115,6 +120,141 @@ struct RubricInstructionsScreen: View {
                     viewModel.errorMessage = error.localizedDescription
                 }
             }
+        }
+    }
+
+    private var aiReadinessSetupCard: some View {
+        RubricStationeryCard(
+            title: "AI Draft Readiness",
+            tapeLabel: "Local AI",
+            annotation: "Readiness is calculated from the same local packet used by final review.",
+            status: aiReadinessStatus
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                if let report = currentAIReadinessReport {
+                    Label(report.localAIStatusSummary, systemImage: aiReadinessIcon(for: report.canGenerate ? .ready : .needsReview))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(aiReadinessColor(for: report.canGenerate ? .ready : .needsReview))
+                    Text(report.recommendedNextAction)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(report.checks) { check in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: aiReadinessIcon(for: check.status))
+                                .foregroundStyle(aiReadinessColor(for: check.status))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(check.title)
+                                    .font(.caption.weight(.semibold))
+                                Text(check.detail)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    if !report.promptInjectionRisks.isEmpty {
+                        WarningBanner(
+                            title: "Prompt text needs teacher review",
+                            message: "Flagged packet fields: \(report.promptInjectionRisks.joined(separator: ", ")).",
+                            status: .needsAttention
+                        )
+                    }
+                } else {
+                    Text("Refresh readiness to inspect the current local AI packet before drafting.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if sensitiveAIConstraintsSelected {
+                    WarningBanner(
+                        title: "Sensitive template selected",
+                        message: "Sensitive constraints stay teacher-selected only. Verify the needed context exists in teacher-provided materials.",
+                        status: .teacherOnly
+                    )
+                }
+
+                if let preview = currentAIPacketPreview {
+                    DisclosureGroup("Packet Preview") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            LabeledContent("Prompt version", value: preview.promptVersion)
+                            LabeledContent("Prompt fingerprint", value: preview.promptFingerprint)
+                            LabeledContent("Packet fingerprint", value: preview.packetFingerprint)
+                            ForEach(preview.notSentToModel, id: \.self) { item in
+                                Label(item, systemImage: "eye.slash")
+                                    .font(.caption)
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    viewModel.selectAssignment(assignmentID)
+                    viewModel.buildAIPacketPreview()
+                } label: {
+                    Label("Refresh Packet Readiness", systemImage: "arrow.clockwise")
+                        .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                }
+                .buttonStyle(.bordered)
+
+                NavigationLink {
+                    AIPacketPreviewScreen(viewModel: viewModel, assignmentID: assignmentID)
+                } label: {
+                    Label("Open Packet Preview", systemImage: "doc.text.magnifyingglass")
+                        .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                }
+                .buttonStyle(.bordered)
+
+                NavigationLink {
+                    AIReadinessScreen(viewModel: viewModel, assignmentID: assignmentID)
+                } label: {
+                    Label("Open AI Readiness Center", systemImage: "checkmark.shield")
+                        .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+    }
+
+    private var currentAIReadinessReport: AIReadinessReport? {
+        guard viewModel.aiReadinessReport?.assignmentID == assignment.id else { return nil }
+        return viewModel.aiReadinessReport
+    }
+
+    private var currentAIPacketPreview: AIPacketPreview? {
+        guard viewModel.aiPacketPreview?.assignmentID == assignment.id else { return nil }
+        return viewModel.aiPacketPreview
+    }
+
+    private var aiReadinessStatus: GradeDraftUIStatus {
+        guard let report = currentAIReadinessReport else { return .notStarted }
+        return report.canGenerate ? .onTrack : .needsAttention
+    }
+
+    private var sensitiveAIConstraintsSelected: Bool {
+        GradingConstraintTemplates.templates(for: assignment.selectedInstructionTemplateIDs)
+            .contains(where: \.sensitiveContextRequired)
+    }
+
+    private func aiReadinessIcon(for status: AIReadinessStatus) -> String {
+        switch status {
+        case .ready:
+            return "checkmark.circle"
+        case .needsReview:
+            return "exclamationmark.circle"
+        case .blocked, .unavailable:
+            return "xmark.octagon"
+        case .info:
+            return "info.circle"
+        }
+    }
+
+    private func aiReadinessColor(for status: AIReadinessStatus) -> Color {
+        switch status {
+        case .ready:
+            return .green
+        case .needsReview, .info:
+            return .orange
+        case .blocked, .unavailable:
+            return .red
         }
     }
 
@@ -459,9 +599,8 @@ struct RubricInstructionsScreen: View {
                     RubricFieldRow(title: template.title) {
                         Toggle(isOn: Binding(
                             get: { assignment.selectedInstructionTemplateIDs.contains(template.id) },
-                            set: { _ in
-                                viewModel.selectAssignment(assignmentID)
-                                viewModel.toggleAIConstraintTemplate(template.id)
+                            set: { isSelected in
+                                handleAIConstraintToggle(template, isSelected: isSelected)
                             }
                         )) {
                             VStack(alignment: .leading, spacing: 4) {
@@ -487,6 +626,64 @@ struct RubricInstructionsScreen: View {
         }
         let count = assignment.selectedInstructionTemplateIDs.count
         return count == 0 ? "No constraints selected" : "\(count) constraint\(count == 1 ? "" : "s") selected"
+    }
+
+    private func handleAIConstraintToggle(_ template: GradingConstraintTemplate, isSelected: Bool) {
+        viewModel.selectAssignment(assignmentID)
+        let currentlySelected = assignment.selectedInstructionTemplateIDs.contains(template.id)
+        if isSelected {
+            guard !currentlySelected else { return }
+            if template.sensitiveContextRequired {
+                pendingSensitiveTemplate = template
+            } else {
+                viewModel.toggleAIConstraintTemplate(template.id)
+            }
+        } else if currentlySelected {
+            viewModel.toggleAIConstraintTemplate(template.id)
+        }
+    }
+
+    private func confirmSensitiveTemplate(_ template: GradingConstraintTemplate) {
+        viewModel.selectAssignment(assignmentID)
+        if !assignment.selectedInstructionTemplateIDs.contains(template.id) {
+            viewModel.toggleAIConstraintTemplate(template.id)
+        }
+        pendingSensitiveTemplate = nil
+    }
+
+    private func sensitiveTemplateConfirmationSheet(_ template: GradingConstraintTemplate) -> some View {
+        NavigationStack {
+            Form {
+                Section("Teacher-Provided Context Required") {
+                    Text("Use sensitive context only when it was provided by the teacher or school record and is relevant to the grading task.")
+                    Text("The local model must not infer disability, language background, support needs, or protected characteristics from the student work.")
+                    Text("This template guides how feedback is phrased; it does not lower or raise marks unless the rubric or teacher instructions explicitly require an adjustment.")
+                }
+
+                Section("Template") {
+                    Text(template.title)
+                        .font(.headline)
+                    Text(template.text)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Sensitive Context")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        pendingSensitiveTemplate = nil
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Confirm teacher-provided context") {
+                        confirmSensitiveTemplate(template)
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 
     private var curriculumSection: some View {

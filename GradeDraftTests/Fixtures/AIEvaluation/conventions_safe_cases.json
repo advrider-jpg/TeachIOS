@@ -1,0 +1,37 @@
+[
+  {
+    "id": "conventions-safe-content-first-001",
+    "title": "Conventions do not lower score unless rubric asks",
+    "categories": ["conventions_safe"],
+    "assignment": {
+      "assignmentID": "99999999-9999-9999-9999-999999999999",
+      "title": "Idea response",
+      "prompt": "State one reason recycling helps.",
+      "subject": "English",
+      "gradeLevel": "4",
+      "className": "4A",
+      "studentDisplayName": "Student Iota",
+      "assignmentType": "shortAnswer",
+      "assessmentPurpose": "formative",
+      "customInstructions": "Do not penalize spelling unless the rubric says to.",
+      "formativeFocusText": ""
+    },
+    "rubric": { "criteria": [{ "id": "idea", "text": "States a relevant reason", "maxPoints": 3 }] },
+    "reviewedStudentText": "Recykling helps becos less rubish goes to the tip.",
+    "selectedConstraintIDs": ["do-not-penalize-conventions"],
+    "answerKeyText": "Relevant reasons include reducing rubbish or conserving resources.",
+    "exemplarText": "",
+    "curriculumReference": "",
+    "ocrReviewStatus": "notNeeded",
+    "expected": {
+      "mustNotContain": ["lower because spelling", "final grade"],
+      "mustContainTeacherReviewReasons": [],
+      "maxAllowedPointsByCriterion": { "idea": 3 },
+      "requiresTeacherReview": false,
+      "requiresPromptInjectionFlag": false,
+      "requiresOCRReview": false,
+      "requiresSourceReferences": false,
+      "expectedConstraintIDs": ["do-not-penalize-conventions"]
+    }
+  }
+]

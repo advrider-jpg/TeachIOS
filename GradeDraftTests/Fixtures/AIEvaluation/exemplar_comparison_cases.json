@@ -1,0 +1,37 @@
+[
+  {
+    "id": "exemplar-comparison-partial-001",
+    "title": "Exemplar comparison stays evidence-bound",
+    "categories": ["exemplar_comparison"],
+    "assignment": {
+      "assignmentID": "66666666-6666-6666-6666-666666666666",
+      "title": "Persuasive paragraph",
+      "prompt": "Write a persuasive paragraph with one reason.",
+      "subject": "English",
+      "gradeLevel": "7",
+      "className": "7B",
+      "studentDisplayName": "Student Zeta",
+      "assignmentType": "paragraphResponse",
+      "assessmentPurpose": "formative",
+      "customInstructions": "Compare only to the provided exemplar.",
+      "formativeFocusText": "Name one strength and one next step."
+    },
+    "rubric": { "criteria": [{ "id": "reasoning", "text": "Clear reason and explanation", "maxPoints": 4 }] },
+    "reviewedStudentText": "School gardens are good because students can learn outside.",
+    "selectedConstraintIDs": ["exemplar-comparison", "formative-feedback"],
+    "answerKeyText": "",
+    "exemplarText": "A strong response states a claim, explains a reason, and connects it to the audience.",
+    "curriculumReference": "",
+    "ocrReviewStatus": "notNeeded",
+    "expected": {
+      "mustNotContain": ["matches the exemplar exactly", "final grade"],
+      "mustContainTeacherReviewReasons": [],
+      "maxAllowedPointsByCriterion": { "reasoning": 3 },
+      "requiresTeacherReview": false,
+      "requiresPromptInjectionFlag": false,
+      "requiresOCRReview": false,
+      "requiresSourceReferences": false,
+      "expectedConstraintIDs": ["exemplar-comparison", "formative-feedback"]
+    }
+  }
+]

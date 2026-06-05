@@ -4,8 +4,10 @@ struct FinalReviewScreen: View {
     @ObservedObject var viewModel: GradeDraftViewModel
     var assignmentID: UUID
     @State private var gradingTarget: GradingTarget?
+    @State private var sourceReviewTarget: SourceReviewTarget?
 
     private struct GradingTarget: Identifiable { let id: UUID }
+    private struct SourceReviewTarget: Identifiable { let id: UUID }
 
     var body: some View {
         Form {
@@ -41,15 +43,43 @@ struct FinalReviewScreen: View {
                 Section {
                     FinalReviewPaperCard(status: .reviewFinalGrade, tape: "review actions") {
                         VStack(alignment: .leading, spacing: 12) {
+                            if let report = aiReadinessReport(for: assignment) {
+                                AIReadinessSummaryView(report: report)
+                            }
+
+                            SecondaryActionButton(
+                                title: "Prepare Packet Preview",
+                                systemImage: "doc.text.magnifyingglass",
+                                action: {
+                                    viewModel.selectAssignment(assignmentID)
+                                    viewModel.buildAIPacketPreview()
+                                },
+                                disabled: viewModel.isWorking
+                            )
+
+                            if let preview = aiPacketPreview(for: assignment) {
+                                AIPacketPreviewSummaryView(preview: preview)
+                            }
+
                             PrimaryActionButton(
-                                title: viewModel.isWorking ? "Drafting" : "Draft Feedback Suggestion",
+                                title: viewModel.isWorking ? "Drafting Locally" : "Draft Feedback Suggestion Locally",
                                 systemImage: "sparkles",
                                 action: {
                                     viewModel.selectAssignment(assignmentID)
-                                    Task { await viewModel.draftGrade() }
+                                    viewModel.confirmAndDraftGrade()
                                 },
                                 disabled: !canDraftGrade(for: assignment)
                             )
+
+                            if viewModel.aiGenerationProgress.stage != .idle {
+                                AIGenerationProgressView(
+                                    progress: viewModel.aiGenerationProgress,
+                                    canCancel: viewModel.canCancelDraftGeneration,
+                                    onCancel: {
+                                        viewModel.cancelDraftGeneration()
+                                    }
+                                )
+                            }
 
                             ForEach(draftReadinessIssues(for: assignment), id: \.self) { issue in
                                 FinalReviewNoteRow(issue)
@@ -153,6 +183,23 @@ struct FinalReviewScreen: View {
                                 onClearEvidence: { criterionID in
                                     viewModel.selectAssignment(assignmentID)
                                     viewModel.clearEvidenceFromFinalReview(criterionID: criterionID)
+                                },
+                                onAcceptCriterionSuggestion: { criterionID in
+                                    viewModel.selectAssignment(assignmentID)
+                                    viewModel.acceptFinalReviewCriterion(id: criterionID)
+                                },
+                                onRejectCriterionSuggestion: { criterionID in
+                                    viewModel.selectAssignment(assignmentID)
+                                    viewModel.rejectFinalReviewCriterion(id: criterionID)
+                                },
+                                onReviewEvidenceSources: {
+                                    sourceReviewTarget = SourceReviewTarget(id: assignmentID)
+                                },
+                                onRewriteFeedback: { mode in
+                                    viewModel.selectAssignment(assignmentID)
+                                    Task {
+                                        await viewModel.rewriteFinalReviewFeedback(mode: mode)
+                                    }
                                 }
                             )
                             .id(finalReview.id)
@@ -187,31 +234,16 @@ struct FinalReviewScreen: View {
                                     }
                                 }
                                 ForEach(result.criteria) { criterion in
-                                    DisclosureGroup {
-                                        Text(criterion.explanation.isEmpty ? "No explanation provided." : criterion.explanation)
-                                            .font(.subheadline)
-                                        LabeledContent("Suggested Points", value: "\(GradeTotals.formatted(criterion.proposedPoints)) / \(GradeTotals.formatted(criterion.maxPoints))")
-                                        if criterion.teacherReviewRequired {
-                                            Label("Teacher review required for this criterion.", systemImage: "exclamationmark.triangle")
-                                                .font(.subheadline)
-                                                .foregroundStyle(.orange)
+                                    DraftCriterionReviewCard(
+                                        criterion: criterion,
+                                        onReviewSourceText: {
+                                            sourceReviewTarget = SourceReviewTarget(id: assignmentID)
+                                        },
+                                        onStartFinalReview: {
+                                            viewModel.selectAssignment(assignmentID)
+                                            viewModel.startFinalReviewFromLatestDraft()
                                         }
-                                        if !criterion.evidence.isEmpty {
-                                            ForEach(criterion.evidence, id: \.self) { evidence in
-                                                Text("\u{201C}\(evidence)\u{201D}")
-                                                    .font(.caption)
-                                                    .textSelection(.enabled)
-                                            }
-                                        }
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(criterion.criterion)
-                                                .font(.headline)
-                                            Text(criterion.rating.isEmpty ? "No rating selected" : criterion.rating)
-                                                .font(.subheadline)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
+                                    )
                                 }
                                 Text(result.studentFeedback.isEmpty ? "No feedback suggested." : result.studentFeedback)
                                     .textSelection(.enabled)
@@ -322,6 +354,9 @@ struct FinalReviewScreen: View {
         .navigationDestination(item: $gradingTarget) { target in
             FinalReviewScreen(viewModel: viewModel, assignmentID: target.id)
         }
+        .navigationDestination(item: $sourceReviewTarget) { target in
+            ReviewScannedTextScreen(viewModel: viewModel, assignmentID: target.id)
+        }
         .onAppear { viewModel.selectAssignment(assignmentID) }
     }
 
@@ -418,6 +453,16 @@ struct FinalReviewScreen: View {
             return "\(GradeTotals.formatted(draft.totalScore)) / \(GradeTotals.formatted(draft.maxScore)) suggested"
         }
         return "Not scored"
+    }
+
+    private func aiReadinessReport(for assignment: AssignmentRecord) -> AIReadinessReport? {
+        guard viewModel.aiReadinessReport?.assignmentID == assignment.id else { return nil }
+        return viewModel.aiReadinessReport
+    }
+
+    private func aiPacketPreview(for assignment: AssignmentRecord) -> AIPacketPreview? {
+        guard viewModel.aiPacketPreview?.assignmentID == assignment.id else { return nil }
+        return viewModel.aiPacketPreview
     }
 }
 
@@ -556,6 +601,298 @@ private struct FinalReviewNoteRow: View {
             .font(.system(.subheadline, design: .serif).italic())
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct AIReadinessSummaryView: View {
+    var report: AIReadinessReport
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(report.canGenerate ? "AI ready" : "AI not ready", systemImage: report.canGenerate ? "checkmark.shield" : "exclamationmark.triangle")
+                .font(.system(.headline, design: .serif))
+                .foregroundStyle(report.canGenerate ? .green : .orange)
+            Text(report.recommendedNextAction)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(report.checks) { check in
+                Label(check.detail, systemImage: iconName(for: check.status))
+                    .font(.caption)
+                    .foregroundStyle(color(for: check.status))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func iconName(for status: AIReadinessStatus) -> String {
+        switch status {
+        case .ready:
+            return "checkmark.circle"
+        case .needsReview:
+            return "exclamationmark.circle"
+        case .blocked, .unavailable:
+            return "xmark.octagon"
+        case .info:
+            return "info.circle"
+        }
+    }
+
+    private func color(for status: AIReadinessStatus) -> Color {
+        switch status {
+        case .ready:
+            return .green
+        case .needsReview, .info:
+            return .orange
+        case .blocked, .unavailable:
+            return .red
+        }
+    }
+}
+
+private struct AIPacketPreviewSummaryView: View {
+    var preview: AIPacketPreview
+
+    var body: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 10) {
+                packetList(title: "Included in local draft", items: preview.includedInLocalDraft, icon: "checkmark.circle")
+                packetList(title: "Not sent to model", items: preview.notSentToModel, icon: "eye.slash")
+                packetList(title: "Generation plan", items: preview.generationPlan, icon: "slider.horizontal.3")
+                DisclosureGroup("Technical packet") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        LabeledContent("Prompt version", value: preview.promptVersion)
+                        LabeledContent("Prompt fingerprint", value: preview.promptFingerprint)
+                        LabeledContent("Packet fingerprint", value: preview.packetFingerprint)
+                        ForEach(preview.modelVisibleMetadata, id: \.self) { item in
+                            Label(item, systemImage: "number")
+                                .font(.caption)
+                        }
+                        Text(preview.technicalPromptPreview)
+                            .font(.caption.monospaced())
+                            .lineLimit(16)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+        } label: {
+            Label("Local AI Packet Preview", systemImage: "doc.text")
+                .font(.system(.headline, design: .serif))
+        }
+    }
+
+    private func packetList(title: String, items: [String], icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            ForEach(items, id: \.self) { item in
+                Label(item, systemImage: icon)
+                    .font(.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+private struct AIGenerationProgressView: View {
+    var progress: AIGenerationProgress
+    var canCancel: Bool
+    var onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(progressTitle, systemImage: iconName)
+                .font(.system(.subheadline, design: .serif).weight(.semibold))
+                .foregroundStyle(color)
+            Text(progress.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let fraction = progress.fractionCompleted {
+                ProgressView(value: fraction)
+            } else if progress.canCancel {
+                ProgressView()
+            }
+            if canCancel {
+                Button(role: .cancel, action: onCancel) {
+                    Label("Cancel Local Draft", systemImage: "xmark.circle")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(10)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(color.opacity(0.20), lineWidth: 1)
+        )
+    }
+
+    private var progressTitle: String {
+        switch progress.stage {
+        case .idle:
+            return "Local draft"
+        case .validatingInputs:
+            return "Checking inputs"
+        case .checkingAvailability:
+            return "Checking local AI"
+        case .planningPacket:
+            return "Planning packet"
+        case .requestingModel:
+            return "Drafting locally"
+        case .generatingCriteria:
+            return "Drafting criteria"
+        case .synthesizingSummary:
+            return "Synthesizing summary"
+        case .rewritingFeedback:
+            return "Rewriting feedback"
+        case .validatingDraft:
+            return "Validating draft"
+        case .storingDraft:
+            return "Saving draft"
+        case .cancellationRequested:
+            return "Cancelling"
+        case .cancelled:
+            return "Cancelled"
+        case .failed:
+            return "Draft failed"
+        case .completed:
+            return "Draft saved"
+        }
+    }
+
+    private var iconName: String {
+        switch progress.stage {
+        case .failed:
+            return "exclamationmark.triangle"
+        case .cancelled, .cancellationRequested:
+            return "xmark.circle"
+        case .completed:
+            return "checkmark.circle"
+        default:
+            return "sparkles"
+        }
+    }
+
+    private var color: Color {
+        switch progress.stage {
+        case .failed:
+            return .red
+        case .cancelled, .cancellationRequested:
+            return .orange
+        case .completed:
+            return .green
+        default:
+            return .blue
+        }
+    }
+}
+
+private struct DraftCriterionReviewCard: View {
+    var criterion: CriterionScore
+    var onReviewSourceText: () -> Void
+    var onStartFinalReview: () -> Void
+
+    var body: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 10) {
+                LabeledContent("Suggested points", value: "\(GradeTotals.formatted(criterion.proposedPoints)) / \(GradeTotals.formatted(criterion.maxPoints))")
+                LabeledContent("Confidence", value: criterion.confidence.nilIfBlank ?? "Not provided")
+
+                if criterion.teacherReviewRequired {
+                    Label("Teacher review required for this criterion.", systemImage: "person.crop.circle.badge.exclamationmark")
+                        .font(.subheadline)
+                        .foregroundStyle(.orange)
+                }
+
+                if !criterion.criterionUncertaintyFlags.isEmpty {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Review reasons")
+                            .font(.caption.weight(.semibold))
+                        ForEach(criterion.criterionUncertaintyFlags, id: \.self) { reason in
+                            Label(reason, systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+
+                Text(criterion.explanation.isEmpty ? "No explanation provided." : criterion.explanation)
+                    .font(.subheadline)
+                    .textSelection(.enabled)
+
+                if !criterion.nextStep.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    LabeledContent("Suggested next step", value: criterion.nextStep)
+                }
+
+                evidenceSection
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Button {
+                        onReviewSourceText()
+                    } label: {
+                        Label("Show in Reviewed Text", systemImage: "text.viewfinder")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button {
+                        onStartFinalReview()
+                    } label: {
+                        Label("Accept, Edit, or Reject", systemImage: "checklist")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(criterion.criterion)
+                    .font(.headline)
+                Text(criterion.rating.isEmpty ? "No rating selected" : criterion.rating)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    private var evidenceSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Evidence used")
+                .font(.caption.weight(.semibold))
+            if criterion.evidence.isEmpty {
+                Text(GradeDraftValidator.missingEvidenceMarker)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(criterion.evidence.enumerated()), id: \.offset) { index, evidence in
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("\u{201C}\(evidence)\u{201D}")
+                            .font(.caption)
+                            .textSelection(.enabled)
+                        if index < criterion.evidenceSourceRefs.count {
+                            Text(criterion.evidenceSourceRefs[index])
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        } else if !criterion.evidenceSourceRefs.isEmpty {
+                            Text("No direct source reference matched this quote.")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var accessibilitySummary: String {
+        let confidence = criterion.confidence.nilIfBlank ?? "confidence not provided"
+        let review = criterion.teacherReviewRequired ? "teacher review required" : "teacher review still required before approval"
+        return "\(criterion.criterion), suggested score \(GradeTotals.formatted(criterion.proposedPoints)) out of \(GradeTotals.formatted(criterion.maxPoints)), \(confidence), \(review)."
     }
 }
 
