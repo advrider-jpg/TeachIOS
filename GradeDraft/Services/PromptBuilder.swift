@@ -125,7 +125,7 @@ enum PromptBuilder {
         let modelInput = GradingPacketBuilder.modelVisibleInput(from: input)
         let rubricText = modelInput.rubricText.trimmingCharacters(in: .whitespacesAndNewlines)
         let includeRawRubric = mode == .full || modelInput.parsedRubric.criteria.isEmpty
-        let rawRubric = includeRawRubric ? rubricText.nonEmptyOr("Not supplied.") : "Structured criteria above are the active rubric source for compact mode."
+        let rawRubric = includeRawRubric ? rubricText.promptNonEmptyOr("Not supplied.") : "Structured criteria above are the active rubric source for compact mode."
 
         return """
         Draft evidence-linked rubric suggestions for this assignment.
@@ -141,17 +141,17 @@ enum PromptBuilder {
 
         Custom teacher instructions:
         -- BEGIN CUSTOM INSTRUCTIONS --
-        \(modelInput.customInstructions.nonEmptyOr("None."))
+        \(modelInput.customInstructions.promptNonEmptyOr("None."))
         -- END CUSTOM INSTRUCTIONS --
 
         Formative focus:
         -- BEGIN FORMATIVE FOCUS --
-        \(modelInput.formativeFocusText.nonEmptyOr("None."))
+        \(modelInput.formativeFocusText.promptNonEmptyOr("None."))
         -- END FORMATIVE FOCUS --
 
         Curriculum/reference material:
         -- BEGIN CURRICULUM REFERENCE --
-        \(modelInput.curriculumReference.nonEmptyOr("None."))
+        \(modelInput.curriculumReference.promptNonEmptyOr("None."))
         -- END CURRICULUM REFERENCE --
 
         Structured rubric criteria:
@@ -164,12 +164,12 @@ enum PromptBuilder {
 
         Answer key:
         -- BEGIN ANSWER KEY --
-        \(modelInput.answerKeyText.nonEmptyOr("None."))
+        \(modelInput.answerKeyText.promptNonEmptyOr("None."))
         -- END ANSWER KEY --
 
         Exemplar response:
         -- BEGIN EXEMPLAR --
-        \(modelInput.exemplarText.nonEmptyOr("None."))
+        \(modelInput.exemplarText.promptNonEmptyOr("None."))
         -- END EXEMPLAR --
 
         Reviewed student text with source references:
@@ -195,17 +195,17 @@ enum PromptBuilder {
 
         Custom teacher instructions:
         -- BEGIN CUSTOM INSTRUCTIONS --
-        \(modelInput.customInstructions.nonEmptyOr("None."))
+        \(modelInput.customInstructions.promptNonEmptyOr("None."))
         -- END CUSTOM INSTRUCTIONS --
 
         Formative focus:
         -- BEGIN FORMATIVE FOCUS --
-        \(modelInput.formativeFocusText.nonEmptyOr("None."))
+        \(modelInput.formativeFocusText.promptNonEmptyOr("None."))
         -- END FORMATIVE FOCUS --
 
         Curriculum/reference material:
         -- BEGIN CURRICULUM REFERENCE --
-        \(modelInput.curriculumReference.nonEmptyOr("None."))
+        \(modelInput.curriculumReference.promptNonEmptyOr("None."))
         -- END CURRICULUM REFERENCE --
 
         Criterion to score:
@@ -217,12 +217,12 @@ enum PromptBuilder {
 
         Answer key:
         -- BEGIN ANSWER KEY --
-        \(modelInput.answerKeyText.nonEmptyOr("None."))
+        \(modelInput.answerKeyText.promptNonEmptyOr("None."))
         -- END ANSWER KEY --
 
         Exemplar response:
         -- BEGIN EXEMPLAR --
-        \(modelInput.exemplarText.nonEmptyOr("None."))
+        \(modelInput.exemplarText.promptNonEmptyOr("None."))
         -- END EXEMPLAR --
 
         Reviewed student text with source references:
@@ -309,11 +309,11 @@ enum PromptBuilder {
         return """
         - Assignment ID: \(input.assignmentID.uuidString)
         - Title: \(input.assignmentTitle)
-        - Prompt: \(input.prompt.nonEmptyOr("Not supplied."))
+        - Prompt: \(input.prompt.promptNonEmptyOr("Not supplied."))
         - Student identity: \(redactedIdentityLabel)
         - Class/roster identity: \(redactedIdentityLabel)
-        - Subject: \(input.subject.nonEmptyOr("Not specified."))
-        - Grade level: \(input.gradeLevel.nonEmptyOr("Not specified."))
+        - Subject: \(input.subject.promptNonEmptyOr("Not specified."))
+        - Grade level: \(input.gradeLevel.promptNonEmptyOr("Not specified."))
         - Assignment type: \(input.assignmentType.displayName)
         - Assessment purpose: \(input.assessmentPurpose.rawValue)
         - Source input count: \(input.sourceInputCount)
@@ -418,7 +418,7 @@ extension PromptBuilder {
 #endif
 
 private extension String {
-    func nonEmptyOr(_ fallback: String) -> String {
+    func promptNonEmptyOr(_ fallback: String) -> String {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? fallback : self
     }
