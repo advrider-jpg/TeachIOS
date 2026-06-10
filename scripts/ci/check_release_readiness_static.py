@@ -78,10 +78,27 @@ if privacy_path.exists():
         fail("Privacy manifest must explicitly set NSPrivacyTracking to false unless tracking is legally reviewed.")
     if privacy.get("NSPrivacyTrackingDomains") not in ([], None):
         fail("Privacy manifest contains tracking domains; GradeDraft should not track users.")
-    if not isinstance(privacy.get("NSPrivacyCollectedDataTypes", []), list):
+    collected_data_types = privacy.get("NSPrivacyCollectedDataTypes", [])
+    if not isinstance(collected_data_types, list):
         fail("NSPrivacyCollectedDataTypes must be an array.")
-    if not isinstance(privacy.get("NSPrivacyAccessedAPITypes", []), list):
+    elif collected_data_types:
+        fail("NSPrivacyCollectedDataTypes must remain empty for the current local-only/Data Not Collected privacy posture.")
+    accessed_api_types = privacy.get("NSPrivacyAccessedAPITypes", [])
+    if not isinstance(accessed_api_types, list):
         fail("NSPrivacyAccessedAPITypes must be an array.")
+        accessed_api_types = []
+    reasons_by_type = {
+        entry.get("NSPrivacyAccessedAPIType"): set(entry.get("NSPrivacyAccessedAPITypeReasons", []))
+        for entry in accessed_api_types
+        if isinstance(entry, dict)
+    }
+    required_reasons = {
+        "NSPrivacyAccessedAPICategoryUserDefaults": "CA92.1",
+        "NSPrivacyAccessedAPICategoryFileTimestamp": "C617.1",
+    }
+    for api_type, reason in required_reasons.items():
+        if reason not in reasons_by_type.get(api_type, set()):
+            fail(f"Privacy manifest missing required reason {reason} for {api_type}.")
 
 # 6. Asset catalog and project wiring.
 pbxproj = ROOT / "GradeDraft.xcodeproj/project.pbxproj"
@@ -97,7 +114,8 @@ if pbxproj.exists():
         if app_target_match and "SnapshotTesting" in app_target_match.group(1):
             fail("SnapshotTesting must not be linked into the app target.")
 
-icon = ROOT / "GradeDraft/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png"
+icon_set = ROOT / "GradeDraft/Resources/Assets.xcassets/AppIcon.appiconset"
+icon = icon_set / "AppIcon-1024.png"
 if icon.exists():
     data = icon.read_bytes()
     if not data.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -106,6 +124,46 @@ if icon.exists():
         width, height = struct.unpack(">II", data[16:24])
         if (width, height) != (1024, 1024):
             fail(f"AppIcon-1024.png must be 1024x1024, got {(width, height)}.")
+
+contents_path = icon_set / "Contents.json"
+if contents_path.exists():
+    icon_contents = json.loads(contents_path.read_text(encoding="utf-8"))
+    image_entries = icon_contents.get("images", [])
+    required_icon_slots = {
+        ("iphone", "20x20", "2x"), ("iphone", "20x20", "3x"),
+        ("iphone", "29x29", "2x"), ("iphone", "29x29", "3x"),
+        ("iphone", "40x40", "2x"), ("iphone", "40x40", "3x"),
+        ("iphone", "60x60", "2x"), ("iphone", "60x60", "3x"),
+        ("ipad", "20x20", "1x"), ("ipad", "20x20", "2x"),
+        ("ipad", "29x29", "1x"), ("ipad", "29x29", "2x"),
+        ("ipad", "40x40", "1x"), ("ipad", "40x40", "2x"),
+        ("ipad", "76x76", "1x"), ("ipad", "76x76", "2x"),
+        ("ipad", "83.5x83.5", "2x"),
+        ("ios-marketing", "1024x1024", "1x"),
+    }
+    actual_icon_slots = {(entry.get("idiom"), entry.get("size"), entry.get("scale")) for entry in image_entries}
+    for slot in sorted(required_icon_slots - actual_icon_slots):
+        fail(f"App icon catalog missing required slot {slot}.")
+    for entry in image_entries:
+        filename = entry.get("filename")
+        if not filename:
+            fail(f"App icon slot lacks filename: {entry}")
+            continue
+        image_path = icon_set / filename
+        if not image_path.exists():
+            fail(f"App icon file missing: {filename}")
+            continue
+        data = image_path.read_bytes()
+        if len(data) > 24 and data.startswith(b"\x89PNG\r\n\x1a\n"):
+            width, height = struct.unpack(">II", data[16:24])
+            size = entry.get("size", "0x0").split("x", 1)[0]
+            scale = entry.get("scale", "1x").removesuffix("x")
+            try:
+                expected_pixels = int(float(size) * int(scale))
+            except ValueError:
+                expected_pixels = None
+            if expected_pixels and (width, height) != (expected_pixels, expected_pixels):
+                fail(f"{filename} has dimensions {(width, height)} but icon slot {entry} requires {expected_pixels}x{expected_pixels}.")
 
 # 7. Dependency docs include every current Swift package.
 package_names = ["GRDB.swift", "swift-markdown", "TPPDF", "ZIPFoundation", "swift-snapshot-testing"]
@@ -119,7 +177,20 @@ for rel in ["docs/DEPENDENCIES.md", "docs/OSS_REVIEW.md"]:
         if package.lower() not in text:
             fail(f"{rel} does not mention {package}.")
 
-# 8. Network/analytics hard stop in app source.
+# 8. Sensitive handoff and clipboard hardening.
+app_routing = ROOT / "GradeDraft/AppRouting.swift"
+app_intents = ROOT / "GradeDraft/AppIntents/GradeDraftAppIntents.swift"
+for rel_path in [app_routing, app_intents]:
+    if rel_path.exists() and "payloadText" in read(rel_path):
+        fail(f"{rel_path.relative_to(ROOT)} must not define or persist Shortcut student-work payloadText.")
+if app_intents.exists() and "AppLaunchSensitivePayloadStore.saveText" not in read(app_intents):
+    fail("AddPastedStudentWorkIntent must use file-backed sensitive payload handoff.")
+for path in (ROOT / "GradeDraft").rglob("*.swift"):
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    if "UIPasteboard.general.string" in text:
+        fail(f"Use expiring local-only pasteboard items instead of UIPasteboard.general.string in {path.relative_to(ROOT)}")
+
+# 9. Network/analytics hard stop in app source.
 for path in (ROOT / "GradeDraft").rglob("*.swift"):
     text = path.read_text(encoding="utf-8", errors="ignore")
     for token in ["URLSession", "Firebase", "Amplitude", "Mixpanel", "Sentry", "RevenueCat", "Telemetry", "Analytics"]:

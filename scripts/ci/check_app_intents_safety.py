@@ -30,6 +30,8 @@ DANGEROUS_BODY_SNIPPETS = [
     "latestDraft =",
     "saveFinalReview",
     "URLSession",
+    "payloadText",
+    "UIPasteboard",
 ]
 
 
@@ -107,6 +109,12 @@ def main() -> int:
         failures.append("SearchLocalGradeDraftAssignmentsIntent leaks identity metadata or assignment UUIDs")
     if "AssignmentIntentResolver.loadAssignments()" not in search_block:
         failures.append("SearchLocalGradeDraftAssignmentsIntent must use local assignment storage only")
+
+    pasted_work_block = block_after(source, "struct AddPastedStudentWorkIntent", ["struct SearchLocalGradeDraftAssignmentsIntent"])
+    if "AppLaunchSensitivePayloadStore.saveText" not in pasted_work_block:
+        failures.append("AddPastedStudentWorkIntent must store student work in the protected sensitive payload store")
+    if "sensitivePayloadToken" not in pasted_work_block:
+        failures.append("AddPastedStudentWorkIntent must pass only a sensitive payload token through UserDefaults")
 
     if failures:
         print("App Intents safety check failed:")
