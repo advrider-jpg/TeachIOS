@@ -23,10 +23,10 @@ The core workflow runs locally on device. Mark My Work does not upload student w
 teacher,grading,rubric,feedback,assessment,OCR,PDF,education
 
 ## Support URL
-Publish the contents of `docs/release/PUBLIC_SUPPORT_PAGE.md` to the product support site and enter the final live URL in App Store Connect.
+Replace before release with a real public support URL.
 
 ## Privacy Policy URL
-Publish the contents of `docs/release/PUBLIC_PRIVACY_POLICY.md` to the product privacy page and enter the final live URL in App Store Connect.
+Replace before release with a real public privacy policy URL.
 
 ## Review notes
 Mark My Work is a teacher-facing local-first grading assistant. No account is required. The core workflow runs on device. The app does not upload student work, OCR text, rubrics, grading drafts, teacher notes, final grades, curriculum mappings, or feedback reports to the developer or third-party services. Student work may be scanned/imported by the teacher and remains in local app storage unless the teacher explicitly exports it through iOS sharing. Sensitive teacher-only exports require a warning and local authentication where available. If Apple’s on-device language model is unavailable, Mark My Work shows a local-unavailable state and does not fall back to a cloud model. Manual final review remains available.
@@ -43,11 +43,3 @@ The bundled Australian Curriculum references are local offline reference aids. M
 7. Edit and approve criterion scores.
 8. Export a student-facing PDF and teacher audit archive.
 9. Confirm sensitive export warnings and local authentication behavior.
-10. Run the Add Pasted Student Work Shortcut and confirm student work is applied only after the app opens, with no background grading or export.
-
-
-## Privacy-answer draft
-Use “Data Not Collected” only if the submitted build still contains no developer-accessible data transmission, analytics, crash reporting upload, accounts, cloud AI, cloud OCR, hosted curriculum refresh, or support-bundle upload. The app handles student and teacher data locally on device, and teacher-created exports leave the app only through explicit teacher action.
-
-## Age-rating answer notes
-The app is an education/productivity tool for teachers. It does not contain gambling, unrestricted web access, user-generated public content, social networking, ads, commerce, or in-app purchases. OCR/imported student work is teacher-provided local content and must be reviewed under school policy.

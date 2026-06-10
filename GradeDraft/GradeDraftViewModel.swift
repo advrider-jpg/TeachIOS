@@ -1,7 +1,6 @@
 import Foundation
 import PDFKit
 import UIKit
-import UniformTypeIdentifiers
 import ZIPFoundation
 
 @MainActor
@@ -333,24 +332,9 @@ final class GradeDraftViewModel: ObservableObject {
         refreshCapabilityStatus()
     }
 
-    func handleLaunchRequest(
-        _ request: AppLaunchRequest,
-        sensitivePayloadResolver: ((UUID) -> String?)? = nil
-    ) {
-        let resolveSensitivePayload = sensitivePayloadResolver ?? { [fileManager, store] token in
-            let rootDirectory = try? store.applicationSupportDirectory()
-            return AppLaunchSensitivePayloadStore.consumeText(
-                token: token,
-                fileManager: fileManager,
-                rootDirectory: rootDirectory
-            )
-        }
-
+    func handleLaunchRequest(_ request: AppLaunchRequest) {
         if let assignmentID = request.assignmentID {
             guard assignments.contains(where: { $0.id == assignmentID }) else {
-                if request.action == .applyPastedStudentText, let token = request.sensitivePayloadToken {
-                    _ = resolveSensitivePayload(token)
-                }
                 errorMessage = "Shortcut could not open that assignment because it is not saved on this device."
                 return
             }
@@ -369,19 +353,12 @@ final class GradeDraftViewModel: ObservableObject {
             buildAIPacketPreview()
         case .applyPastedStudentText:
             guard request.assignmentID != nil else {
-                if let token = request.sensitivePayloadToken {
-                    _ = resolveSensitivePayload(token)
-                }
                 errorMessage = "Shortcut must choose an assignment before saving pasted student work."
                 return
             }
-            guard let token = request.sensitivePayloadToken else {
-                errorMessage = "Shortcut did not include student work text to save."
-                return
-            }
-            let text = resolveSensitivePayload(token)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let text = request.payloadText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !text.isEmpty else {
-                errorMessage = "Shortcut student work text could not be read. Run the shortcut again or paste inside the app."
+                errorMessage = "Shortcut did not include student work text to save."
                 return
             }
             applyPastedStudentText(text)
@@ -1251,13 +1228,11 @@ final class GradeDraftViewModel: ObservableObject {
                 .appendingPathComponent("Sources", isDirectory: true)
                 .appendingPathComponent(assignment.id.uuidString, isDirectory: true)
             let originalFolder = sourceRoot.appendingPathComponent("original", isDirectory: true)
-            try LocalDataProtection.prepareSensitiveDirectory(sourceRoot, fileManager: fileManager)
-            try LocalDataProtection.prepareSensitiveDirectory(originalFolder, fileManager: fileManager)
+            try fileManager.createDirectory(at: originalFolder, withIntermediateDirectories: true)
             let pdfID = UUID()
             let originalPDFURL = originalFolder.appendingPathComponent("\(pdfID.uuidString).pdf")
             if fileManager.fileExists(atPath: originalPDFURL.path) { try fileManager.removeItem(at: originalPDFURL) }
             try fileManager.copyItem(at: url, to: originalPDFURL)
-            LocalDataProtection.protectSensitiveFile(originalPDFURL, fileManager: fileManager)
             let pdfData = try Data(contentsOf: originalPDFURL)
             let originalPDFSource = SourceInputRef(
                 id: pdfID,
@@ -2148,18 +2123,12 @@ final class GradeDraftViewModel: ObservableObject {
         }
         do {
             let text = try String(contentsOf: exportURL, encoding: .utf8)
-            UIPasteboard.general.setItems(
-                [[UTType.utf8PlainText.identifier: text]],
-                options: [
-                    .localOnly: true,
-                    .expirationDate: Date().addingTimeInterval(5 * 60)
-                ]
-            )
+            UIPasteboard.general.string = text
             updateAssignment { assignment in
                 assignment.appendAuditEvent(.exportPrepared, detail: "Copied \(exportKind.displayName) text to clipboard after the clipboard warning.")
             }
             persistOrSurfaceError()
-            statusMessage = "Export text copied to a local-only clipboard item that expires in 5 minutes. Share only through approved channels."
+            statusMessage = "Export text copied to the clipboard. Share only through approved channels."
         } catch {
             errorMessage = GradeDraftError.exportFailed(error.localizedDescription).localizedDescription
         }
