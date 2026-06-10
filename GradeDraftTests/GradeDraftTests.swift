@@ -909,20 +909,95 @@ final class GradeDraftTests: XCTestCase {
         XCTAssertEqual(viewModel.assignment.finalReview?.status, .inProgress)
     }
 
-    func testLaunchRequestPayloadRoundTripsThroughStore() {
+    func testLaunchRequestSensitivePayloadStaysOutOfUserDefaultsAndConsumesOnce() throws {
         let defaults = UserDefaults(suiteName: "GradeDraftTests.\(UUID().uuidString)")!
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("GradeDraftLaunchPayloadTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fileManager.removeItem(at: root) }
+
         let id = UUID()
+        let token = try AppLaunchSensitivePayloadStore.saveText("Student answer", rootDirectory: root)
         let request = AppLaunchRequest(
             destination: .studentWork,
             assignmentID: id,
             action: .applyPastedStudentText,
-            payloadText: "Student answer"
+            sensitivePayloadToken: token
         )
 
-        AppLaunchRequestStore.save(request, defaults: defaults)
+        XCTAssertTrue(AppLaunchRequestStore.save(request, defaults: defaults))
+        let storedData = try XCTUnwrap(defaults.data(forKey: AppLaunchRequestStore.storageKey))
+        let storedJSON = String(decoding: storedData, as: UTF8.self)
+        XCTAssertFalse(storedJSON.contains("Student answer"))
+        XCTAssertTrue(storedJSON.contains(token.uuidString))
 
         XCTAssertEqual(AppLaunchRequestStore.consume(defaults: defaults), request)
         XCTAssertNil(AppLaunchRequestStore.consume(defaults: defaults))
+        XCTAssertEqual(AppLaunchSensitivePayloadStore.consumeText(token: token, rootDirectory: root), "Student answer")
+        XCTAssertNil(AppLaunchSensitivePayloadStore.consumeText(token: token, rootDirectory: root))
+    }
+
+    func testLegacyLaunchRequestPayloadTextIsDiscardedOnConsume() throws {
+        let defaults = UserDefaults(suiteName: "GradeDraftTests.\(UUID().uuidString)")!
+        let id = UUID()
+        let legacyJSON = """
+        {
+          "destination": "studentWork",
+          "assignmentID": "\(id.uuidString)",
+          "action": "applyPastedStudentText",
+          "payloadText": "Legacy student answer that must not survive migration",
+          "createdAt": 0
+        }
+        """
+        defaults.set(Data(legacyJSON.utf8), forKey: AppLaunchRequestStore.legacyStorageKey)
+
+        let consumed = try XCTUnwrap(AppLaunchRequestStore.consume(defaults: defaults))
+
+        XCTAssertEqual(consumed.destination, .studentWork)
+        XCTAssertEqual(consumed.assignmentID, id)
+        XCTAssertEqual(consumed.action, .applyPastedStudentText)
+        XCTAssertNil(consumed.sensitivePayloadToken)
+        XCTAssertNil(defaults.data(forKey: AppLaunchRequestStore.legacyStorageKey))
+        let migratedData = try JSONEncoder().encode(consumed)
+        XCTAssertFalse(String(decoding: migratedData, as: UTF8.self).contains("Legacy student answer"))
+    }
+
+    func testLaunchSensitivePayloadRejectsEmptyAndOversizedText() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("GradeDraftLaunchPayloadTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fileManager.removeItem(at: root) }
+
+        XCTAssertThrowsError(try AppLaunchSensitivePayloadStore.saveText("   ", rootDirectory: root)) { error in
+            XCTAssertEqual(error as? AppLaunchSensitivePayloadError, .emptyText)
+        }
+
+        let oversized = String(repeating: "a", count: AppLaunchSensitivePayloadStore.maxTextByteCount + 1)
+        XCTAssertThrowsError(try AppLaunchSensitivePayloadStore.saveText(oversized, rootDirectory: root)) { error in
+            XCTAssertEqual(
+                error as? AppLaunchSensitivePayloadError,
+                .payloadTooLarge(maximumBytes: AppLaunchSensitivePayloadStore.maxTextByteCount)
+            )
+        }
+    }
+
+    func testLaunchSensitivePayloadPurgeDeletesExpiredPayloadFiles() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("GradeDraftLaunchPayloadTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fileManager.removeItem(at: root) }
+
+        let token = try AppLaunchSensitivePayloadStore.saveText("Temporary student work", rootDirectory: root)
+        let directory = try AppLaunchSensitivePayloadStore.payloadDirectory(rootDirectory: root)
+        let url = directory.appendingPathComponent(token.uuidString).appendingPathExtension("txt")
+        XCTAssertTrue(fileManager.fileExists(atPath: url.path))
+
+        let expiredDate = Date().addingTimeInterval(-AppLaunchSensitivePayloadStore.payloadTimeToLive - 60)
+        try fileManager.setAttributes([.modificationDate: expiredDate], ofItemAtPath: url.path)
+        AppLaunchSensitivePayloadStore.purgeExpiredPayloads(rootDirectory: root)
+
+        XCTAssertFalse(fileManager.fileExists(atPath: url.path))
+        XCTAssertNil(AppLaunchSensitivePayloadStore.consumeText(token: token, rootDirectory: root))
     }
 
     @MainActor
@@ -963,12 +1038,18 @@ final class GradeDraftTests: XCTestCase {
         let store = InMemoryAssignmentStore(assignments: [assignment])
         let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
 
-        viewModel.handleLaunchRequest(AppLaunchRequest(
-            destination: .studentWork,
-            assignmentID: assignment.id,
-            action: .applyPastedStudentText,
-            payloadText: "  New student answer  "
-        ))
+        let token = UUID()
+        viewModel.handleLaunchRequest(
+            AppLaunchRequest(
+                destination: .studentWork,
+                assignmentID: assignment.id,
+                action: .applyPastedStudentText,
+                sensitivePayloadToken: token
+            ),
+            sensitivePayloadResolver: { resolvedToken in
+                resolvedToken == token ? "  New student answer  " : nil
+            }
+        )
 
         XCTAssertEqual(viewModel.assignment.reviewedStudentText, "New student answer")
         XCTAssertEqual(viewModel.assignment.ocrReviewStatus, .notNeeded)
@@ -988,15 +1069,56 @@ final class GradeDraftTests: XCTestCase {
         let store = InMemoryAssignmentStore(assignments: [assignment])
         let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
 
-        viewModel.handleLaunchRequest(AppLaunchRequest(
-            destination: .studentWork,
-            action: .applyPastedStudentText,
-            payloadText: "New shortcut text"
-        ))
+        let token = UUID()
+        var consumedPayload = false
+        viewModel.handleLaunchRequest(
+            AppLaunchRequest(
+                destination: .studentWork,
+                action: .applyPastedStudentText,
+                sensitivePayloadToken: token
+            ),
+            sensitivePayloadResolver: { resolvedToken in
+                consumedPayload = resolvedToken == token
+                return "New shortcut text"
+            }
+        )
 
+        XCTAssertTrue(consumedPayload)
         XCTAssertEqual(viewModel.assignment.reviewedStudentText, "Keep this reviewed text")
         XCTAssertEqual(store.assignments.first?.reviewedStudentText, "Keep this reviewed text")
         XCTAssertTrue(viewModel.errorMessage?.contains("choose an assignment") == true)
+    }
+
+    @MainActor
+    func testShortcutPastedStudentWorkConsumesPayloadWhenAssignmentIsMissing() {
+        let assignment = AssignmentRecord(
+            title: "Existing assignment",
+            rubricText: "Claim: 0-2 points",
+            reviewedStudentText: "Keep this reviewed text"
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        let token = UUID()
+        let missingAssignmentID = UUID()
+        var consumedPayload = false
+        viewModel.handleLaunchRequest(
+            AppLaunchRequest(
+                destination: .studentWork,
+                assignmentID: missingAssignmentID,
+                action: .applyPastedStudentText,
+                sensitivePayloadToken: token
+            ),
+            sensitivePayloadResolver: { resolvedToken in
+                consumedPayload = resolvedToken == token
+                return "Should be discarded"
+            }
+        )
+
+        XCTAssertTrue(consumedPayload)
+        XCTAssertEqual(viewModel.assignment.reviewedStudentText, "Keep this reviewed text")
+        XCTAssertEqual(store.assignments.first?.reviewedStudentText, "Keep this reviewed text")
+        XCTAssertTrue(viewModel.errorMessage?.contains("not saved on this device") == true)
     }
 
     @MainActor

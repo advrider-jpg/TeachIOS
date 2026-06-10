@@ -132,8 +132,10 @@ GradeDraft/
 
 Static checks are available through `scripts/repo_health.py` and `scripts/no_network_scan.py`. Xcode build, iOS simulator smoke tests, Vision/PDFKit runtime behavior, and Foundation Models runtime behavior must be validated on macOS with the relevant Apple SDK and device/simulator support.
 
-## Production-readiness patch notes — 2026-05-31
+## Production-readiness patch notes — 2026-06-08
 
-This source tree now includes release configuration scaffolding, an app icon asset catalog, Face ID usage copy, local-data backup-exclusion hardening, a static production-readiness guardrail, and a generated bundled Australian Curriculum Version 9.0 reference catalog. The app runtime remains local-first: curriculum resources are bundled, official entries are read-only, teachers map references explicitly, and no runtime curriculum download path is added.
+This source tree now includes release configuration scaffolding, a full iPhone/iPad app icon catalog, Face ID usage copy, local-data backup-exclusion hardening, privacy-manifest required-reason declarations, a static production-readiness guardrail, and a generated bundled Australian Curriculum Version 9.0 reference catalog. The app runtime remains local-first: curriculum resources are bundled, official entries are read-only, teachers map references explicitly, and no runtime curriculum download path is added.
 
-Before TestFlight or App Store submission, complete the remaining Apple-tooling gates documented in `docs/release/PRODUCTION_READINESS_CHECKLIST.md`: Xcode package resolution, `Package.resolved` commit, simulator/unit validation, unsigned Release build, signed archive/export validation, live support/privacy URLs, and physical-device OCR/LocalAuthentication/Foundation Models smoke tests.
+The Shortcut/App Intent path for pasted student work uses a protected one-time local file handoff. Only an opaque token is stored in app-private `UserDefaults`, and the app consumes and deletes the payload when it opens the selected assignment workflow. Text export clipboard copies use expiring local-only pasteboard items. Imported original PDFs and rendered source images receive best-effort local file protection and backup exclusion.
+
+Before TestFlight or App Store submission, complete the remaining Apple-tooling gates documented in `docs/release/PRODUCTION_READINESS_CHECKLIST.md`: Xcode package resolution, `Package.resolved` commit, simulator/unit validation, unsigned Release build, signed archive/export validation, live support/privacy URLs, final screenshots, and physical-device OCR/LocalAuthentication/Foundation Models smoke tests.

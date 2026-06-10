@@ -7,7 +7,11 @@ import UIKit
 enum LocalDataProtection {
     static func prepareSensitiveDirectory(_ url: URL, fileManager: FileManager = .default) throws {
         if !fileManager.fileExists(atPath: url.path) {
-            try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+            try fileManager.createDirectory(
+                at: url,
+                withIntermediateDirectories: true,
+                attributes: protectedFileAttributes
+            )
         }
         try setExcludedFromBackup(true, for: url)
         applyBestEffortFileProtection(to: url, fileManager: fileManager)
@@ -29,10 +33,18 @@ enum LocalDataProtection {
         try url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup
     }
 
+    private static var protectedFileAttributes: [FileAttributeKey: Any]? {
+        #if os(iOS)
+        return [.protectionKey: FileProtectionType.completeUnlessOpen]
+        #else
+        return nil
+        #endif
+    }
+
     private static func applyBestEffortFileProtection(to url: URL, fileManager: FileManager) {
         #if os(iOS)
         try? fileManager.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+            [.protectionKey: FileProtectionType.completeUnlessOpen],
             ofItemAtPath: url.path
         )
         #endif

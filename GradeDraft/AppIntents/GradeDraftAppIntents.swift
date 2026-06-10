@@ -311,14 +311,23 @@ struct AddPastedStudentWorkIntent: AppIntent {
         guard let assignmentID = AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText) else {
             return .result(dialog: "Choose an assignment before saving pasted student work. Mark My Work did not change any student work.")
         }
-        AppLaunchRequestStore.save(
-            AppLaunchRequest(
-                destination: .studentWork,
-                assignmentID: assignmentID,
-                action: .applyPastedStudentText,
-                payloadText: trimmed
+        do {
+            let token = try AppLaunchSensitivePayloadStore.saveText(trimmed)
+            let requestSaved = AppLaunchRequestStore.save(
+                AppLaunchRequest(
+                    destination: .studentWork,
+                    assignmentID: assignmentID,
+                    action: .applyPastedStudentText,
+                    sensitivePayloadToken: token
+                )
             )
-        )
+            guard requestSaved else {
+                AppLaunchSensitivePayloadStore.deletePayload(token: token)
+                return .result(dialog: "Mark My Work could not save the launch request. No student work was changed.")
+            }
+        } catch {
+            return .result(dialog: IntentDialog(stringLiteral: error.localizedDescription))
+        }
         return .result(dialog: "Opening Mark My Work to save pasted student work locally. No grade is generated.")
     }
 }
