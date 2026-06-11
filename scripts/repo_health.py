@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+import shutil
 import subprocess
 import sys
 
@@ -25,6 +26,26 @@ REQUIRED_FILES = [
 ]
 
 
+def run_check(label: str, command: list[str], timeout_seconds: int = 120) -> int:
+    """Run one component check without allowing the aggregate health gate to hang indefinitely."""
+    print(f"Running {label}...")
+    timeout_binary = shutil.which("timeout")
+    guarded_command = [timeout_binary, f"{timeout_seconds}s", *command] if timeout_binary else command
+    try:
+        result = subprocess.run(
+            guarded_command,
+            cwd=ROOT,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        print(f"{label} timed out after {timeout_seconds} seconds.")
+        return 124
+
+    if result.returncode == 124 and timeout_binary:
+        print(f"{label} timed out after {timeout_seconds} seconds.")
+    return result.returncode
+
+
 def main() -> int:
     missing = [path for path in REQUIRED_FILES if not (ROOT / path).exists()]
     if missing:
@@ -33,115 +54,22 @@ def main() -> int:
             print(f"- {path}")
         return 1
 
-    scan = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "no_network_scan.py")],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-    )
-    print(scan.stdout.strip())
-    if scan.returncode != 0:
-        print(scan.stderr.strip())
-        return scan.returncode
-
-    export_scan = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "export_hardening_scan.py")],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-    )
-    print(export_scan.stdout.strip())
-    if export_scan.returncode != 0:
-        print(export_scan.stderr.strip())
-        return export_scan.returncode
-
-    curriculum_scan = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "ci" / "check_curriculum_catalog.py")],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-    )
-    print(curriculum_scan.stdout.strip())
-    if curriculum_scan.returncode != 0:
-        print(curriculum_scan.stderr.strip())
-        return curriculum_scan.returncode
-
-    release_scan = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "ci" / "check_release_readiness_static.py")],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-    )
-    print(release_scan.stdout.strip())
-    if release_scan.returncode != 0:
-        print(release_scan.stderr.strip())
-        return release_scan.returncode
-
-    ai_eval_scan = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_evaluation_fixtures.py")],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-    )
-    print(ai_eval_scan.stdout.strip())
-    if ai_eval_scan.returncode != 0:
-        print(ai_eval_scan.stderr.strip())
-        return ai_eval_scan.returncode
-
-    app_intents_scan = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "ci" / "check_app_intents_safety.py")],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-    )
-    print(app_intents_scan.stdout.strip())
-    if app_intents_scan.returncode != 0:
-        print(app_intents_scan.stderr.strip())
-        return app_intents_scan.returncode
-
-    local_ai_tools_scan = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "ci" / "check_local_ai_tools.py")],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-    )
-    print(local_ai_tools_scan.stdout.strip())
-    if local_ai_tools_scan.returncode != 0:
-        print(local_ai_tools_scan.stderr.strip())
-        return local_ai_tools_scan.returncode
-
-    ai_prompt_safety_scan = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_prompt_safety.py")],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-    )
-    print(ai_prompt_safety_scan.stdout.strip())
-    if ai_prompt_safety_scan.returncode != 0:
-        print(ai_prompt_safety_scan.stderr.strip())
-        return ai_prompt_safety_scan.returncode
-
-    ai_batch_readiness_scan = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_batch_readiness.py")],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-    )
-    print(ai_batch_readiness_scan.stdout.strip())
-    if ai_batch_readiness_scan.returncode != 0:
-        print(ai_batch_readiness_scan.stderr.strip())
-        return ai_batch_readiness_scan.returncode
-
-    ai_packet_preview_screen_scan = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_packet_preview_screen.py")],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-    )
-    print(ai_packet_preview_screen_scan.stdout.strip())
-    if ai_packet_preview_screen_scan.returncode != 0:
-        print(ai_packet_preview_screen_scan.stderr.strip())
-        return ai_packet_preview_screen_scan.returncode
+    checks = [
+        ("no-network scan", [sys.executable, str(ROOT / "scripts" / "no_network_scan.py")]),
+        ("export hardening scan", [sys.executable, str(ROOT / "scripts" / "export_hardening_scan.py")]),
+        ("curriculum catalog scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_curriculum_catalog.py")]),
+        ("AI evaluation fixture scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_evaluation_fixtures.py")]),
+        ("App Intents safety scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_app_intents_safety.py")]),
+        ("local AI tools scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_local_ai_tools.py")]),
+        ("AI prompt safety scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_prompt_safety.py")]),
+        ("AI batch readiness scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_batch_readiness.py")]),
+        ("AI packet preview screen scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_packet_preview_screen.py")]),
+        ("release static readiness scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_release_readiness_static.py")]),
+    ]
+    for label, command in checks:
+        status = run_check(label, command)
+        if status != 0:
+            return status
 
     print("Required files present.")
     print("Health check passed. Use Xcode to compile and run unit tests.")

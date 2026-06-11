@@ -65,3 +65,15 @@ Rationale: The app must grade from teacher-reviewed student text and teacher-sup
 Decision: EAL/D-sensitive and adjustment-context AI grading constraint templates are never auto-selected. Teachers may select them only when they have supplied the relevant context.
 
 Rationale: Mark My Work must not infer language background, disability, support needs, adjustment status, effort, or intent.
+
+## D013 — Restore commits use graph snapshots
+
+Decision: Confirmed restore, roster CSV assignment creation, class/student mutation, and destructive assignment/student deletion use graph-level snapshot persistence before committing UI state. GRDB implements this as one database write transaction; JSON fallback uses sidecar-file rollback.
+
+Rationale: A teacher must not see a restored, imported, or deleted state unless assignments, related class/student records, roster rows, and source-file references remain coherent in local persistence.
+
+## D014 — Roster replacement is explicit and complete
+
+Decision: Roster persistence is named as a full snapshot replacement. Ordinary assignment saves preserve roster rows for kept assignments; explicit delete and restore paths prune or replace roster rows intentionally.
+
+Rationale: The previous generic roster-save name made partial-save misuse easy. Gradebook rows must not be silently wiped because a future call site passes only one assignment’s roster entries.

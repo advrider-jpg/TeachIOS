@@ -1,5 +1,24 @@
 import Foundation
 
+struct AssignmentStoreSnapshot: Equatable {
+    var assignments: [AssignmentRecord]
+    var classGroups: [ClassGroupRecord]
+    var students: [StudentRecord]
+    var rosterEntries: [AssignmentRosterEntry]
+
+    init(
+        assignments: [AssignmentRecord],
+        classGroups: [ClassGroupRecord],
+        students: [StudentRecord],
+        rosterEntries: [AssignmentRosterEntry]
+    ) {
+        self.assignments = assignments
+        self.classGroups = classGroups
+        self.students = students
+        self.rosterEntries = rosterEntries
+    }
+}
+
 protocol AssignmentStoring {
     func loadAssignments() throws -> [AssignmentRecord]
     func saveAssignments(_ assignments: [AssignmentRecord]) throws
@@ -12,12 +31,28 @@ protocol AssignmentStoring {
     func saveStudent(_ student: StudentRecord) throws
     func deleteStudent(id: UUID) throws
     func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry]
-    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws
+    func loadAssignmentRosterSnapshot() throws -> [AssignmentRosterEntry]
+    func replaceAssignmentRosterSnapshot(_ entries: [AssignmentRosterEntry]) throws
+    func replaceLocalDataSnapshot(_ snapshot: AssignmentStoreSnapshot) throws
     func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws
     func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws
     func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws
     func saveEvidenceReferences(_ references: [EvidenceReference], assignmentID: UUID) throws
     func loadFullAssignmentGraph(id: UUID) throws -> AssignmentRecord?
+}
+
+enum LocalJSONStoreError: LocalizedError {
+    case missingAssignment(UUID)
+    case corruptStore(fileName: String, detail: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingAssignment(let id):
+            return "Cannot update missing assignment \(id.uuidString)."
+        case .corruptStore(let fileName, let detail):
+            return "Local data file \(fileName) could not be read. No records were discarded. \(detail)"
+        }
+    }
 }
 
 final class LocalJSONStore: AssignmentStoring {
@@ -61,6 +96,7 @@ final class LocalJSONStore: AssignmentStoring {
 
     func saveAssignments(_ assignments: [AssignmentRecord]) throws {
         try writeEncoded(assignments.sorted { $0.updatedAt > $1.updatedAt }, to: assignmentsURL)
+        try pruneRosterEntries(keepingAssignmentIDs: Set(assignments.map(\.id)))
     }
 
     func deleteAssignment(id: UUID) throws {
@@ -70,8 +106,7 @@ final class LocalJSONStore: AssignmentStoring {
     }
 
     func loadClassGroups() throws -> [ClassGroupRecord] {
-        guard fileManager.fileExists(atPath: classGroupsURL.path) else { return [] }
-        return (try? decoder.decode([ClassGroupRecord].self, from: Data(contentsOf: classGroupsURL))) ?? []
+        try decodeArrayIfPresent([ClassGroupRecord].self, from: classGroupsURL)
     }
 
     func saveClassGroup(_ classGroup: ClassGroupRecord) throws {
@@ -91,8 +126,7 @@ final class LocalJSONStore: AssignmentStoring {
     }
 
     func loadStudents() throws -> [StudentRecord] {
-        guard fileManager.fileExists(atPath: studentsURL.path) else { return [] }
-        return (try? decoder.decode([StudentRecord].self, from: Data(contentsOf: studentsURL))) ?? []
+        try decodeArrayIfPresent([StudentRecord].self, from: studentsURL)
     }
 
     func saveStudent(_ student: StudentRecord) throws {
@@ -109,18 +143,91 @@ final class LocalJSONStore: AssignmentStoring {
         var students = try loadStudents()
         students.removeAll { $0.id == id }
         try writeEncoded(students, to: studentsURL)
+        try pruneRosterEntries(removingStudentID: id)
     }
 
     func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] {
-        try loadAllRosterEntries().filter { $0.assignmentID == assignmentID }
+        try loadAssignmentRosterSnapshot().filter { $0.assignmentID == assignmentID }
     }
 
-    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws {
-        let assignmentIDs = Set(entries.map(\.assignmentID))
-        var all = try loadAllRosterEntries()
-        all.removeAll { assignmentIDs.contains($0.assignmentID) }
-        all.append(contentsOf: entries)
-        try writeEncoded(all, to: rosterURL)
+    func loadAssignmentRosterSnapshot() throws -> [AssignmentRosterEntry] {
+        try loadAllRosterEntries().sorted(by: rosterSort)
+    }
+
+    func replaceAssignmentRosterSnapshot(_ entries: [AssignmentRosterEntry]) throws {
+        try writeEncoded(entries.sorted(by: rosterSort), to: rosterURL)
+    }
+
+    func replaceLocalDataSnapshot(_ snapshot: AssignmentStoreSnapshot) throws {
+        let backups = try captureBackups(for: [assignmentsURL, classGroupsURL, studentsURL, rosterURL])
+        do {
+            try writeEncoded(snapshot.assignments.sorted { $0.updatedAt > $1.updatedAt }, to: assignmentsURL)
+            try writeEncoded(snapshot.classGroups, to: classGroupsURL)
+            try writeEncoded(snapshot.students, to: studentsURL)
+            try writeEncoded(snapshot.rosterEntries.sorted(by: rosterSort), to: rosterURL)
+        } catch {
+            try? restoreBackups(backups)
+            throw error
+        }
+    }
+
+    func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws {
+        try updateAssignment(id: assignmentID) { assignment in
+            assignment.sourceInputs = sourceInputs
+        }
+    }
+
+    func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws {
+        try updateAssignment(id: assignmentID) { assignment in
+            assignment.ocrDocument = document
+            assignment.ocrReviewStatus = document.reviewStatus
+            assignment.ocrReviewedAt = document.reviewedAt
+            assignment.reviewedStudentText = document.combinedText
+        }
+    }
+
+    func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws {
+        try updateAssignment(id: assignmentID) { assignment in
+            assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: review)
+        }
+    }
+
+    func saveEvidenceReferences(_ references: [EvidenceReference], assignmentID: UUID) throws {
+        try updateAssignment(id: assignmentID) { assignment in
+            assignment.evidenceReferences = references
+        }
+    }
+
+    func loadFullAssignmentGraph(id: UUID) throws -> AssignmentRecord? {
+        try loadAssignments().first { $0.id == id }
+    }
+
+
+    private struct FileBackup {
+        var url: URL
+        var existed: Bool
+        var data: Data?
+    }
+
+    private func captureBackups(for urls: [URL]) throws -> [FileBackup] {
+        try applicationSupportDirectory()
+        return try urls.map { url in
+            if fileManager.fileExists(atPath: url.path) {
+                return FileBackup(url: url, existed: true, data: try Data(contentsOf: url))
+            }
+            return FileBackup(url: url, existed: false, data: nil)
+        }
+    }
+
+    private func restoreBackups(_ backups: [FileBackup]) throws {
+        for backup in backups {
+            if backup.existed, let data = backup.data {
+                try data.write(to: backup.url, options: [.atomic])
+                LocalDataProtection.protectSensitiveFile(backup.url, fileManager: fileManager)
+            } else if fileManager.fileExists(atPath: backup.url.path) {
+                try fileManager.removeItem(at: backup.url)
+            }
+        }
     }
 
     private func writeEncoded<T: Encodable>(_ value: T, to url: URL) throws {
@@ -131,8 +238,44 @@ final class LocalJSONStore: AssignmentStoring {
     }
 
     private func loadAllRosterEntries() throws -> [AssignmentRosterEntry] {
-        guard fileManager.fileExists(atPath: rosterURL.path) else { return [] }
-        return (try? decoder.decode([AssignmentRosterEntry].self, from: Data(contentsOf: rosterURL))) ?? []
+        try decodeArrayIfPresent([AssignmentRosterEntry].self, from: rosterURL)
+    }
+
+    private func decodeArrayIfPresent<T: Decodable>(_ type: [T].Type, from url: URL) throws -> [T] {
+        guard fileManager.fileExists(atPath: url.path) else { return [] }
+        do {
+            return try decoder.decode(type, from: Data(contentsOf: url))
+        } catch {
+            throw LocalJSONStoreError.corruptStore(fileName: url.lastPathComponent, detail: error.localizedDescription)
+        }
+    }
+
+    private func updateAssignment(id: UUID, _ update: (inout AssignmentRecord) -> Void) throws {
+        var assignments = try loadAssignments()
+        guard let index = assignments.firstIndex(where: { $0.id == id }) else {
+            throw LocalJSONStoreError.missingAssignment(id)
+        }
+        update(&assignments[index])
+        assignments[index].updatedAt = Date()
+        try saveAssignments(assignments)
+    }
+
+    private func pruneRosterEntries(keepingAssignmentIDs assignmentIDs: Set<UUID>? = nil, removingStudentID studentID: UUID? = nil) throws {
+        var entries = try loadAllRosterEntries()
+        if let assignmentIDs {
+            entries.removeAll { !assignmentIDs.contains($0.assignmentID) }
+        }
+        if let studentID {
+            entries.removeAll { $0.studentID == studentID }
+        }
+        try writeEncoded(entries.sorted(by: rosterSort), to: rosterURL)
+    }
+
+    private func rosterSort(_ lhs: AssignmentRosterEntry, _ rhs: AssignmentRosterEntry) -> Bool {
+        if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+        if lhs.studentDisplayName != rhs.studentDisplayName { return lhs.studentDisplayName < rhs.studentDisplayName }
+        if lhs.localIdentifier != rhs.localIdentifier { return lhs.localIdentifier < rhs.localIdentifier }
+        return lhs.assignmentID.uuidString < rhs.assignmentID.uuidString
     }
 }
 
@@ -445,20 +588,4 @@ enum MarkdownReportBuilder {
             throw GradeDraftError.exportFailed(error.localizedDescription)
         }
     }
-}
-
-extension AssignmentStoring {
-    func loadClassGroups() throws -> [ClassGroupRecord] { [] }
-    func saveClassGroup(_ classGroup: ClassGroupRecord) throws { _ = classGroup }
-    func deleteClassGroup(id: UUID) throws { _ = id }
-    func loadStudents() throws -> [StudentRecord] { [] }
-    func saveStudent(_ student: StudentRecord) throws { _ = student }
-    func deleteStudent(id: UUID) throws { _ = id }
-    func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] { _ = assignmentID; return [] }
-    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws { _ = entries }
-    func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws { _ = sourceInputs; _ = assignmentID }
-    func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws { _ = document; _ = assignmentID }
-    func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws { _ = review; _ = assignmentID }
-    func saveEvidenceReferences(_ references: [EvidenceReference], assignmentID: UUID) throws { _ = references; _ = assignmentID }
-    func loadFullAssignmentGraph(id: UUID) throws -> AssignmentRecord? { try loadAssignments().first { $0.id == id } }
 }

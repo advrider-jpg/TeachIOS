@@ -2046,7 +2046,12 @@ private final class V3TempAssignmentStore: AssignmentStoring {
     func saveStudent(_ student: StudentRecord) throws {}
     func deleteStudent(id: UUID) throws {}
     func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] { rosterEntries.filter { $0.assignmentID == assignmentID } }
-    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws { self.rosterEntries = entries }
+    func loadAssignmentRosterSnapshot() throws -> [AssignmentRosterEntry] { rosterEntries }
+    func replaceAssignmentRosterSnapshot(_ entries: [AssignmentRosterEntry]) throws { self.rosterEntries = entries }
+    func replaceLocalDataSnapshot(_ snapshot: AssignmentStoreSnapshot) throws {
+        self.assignments = snapshot.assignments
+        self.rosterEntries = snapshot.rosterEntries
+    }
     func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws {}
     func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws {}
     func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws {}
@@ -2317,7 +2322,7 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
         try database.saveClassGroup(classGroup)
         try database.saveStudent(student)
         try database.saveAssignments([assignment])
-        try database.saveAssignmentRoster([rosterEntry])
+        try database.replaceAssignmentRosterSnapshot([rosterEntry])
         try database.removeCompatibilityPayloadsForValidation()
 
         let loaded = try XCTUnwrap(database.loadFullAssignmentGraph(id: assignment.id))

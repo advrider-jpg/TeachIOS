@@ -52,8 +52,27 @@ struct BackupDatabaseExport: Codable {
     }
 }
 
+struct BackupArchiveRestoreResult {
+    var assignments: [AssignmentRecord]
+    var databaseExport: BackupDatabaseExport
+    var restoredSourceRelativePaths: [String]
+}
+
 /// Local ZIP/archive export. Archives are teacher-facing and may contain sensitive records.
 struct BundleExportService {
+    private static let maxRestoreJSONEntryBytes: UInt64 = 50 * 1024 * 1024
+    private static let maxRestoreSourceEntryBytes: UInt64 = 100 * 1024 * 1024
+    private static let criticalRestoreEntries: Set<String> = [
+        "manifest.json",
+        "database_export.json",
+        "assignments.json",
+        "class_groups.json",
+        "students.json",
+        "assignment_roster_entries.json",
+        "source_inputs.json",
+        "archive_inventory.json"
+    ]
+
     static func preflightDestination(for assignmentID: UUID) throws -> URL {
         let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let root = documents.appendingPathComponent("MarkMyWorkExports", isDirectory: true)
@@ -80,7 +99,7 @@ struct BundleExportService {
                 includesOriginalSources: !existingSourceFiles.isEmpty,
                 sourceFileCount: existingSourceFiles.count,
                 recordCounts: recordCounts(for: [assignment], classGroups: [], students: []),
-                contentHashes: contentHashes(for: [assignment], extraFiles: existingSourceFiles)
+                contentHashes: try contentHashes(for: [assignment], extraFiles: existingSourceFiles)
             )
             try addCodable(manifest, named: "manifest.json", category: "manifest", sensitivity: .internalMetadata, description: "Archive manifest and restore compatibility metadata.", inventory: &inventory, to: archive)
             try addData(MarkdownReportBuilder.studentMarkdown(for: assignment).data(using: .utf8) ?? Data(), named: "student_report.md", category: "studentReport", sensitivity: .studentReport, description: "Final-only student-facing report content.", inventory: &inventory, to: archive)
@@ -125,7 +144,7 @@ struct BundleExportService {
                 includesOriginalSources: !existingSourceFiles.isEmpty,
                 sourceFileCount: existingSourceFiles.count,
                 recordCounts: recordCounts(for: assignments, classGroups: [], students: []),
-                contentHashes: contentHashes(for: assignments, extraFiles: existingSourceFiles)
+                contentHashes: try contentHashes(for: assignments, extraFiles: existingSourceFiles)
             )
             try addCodable(manifest, named: "manifest.json", category: "manifest", sensitivity: .internalMetadata, description: "Archive manifest and restore compatibility metadata.", inventory: &inventory, to: archive)
             try addData(CSVExportService.exportedCSV(from: assignments).data(using: .utf8) ?? Data(), named: "gradebook.csv", category: "gradebook", sensitivity: .gradebook, description: "Quoted and formula-neutralized gradebook CSV.", inventory: &inventory, to: archive)
@@ -168,7 +187,7 @@ struct BundleExportService {
                 includesOriginalSources: !existingSourceFiles.isEmpty,
                 sourceFileCount: existingSourceFiles.count,
                 recordCounts: recordCounts(for: assignments, classGroups: classGroups, students: students, rosterEntries: rosterEntries),
-                contentHashes: contentHashes(for: assignments, extraFiles: existingSourceFiles)
+                contentHashes: try contentHashes(for: assignments, extraFiles: existingSourceFiles)
             )
             let databaseExport = BackupDatabaseExport(assignments: assignments, classGroups: classGroups, students: students, rosterEntries: rosterEntries)
             try addCodable(manifest, named: "manifest.json", category: "manifest", sensitivity: .internalMetadata, description: "Backup manifest and restore compatibility metadata.", inventory: &inventory, to: archive)
@@ -197,6 +216,7 @@ struct BundleExportService {
         guard let archive = Archive(url: url, accessMode: .read) else {
             throw BundleExportError.restoreFailed("Could not open backup archive for reading.")
         }
+        try validateBackupArchiveStructure(archive)
         guard archive["manifest.json"] != nil else {
             throw BundleExportError.restoreFailed("Backup archive is missing manifest.json.")
         }
@@ -221,6 +241,7 @@ struct BundleExportService {
         guard let archive = Archive(url: url, accessMode: .read) else {
             throw BundleExportError.restoreFailed("Could not open backup archive for preview.")
         }
+        try validateBackupArchiveStructure(archive)
         let manifest: BackupArchiveManifest
         if let manifestEntry = archive["manifest.json"] {
             manifest = try readCodable(BackupArchiveManifest.self, entry: manifestEntry, archive: archive)
@@ -254,11 +275,28 @@ struct BundleExportService {
         applicationSupportDirectory: URL,
         conflictResolution: BackupConflictResolution
     ) throws -> [AssignmentRecord] {
+        let result = try prepareBackupRestore(
+            from: url,
+            existingAssignments: existingAssignments,
+            applicationSupportDirectory: applicationSupportDirectory,
+            conflictResolution: conflictResolution
+        )
+        return result.assignments
+    }
+
+    static func prepareBackupRestore(
+        from url: URL,
+        existingAssignments: [AssignmentRecord],
+        applicationSupportDirectory: URL,
+        conflictResolution: BackupConflictResolution
+    ) throws -> BackupArchiveRestoreResult {
         _ = try previewRestore(from: url, existingAssignments: existingAssignments)
         guard let archive = Archive(url: url, accessMode: .read) else {
             throw BundleExportError.restoreFailed("Could not open backup archive for restore.")
         }
-        var restored = try readBackupAssignments(from: url)
+        try validateBackupArchiveStructure(archive)
+        let databaseExport = try readBackupDatabaseExport(from: url)
+        var restored = databaseExport.assignments
         let existingIDs = Set(existingAssignments.map(\.id))
         let copyIDMap: [String: String]
         if conflictResolution == .restoreAsCopy {
@@ -280,14 +318,18 @@ struct BundleExportService {
             copyIDMap = [:]
         }
         let conflictingAssignmentIDs = Set(existingAssignments.map { $0.id.uuidString })
-        try restoreSourceFiles(
+        let restoredSourcePaths = try restoreSourceFiles(
             from: archive,
             to: applicationSupportDirectory,
             conflictResolution: conflictResolution,
             conflictingAssignmentIDs: conflictingAssignmentIDs,
             copyAssignmentIDs: copyIDMap
         )
-        return restored
+        return BackupArchiveRestoreResult(
+            assignments: restored,
+            databaseExport: databaseExport,
+            restoredSourceRelativePaths: restoredSourcePaths
+        )
     }
 
     static func safeRestoreDestination(for archiveEntryPath: String, applicationSupportDirectory: URL) throws -> URL? {
@@ -316,11 +358,17 @@ struct BundleExportService {
         ]
     }
 
-    private static func contentHashes(for assignments: [AssignmentRecord], extraFiles: [URL]) -> [String: String] {
+    private static func contentHashes(for assignments: [AssignmentRecord], extraFiles: [URL]) throws -> [String: String] {
         var hashes = Dictionary(uniqueKeysWithValues: assignments.map { ($0.id.uuidString, $0.gradingPacketFingerprint) })
         for file in extraFiles where FileManager.default.fileExists(atPath: file.path) {
-            if let data = try? Data(contentsOf: file) {
+            guard !isSymbolicLink(file) else {
+                throw BundleExportError.archiveFailed("Source file \(file.lastPathComponent) is a symbolic link and was not archived.")
+            }
+            do {
+                let data = try Data(contentsOf: file)
                 hashes["source:\(StableFingerprint.fingerprint([file.path]))"] = StableFingerprint.fingerprint(data)
+            } catch {
+                throw BundleExportError.archiveFailed("Could not read included source file \(file.lastPathComponent) for archive manifest hashing: \(error.localizedDescription)")
             }
         }
         return hashes
@@ -329,19 +377,26 @@ struct BundleExportService {
     private static func addSources(_ sourceFiles: [URL], to archive: Archive, inventory: inout [ExportArchiveInventoryItem]) throws {
         var usedNames: Set<String> = []
         for sourceURL in sourceFiles where FileManager.default.fileExists(atPath: sourceURL.path) {
+            guard !isSymbolicLink(sourceURL) else {
+                throw BundleExportError.archiveFailed("Source file \(sourceURL.lastPathComponent) is a symbolic link and was not archived.")
+            }
             let entryName = sourceArchivePath(for: sourceURL, usedNames: &usedNames)
             try addFile(sourceURL, named: entryName, category: "sourceFile", sensitivity: .sourceFile, description: "Original source file included by the teacher.", inventory: &inventory, to: archive)
         }
     }
 
+    @discardableResult
     private static func restoreSourceFiles(
         from archive: Archive,
         to applicationSupportDirectory: URL,
         conflictResolution: BackupConflictResolution,
         conflictingAssignmentIDs: Set<String>,
         copyAssignmentIDs: [String: String] = [:]
-    ) throws {
+    ) throws -> [String] {
         let fileManager = FileManager.default
+        var plannedExtractions: [(entry: Entry, relative: String, destination: URL)] = []
+        var plannedRelativePaths: Set<String> = []
+
         for entry in archive {
             if entry.path.hasPrefix("/") || entry.path.contains("\\") {
                 if entry.path.contains("sources") {
@@ -350,6 +405,12 @@ struct BundleExportService {
                 continue
             }
             guard var relative = try safeRelativeSourcePath(fromArchiveEntryPath: entry.path) else { continue }
+            guard entry.type == .file else {
+                throw BundleExportError.restoreFailed("Archive source entry is not a regular file: \(entry.path).")
+            }
+            guard UInt64(entry.uncompressedSize) <= maxRestoreSourceEntryBytes else {
+                throw BundleExportError.restoreFailed("Archive source entry is too large to restore safely: \(entry.path).")
+            }
             if conflictResolution == .restoreAsCopy,
                let remapped = remappedSourcePath(relative, using: copyAssignmentIDs) {
                 relative = remapped
@@ -357,12 +418,71 @@ struct BundleExportService {
                       conflictingAssignmentIDs.contains(where: { sourcePath(relative, belongsTo: $0) }) {
                 continue
             }
+            guard plannedRelativePaths.insert(relative).inserted else {
+                throw BundleExportError.restoreFailed("Backup archive contains duplicate source entries for \(relative).")
+            }
             let destination = try safeDestination(forRelativeSourcePath: relative, applicationSupportDirectory: applicationSupportDirectory)
-            try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if fileManager.fileExists(atPath: destination.path) { try fileManager.removeItem(at: destination) }
-            _ = try archive.extract(entry, to: destination)
-            ExportFileHardening.applyBestEffortProtection(to: destination)
+            plannedExtractions.append((entry, relative, destination))
         }
+
+        var restored: [(relative: String, destination: URL)] = []
+        do {
+            for item in plannedExtractions {
+                try fileManager.createDirectory(at: item.destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                if fileManager.fileExists(atPath: item.destination.path) { try fileManager.removeItem(at: item.destination) }
+                _ = try archive.extract(item.entry, to: item.destination)
+                ExportFileHardening.applyBestEffortProtection(to: item.destination)
+                restored.append((item.relative, item.destination))
+            }
+            return restored.map(\.relative)
+        } catch {
+            for item in restored {
+                try? fileManager.removeItem(at: item.destination)
+            }
+            throw BundleExportError.restoreFailed("Source files could not be restored safely. No assignment records were imported. \(error.localizedDescription)")
+        }
+    }
+
+    private static func validateBackupArchiveStructure(_ archive: Archive) throws {
+        var criticalCounts: [String: Int] = [:]
+        var sourcePaths: Set<String> = []
+
+        for entry in archive {
+            if criticalRestoreEntries.contains(entry.path) {
+                criticalCounts[entry.path, default: 0] += 1
+                guard entry.type == .file else {
+                    throw BundleExportError.restoreFailed("Backup archive entry \(entry.path) is not a regular file.")
+                }
+                guard UInt64(entry.uncompressedSize) <= maxRestoreJSONEntryBytes else {
+                    throw BundleExportError.restoreFailed("Backup archive entry \(entry.path) is unexpectedly large.")
+                }
+            }
+
+            if entry.path.hasPrefix("sources/") || entry.path.contains("/sources/") || entry.path.contains("\\sources") {
+                guard !entry.path.hasPrefix("/"), !entry.path.contains("\\") else {
+                    throw BundleExportError.restoreFailed("Archive source entry contains an unsafe path: \(entry.path).")
+                }
+                guard let relative = try safeRelativeSourcePath(fromArchiveEntryPath: entry.path) else { continue }
+                guard entry.type == .file else {
+                    throw BundleExportError.restoreFailed("Archive source entry is not a regular file: \(entry.path).")
+                }
+                guard UInt64(entry.uncompressedSize) <= maxRestoreSourceEntryBytes else {
+                    throw BundleExportError.restoreFailed("Archive source entry is too large to restore safely: \(entry.path).")
+                }
+                guard sourcePaths.insert(relative).inserted else {
+                    throw BundleExportError.restoreFailed("Backup archive contains duplicate source entries for \(relative).")
+                }
+            }
+        }
+
+        for (path, count) in criticalCounts where count > 1 {
+            throw BundleExportError.restoreFailed("Backup archive contains duplicate \(path) entries.")
+        }
+    }
+
+    private static func isSymbolicLink(_ url: URL) -> Bool {
+        let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey])
+        return values?.isSymbolicLink == true
     }
 
     private static func remappedSourceInputs(_ sourceInputs: [SourceInputRef], from originalAssignmentID: String, to copiedAssignmentID: String) -> [SourceInputRef] {
@@ -539,10 +659,15 @@ struct BundleExportService {
         guard components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
             throw BundleExportError.restoreFailed("Archive source entry contains an unsafe path: \(relative).")
         }
-        let root = applicationSupportDirectory.standardizedFileURL
+        let root = applicationSupportDirectory.standardizedFileURL.resolvingSymlinksInPath()
         let destination = root.appendingPathComponent(relative).standardizedFileURL
-        guard destination.path == root.path || destination.path.hasPrefix(root.path + "/") else {
+        let resolvedParent = destination.deletingLastPathComponent().standardizedFileURL.resolvingSymlinksInPath()
+        guard resolvedParent.path == root.path || resolvedParent.path.hasPrefix(root.path + "/") else {
             throw BundleExportError.restoreFailed("Archive source entry escapes local storage: \(relative).")
+        }
+        let resolvedDestination = destination.resolvingSymlinksInPath()
+        guard !FileManager.default.fileExists(atPath: destination.path) || resolvedDestination.path == root.path || resolvedDestination.path.hasPrefix(root.path + "/") else {
+            throw BundleExportError.restoreFailed("Archive source entry would overwrite a file outside local storage: \(relative).")
         }
         return destination
     }
@@ -586,5 +711,14 @@ enum SourcePathSafety {
         let components = path.split(separator: "/", omittingEmptySubsequences: false)
         guard components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { return nil }
         return path
+    }
+
+    static func resolvedLocalSourceURL(_ path: String?, applicationSupportDirectory: URL) -> URL? {
+        guard let relativePath = sanitizedLocalSourcePath(path) else { return nil }
+        let root = applicationSupportDirectory.standardizedFileURL.resolvingSymlinksInPath()
+        let url = root.appendingPathComponent(relativePath, isDirectory: false).standardizedFileURL
+        let resolved = url.resolvingSymlinksInPath()
+        guard resolved.path == root.path || resolved.path.hasPrefix(root.path + "/") else { return nil }
+        return resolved
     }
 }

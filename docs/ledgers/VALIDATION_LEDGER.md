@@ -133,3 +133,89 @@ xcodebuild archive -project GradeDraft.xcodeproj -scheme GradeDraft -configurati
 ```
 
 Manual physical-device validation is still required for camera OCR, LocalAuthentication export gates, share sheets, backup restore, Airplane Mode, and Foundation Models on Apple Intelligence-capable hardware.
+
+## 2026-06-10 — Full audit hardening patch static validation
+
+Available in this Linux environment after the hardening patch:
+
+```bash
+python3 scripts/repo_health.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_release_readiness_static.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_curriculum_catalog.py
+```
+
+Required outside this Linux environment:
+
+```bash
+xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft
+swiftlint lint --config .swiftlint.yml
+DESTINATION="$(python3 scripts/ci/select_ios_simulator.py --print-destination)"
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination "$DESTINATION" -derivedDataPath /tmp/GradeDraftDerivedData -resultBundlePath /tmp/GradeDraftUnitTests.xcresult -skip-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 clean test
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination "$DESTINATION" -derivedDataPath /tmp/GradeDraftScreenshotDerivedData -resultBundlePath /tmp/GradeDraftScreenshotTests.xcresult -only-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 test
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -configuration Release -destination "generic/platform=iOS" -derivedDataPath /tmp/GradeDraftReleaseDerivedData CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -configuration Release -destination "generic/platform=iOS" -archivePath /tmp/GradeDraft.xcarchive CODE_SIGNING_ALLOWED=NO archive
+```
+
+Xcode, SwiftLint, simulator, UIKit/PDFKit runtime, Vision/VisionKit OCR, Foundation Models, LocalAuthentication, share-sheet, and physical-device validation were not run in this Linux container.
+
+## 2026-06-10 — Second-pass maximum-effort hardening validation scope
+
+Available in this Linux environment after applying the second-pass incremental patch:
+
+```bash
+git apply --check mark_my_work_full_audit_hardening.patch
+git apply mark_my_work_full_audit_hardening.patch
+git diff --check
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_release_readiness_static.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_curriculum_catalog.py
+```
+
+Additional patch-format validation required for generated artifacts:
+
+```bash
+git apply --check mark_my_work_second_pass_max_effort_incremental.patch
+git apply mark_my_work_second_pass_max_effort_incremental.patch
+git apply --check mark_my_work_consolidated_full_hardening_v2.patch
+```
+
+`python3 scripts/repo_health.py` remains the intended aggregate local static gate. If it is unavailable or times out in a constrained environment, run each component check above individually and record the timeout honestly.
+
+Required outside this Linux environment:
+
+```bash
+xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft
+swiftlint lint --config .swiftlint.yml
+DESTINATION="$(python3 scripts/ci/select_ios_simulator.py --print-destination)"
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination "$DESTINATION" -derivedDataPath /tmp/GradeDraftDerivedData -resultBundlePath /tmp/GradeDraftUnitTests.xcresult -skip-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 clean test
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination "$DESTINATION" -derivedDataPath /tmp/GradeDraftScreenshotDerivedData -resultBundlePath /tmp/GradeDraftScreenshotTests.xcresult -only-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 test
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -configuration Release -destination "generic/platform=iOS" -derivedDataPath /tmp/GradeDraftReleaseDerivedData CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -configuration Release -destination "generic/platform=iOS" -archivePath /tmp/GradeDraft.xcarchive CODE_SIGNING_ALLOWED=NO archive
+```
+
+Simulator/device validation is still required for UIKit/PDFKit rendering, Vision/VisionKit OCR, Foundation Models availability, LocalAuthentication export gates, file importers, share sheets, Airplane Mode behavior, backup/restore UI copy, and physical-device source capture.
