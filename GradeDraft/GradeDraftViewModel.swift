@@ -40,6 +40,7 @@ final class GradeDraftViewModel: ObservableObject {
     private let fileManager: FileManager
     private let exportAuthenticationService: ExportAuthenticationServicing
     private var draftGenerationTask: Task<Void, Never>?
+    private var pendingRestoreFingerprint: String?
     @Published private(set) var persistenceMode: String
 
     init(
@@ -76,6 +77,7 @@ final class GradeDraftViewModel: ObservableObject {
                 self.assignments = loaded.isEmpty ? [AssignmentRecord()] : loaded
                 self.classGroups = try resolvedStore.loadClassGroups()
                 self.students = try resolvedStore.loadStudents()
+                self.assignmentRosterEntries = try resolvedStore.loadAssignmentRosterSnapshot()
             } catch {
                 self.assignments = [AssignmentRecord()]
                 self.errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
@@ -88,7 +90,11 @@ final class GradeDraftViewModel: ObservableObject {
 
         if self.classGroups.isEmpty { self.classGroups = Self.classGroupsFromAssignments(self.assignments) }
         if self.students.isEmpty { self.students = Self.studentsFromAssignments(self.assignments) }
-        refreshAssignmentRosterEntries()
+        if self.assignmentRosterEntries.isEmpty {
+            refreshAssignmentRosterEntries()
+        } else {
+            reconcileRosterEntriesWithCurrentAssignments()
+        }
         selectedAssignmentID = self.assignments.first?.id
         refreshDeviceBackupPolicyStatus()
         refreshCapabilityStatus()
@@ -361,8 +367,9 @@ final class GradeDraftViewModel: ObservableObject {
                 errorMessage = "Shortcut did not include student work text to save."
                 return
             }
-            applyPastedStudentText(text)
-            statusMessage = "Pasted student work was saved locally from Shortcut. Review setup before drafting feedback."
+            if applyPastedStudentText(text) {
+                statusMessage = "Pasted student work was saved locally from Shortcut. Review setup before drafting feedback."
+            }
         case .none:
             if let assignmentID = request.assignmentID, assignments.contains(where: { $0.id == assignmentID }) {
                 statusMessage = "Opened assignment locally. Student work stays on this device."
@@ -403,18 +410,26 @@ final class GradeDraftViewModel: ObservableObject {
     func deleteCurrentAssignment() {
         guard let selectedAssignmentID else { return }
         let assignmentToDelete = assignments.first { $0.id == selectedAssignmentID }
-        assignments.removeAll { $0.id == selectedAssignmentID }
-        assignmentRosterEntries.removeAll { $0.assignmentID == selectedAssignmentID }
-        if assignments.isEmpty {
-            assignments = [AssignmentRecord()]
+        var nextAssignments = assignments.filter { $0.id != selectedAssignmentID }
+        if nextAssignments.isEmpty {
+            nextAssignments = [AssignmentRecord()]
         }
-        self.selectedAssignmentID = assignments.first?.id
+        let nextRosterEntries = assignmentRosterEntries.filter { $0.assignmentID != selectedAssignmentID }
+        let nextSelectedAssignmentID = nextAssignments.first?.id
         do {
-            try store.deleteAssignment(id: selectedAssignmentID)
-            try store.saveAssignments(assignments)
-            if !assignmentRosterEntries.isEmpty {
-                try? store.saveAssignmentRoster(assignmentRosterEntries)
-            }
+            try store.replaceLocalDataSnapshot(
+                AssignmentStoreSnapshot(
+                    assignments: nextAssignments,
+                    classGroups: classGroups,
+                    students: students,
+                    rosterEntries: nextRosterEntries
+                )
+            )
+            assignments = nextAssignments
+            assignmentRosterEntries = nextRosterEntries
+            self.selectedAssignmentID = nextSelectedAssignmentID
+
+            var sourceCleanupWarning: String?
             if let appDir = try? store.applicationSupportDirectory(),
                let toDelete = assignmentToDelete,
                !toDelete.sourceInputs.isEmpty {
@@ -422,11 +437,20 @@ final class GradeDraftViewModel: ObservableObject {
                     .appendingPathComponent("Sources", isDirectory: true)
                     .appendingPathComponent(selectedAssignmentID.uuidString, isDirectory: true)
                 if fileManager.fileExists(atPath: sourceDir.path) {
-                    try? fileManager.removeItem(at: sourceDir)
+                    do {
+                        try fileManager.removeItem(at: sourceDir)
+                    } catch {
+                        sourceCleanupWarning = error.localizedDescription
+                    }
                 }
             }
-            statusMessage = "Assignment deleted locally."
+            if let sourceCleanupWarning {
+                errorMessage = "Assignment record was deleted, but its local source-file folder could not be removed: \(sourceCleanupWarning)"
+            } else {
+                statusMessage = "Assignment deleted locally."
+            }
         } catch {
+            reloadFromStoreAfterPersistenceFailure()
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
         }
     }
@@ -453,7 +477,7 @@ final class GradeDraftViewModel: ObservableObject {
         updateAssignment { assignment in
             assignment = GradeDraftTemplateApplication.applyingRubricTemplate(template, to: assignment, resetDrafts: true)
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Rubric template applied locally. Review before drafting feedback."
     }
 
@@ -461,7 +485,7 @@ final class GradeDraftViewModel: ObservableObject {
         updateAssignment { assignment in
             assignment = GradeDraftTemplateApplication.appendingInstructionTemplate(template, to: assignment, mode: mode)
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Teacher instruction template appended locally."
     }
 
@@ -469,7 +493,7 @@ final class GradeDraftViewModel: ObservableObject {
         updateAssignment { assignment in
             assignment = GradeDraftTemplateApplication.insertingAnswerKeyTemplate(template, to: assignment, mode: mode)
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Answer-key template inserted locally. Existing answer-key text was preserved."
     }
 
@@ -477,7 +501,7 @@ final class GradeDraftViewModel: ObservableObject {
         updateAssignment { assignment in
             assignment = GradeDraftTemplateApplication.insertingExemplarTemplate(template, to: assignment, mode: mode)
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Exemplar template inserted locally. Existing exemplar text was preserved."
     }
 
@@ -485,7 +509,7 @@ final class GradeDraftViewModel: ObservableObject {
         updateAssignment { assignment in
             assignment = GradeDraftTemplateApplication.insertingFormativeFocusTemplate(template, to: assignment, mode: mode)
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Formative focus template appended locally."
     }
 
@@ -501,7 +525,7 @@ final class GradeDraftViewModel: ObservableObject {
                 .filter { assignment.selectedInstructionTemplateIDs.contains($0) }
             assignment.appendAuditEvent(.inputChanged, detail: "AI constraint template selection changed.")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "AI constraint templates updated. Regenerate any outdated draft before final review."
     }
 
@@ -510,7 +534,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.selectedInstructionTemplateIDs = GradingConstraintTemplates.recommendedIDs(for: assignment)
             assignment.appendAuditEvent(.inputChanged, detail: "Recommended AI constraint templates applied.")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Recommended AI constraint templates applied. Sensitive templates were not selected automatically."
     }
 
@@ -519,15 +543,16 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.selectedInstructionTemplateIDs = []
             assignment.appendAuditEvent(.inputChanged, detail: "AI constraint templates cleared.")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "AI constraint templates cleared."
     }
 
-    func applyPastedStudentText(_ text: String) {
+    @discardableResult
+    func applyPastedStudentText(_ text: String) -> Bool {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else {
             errorMessage = "Paste non-empty student work before saving it as reviewed input."
-            return
+            return false
         }
         updateAssignment { assignment in
             assignment.reviewedStudentText = cleaned
@@ -539,8 +564,9 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.finalReview = nil
             assignment.appendAuditEvent(.inputChanged, detail: "Pasted student text applied as teacher-reviewed input.")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return false }
         statusMessage = "Pasted student work saved locally as teacher-reviewed input."
+        return true
     }
 
     func applyScannedImages(_ images: [UIImage]) async {
@@ -578,8 +604,8 @@ final class GradeDraftViewModel: ObservableObject {
                 assignment.appendAuditEvent(.sourceCaptured, detail: "Captured \(images.count) \(sourceType.displayName.lowercased()) page(s) locally.")
                 assignment.appendAuditEvent(.ocrCompleted, detail: document.qualitySummary.displaySummary)
             }
-            statusMessage = "Text recognition complete. Review scanned text before drafting feedback."
             try saveCurrentAssignment()
+            statusMessage = "Text recognition complete. Review scanned text before drafting feedback."
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -588,6 +614,17 @@ final class GradeDraftViewModel: ObservableObject {
     func clearCurrentStudentWork() {
         let assignmentID = assignment.id
         let hadSourceInputs = !assignment.sourceInputs.isEmpty
+        updateAssignment { assignment in
+            assignment.ocrDocument = nil
+            assignment.ocrReviewStatus = .notNeeded
+            assignment.ocrReviewedAt = nil
+            assignment.sourceInputs = []
+            assignment.reviewedStudentText = ""
+            assignment.latestDraft = nil
+            assignment.finalReview = nil
+            assignment.appendAuditEvent(.inputChanged, detail: "Teacher cleared student work and reviewed text after the local clear-work warning.")
+        }
+        guard persistOrSurfaceError() else { return }
         var cleanupErrorDetail: String?
         if hadSourceInputs {
             do {
@@ -602,20 +639,6 @@ final class GradeDraftViewModel: ObservableObject {
                 cleanupErrorDetail = error.localizedDescription
             }
         }
-        updateAssignment { assignment in
-            assignment.ocrDocument = nil
-            assignment.ocrReviewStatus = .notNeeded
-            assignment.ocrReviewedAt = nil
-            assignment.sourceInputs = []
-            assignment.reviewedStudentText = ""
-            assignment.latestDraft = nil
-            assignment.finalReview = nil
-            assignment.appendAuditEvent(.inputChanged, detail: "Teacher cleared student work and reviewed text after the local clear-work warning.")
-            if let cleanupErrorDetail {
-                assignment.appendAuditEvent(.localFileCleanupFailed, detail: cleanupErrorDetail)
-            }
-        }
-        persistOrSurfaceError()
         if let cleanupErrorDetail {
             errorMessage = "Student work references were cleared, but local source files may remain: \(cleanupErrorDetail)"
         } else {
@@ -632,7 +655,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.finalReview = nil
             assignment.appendAuditEvent(.ocrReviewed, detail: "Teacher marked scanned text reviewed. Reviewed text is now eligible for grading.")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Scanned text reviewed. Draft feedback is now available if Local AI and rubric are ready."
     }
 
@@ -725,12 +748,14 @@ final class GradeDraftViewModel: ObservableObject {
                 assignment.finalReview = nil
                 assignment.appendAuditEvent(.draftGenerated, detail: "Local grading draft generated from packet \(input.packetFingerprint).")
             }
+            let draftSavedMessage: String
             if result.localModelAudit?.generationMode == .perCriterion {
-                statusMessage = "Draft generated locally criterion-by-criterion because the full packet was too large. Review every criterion carefully before approval."
+                draftSavedMessage = "Draft generated locally criterion-by-criterion because the full packet was too large. Review every criterion carefully before approval."
             } else {
-                statusMessage = "Draft feedback suggestion generated locally using Apple Foundation Models. Start teacher final review before using it."
+                draftSavedMessage = "Draft feedback suggestion generated locally using Apple Foundation Models. Start teacher final review before using it."
             }
             try saveCurrentAssignment()
+            statusMessage = draftSavedMessage
             aiGenerationProgress = AIGenerationProgress(
                 stage: .completed,
                 detail: "Local draft saved. Start teacher final review before using it.",
@@ -867,7 +892,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: final)
             assignment.appendAuditEvent(.finalReviewStarted, detail: "Teacher review started from the latest local draft.")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Final review started. Approve each criterion before exporting as final."
     }
 
@@ -924,7 +949,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: review)
             assignment.appendAuditEvent(.finalReviewStarted, detail: "Teacher started manual final review without AI draft.")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Manual final review started. Edit criteria, approve each one, then approve the final grade."
     }
 
@@ -989,7 +1014,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: review)
             assignment.appendAuditEvent(.inputChanged, detail: "Teacher accepted a final-review criterion suggestion.")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Criterion suggestion accepted locally. Final approval is still required."
     }
 
@@ -1005,7 +1030,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.finalReview = GradeTotals.applyingDeterministicTotals(to: review)
             assignment.appendAuditEvent(.inputChanged, detail: "Teacher rejected a final-review criterion suggestion.")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Criterion suggestion rejected locally. Edit it before final approval."
     }
 
@@ -1027,7 +1052,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.finalReview = review
             assignment.appendAuditEvent(.finalApproved, detail: "Teacher approved final grade \(GradeTotals.formatted(review.totalScore)) / \(GradeTotals.formatted(review.maxScore)).")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Final grade approved and saved locally."
     }
 
@@ -1043,6 +1068,7 @@ final class GradeDraftViewModel: ObservableObject {
         do {
             try store.saveAssignments(assignments)
         } catch {
+            reloadFromStoreAfterPersistenceFailure()
             throw GradeDraftError.persistenceFailed(error.localizedDescription)
         }
     }
@@ -1100,7 +1126,7 @@ final class GradeDraftViewModel: ObservableObject {
             let markdown = MarkdownReportBuilder.studentMarkdown(for: assignment)
             exportURL = try MarkdownReportBuilder.writeTemporaryStudentReport(for: assignment)
             exportKind = .studentMarkdown
-            recordExport(kind: .studentMarkdown, content: markdown, includesPrivateNotes: false, includesOriginalSources: false)
+            guard recordExport(kind: .studentMarkdown, content: markdown, includesPrivateNotes: false, includesOriginalSources: false) else { return }
             statusMessage = "Student Markdown report is ready to share."
         } catch {
             handleExportFailure(error)
@@ -1113,7 +1139,7 @@ final class GradeDraftViewModel: ObservableObject {
             let markdown = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment, generatedAt: generatedAt)
             exportURL = try MarkdownReportBuilder.writeTemporaryTeacherAuditReport(for: assignment, generatedAt: generatedAt)
             exportKind = .teacherAuditMarkdown
-            recordExport(kind: .teacherAuditMarkdown, content: markdown, includesPrivateNotes: true, includesOriginalSources: false)
+            guard recordExport(kind: .teacherAuditMarkdown, content: markdown, includesPrivateNotes: true, includesOriginalSources: false) else { return }
             statusMessage = "Teacher Review is ready to share. Treat it as sensitive."
         } catch {
             handleExportFailure(error)
@@ -1129,7 +1155,7 @@ final class GradeDraftViewModel: ObservableObject {
             ExportFileHardening.applyBestEffortProtection(to: destination)
             exportURL = destination
             exportKind = .csvGradebook
-            recordExport(kind: .csvGradebook, content: csv, includesPrivateNotes: false, includesOriginalSources: false)
+            guard recordExport(kind: .csvGradebook, content: csv, includesPrivateNotes: false, includesOriginalSources: false) else { return }
             statusMessage = "Gradebook CSV is ready to share. Treat it as a teacher-only record."
         } catch {
             handleExportFailure(error)
@@ -1139,12 +1165,12 @@ final class GradeDraftViewModel: ObservableObject {
     func exportGradebookArchive() {
         do {
             let records = gradebookAssignments.isEmpty ? [assignment] : gradebookAssignments
-            let archiveSourceFiles = records.flatMap { sourceFiles(for: $0) }
+            let archiveSourceFiles = try records.flatMap { try sourceFilesForSensitiveArchive(for: $0) }
             let destination = temporaryExportURL(kind: .assignmentGradebookArchive, extension: "zip", assignmentID: nil)
             exportURL = try BundleExportService.writeAssignmentArchive(assignments: records, sourceFiles: archiveSourceFiles, to: destination)
             exportKind = .assignmentGradebookArchive
             if let exportURL {
-                recordExport(kind: .assignmentGradebookArchive, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: !archiveSourceFiles.isEmpty)
+                guard recordExport(kind: .assignmentGradebookArchive, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: !archiveSourceFiles.isEmpty) else { return }
             }
             statusMessage = "Gradebook archive ZIP is ready to share. Treat it as sensitive teacher-only student data."
         } catch {
@@ -1179,7 +1205,7 @@ final class GradeDraftViewModel: ObservableObject {
             ExportFileHardening.applyBestEffortProtection(to: destination)
             exportURL = destination
             exportKind = .csvGradebook
-            recordExport(kind: .csvGradebook, content: csv, includesPrivateNotes: false, includesOriginalSources: false)
+            guard recordExport(kind: .csvGradebook, content: csv, includesPrivateNotes: false, includesOriginalSources: false) else { return }
             statusMessage = "Class gradebook CSV is ready to share. Treat it as a teacher-only record."
         } catch {
             handleExportFailure(error)
@@ -1192,12 +1218,12 @@ final class GradeDraftViewModel: ObservableObject {
         let scoped = classAssignments(for: className)
         let records = scoped.isEmpty ? [assignment] : scoped
         do {
-            let archiveSourceFiles = records.flatMap { sourceFiles(for: $0) }
+            let archiveSourceFiles = try records.flatMap { try sourceFilesForSensitiveArchive(for: $0) }
             let destination = temporaryExportURL(kind: .assignmentGradebookArchive, extension: "zip", assignmentID: nil)
             exportURL = try BundleExportService.writeAssignmentArchive(assignments: records, sourceFiles: archiveSourceFiles, to: destination)
             exportKind = .assignmentGradebookArchive
             if let exportURL {
-                recordExport(kind: .assignmentGradebookArchive, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: !archiveSourceFiles.isEmpty)
+                guard recordExport(kind: .assignmentGradebookArchive, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: !archiveSourceFiles.isEmpty) else { return }
             }
             statusMessage = "Class gradebook archive ZIP is ready to share. Treat it as sensitive teacher-only student data."
         } catch {
@@ -1283,8 +1309,8 @@ final class GradeDraftViewModel: ObservableObject {
                 assignment.appendAuditEvent(.sourceCaptured, detail: "Imported local PDF with \(document.pageCount) page(s); original PDF and rendered pages stored locally.")
                 assignment.appendAuditEvent(.ocrCompleted, detail: documentForReview.qualitySummary.displaySummary)
             }
-            statusMessage = "PDF imported. Review scanned text before drafting feedback."
             try saveCurrentAssignment()
+            statusMessage = "PDF imported. Review scanned text before drafting feedback."
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -1309,7 +1335,7 @@ final class GradeDraftViewModel: ObservableObject {
             let criterionCount = useStructuredImport ? preview.detectedCriteria.count : 0
             assignment.appendAuditEvent(.inputChanged, detail: "Confirmed rubric import with \(criterionCount) structured criterion/criteria and \(preview.issues.count) item(s) needing attention.")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         latestRubricPreview = nil
         statusMessage = useStructuredImport ? "Rubric imported with a teacher-confirmed structured preview." : "Rubric text saved as raw text for teacher review."
     }
@@ -1404,7 +1430,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.finalReview = nil
             assignment.appendAuditEvent(.inputChanged, detail: "Teacher mapped Australian Curriculum reference \(item.code) to assignment from \(item.sourceVersion).")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Mapped Australian Curriculum reference locally. Confirm jurisdiction reporting requirements before final reporting."
     }
 
@@ -1419,7 +1445,7 @@ final class GradeDraftViewModel: ObservableObject {
             assignment.finalReview = nil
             assignment.appendAuditEvent(.inputChanged, detail: "Teacher removed Australian Curriculum reference \(item.code) from assignment.")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else { return }
         statusMessage = "Curriculum reference removed from the current assignment."
     }
 
@@ -1438,7 +1464,7 @@ final class GradeDraftViewModel: ObservableObject {
                 assignment.curriculumMappings.removeAll()
                 assignment.appendAuditEvent(.inputChanged, detail: "Imported teacher-provided curriculum/reference material from \(url.lastPathComponent).")
             }
-            persistOrSurfaceError()
+            guard persistOrSurfaceError() else { return }
             statusMessage = "Teacher-provided curriculum/reference material imported locally. Confirm it matches the current jurisdiction source before grading."
         } catch {
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
@@ -1452,50 +1478,62 @@ final class GradeDraftViewModel: ObservableObject {
     }
 
     func saveClassGroup(_ classGroup: ClassGroupRecord) {
-        if let index = classGroups.firstIndex(where: { $0.id == classGroup.id }) {
-            classGroups[index] = classGroup
+        var nextClassGroups = classGroups
+        if let index = nextClassGroups.firstIndex(where: { $0.id == classGroup.id }) {
+            nextClassGroups[index] = classGroup
         } else {
-            classGroups.append(classGroup)
+            nextClassGroups.append(classGroup)
         }
         do {
-            try store.saveClassGroup(classGroup)
+            try store.replaceLocalDataSnapshot(currentStoreSnapshot(classGroups: nextClassGroups))
+            classGroups = nextClassGroups
             statusMessage = "Class saved locally."
         } catch {
+            reloadFromStoreAfterPersistenceFailure()
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
         }
     }
 
     func saveStudent(_ student: StudentRecord) {
-        if let index = students.firstIndex(where: { $0.id == student.id }) {
-            students[index] = student
+        var nextStudents = students
+        if let index = nextStudents.firstIndex(where: { $0.id == student.id }) {
+            nextStudents[index] = student
         } else {
-            students.append(student)
+            nextStudents.append(student)
         }
         do {
-            try store.saveStudent(student)
+            try store.replaceLocalDataSnapshot(currentStoreSnapshot(students: nextStudents))
+            students = nextStudents
+            reconcileRosterEntriesWithCurrentAssignments()
             statusMessage = "Student saved locally."
         } catch {
+            reloadFromStoreAfterPersistenceFailure()
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
         }
     }
 
     func deleteClassGroup(id: UUID) {
-        classGroups.removeAll { $0.id == id }
+        let nextClassGroups = classGroups.filter { $0.id != id }
         do {
-            try store.deleteClassGroup(id: id)
+            try store.replaceLocalDataSnapshot(currentStoreSnapshot(classGroups: nextClassGroups))
+            classGroups = nextClassGroups
             statusMessage = "Class archived/deleted locally. Existing assignment records are preserved."
         } catch {
+            reloadFromStoreAfterPersistenceFailure()
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
         }
     }
 
     func deleteStudent(id: UUID) {
-        students.removeAll { $0.id == id }
-        assignmentRosterEntries.removeAll { $0.studentID == id }
+        let nextStudents = students.filter { $0.id != id }
+        let nextRosterEntries = assignmentRosterEntries.filter { $0.studentID != id }
         do {
-            try store.deleteStudent(id: id)
+            try store.replaceLocalDataSnapshot(currentStoreSnapshot(students: nextStudents, rosterEntries: nextRosterEntries))
+            students = nextStudents
+            assignmentRosterEntries = nextRosterEntries
             statusMessage = "Student record deleted locally. Existing assignment records are preserved for audit continuity."
         } catch {
+            reloadFromStoreAfterPersistenceFailure()
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
         }
     }
@@ -1507,34 +1545,39 @@ final class GradeDraftViewModel: ObservableObject {
             return
         }
 
-        // Use the displayed class name from the UI (className param) when the CSV has no
-        // explicit class column, rather than falling back to the currently-selected assignment.
         let resolvedClassName = preview.className.nilIfBlank
             ?? className?.nilIfBlank
             ?? assignment.className.nilIfBlank
             ?? "Untitled class"
-        var classGroup = ClassGroupRecord(
-            name: resolvedClassName,
-            schoolYear: "",
-            term: "",
-            subject: assignment.subject,
-            gradeLevel: assignment.gradeLevel
-        )
-        if let existing = classGroups.first(where: { $0.name.localizedCaseInsensitiveCompare(classGroup.name) == .orderedSame }) {
-            classGroup = existing
+        var classGroup = classGroups.first { $0.name.localizedCaseInsensitiveCompare(resolvedClassName) == .orderedSame }
+            ?? ClassGroupRecord(
+                name: resolvedClassName,
+                schoolYear: "",
+                term: "",
+                subject: assignment.subject,
+                gradeLevel: assignment.gradeLevel
+            )
+        classGroup.updatedAt = Date()
+
+        var nextClassGroups = classGroups
+        if let index = nextClassGroups.firstIndex(where: { $0.id == classGroup.id }) {
+            nextClassGroups[index] = classGroup
         } else {
-            saveClassGroup(classGroup)
+            nextClassGroups.append(classGroup)
         }
 
+        var nextStudents = students
         let template = assignment
         var created: [AssignmentRecord] = []
         var rosterEntries: [AssignmentRosterEntry] = []
+
         for (index, student) in preview.students.enumerated() {
             var savedStudent = student
-            if let existing = students.first(where: { !$0.localIdentifier.isEmpty && $0.localIdentifier == student.localIdentifier }) {
+            if let existing = nextStudents.first(where: { !$0.localIdentifier.isEmpty && $0.localIdentifier == student.localIdentifier }) {
                 savedStudent = existing
             } else {
-                saveStudent(savedStudent)
+                savedStudent.className = savedStudent.className.nilIfBlank ?? classGroup.name
+                nextStudents.append(savedStudent)
             }
 
             var copy = template
@@ -1561,13 +1604,33 @@ final class GradeDraftViewModel: ObservableObject {
                 )
             )
         }
-        assignments.append(contentsOf: created)
-        assignmentRosterEntries.append(contentsOf: rosterEntries)
-        assignments.sort { $0.updatedAt > $1.updatedAt }
-        selectedAssignmentID = created.first?.id ?? selectedAssignmentID
-        persistOrSurfaceError()
-        do { try store.saveAssignmentRoster(rosterEntries) } catch { errorMessage = error.localizedDescription }
-        statusMessage = "Created \(created.count) roster assignment(s) locally; \(preview.rejectedRows.count) invalid row(s) were rejected."
+
+        var nextAssignments = assignments + created
+        nextAssignments.sort { $0.updatedAt > $1.updatedAt }
+        let nextRosterEntries = reconciledRosterEntries(
+            assignmentRosterEntries + rosterEntries,
+            assignments: nextAssignments,
+            students: nextStudents
+        )
+        do {
+            try store.replaceLocalDataSnapshot(
+                AssignmentStoreSnapshot(
+                    assignments: nextAssignments,
+                    classGroups: nextClassGroups,
+                    students: nextStudents,
+                    rosterEntries: nextRosterEntries
+                )
+            )
+            assignments = nextAssignments
+            classGroups = nextClassGroups
+            students = nextStudents
+            assignmentRosterEntries = nextRosterEntries
+            selectedAssignmentID = created.first?.id ?? selectedAssignmentID
+            statusMessage = "Created \(created.count) roster assignment(s) locally; \(preview.rejectedRows.count) invalid row(s) were rejected."
+        } catch {
+            reloadFromStoreAfterPersistenceFailure()
+            errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+        }
     }
 
     private func applyOCRReviewState(_ document: inout OCRDocument, to assignment: inout AssignmentRecord, reviewedAt now: Date = Date()) {
@@ -1780,22 +1843,34 @@ final class GradeDraftViewModel: ObservableObject {
     }
 
     func sourceImage(for source: SourceInputRef) -> UIImage? {
-        guard let localRelativePath = source.localRelativePath,
-              let appDir = try? store.applicationSupportDirectory() else { return nil }
-        let url = appDir.appendingPathComponent(localRelativePath)
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let appDir = try? store.applicationSupportDirectory(),
+              let url = SourcePathSafety.resolvedLocalSourceURL(source.localRelativePath, applicationSupportDirectory: appDir),
+              let data = try? Data(contentsOf: url) else { return nil }
         return UIImage(data: data)
     }
 
     private func sourceFiles(for assignment: AssignmentRecord) -> [URL] {
         guard let appDir = try? store.applicationSupportDirectory() else { return [] }
-        let root = appDir.standardizedFileURL
         return assignment.sourceInputs.compactMap { source in
-            guard let relative = SourcePathSafety.sanitizedLocalSourcePath(source.localRelativePath) else { return nil }
-            let url = appDir.appendingPathComponent(relative).standardizedFileURL
-            guard url.path == root.path || url.path.hasPrefix(root.path + "/") else { return nil }
+            guard let url = SourcePathSafety.resolvedLocalSourceURL(source.localRelativePath, applicationSupportDirectory: appDir) else { return nil }
             return fileManager.fileExists(atPath: url.path) ? url : nil
         }
+    }
+
+    private func sourceFilesForSensitiveArchive(for assignment: AssignmentRecord) throws -> [URL] {
+        let appDir = try store.applicationSupportDirectory()
+        var urls: [URL] = []
+        for source in assignment.sourceInputs where source.teacherIncludedInExport {
+            guard let relativePath = source.localRelativePath, !relativePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            guard let url = SourcePathSafety.resolvedLocalSourceURL(relativePath, applicationSupportDirectory: appDir) else {
+                throw GradeDraftError.persistenceFailed("Original source file reference for \(assignment.title) is unsafe and was not exported: \(relativePath).")
+            }
+            guard fileManager.fileExists(atPath: url.path) else {
+                throw GradeDraftError.persistenceFailed("Original source file for \(assignment.title) is missing and the sensitive archive was not created: \(relativePath).")
+            }
+            urls.append(url)
+        }
+        return urls
     }
 
     private func mergeRestoredAssignments(_ restored: [AssignmentRecord], resolution: BackupConflictResolution) -> (assignments: [AssignmentRecord], idMap: [UUID: UUID]) {
@@ -1844,7 +1919,8 @@ final class GradeDraftViewModel: ObservableObject {
         _ restored: [AssignmentRosterEntry],
         assignmentIDMap: [UUID: UUID],
         conflictResolution: BackupConflictResolution,
-        localConflictAssignmentIDs: Set<UUID>
+        localConflictAssignmentIDs: Set<UUID>,
+        assignmentsForStatus: [AssignmentRecord]
     ) -> [AssignmentRosterEntry] {
         restored.compactMap { entry in
             if conflictResolution == .keepLocal, localConflictAssignmentIDs.contains(entry.assignmentID) {
@@ -1855,9 +1931,9 @@ final class GradeDraftViewModel: ObservableObject {
                 copy.id = UUID()
                 copy.assignmentID = remappedID
                 copy.updatedAt = Date()
-                if let matched = assignments.first(where: { $0.id == remappedID }) {
-                    copy.status = assignmentRosterStatus(for: matched)
-                }
+            }
+            if let matched = assignmentsForStatus.first(where: { $0.id == copy.assignmentID }) {
+                copy.status = assignmentRosterStatus(for: matched)
             }
             return copy
         }
@@ -1902,7 +1978,13 @@ final class GradeDraftViewModel: ObservableObject {
 
     private func mergeRestoredRosterEntries(_ restored: [AssignmentRosterEntry], assignmentIDMap: [UUID: UUID], conflictResolution: BackupConflictResolution) {
         let localConflictIDs = Set(assignmentIDMap.keys)
-        let remapped = remappedRestoredRosterEntries(restored, assignmentIDMap: assignmentIDMap, conflictResolution: conflictResolution, localConflictAssignmentIDs: localConflictIDs)
+        let remapped = remappedRestoredRosterEntries(
+            restored,
+            assignmentIDMap: assignmentIDMap,
+            conflictResolution: conflictResolution,
+            localConflictAssignmentIDs: localConflictIDs,
+            assignmentsForStatus: assignments
+        )
         guard !remapped.isEmpty else { return }
         var byID = Dictionary(uniqueKeysWithValues: assignmentRosterEntries.map { ($0.id, $0) })
         for entry in remapped {
@@ -1923,7 +2005,9 @@ final class GradeDraftViewModel: ObservableObject {
             let destination = temporaryExportURL(kind: .studentPDF, extension: "pdf")
             exportURL = try PDFExportService.studentReportPDF(for: assignment, destination: destination)
             exportKind = .studentPDF
-            if let exportURL { recordExport(kind: .studentPDF, fileURL: exportURL, includesPrivateNotes: false, includesOriginalSources: false) }
+            if let exportURL {
+                guard recordExport(kind: .studentPDF, fileURL: exportURL, includesPrivateNotes: false, includesOriginalSources: false) else { return }
+            }
             statusMessage = "Student Report PDF is ready to share."
         } catch {
             handleExportFailure(error)
@@ -1935,7 +2019,9 @@ final class GradeDraftViewModel: ObservableObject {
             let destination = temporaryExportURL(kind: .teacherAuditPDF, extension: "pdf")
             exportURL = try PDFExportService.teacherAuditPDF(for: assignment, destination: destination)
             exportKind = .teacherAuditPDF
-            if let exportURL { recordExport(kind: .teacherAuditPDF, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: false) }
+            if let exportURL {
+                guard recordExport(kind: .teacherAuditPDF, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: false) else { return }
+            }
             statusMessage = "Teacher Review PDF is ready to share. Treat it as sensitive."
         } catch {
             handleExportFailure(error)
@@ -1944,11 +2030,13 @@ final class GradeDraftViewModel: ObservableObject {
 
     func exportArchiveBundle() {
         do {
-            let sourceFiles = sourceFilesForCurrentAssignment()
+            let sourceFiles = try sourceFilesForSensitiveArchive(for: assignment)
             let destination = try BundleExportService.preflightDestination(for: assignment.id)
             exportURL = try BundleExportService.writeTeacherAuditArchive(assignment: assignment, sourceFiles: sourceFiles, to: destination)
             exportKind = .zipArchive
-            if let exportURL { recordExport(kind: .zipArchive, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: !sourceFiles.isEmpty) }
+            if let exportURL {
+                guard recordExport(kind: .zipArchive, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: !sourceFiles.isEmpty) else { return }
+            }
             statusMessage = "Teacher archive ZIP is ready to share. Treat it as sensitive."
         } catch {
             handleExportFailure(error)
@@ -1958,12 +2046,12 @@ final class GradeDraftViewModel: ObservableObject {
     func exportBackupJSON() {
         do {
             let destination = temporaryExportURL(kind: .fullBackupArchive, extension: "zip", assignmentID: nil)
-            let sourceFilesForBackup = assignments.flatMap { assignment in
-                sourceFiles(for: assignment)
-            }
+            let sourceFilesForBackup = try assignments.flatMap { try sourceFilesForSensitiveArchive(for: $0) }
             exportURL = try BundleExportService.writeFullBackup(assignments: assignments, sourceFiles: sourceFilesForBackup, to: destination, classGroups: classGroups, students: students, rosterEntries: assignmentRosterEntries)
             exportKind = .fullBackupArchive
-            if let exportURL { recordExport(kind: .fullBackupArchive, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: !sourceFilesForBackup.isEmpty) }
+            if let exportURL {
+                guard recordExport(kind: .fullBackupArchive, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: !sourceFilesForBackup.isEmpty) else { return }
+            }
             statusMessage = "Full local backup archive is ready to share. Treat it as sensitive student data."
         } catch {
             handleExportFailure(error)
@@ -1980,11 +2068,13 @@ final class GradeDraftViewModel: ObservableObject {
                 preview = try previewLegacyJSONRestore(from: stagedURL)
             }
             pendingRestoreFileURL = stagedURL
+            pendingRestoreFingerprint = try fileFingerprint(stagedURL)
             pendingRestorePreview = preview
             latestRestorePreview = preview
             statusMessage = "Backup preview is ready. Confirm the import option before restoring records."
         } catch {
             pendingRestoreFileURL = nil
+            pendingRestoreFingerprint = nil
             pendingRestorePreview = nil
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
         }
@@ -1995,14 +2085,29 @@ final class GradeDraftViewModel: ObservableObject {
             errorMessage = "Choose and preview a backup before importing."
             return
         }
+        do {
+            let currentFingerprint = try fileFingerprint(pendingRestoreFileURL)
+            guard pendingRestoreFingerprint == currentFingerprint else {
+                errorMessage = "The staged backup changed after preview. Review the backup again before importing."
+                return
+            }
+        } catch {
+            errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+            return
+        }
+        errorMessage = nil
         restoreBackup(from: pendingRestoreFileURL)
+        guard errorMessage == nil else { return }
+        try? fileManager.removeItem(at: pendingRestoreFileURL)
         self.pendingRestoreFileURL = nil
+        self.pendingRestoreFingerprint = nil
         self.pendingRestorePreview = nil
     }
 
     func cancelPendingRestore() {
         if let pendingRestoreFileURL { try? fileManager.removeItem(at: pendingRestoreFileURL) }
         self.pendingRestoreFileURL = nil
+        self.pendingRestoreFingerprint = nil
         self.pendingRestorePreview = nil
         statusMessage = "Backup import canceled before records were changed."
     }
@@ -2038,24 +2143,28 @@ final class GradeDraftViewModel: ObservableObject {
     }
 
     func restoreBackup(from url: URL) {
+        var restoredSourceRelativePaths: [String] = []
         do {
             let restored: [AssignmentRecord]
-            var restoredDatabaseExport: BackupDatabaseExport?
+            let restoredDatabaseExport: BackupDatabaseExport?
             if url.pathExtension.lowercased() == "zip" {
                 latestRestorePreview = try BundleExportService.previewRestore(from: url, existingAssignments: assignments)
-                restoredDatabaseExport = try BundleExportService.readBackupDatabaseExport(from: url)
-                restored = try BundleExportService.restoreBackupArchive(
+                let restoreResult = try BundleExportService.prepareBackupRestore(
                     from: url,
                     existingAssignments: assignments,
                     applicationSupportDirectory: try store.applicationSupportDirectory(),
                     conflictResolution: backupConflictResolution
                 )
+                restored = restoreResult.assignments
+                restoredDatabaseExport = restoreResult.databaseExport
+                restoredSourceRelativePaths = restoreResult.restoredSourceRelativePaths
             } else {
                 let data = try Data(contentsOf: url)
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
                 let rawRestored = try decoder.decode([AssignmentRecord].self, from: data)
                 restored = sanitizedLegacyRestoredAssignments(rawRestored)
+                restoredDatabaseExport = nil
                 latestRestorePreview = BackupRestorePreview(
                     archiveKind: "legacy-json",
                     schemaVersion: "legacy-json",
@@ -2071,32 +2180,59 @@ final class GradeDraftViewModel: ObservableObject {
                 errorMessage = "Backup contained no assignments."
                 return
             }
+
+            let localAssignments = assignments
+            let localClassGroups = classGroups
+            let localStudents = students
+            let localRosterEntries = assignmentRosterEntries
+            let mergeResult = mergeRestoredAssignments(restored, resolution: backupConflictResolution)
+            let nextAssignments = mergeResult.assignments.sorted { $0.updatedAt > $1.updatedAt }
+
+            let nextClassGroups: [ClassGroupRecord]
+            let nextStudents: [StudentRecord]
+            if backupConflictResolution == .replaceLocal {
+                nextClassGroups = restoredDatabaseExport?.classGroups.sorted { $0.name < $1.name } ?? Self.classGroupsFromAssignments(nextAssignments)
+                nextStudents = restoredDatabaseExport?.students.sorted { $0.displayName < $1.displayName } ?? Self.studentsFromAssignments(nextAssignments)
+            } else {
+                nextClassGroups = mergedClassGroups(local: localClassGroups, restored: restoredDatabaseExport?.classGroups ?? [])
+                nextStudents = mergedStudents(local: localStudents, restored: restoredDatabaseExport?.students ?? [])
+            }
+
             let archiveAssignmentIDMap: [UUID: UUID] = restoredDatabaseExport.map { databaseExport in
                 Dictionary(uniqueKeysWithValues: zip(databaseExport.assignments, restored).compactMap { original, restoredRecord in
                     original.id == restoredRecord.id ? nil : (original.id, restoredRecord.id)
                 })
             } ?? [:]
-            let localRosterEntries = assignmentRosterEntries
-            let mergeResult = mergeRestoredAssignments(restored, resolution: backupConflictResolution)
-            assignments = mergeResult.assignments.sorted { $0.updatedAt > $1.updatedAt }
-            refreshAssignmentRosterEntries()
-            if backupConflictResolution != .replaceLocal {
-                mergeRestoredRosterEntries(localRosterEntries)
-            }
-            if let restoredDatabaseExport {
-                mergeRestoredClassGroups(restoredDatabaseExport.classGroups)
-                mergeRestoredStudents(restoredDatabaseExport.students)
-                let rosterAssignmentIDMap = archiveAssignmentIDMap.merging(mergeResult.idMap) { _, viewModelRemappedID in viewModelRemappedID }
-                mergeRestoredRosterEntries(restoredDatabaseExport.rosterEntries, assignmentIDMap: rosterAssignmentIDMap, conflictResolution: backupConflictResolution)
-            }
+            let rosterAssignmentIDMap = archiveAssignmentIDMap.merging(mergeResult.idMap) { _, viewModelRemappedID in viewModelRemappedID }
+            let localConflictIDs = Set(localAssignments.map(\.id)).intersection(Set((restoredDatabaseExport?.assignments ?? restored).map(\.id)))
+            let restoredRosterCandidates = remappedRestoredRosterEntries(
+                restoredDatabaseExport?.rosterEntries ?? [],
+                assignmentIDMap: rosterAssignmentIDMap,
+                conflictResolution: backupConflictResolution,
+                localConflictAssignmentIDs: localConflictIDs,
+                assignmentsForStatus: nextAssignments
+            )
+            let rosterCandidates = backupConflictResolution == .replaceLocal ? restoredRosterCandidates : localRosterEntries + restoredRosterCandidates
+            let nextRosterEntries = reconciledRosterEntries(rosterCandidates, assignments: nextAssignments, students: nextStudents)
+            let snapshot = AssignmentStoreSnapshot(
+                assignments: nextAssignments,
+                classGroups: nextClassGroups,
+                students: nextStudents,
+                rosterEntries: nextRosterEntries
+            )
+
+            try store.replaceLocalDataSnapshot(snapshot)
+            assignments = snapshot.assignments
+            classGroups = snapshot.classGroups
+            students = snapshot.students
+            assignmentRosterEntries = snapshot.rosterEntries
             selectedAssignmentID = assignments.first?.id
-            try store.saveAssignments(assignments)
-            for classGroup in classGroups { try? store.saveClassGroup(classGroup) }
-            for student in students { try? store.saveStudent(student) }
-            if !assignmentRosterEntries.isEmpty { try? store.saveAssignmentRoster(assignmentRosterEntries) }
             statusMessage = "Restored \(restored.count) assignment(s) plus related class, student, roster, and original-file records from local backup with \(backupConflictResolution.displayName.lowercased()) handling."
         } catch {
+            cleanupRestoredSourceFiles(restoredSourceRelativePaths)
+            reloadFromStoreAfterPersistenceFailure()
             errorMessage = GradeDraftError.persistenceFailed(error.localizedDescription).localizedDescription
+            statusMessage = "Restore failed. Local data and original files were rolled back to their previous state."
         }
     }
 
@@ -2127,7 +2263,7 @@ final class GradeDraftViewModel: ObservableObject {
             updateAssignment { assignment in
                 assignment.appendAuditEvent(.exportPrepared, detail: "Copied \(exportKind.displayName) text to clipboard after the clipboard warning.")
             }
-            persistOrSurfaceError()
+            guard persistOrSurfaceError() else { return }
             statusMessage = "Export text copied to the clipboard. Share only through approved channels."
         } catch {
             errorMessage = GradeDraftError.exportFailed(error.localizedDescription).localizedDescription
@@ -2184,7 +2320,8 @@ final class GradeDraftViewModel: ObservableObject {
         // assignmentGradebookArchive is a ZIP; not clipboard-copyable
     }
 
-    private func recordExport(kind: ExportKind, content: String, includesPrivateNotes: Bool, includesOriginalSources: Bool) {
+    @discardableResult
+    private func recordExport(kind: ExportKind, content: String, includesPrivateNotes: Bool, includesOriginalSources: Bool) -> Bool {
         appendExportRecord(
             kind: kind,
             contentFingerprint: StableFingerprint.fingerprint(Data(content.utf8)),
@@ -2193,10 +2330,11 @@ final class GradeDraftViewModel: ObservableObject {
         )
     }
 
-    private func recordExport(kind: ExportKind, fileURL: URL, includesPrivateNotes: Bool, includesOriginalSources: Bool) {
+    @discardableResult
+    private func recordExport(kind: ExportKind, fileURL: URL, includesPrivateNotes: Bool, includesOriginalSources: Bool) -> Bool {
         do {
             let data = try Data(contentsOf: fileURL)
-            appendExportRecord(
+            return appendExportRecord(
                 kind: kind,
                 contentFingerprint: StableFingerprint.fingerprint(data),
                 includesPrivateNotes: includesPrivateNotes,
@@ -2206,10 +2344,12 @@ final class GradeDraftViewModel: ObservableObject {
             exportURL = nil
             exportKind = nil
             errorMessage = "Mark My Work could not create the export. No file was shared. Could not fingerprint the exported file."
+            return false
         }
     }
 
-    private func appendExportRecord(kind: ExportKind, contentFingerprint: String, includesPrivateNotes: Bool, includesOriginalSources: Bool) {
+    @discardableResult
+    private func appendExportRecord(kind: ExportKind, contentFingerprint: String, includesPrivateNotes: Bool, includesOriginalSources: Bool) -> Bool {
         updateAssignment { assignment in
             assignment.exportRecords.append(
                 ExportRecord(
@@ -2221,7 +2361,12 @@ final class GradeDraftViewModel: ObservableObject {
             )
             assignment.appendAuditEvent(.exportPrepared, detail: "Prepared \(kind.rawValue). Includes private notes: \(includesPrivateNotes ? "yes" : "no"). Includes original sources: \(includesOriginalSources ? "yes" : "no").")
         }
-        persistOrSurfaceError()
+        guard persistOrSurfaceError() else {
+            exportURL = nil
+            exportKind = nil
+            return false
+        }
+        return true
     }
 
     private func handleExportFailure(_ error: Error) {
@@ -2242,11 +2387,14 @@ final class GradeDraftViewModel: ObservableObject {
         assignments.sort { $0.updatedAt > $1.updatedAt }
     }
 
-    private func persistOrSurfaceError() {
+    @discardableResult
+    private func persistOrSurfaceError() -> Bool {
         do {
             try saveCurrentAssignment()
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
@@ -2363,7 +2511,15 @@ final class GradeDraftViewModel: ObservableObject {
     }
 
     private func refreshAssignmentRosterEntries() {
-        assignmentRosterEntries = assignments.enumerated().compactMap { index, record in
+        assignmentRosterEntries = generatedRosterEntries(assignments: assignments, students: students)
+    }
+
+    private func reconcileRosterEntriesWithCurrentAssignments() {
+        assignmentRosterEntries = reconciledRosterEntries(assignmentRosterEntries, assignments: assignments, students: students)
+    }
+
+    private func generatedRosterEntries(assignments: [AssignmentRecord], students: [StudentRecord]) -> [AssignmentRosterEntry] {
+        assignments.enumerated().compactMap { index, record in
             guard let studentID = record.studentID else { return nil }
             return AssignmentRosterEntry(
                 assignmentID: record.id,
@@ -2373,6 +2529,124 @@ final class GradeDraftViewModel: ObservableObject {
                 status: assignmentRosterStatus(for: record),
                 sortOrder: index
             )
+        }
+    }
+
+    private func reconciledRosterEntries(
+        _ candidates: [AssignmentRosterEntry],
+        assignments: [AssignmentRecord],
+        students: [StudentRecord]
+    ) -> [AssignmentRosterEntry] {
+        let assignmentsByID = Dictionary(uniqueKeysWithValues: assignments.map { ($0.id, $0) })
+        let studentsByID = Dictionary(uniqueKeysWithValues: students.map { ($0.id, $0) })
+        let assignmentOrder = Dictionary(uniqueKeysWithValues: assignments.enumerated().map { ($0.element.id, $0.offset) })
+        var byAssignmentAndStudent: [String: AssignmentRosterEntry] = [:]
+
+        for candidate in candidates {
+            guard let record = assignmentsByID[candidate.assignmentID],
+                  let studentID = record.studentID,
+                  studentsByID[studentID] != nil || students.isEmpty else { continue }
+            let key = "\(record.id.uuidString)|\(studentID.uuidString)"
+            guard byAssignmentAndStudent[key] == nil else { continue }
+            var entry = candidate
+            entry.assignmentID = record.id
+            entry.studentID = studentID
+            entry.studentDisplayName = record.studentDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? candidate.studentDisplayName : record.studentDisplayName
+            entry.localIdentifier = studentsByID[studentID]?.localIdentifier ?? candidate.localIdentifier
+            entry.status = assignmentRosterStatus(for: record)
+            entry.sortOrder = assignmentOrder[record.id] ?? candidate.sortOrder
+            entry.updatedAt = Date()
+            byAssignmentAndStudent[key] = entry
+        }
+
+        for (index, record) in assignments.enumerated() {
+            guard let studentID = record.studentID,
+                  studentsByID[studentID] != nil || students.isEmpty else { continue }
+            let key = "\(record.id.uuidString)|\(studentID.uuidString)"
+            if byAssignmentAndStudent[key] == nil {
+                byAssignmentAndStudent[key] = AssignmentRosterEntry(
+                    assignmentID: record.id,
+                    studentID: studentID,
+                    studentDisplayName: record.studentDisplayName,
+                    localIdentifier: studentsByID[studentID]?.localIdentifier ?? "",
+                    status: assignmentRosterStatus(for: record),
+                    sortOrder: index
+                )
+            }
+        }
+
+        return byAssignmentAndStudent.values.sorted { lhs, rhs in
+            if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+            return lhs.studentDisplayName.localizedCaseInsensitiveCompare(rhs.studentDisplayName) == .orderedAscending
+        }
+    }
+
+    private func currentStoreSnapshot(
+        assignments: [AssignmentRecord]? = nil,
+        classGroups: [ClassGroupRecord]? = nil,
+        students: [StudentRecord]? = nil,
+        rosterEntries: [AssignmentRosterEntry]? = nil
+    ) -> AssignmentStoreSnapshot {
+        let nextAssignments = assignments ?? self.assignments
+        let nextClassGroups = classGroups ?? self.classGroups
+        let nextStudents = students ?? self.students
+        let nextRosterEntries = reconciledRosterEntries(
+            rosterEntries ?? self.assignmentRosterEntries,
+            assignments: nextAssignments,
+            students: nextStudents
+        )
+        return AssignmentStoreSnapshot(
+            assignments: nextAssignments,
+            classGroups: nextClassGroups,
+            students: nextStudents,
+            rosterEntries: nextRosterEntries
+        )
+    }
+
+    private func reloadFromStoreAfterPersistenceFailure() {
+        let previousSelection = selectedAssignmentID
+        do {
+            let loadedAssignments = try store.loadAssignments()
+            assignments = loadedAssignments.isEmpty ? [AssignmentRecord()] : loadedAssignments
+            classGroups = try store.loadClassGroups()
+            students = try store.loadStudents()
+            assignmentRosterEntries = try store.loadAssignmentRosterSnapshot()
+            if classGroups.isEmpty { classGroups = Self.classGroupsFromAssignments(assignments) }
+            if students.isEmpty { students = Self.studentsFromAssignments(assignments) }
+            reconcileRosterEntriesWithCurrentAssignments()
+            selectedAssignmentID = previousSelection.flatMap { selected in assignments.contains(where: { $0.id == selected }) ? selected : nil } ?? assignments.first?.id
+            refreshAIReadiness()
+        } catch {
+            errorMessage = GradeDraftError.persistenceFailed("Could not reload local records after a failed save: \(error.localizedDescription)").localizedDescription
+        }
+    }
+
+    private func mergedClassGroups(local: [ClassGroupRecord], restored: [ClassGroupRecord]) -> [ClassGroupRecord] {
+        var byID = Dictionary(uniqueKeysWithValues: local.map { ($0.id, $0) })
+        for record in restored where byID[record.id] == nil {
+            byID[record.id] = record
+        }
+        return Array(byID.values).sorted { $0.name < $1.name }
+    }
+
+    private func mergedStudents(local: [StudentRecord], restored: [StudentRecord]) -> [StudentRecord] {
+        var byID = Dictionary(uniqueKeysWithValues: local.map { ($0.id, $0) })
+        for record in restored where byID[record.id] == nil {
+            byID[record.id] = record
+        }
+        return Array(byID.values).sorted { $0.displayName < $1.displayName }
+    }
+
+    private func fileFingerprint(_ url: URL) throws -> String {
+        let data = try Data(contentsOf: url)
+        return StableFingerprint.fingerprint(data)
+    }
+
+    private func cleanupRestoredSourceFiles(_ relativePaths: [String]) {
+        guard !relativePaths.isEmpty, let appDir = try? store.applicationSupportDirectory() else { return }
+        for relativePath in relativePaths {
+            guard let url = SourcePathSafety.resolvedLocalSourceURL(relativePath, applicationSupportDirectory: appDir) else { continue }
+            try? fileManager.removeItem(at: url)
         }
     }
 

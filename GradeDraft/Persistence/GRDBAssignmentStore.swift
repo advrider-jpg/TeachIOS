@@ -42,7 +42,9 @@ final class GRDBAssignmentStore: AssignmentStoring {
     func saveStudent(_ student: StudentRecord) throws { try database.saveStudent(student) }
     func deleteStudent(id: UUID) throws { try database.deleteStudent(id: id) }
     func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] { try database.loadAssignmentRoster(assignmentID: assignmentID) }
-    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws { try database.saveAssignmentRoster(entries) }
+    func loadAssignmentRosterSnapshot() throws -> [AssignmentRosterEntry] { try database.loadAssignmentRosterSnapshot() }
+    func replaceAssignmentRosterSnapshot(_ entries: [AssignmentRosterEntry]) throws { try database.replaceAssignmentRosterSnapshot(entries) }
+    func replaceLocalDataSnapshot(_ snapshot: AssignmentStoreSnapshot) throws { try database.replaceLocalDataSnapshot(snapshot) }
     func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws { try database.saveSourceInputs(sourceInputs, assignmentID: assignmentID) }
     func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws { try database.saveOCRDocument(document, assignmentID: assignmentID) }
     func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws { try database.saveFinalReview(review, assignmentID: assignmentID) }

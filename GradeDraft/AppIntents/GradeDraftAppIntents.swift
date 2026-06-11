@@ -94,13 +94,13 @@ struct AssignmentEntity: AppEntity, Identifiable {
 struct AssignmentEntityQuery: EntityQuery, EntityStringQuery {
     func entities(for identifiers: [AssignmentEntity.ID]) async throws -> [AssignmentEntity] {
         let requested = Set(identifiers)
-        return AssignmentIntentResolver.loadAssignments()
+        return try AssignmentIntentResolver.loadAssignments()
             .filter { requested.contains($0.id) }
             .map(AssignmentEntity.init(record:))
     }
 
     func suggestedEntities() async throws -> [AssignmentEntity] {
-        AssignmentIntentResolver.loadAssignments()
+        return try AssignmentIntentResolver.loadAssignments()
             .sorted { $0.updatedAt > $1.updatedAt }
             .prefix(10)
             .map(AssignmentEntity.init(record:))
@@ -109,7 +109,7 @@ struct AssignmentEntityQuery: EntityQuery, EntityStringQuery {
     func entities(matching string: String) async throws -> [AssignmentEntity] {
         let query = string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return [] }
-        return AssignmentIntentResolver.loadAssignments()
+        return try AssignmentIntentResolver.loadAssignments()
             .filter { $0.title.localizedCaseInsensitiveContains(query) }
             .sorted { $0.updatedAt > $1.updatedAt }
             .prefix(10)
@@ -122,14 +122,14 @@ enum AssignmentIntentResolver {
         entity?.id ?? idText.flatMap(UUID.init(uuidString:))
     }
 
-    static func loadAssignments() -> [AssignmentRecord] {
+    static func loadAssignments() throws -> [AssignmentRecord] {
         let store: AssignmentStoring
         if let dbStore = try? GRDBAssignmentStore() {
             store = dbStore
         } else {
             store = LocalJSONStore()
         }
-        return (try? store.loadAssignments()) ?? []
+        return try store.loadAssignments()
     }
 }
 
@@ -336,7 +336,13 @@ struct SearchLocalGradeDraftAssignmentsIntent: AppIntent {
         guard !query.isEmpty else {
             return .result(dialog: "Enter search text to search local assignment titles.")
         }
-        let matches = AssignmentIntentResolver.loadAssignments()
+        let assignments: [AssignmentRecord]
+        do {
+            assignments = try AssignmentIntentResolver.loadAssignments()
+        } catch {
+            return .result(dialog: "Mark My Work could not read local assignments. No records were searched or changed.")
+        }
+        let matches = assignments
             .filter { $0.title.localizedCaseInsensitiveContains(query) }
             .prefix(5)
             .map(AssignmentEntity.safeDisplayTitle(for:))

@@ -40,7 +40,10 @@ The XCTest files cover the full v3 source-implemented feature set:
 - prohibited UI label checks and no-cloud-fallback copy;
 - final-review approval gates, stale review blocking, criterion add/delete, totals recalculation, and manual grading path;
 - export records and sensitivity/source-inclusion flags;
-- delete assignment persistence behavior.
+- delete assignment persistence behavior, including persisted roster cleanup for deleted assignments and deleted students;
+- roster storage replacement semantics across GRDB and JSON fallback stores, corrupt JSON sidecar visibility, and roster CSV creation preserving existing roster rows;
+- restore confirmation failure handling when related class, student, or roster records cannot be persisted;
+- local source-image path resolution rejecting unsafe stored relative paths before file reads.
 
 ## Static validation commands
 
@@ -58,6 +61,11 @@ python3 scripts/ci/check_app_intents_safety.py
 python3 scripts/ci/check_local_ai_tools.py
 python3 scripts/ci/check_ai_prompt_safety.py
 python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_release_readiness_static.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_curriculum_catalog.py
 ```
 
 Remaining bad-string matches should be limited to canonical source-of-truth/research/source-material documents that discuss out-of-scope product boundaries, not unimplemented status for the 11 v3 features.
@@ -194,6 +202,24 @@ python3 scripts/ci/check_app_intents_safety.py
 python3 scripts/ci/check_local_ai_tools.py
 python3 scripts/ci/check_ai_prompt_safety.py
 python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_release_readiness_static.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_curriculum_catalog.py
 ```
 
 Xcode and physical-device validation remain required before TestFlight or App Store submission.
+
+## Second-pass hardening coverage added on 2026-06-10
+
+The second-pass hardening layer adds or updates tests for:
+
+- explicit roster snapshot replacement semantics in both GRDB and JSON fallback stores;
+- assignment deletion, student deletion, assignment update, and full snapshot replacement preserving or pruning roster rows only as intended;
+- restore confirmation failure after source extraction, including visible error, retained pending preview, rollback/reload of view-model state, and cleanup of extracted source files;
+- clear-student-work failure ordering, proving source files are not deleted before the cleared assignment state is durably saved;
+- source-path symlink escape rejection before rendering or export reads;
+- rejection of symlink source files before teacher archive hashing or ZIP inclusion;
+- teacher archive failure when an included source reference is missing rather than silently producing an incomplete sensitive archive; and
+- backup restore preview fingerprint checking so a staged archive cannot be swapped between preview and confirmation without a visible failure.

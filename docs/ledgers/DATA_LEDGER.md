@@ -19,7 +19,7 @@ This ledger summarizes durable data entities and persistence behavior for Mark M
 
 ## Roster data
 
-`ClassGroupRecord`, `StudentRecord`, `ClassStudentEnrollment`, `AssignmentRosterEntry`, and `StudentWorkRecord` support classes, students, enrollment, per-assignment status, and gradebook export.
+`ClassGroupRecord`, `StudentRecord`, `ClassStudentEnrollment`, `AssignmentRosterEntry`, and `StudentWorkRecord` support classes, students, enrollment, per-assignment status, and gradebook export. Assignment roster persistence is treated as a complete local snapshot so that deleted assignments, deleted students, and restore/replace operations do not leave stale gradebook rows behind.
 
 ## Curriculum data
 
@@ -27,7 +27,7 @@ This ledger summarizes durable data entities and persistence behavior for Mark M
 
 ## Backup/restore data
 
-`BackupArchiveManifest`, `BackupRestorePreview`, and `BackupConflictResolution` support full local backup manifests, record counts, source-file inclusion, restore previews, ID conflict handling, and source-file restoration into local app storage.
+`BackupArchiveManifest`, `BackupRestorePreview`, and `BackupConflictResolution` support full local backup manifests, record counts, source-file inclusion, restore previews, ID conflict handling, and source-file restoration into local app storage. Restore confirmation must not report success until assignments plus related class, student, and roster records have been persisted or a visible persistence error has been raised.
 
 ## Normalized GRDB tables
 
@@ -42,3 +42,19 @@ Compatibility JSON payload rows remain for lossless export/fallback, but normali
 - Added GRDB columns `selected_instruction_template_ids_json` on assignments and `local_model_audit_json` on drafts (migration 007).
 - Student-facing exports continue to exclude local model audit metadata, raw prompt material, raw model material, and private teacher notes.
 - Sensitive constraint templates (EAL/D-sensitive, adjustment-context) are never auto-selected and are only available via explicit teacher action.
+
+## 2026-06-10 — Roster, fallback JSON, and restore hardening
+
+- The GRDB and JSON fallback roster save path now replaces the persisted roster snapshot with the view-model roster state rather than only upserting submitted rows. This keeps gradebook roster rows aligned after assignment deletion, student deletion, CSV roster creation, and restore conflict resolution.
+- JSON fallback sidecar loads for classes, students, and roster entries now surface decode failures instead of silently returning empty arrays. This avoids presenting corrupt local data as an intentional empty state.
+- The JSON fallback store implements explicit child graph save methods for source inputs, OCR documents, final reviews, evidence references, and full assignment graph loading rather than relying on protocol-level empty defaults.
+- Backup restore success depends on related class, student, and roster record persistence. Pending restore previews remain available when that persistence fails so the teacher can retry after resolving the local error.
+
+## 2026-06-10 — Atomic restore and explicit roster snapshot contract
+
+- `AssignmentStoring` now exposes an explicit `AssignmentStoreSnapshot` commit path for assignments, class groups, students, and roster entries. Restore confirmation and roster CSV creation use this graph-level path so the UI is not advanced to a restored or imported state before the related records are durably written.
+- `replaceAssignmentRosterSnapshot(_:)` is intentionally a full roster replacement API. Call sites must pass the complete desired roster snapshot; partial assignment-row updates use assignment-specific graph saves and must not call this replacement method.
+- The GRDB implementation commits graph replacement inside one database write transaction. The JSON fallback implementation stages the existing sidecar files and restores them if any sidecar write fails.
+- Ordinary assignment saves preserve roster rows for kept assignments. Deleting an assignment or student removes only the affected roster rows. Full graph replacement removes stale assignment, class, student, and roster rows that are not present in the incoming snapshot.
+- Backup ZIP restore is split into preview, source-file extraction/remapping, and graph snapshot commit. If the graph commit fails after source extraction, restored source files are removed, the pending restore preview remains available, and the view model reloads from the store.
+- Sensitive teacher archives and full backups now fail visibly if a source reference marked for teacher inclusion is unsafe or missing. The archive path must not silently omit an original source file that the teacher expects to be included.

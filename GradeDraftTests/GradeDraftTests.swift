@@ -4,32 +4,62 @@ import ZIPFoundation
 
 final class InMemoryAssignmentStore: AssignmentStoring {
     private(set) var assignments: [AssignmentRecord]
-    private(set) var classGroups: [ClassGroupRecord] = []
-    private(set) var students: [StudentRecord] = []
-    private(set) var rosterEntries: [AssignmentRosterEntry] = []
+    private(set) var classGroups: [ClassGroupRecord]
+    private(set) var students: [StudentRecord]
+    private(set) var rosterEntries: [AssignmentRosterEntry]
+    var saveAssignmentsError: Error?
+    var saveClassGroupError: Error?
+    var saveStudentError: Error?
+    var saveRosterError: Error?
+    var replaceSnapshotError: Error?
+    var appSupportDirectory: URL = FileManager.default.temporaryDirectory
 
-    init(assignments: [AssignmentRecord] = []) {
+    init(
+        assignments: [AssignmentRecord] = [],
+        classGroups: [ClassGroupRecord] = [],
+        students: [StudentRecord] = [],
+        rosterEntries: [AssignmentRosterEntry] = []
+    ) {
         self.assignments = assignments
+        self.classGroups = classGroups
+        self.students = students
+        self.rosterEntries = rosterEntries
     }
 
     func loadAssignments() throws -> [AssignmentRecord] { assignments }
-    func saveAssignments(_ assignments: [AssignmentRecord]) throws { self.assignments = assignments }
+    func saveAssignments(_ assignments: [AssignmentRecord]) throws {
+        if let saveAssignmentsError { throw saveAssignmentsError }
+        self.assignments = assignments
+    }
     func deleteAssignment(id: UUID) throws { assignments.removeAll { $0.id == id } }
-    func applicationSupportDirectory() throws -> URL { FileManager.default.temporaryDirectory }
+    func applicationSupportDirectory() throws -> URL { appSupportDirectory }
     func loadClassGroups() throws -> [ClassGroupRecord] { classGroups }
     func saveClassGroup(_ classGroup: ClassGroupRecord) throws {
+        if let saveClassGroupError { throw saveClassGroupError }
         if let idx = classGroups.firstIndex(where: { $0.id == classGroup.id }) { classGroups[idx] = classGroup } else { classGroups.append(classGroup) }
     }
     func deleteClassGroup(id: UUID) throws { classGroups.removeAll { $0.id == id } }
     func loadStudents() throws -> [StudentRecord] { students }
     func saveStudent(_ student: StudentRecord) throws {
+        if let saveStudentError { throw saveStudentError }
         if let idx = students.firstIndex(where: { $0.id == student.id }) { students[idx] = student } else { students.append(student) }
     }
     func deleteStudent(id: UUID) throws { students.removeAll { $0.id == id } }
     func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] {
         rosterEntries.filter { $0.assignmentID == assignmentID }
     }
-    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws { self.rosterEntries = entries }
+    func loadAssignmentRosterSnapshot() throws -> [AssignmentRosterEntry] { rosterEntries }
+    func replaceAssignmentRosterSnapshot(_ entries: [AssignmentRosterEntry]) throws {
+        if let saveRosterError { throw saveRosterError }
+        self.rosterEntries = entries
+    }
+    func replaceLocalDataSnapshot(_ snapshot: AssignmentStoreSnapshot) throws {
+        if let replaceSnapshotError { throw replaceSnapshotError }
+        self.assignments = snapshot.assignments
+        self.classGroups = snapshot.classGroups
+        self.students = snapshot.students
+        self.rosterEntries = snapshot.rosterEntries
+    }
     func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws {}
     func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws {}
     func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws {}
@@ -563,6 +593,218 @@ final class GradeDraftTests: XCTestCase {
         let afterDelete = try store.loadAssignments()
         XCTAssertEqual(afterDelete.count, 1)
         XCTAssertEqual(afterDelete[0].id, assignmentB.id)
+    }
+
+    func testGRDBAssignmentRosterSaveReplacesRemovedEntries() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftRoster-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let store = try GRDBAssignmentStore(applicationSupportURL: root)
+        let entryA = AssignmentRosterEntry(assignmentID: UUID(), studentID: UUID(), studentDisplayName: "Alex", sortOrder: 0)
+        let entryB = AssignmentRosterEntry(assignmentID: UUID(), studentID: UUID(), studentDisplayName: "Bri", sortOrder: 1)
+
+        try store.replaceAssignmentRosterSnapshot([entryA, entryB])
+        try store.replaceAssignmentRosterSnapshot([entryB])
+
+        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: entryA.assignmentID).isEmpty)
+        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: entryB.assignmentID), [entryB])
+    }
+
+    func testGRDBDeletingAssignmentRemovesRosterRows() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftRosterDeleteAssignment-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let store = try GRDBAssignmentStore(applicationSupportURL: root)
+        let student = StudentRecord(displayName: "Alex")
+        let keptStudent = StudentRecord(displayName: "Bri")
+        let removed = AssignmentRecord(studentID: student.id, title: "Removed", studentDisplayName: student.displayName)
+        let kept = AssignmentRecord(studentID: keptStudent.id, title: "Kept", studentDisplayName: keptStudent.displayName)
+        let removedEntry = AssignmentRosterEntry(assignmentID: removed.id, studentID: student.id, studentDisplayName: student.displayName)
+        let keptEntry = AssignmentRosterEntry(assignmentID: kept.id, studentID: keptStudent.id, studentDisplayName: keptStudent.displayName)
+
+        try store.saveStudent(student)
+        try store.saveStudent(keptStudent)
+        try store.saveAssignments([removed, kept])
+        try store.replaceAssignmentRosterSnapshot([removedEntry, keptEntry])
+        try store.deleteAssignment(id: removed.id)
+
+        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: removed.id).isEmpty)
+        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: kept.id), [keptEntry])
+    }
+
+    func testGRDBSavingAssignmentsPreservesExistingRosterRowsForKeptAssignments() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftRosterUpdatePreserve-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let store = try GRDBAssignmentStore(applicationSupportURL: root)
+        let student = StudentRecord(displayName: "Alex")
+        var assignment = AssignmentRecord(studentID: student.id, title: "Draft", studentDisplayName: student.displayName)
+        let entry = AssignmentRosterEntry(assignmentID: assignment.id, studentID: student.id, studentDisplayName: student.displayName)
+
+        try store.saveStudent(student)
+        try store.saveAssignments([assignment])
+        try store.replaceAssignmentRosterSnapshot([entry])
+        assignment.title = "Draft updated"
+        try store.saveAssignments([assignment])
+
+        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: assignment.id), [entry])
+    }
+
+    func testGRDBDeletingStudentRemovesRosterRows() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftRosterDeleteStudent-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let store = try GRDBAssignmentStore(applicationSupportURL: root)
+        let removedStudent = StudentRecord(displayName: "Alex")
+        let keptStudent = StudentRecord(displayName: "Bri")
+        let removedAssignment = AssignmentRecord(studentID: removedStudent.id, title: "Alex work", studentDisplayName: removedStudent.displayName)
+        let keptAssignment = AssignmentRecord(studentID: keptStudent.id, title: "Bri work", studentDisplayName: keptStudent.displayName)
+        let removedEntry = AssignmentRosterEntry(assignmentID: removedAssignment.id, studentID: removedStudent.id, studentDisplayName: removedStudent.displayName)
+        let keptEntry = AssignmentRosterEntry(assignmentID: keptAssignment.id, studentID: keptStudent.id, studentDisplayName: keptStudent.displayName)
+
+        try store.saveStudent(removedStudent)
+        try store.saveStudent(keptStudent)
+        try store.saveAssignments([removedAssignment, keptAssignment])
+        try store.replaceAssignmentRosterSnapshot([removedEntry, keptEntry])
+        try store.deleteStudent(id: removedStudent.id)
+
+        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: removedAssignment.id).isEmpty)
+        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: keptAssignment.id), [keptEntry])
+    }
+
+    func testGRDBSnapshotReplacementRemovesStaleRosterRows() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftRosterSnapshot-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let store = try GRDBAssignmentStore(applicationSupportURL: root)
+        let staleStudent = StudentRecord(displayName: "Stale")
+        let staleAssignment = AssignmentRecord(studentID: staleStudent.id, title: "Stale", studentDisplayName: staleStudent.displayName)
+        let staleEntry = AssignmentRosterEntry(assignmentID: staleAssignment.id, studentID: staleStudent.id, studentDisplayName: staleStudent.displayName)
+        let freshStudent = StudentRecord(displayName: "Fresh")
+        let freshAssignment = AssignmentRecord(studentID: freshStudent.id, title: "Fresh", studentDisplayName: freshStudent.displayName)
+        let freshEntry = AssignmentRosterEntry(assignmentID: freshAssignment.id, studentID: freshStudent.id, studentDisplayName: freshStudent.displayName)
+
+        try store.replaceLocalDataSnapshot(
+            AssignmentStoreSnapshot(assignments: [staleAssignment], classGroups: [], students: [staleStudent], rosterEntries: [staleEntry])
+        )
+        try store.replaceLocalDataSnapshot(
+            AssignmentStoreSnapshot(assignments: [freshAssignment], classGroups: [], students: [freshStudent], rosterEntries: [freshEntry])
+        )
+
+        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: staleAssignment.id).isEmpty)
+        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: freshAssignment.id), [freshEntry])
+        XCTAssertEqual(try store.loadStudents(), [freshStudent])
+        XCTAssertEqual(try store.loadAssignments().map(\.id), [freshAssignment.id])
+    }
+
+    func testLocalJSONAssignmentRosterSaveReplacesRemovedEntries() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftJSONRoster-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = LocalJSONStore(applicationSupportURL: root)
+        let entryA = AssignmentRosterEntry(assignmentID: UUID(), studentID: UUID(), studentDisplayName: "Alex", sortOrder: 0)
+        let entryB = AssignmentRosterEntry(assignmentID: UUID(), studentID: UUID(), studentDisplayName: "Bri", sortOrder: 1)
+
+        try store.replaceAssignmentRosterSnapshot([entryA, entryB])
+        try store.replaceAssignmentRosterSnapshot([entryB])
+
+        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: entryA.assignmentID).isEmpty)
+        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: entryB.assignmentID), [entryB])
+    }
+
+    func testLocalJSONDeletingAssignmentRemovesRosterRows() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftJSONRosterDeleteAssignment-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = LocalJSONStore(applicationSupportURL: root)
+        let student = StudentRecord(displayName: "Alex")
+        let keptStudent = StudentRecord(displayName: "Bri")
+        let removed = AssignmentRecord(studentID: student.id, title: "Removed", studentDisplayName: student.displayName)
+        let kept = AssignmentRecord(studentID: keptStudent.id, title: "Kept", studentDisplayName: keptStudent.displayName)
+        let removedEntry = AssignmentRosterEntry(assignmentID: removed.id, studentID: student.id, studentDisplayName: student.displayName)
+        let keptEntry = AssignmentRosterEntry(assignmentID: kept.id, studentID: keptStudent.id, studentDisplayName: keptStudent.displayName)
+
+        try store.saveStudent(student)
+        try store.saveStudent(keptStudent)
+        try store.saveAssignments([removed, kept])
+        try store.replaceAssignmentRosterSnapshot([removedEntry, keptEntry])
+        try store.deleteAssignment(id: removed.id)
+
+        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: removed.id).isEmpty)
+        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: kept.id), [keptEntry])
+    }
+
+    func testLocalJSONSavingAssignmentsPreservesExistingRosterRowsForKeptAssignments() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftJSONRosterUpdatePreserve-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = LocalJSONStore(applicationSupportURL: root)
+        let student = StudentRecord(displayName: "Alex")
+        var assignment = AssignmentRecord(studentID: student.id, title: "Draft", studentDisplayName: student.displayName)
+        let entry = AssignmentRosterEntry(assignmentID: assignment.id, studentID: student.id, studentDisplayName: student.displayName)
+
+        try store.saveStudent(student)
+        try store.saveAssignments([assignment])
+        try store.replaceAssignmentRosterSnapshot([entry])
+        assignment.title = "Draft updated"
+        try store.saveAssignments([assignment])
+
+        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: assignment.id), [entry])
+    }
+
+    func testLocalJSONDeletingStudentRemovesRosterRows() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftJSONRosterDeleteStudent-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = LocalJSONStore(applicationSupportURL: root)
+        let removedStudent = StudentRecord(displayName: "Alex")
+        let keptStudent = StudentRecord(displayName: "Bri")
+        let removedAssignment = AssignmentRecord(studentID: removedStudent.id, title: "Alex work", studentDisplayName: removedStudent.displayName)
+        let keptAssignment = AssignmentRecord(studentID: keptStudent.id, title: "Bri work", studentDisplayName: keptStudent.displayName)
+        let removedEntry = AssignmentRosterEntry(assignmentID: removedAssignment.id, studentID: removedStudent.id, studentDisplayName: removedStudent.displayName)
+        let keptEntry = AssignmentRosterEntry(assignmentID: keptAssignment.id, studentID: keptStudent.id, studentDisplayName: keptStudent.displayName)
+
+        try store.saveStudent(removedStudent)
+        try store.saveStudent(keptStudent)
+        try store.saveAssignments([removedAssignment, keptAssignment])
+        try store.replaceAssignmentRosterSnapshot([removedEntry, keptEntry])
+        try store.deleteStudent(id: removedStudent.id)
+
+        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: removedAssignment.id).isEmpty)
+        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: keptAssignment.id), [keptEntry])
+    }
+
+    func testLocalJSONSnapshotReplacementRemovesStaleRosterRows() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftJSONRosterSnapshot-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = LocalJSONStore(applicationSupportURL: root)
+        let staleStudent = StudentRecord(displayName: "Stale")
+        let staleAssignment = AssignmentRecord(studentID: staleStudent.id, title: "Stale", studentDisplayName: staleStudent.displayName)
+        let staleEntry = AssignmentRosterEntry(assignmentID: staleAssignment.id, studentID: staleStudent.id, studentDisplayName: staleStudent.displayName)
+        let freshStudent = StudentRecord(displayName: "Fresh")
+        let freshAssignment = AssignmentRecord(studentID: freshStudent.id, title: "Fresh", studentDisplayName: freshStudent.displayName)
+        let freshEntry = AssignmentRosterEntry(assignmentID: freshAssignment.id, studentID: freshStudent.id, studentDisplayName: freshStudent.displayName)
+
+        try store.replaceLocalDataSnapshot(
+            AssignmentStoreSnapshot(assignments: [staleAssignment], classGroups: [], students: [staleStudent], rosterEntries: [staleEntry])
+        )
+        try store.replaceLocalDataSnapshot(
+            AssignmentStoreSnapshot(assignments: [freshAssignment], classGroups: [], students: [freshStudent], rosterEntries: [freshEntry])
+        )
+
+        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: staleAssignment.id).isEmpty)
+        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: freshAssignment.id), [freshEntry])
+        XCTAssertEqual(try store.loadStudents(), [freshStudent])
+        XCTAssertEqual(try store.loadAssignments().map(\.id), [freshAssignment.id])
+    }
+
+    func testLocalJSONStoreSurfacesCorruptRosterFile() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftCorruptRoster-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = LocalJSONStore(applicationSupportURL: root)
+        let supportDirectory = try store.applicationSupportDirectory()
+        let rosterURL = supportDirectory.appendingPathComponent("roster-v3.json")
+        try Data("{".utf8).write(to: rosterURL)
+
+        XCTAssertThrowsError(try store.loadAssignmentRoster(assignmentID: UUID())) { error in
+            XCTAssertTrue(error.localizedDescription.contains("roster-v3.json"))
+        }
     }
 
     func testGRDBInjectedRootIsRespectedAndNotDefaultDirectory() throws {
@@ -1761,6 +2003,29 @@ final class GradeDraftTests: XCTestCase {
         XCTAssertFalse(viewModel.assignments.contains { $0.id == assignment.id }, "Deleted assignment should not remain")
     }
 
+    @MainActor
+    func testTeacherArchiveFailsVisiblyWhenReferencedSourceFileIsMissing() {
+        var assignment = AssignmentRecord(title: "Missing source")
+        assignment.sourceInputs = [
+            SourceInputRef(
+                sourceType: .scan,
+                localRelativePath: "Sources/\(assignment.id.uuidString)/missing.png",
+                fileName: "missing.png",
+                teacherIncludedInExport: true
+            )
+        ]
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        store.appSupportDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftMissingSource-\(UUID())")
+        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        viewModel.exportArchiveBundle()
+
+        XCTAssertNil(viewModel.exportURL)
+        XCTAssertNil(viewModel.exportKind)
+        XCTAssertTrue(viewModel.errorMessage?.contains("missing") == true)
+        XCTAssertFalse(viewModel.statusMessage.contains("ready to share"))
+    }
+
     // MARK: - Local AI unavailability tests
 
     @MainActor
@@ -2160,6 +2425,75 @@ final class GradeDraftTests: XCTestCase {
         XCTAssertTrue(vm.assignments.contains { $0.title.contains("Backup") || $0.title == "New From Backup" }, "After confirm, backup assignment should exist")
     }
 
+    @MainActor
+    func testConfirmPendingRestoreKeepsPreviewWhenRelatedRecordSaveFails() throws {
+        var backupAssignment = AssignmentRecord(title: "From Backup", className: "7A", studentDisplayName: "Alex")
+        let student = StudentRecord(displayName: "Alex", className: "7A", localIdentifier: "A-1")
+        backupAssignment.studentID = student.id
+        let classGroup = ClassGroupRecord(name: "7A")
+        let rosterEntry = AssignmentRosterEntry(
+            assignmentID: backupAssignment.id,
+            studentID: student.id,
+            studentDisplayName: student.displayName,
+            localIdentifier: student.localIdentifier,
+            sortOrder: 0
+        )
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("backup-failure-\(UUID()).zip")
+        defer { try? FileManager.default.removeItem(at: destination) }
+        try BundleExportService.writeFullBackup(
+            assignments: [backupAssignment],
+            sourceFiles: [],
+            to: destination,
+            classGroups: [classGroup],
+            students: [student],
+            rosterEntries: [rosterEntry]
+        )
+        let local = AssignmentRecord(title: "Local")
+        let store = InMemoryAssignmentStore(assignments: [local])
+        store.replaceSnapshotError = NSError(
+            domain: "GradeDraftTests",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "snapshot persistence failed"]
+        )
+        let vm = GradeDraftViewModel(assignments: [local], store: store)
+
+        vm.previewBackupRestore(from: destination)
+        XCTAssertNotNil(vm.pendingRestorePreview)
+        vm.confirmPendingRestore()
+
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertNotNil(vm.pendingRestorePreview)
+        XCTAssertNotNil(vm.pendingRestoreFileURL)
+        XCTAssertFalse(vm.statusMessage.hasPrefix("Restored 1 assignment"))
+    }
+
+    @MainActor
+    func testClearCurrentStudentWorkDoesNotDeleteSourceFilesWhenPersistenceFails() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftClearWorkFailure-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let assignmentID = UUID()
+        let relativePath = "Sources/\(assignmentID.uuidString)/page-1.txt"
+        let sourceURL = root.appendingPathComponent(relativePath)
+        try FileManager.default.createDirectory(at: sourceURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("source".utf8).write(to: sourceURL)
+        var assignment = AssignmentRecord(id: assignmentID, title: "Clear work")
+        assignment.sourceInputs = [SourceInputRef(sourceType: .scan, localRelativePath: relativePath, fileName: "page-1.txt")]
+        assignment.reviewedStudentText = "Reviewed text"
+        assignment.ocrReviewStatus = .reviewed
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        store.appSupportDirectory = root
+        store.saveAssignmentsError = GradeDraftError.persistenceFailed("save failed")
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        vm.clearCurrentStudentWork()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceURL.path), "Source files must not be removed before the cleared assignment record is persisted.")
+        XCTAssertEqual(vm.assignment.sourceInputs.count, 1)
+        XCTAssertEqual(store.assignments.first?.sourceInputs.count, 1)
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertFalse(vm.statusMessage.contains("Student work cleared"))
+    }
+
     // MARK: - Change 5: Stale status tests
 
     @MainActor
@@ -2317,6 +2651,98 @@ final class GradeDraftTests: XCTestCase {
         XCTAssertFalse(vm.assignmentRosterEntries.contains { $0.assignmentID == assignment.id }, "Roster entries for deleted assignment must be removed")
     }
 
+    @MainActor
+    func testDeleteStudentPersistsRosterRemoval() {
+        let student = StudentRecord(displayName: "Alice")
+        var assignment = AssignmentRecord(title: "Student cleanup", studentDisplayName: student.displayName)
+        assignment.studentID = student.id
+        let entry = AssignmentRosterEntry(
+            assignmentID: assignment.id,
+            studentID: student.id,
+            studentDisplayName: student.displayName
+        )
+        let store = InMemoryAssignmentStore(assignments: [assignment], students: [student], rosterEntries: [entry])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+        vm.students = [student]
+        vm.assignmentRosterEntries = [entry]
+
+        vm.deleteStudent(id: student.id)
+
+        XCTAssertFalse(store.rosterEntries.contains { $0.studentID == student.id })
+    }
+
+    @MainActor
+    func testDeleteStudentFailureRollsBackMemoryAndStoredRoster() {
+        let student = StudentRecord(displayName: "Alice")
+        var assignment = AssignmentRecord(title: "Student cleanup", studentDisplayName: student.displayName)
+        assignment.studentID = student.id
+        let entry = AssignmentRosterEntry(assignmentID: assignment.id, studentID: student.id, studentDisplayName: student.displayName)
+        let store = InMemoryAssignmentStore(assignments: [assignment], students: [student], rosterEntries: [entry])
+        store.replaceSnapshotError = NSError(domain: "GradeDraftTests", code: 42)
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+        vm.students = [student]
+        vm.assignmentRosterEntries = [entry]
+
+        vm.deleteStudent(id: student.id)
+
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertTrue(vm.students.contains { $0.id == student.id })
+        XCTAssertEqual(store.rosterEntries, [entry])
+        XCTAssertEqual(vm.assignmentRosterEntries, [entry])
+        XCTAssertFalse(vm.statusMessage.contains("deleted"))
+    }
+
+    @MainActor
+    func testRosterCSVImportFailureDoesNotPersistPartialGraph() {
+        let existing = AssignmentRecord(title: "Existing", className: "6A", studentDisplayName: "Existing")
+        let store = InMemoryAssignmentStore(assignments: [existing])
+        store.replaceSnapshotError = NSError(domain: "GradeDraftTests", code: 43)
+        let vm = GradeDraftViewModel(assignments: [existing], store: store)
+        let csv = "Student,ID\nAlice,A1\nBob,B2"
+
+        vm.createAssignmentsFromRosterCSV(csv, className: "6A")
+
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertEqual(store.assignments.map(\.id), [existing.id])
+        XCTAssertTrue(store.classGroups.isEmpty)
+        XCTAssertTrue(store.students.isEmpty)
+        XCTAssertTrue(store.rosterEntries.isEmpty)
+        XCTAssertEqual(vm.assignments.map(\.id), [existing.id])
+    }
+
+    @MainActor
+    func testCreateAssignmentsFromRosterCSVPersistsExistingAndNewRosterEntries() {
+        let existingStudentID = UUID()
+        var existing = AssignmentRecord(title: "Existing", className: "7A", studentDisplayName: "Existing Student")
+        existing.studentID = existingStudentID
+        let store = InMemoryAssignmentStore(assignments: [existing])
+        let vm = GradeDraftViewModel(assignments: [existing], store: store)
+
+        vm.createAssignmentsFromRosterCSV("displayName,localIdentifier\nNew Student,N-1", className: "7A")
+
+        XCTAssertTrue(store.rosterEntries.contains { $0.assignmentID == existing.id })
+        XCTAssertTrue(store.rosterEntries.contains { $0.studentDisplayName == "New Student" })
+        XCTAssertEqual(store.rosterEntries.count, 2)
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    @MainActor
+    func testCreateAssignmentsFromRosterCSVSurfacesRosterPersistenceFailure() {
+        let assignment = AssignmentRecord(title: "Template", className: "7A")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        store.replaceSnapshotError = NSError(
+            domain: "GradeDraftTests",
+            code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "roster persistence failed"]
+        )
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+
+        vm.createAssignmentsFromRosterCSV("displayName,localIdentifier\nNew Student,N-1", className: "7A")
+
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertFalse(vm.statusMessage.hasPrefix("Created 1 roster assignment"))
+    }
+
     // MARK: - Change 8: OCR centralized state tests
 
     @MainActor
@@ -2364,6 +2790,20 @@ final class GradeDraftTests: XCTestCase {
 
     func testSanitizedLocalSourcePathAcceptsValidPath() {
         XCTAssertEqual(SourcePathSafety.sanitizedLocalSourcePath("Sources/abc123/page.png"), "Sources/abc123/page.png")
+    }
+
+    @MainActor
+    func testSourceImageRejectsUnsafeRelativePath() {
+        let assignment = AssignmentRecord(title: "Image Safety")
+        let store = InMemoryAssignmentStore(assignments: [assignment])
+        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
+        let source = SourceInputRef(
+            sourceType: .photo,
+            localRelativePath: "Sources/assignment/../secret.png",
+            fileName: "secret.png"
+        )
+
+        XCTAssertNil(vm.sourceImage(for: source))
     }
 
     func testSanitizedLocalSourcePathRejectsAbsolutePath() {

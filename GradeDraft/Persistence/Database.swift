@@ -121,17 +121,7 @@ final class GradeDraftDatabase {
 
     func saveClassGroup(_ classGroup: ClassGroupRecord) throws {
         try databaseQueue.write { db in
-            try db.execute(sql: """
-            INSERT INTO class_groups (id, name, school_year, term, subject, year_level, notes, is_archived, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET name = excluded.name, school_year = excluded.school_year, term = excluded.term,
-            subject = excluded.subject, year_level = excluded.year_level, notes = excluded.notes, is_archived = excluded.is_archived,
-            updated_at = excluded.updated_at
-            """, arguments: [
-                classGroup.id.uuidString, classGroup.name, classGroup.schoolYear, classGroup.term, classGroup.subject,
-                classGroup.gradeLevel, classGroup.notes, classGroup.isArchived, iso8601.string(from: classGroup.createdAt),
-                iso8601.string(from: classGroup.updatedAt)
-            ])
+            try saveClassGroup(classGroup, in: db)
         }
     }
 
@@ -161,12 +151,7 @@ final class GradeDraftDatabase {
 
     func saveStudent(_ student: StudentRecord) throws {
         try databaseQueue.write { db in
-            try db.execute(sql: """
-            INSERT INTO students (id, display_name, local_identifier, class_name, notes, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET display_name = excluded.display_name, local_identifier = excluded.local_identifier,
-            class_name = excluded.class_name, notes = excluded.notes, is_active = excluded.is_active, updated_at = excluded.updated_at
-            """, arguments: [student.id.uuidString, student.displayName, student.localIdentifier, student.className, student.notes, student.isActive, iso8601.string(from: student.createdAt), iso8601.string(from: student.updatedAt)])
+            try saveStudent(student, in: db)
         }
     }
 
@@ -196,16 +181,40 @@ final class GradeDraftDatabase {
         }
     }
 
-    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws {
+    func loadAssignmentRosterSnapshot() throws -> [AssignmentRosterEntry] {
+        try databaseQueue.read { db in
+            try loadAssignmentRosterEntries(in: db)
+        }
+    }
+
+    func replaceAssignmentRosterSnapshot(_ entries: [AssignmentRosterEntry]) throws {
         try databaseQueue.write { db in
+            try db.execute(sql: "DELETE FROM assignment_roster_entries")
             for entry in entries {
-                try db.execute(sql: """
-                INSERT INTO assignment_roster_entries (id, assignment_id, student_id, student_display_name, local_identifier, status, sort_order, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET student_display_name = excluded.student_display_name, local_identifier = excluded.local_identifier,
-                status = excluded.status, sort_order = excluded.sort_order, updated_at = excluded.updated_at
-                """, arguments: [entry.id.uuidString, entry.assignmentID.uuidString, entry.studentID.uuidString, entry.studentDisplayName, entry.localIdentifier, entry.status.rawValue, entry.sortOrder, iso8601.string(from: entry.createdAt), iso8601.string(from: entry.updatedAt)])
+                try saveAssignmentRosterEntry(entry, in: db)
             }
+        }
+    }
+
+    func replaceLocalDataSnapshot(_ snapshot: AssignmentStoreSnapshot) throws {
+        try databaseQueue.write { db in
+            try deleteLocalDataGraph(in: db)
+            for classGroup in snapshot.classGroups { try saveClassGroup(classGroup, in: db) }
+            for student in snapshot.students { try saveStudent(student, in: db) }
+            for assignment in snapshot.assignments {
+                let payload = try jsonEncoder.encode(assignment)
+                let payloadText = String(data: payload, encoding: .utf8) ?? "{}"
+                try db.execute(
+                    sql: """
+                    INSERT INTO grade_draft_assignment_records (id, payload, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at
+                    """,
+                    arguments: [assignment.id.uuidString, payloadText, iso8601.string(from: assignment.updatedAt)]
+                )
+                try saveNormalizedAssignment(assignment, in: db)
+            }
+            for entry in snapshot.rosterEntries { try saveAssignmentRosterEntry(entry, in: db) }
         }
     }
 
@@ -219,6 +228,7 @@ final class GradeDraftDatabase {
     func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws {
         try databaseQueue.write { db in
             try db.execute(sql: "DELETE FROM grade_draft_ocr_lines WHERE assignment_id = ?", arguments: [assignmentID.uuidString])
+            try db.execute(sql: "DELETE FROM ocr_pages WHERE student_work_id = ?", arguments: [assignmentID.uuidString])
             try saveOCRDocumentRows(document, assignmentID: assignmentID.uuidString, in: db)
         }
     }
@@ -262,11 +272,79 @@ final class GradeDraftDatabase {
         }
     }
 
+    private func saveClassGroup(_ classGroup: ClassGroupRecord, in db: Database) throws {
+        try db.execute(sql: """
+        INSERT INTO class_groups (id, name, school_year, term, subject, year_level, notes, is_archived, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET name = excluded.name, school_year = excluded.school_year, term = excluded.term,
+        subject = excluded.subject, year_level = excluded.year_level, notes = excluded.notes, is_archived = excluded.is_archived,
+        updated_at = excluded.updated_at
+        """, arguments: [
+            classGroup.id.uuidString, classGroup.name, classGroup.schoolYear, classGroup.term, classGroup.subject,
+            classGroup.gradeLevel, classGroup.notes, classGroup.isArchived, iso8601.string(from: classGroup.createdAt),
+            iso8601.string(from: classGroup.updatedAt)
+        ])
+    }
+
+    private func saveStudent(_ student: StudentRecord, in db: Database) throws {
+        try db.execute(sql: """
+        INSERT INTO students (id, display_name, local_identifier, class_name, notes, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET display_name = excluded.display_name, local_identifier = excluded.local_identifier,
+        class_name = excluded.class_name, notes = excluded.notes, is_active = excluded.is_active, updated_at = excluded.updated_at
+        """, arguments: [
+            student.id.uuidString, student.displayName, student.localIdentifier, student.className, student.notes,
+            student.isActive, iso8601.string(from: student.createdAt), iso8601.string(from: student.updatedAt)
+        ])
+    }
+
+    private func loadAssignmentRosterEntries(in db: Database) throws -> [AssignmentRosterEntry] {
+        try Row.fetchAll(db, sql: "SELECT * FROM assignment_roster_entries ORDER BY sort_order, updated_at DESC").map { row in
+            AssignmentRosterEntry(
+                id: uuid(row, "id"),
+                assignmentID: uuid(row, "assignment_id"),
+                studentID: uuid(row, "student_id"),
+                studentDisplayName: text(row, "student_display_name"),
+                localIdentifier: text(row, "local_identifier"),
+                status: AssignmentRosterStatus(rawValue: text(row, "status")) ?? .notStarted,
+                sortOrder: int(row, "sort_order"),
+                createdAt: date(row, "created_at"),
+                updatedAt: date(row, "updated_at")
+            )
+        }
+    }
+
+    private func saveAssignmentRosterEntry(_ entry: AssignmentRosterEntry, in db: Database) throws {
+        try db.execute(sql: """
+        INSERT INTO assignment_roster_entries (id, assignment_id, student_id, student_display_name, local_identifier, status, sort_order, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET student_display_name = excluded.student_display_name, local_identifier = excluded.local_identifier,
+        status = excluded.status, sort_order = excluded.sort_order, updated_at = excluded.updated_at
+        """, arguments: [
+            entry.id.uuidString, entry.assignmentID.uuidString, entry.studentID.uuidString, entry.studentDisplayName,
+            entry.localIdentifier, entry.status.rawValue, entry.sortOrder, iso8601.string(from: entry.createdAt),
+            iso8601.string(from: entry.updatedAt)
+        ])
+    }
+
+    private func deleteLocalDataGraph(in db: Database) throws {
+        let tables = [
+            "grade_draft_draft_criteria", "grade_draft_drafts", "grade_draft_final_criteria", "grade_draft_final_reviews",
+            "grade_draft_evidence_references", "grade_draft_curriculum_mappings", "grade_draft_export_records",
+            "grade_draft_audit_events", "grade_draft_ocr_lines", "ocr_pages", "grade_draft_source_inputs",
+            "assignment_roster_entries", "grade_draft_assignments", "grade_draft_assignment_records",
+            "class_students", "students", "class_groups"
+        ]
+        for table in tables {
+            try db.execute(sql: "DELETE FROM \(table)")
+        }
+    }
+
     // MARK: - Save normalized graph
 
     private func saveNormalizedAssignment(_ assignment: AssignmentRecord, in db: Database) throws {
         let id = assignment.id.uuidString
-        try deleteAssignmentRows(id: id, in: db, keepPayload: true)
+        try deleteAssignmentRows(id: id, in: db, keepPayload: true, keepRosterEntries: true)
         try db.execute(sql: """
         INSERT INTO grade_draft_assignments (
             id, class_group_id, student_id, title, prompt, subject, grade_level, class_name, student_display_name,
@@ -608,15 +686,19 @@ final class GradeDraftDatabase {
         }
     }
 
-    private func deleteAssignmentRows(id: String, in db: Database, keepPayload: Bool = false) throws {
-        let tables = [
+    private func deleteAssignmentRows(id: String, in db: Database, keepPayload: Bool = false, keepRosterEntries: Bool = false) throws {
+        let assignmentScopedTables = [
             "grade_draft_source_inputs", "grade_draft_ocr_lines", "grade_draft_drafts", "grade_draft_draft_criteria",
             "grade_draft_final_reviews", "grade_draft_final_criteria", "grade_draft_evidence_references", "grade_draft_curriculum_mappings",
-            "grade_draft_export_records", "grade_draft_audit_events", "assignment_roster_entries"
+            "grade_draft_export_records", "grade_draft_audit_events"
         ]
-        for table in tables {
+        for table in assignmentScopedTables {
             try db.execute(sql: "DELETE FROM \(table) WHERE assignment_id = ?", arguments: [id])
         }
+        if !keepRosterEntries {
+            try db.execute(sql: "DELETE FROM assignment_roster_entries WHERE assignment_id = ?", arguments: [id])
+        }
+        try db.execute(sql: "DELETE FROM ocr_pages WHERE student_work_id = ?", arguments: [id])
         if !keepPayload { try db.execute(sql: "DELETE FROM grade_draft_assignment_records WHERE id = ?", arguments: [id]) }
         try db.execute(sql: "DELETE FROM grade_draft_assignments WHERE id = ?", arguments: [id])
     }

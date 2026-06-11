@@ -5,6 +5,7 @@ import ZIPFoundation
 private final class ArchiveTestAssignmentStore: AssignmentStoring {
     private(set) var assignments: [AssignmentRecord]
     private(set) var rosterEntries: [AssignmentRosterEntry] = []
+    var replaceSnapshotError: Error?
     private let root: URL
 
     init(assignments: [AssignmentRecord] = [], root: URL) {
@@ -26,7 +27,13 @@ private final class ArchiveTestAssignmentStore: AssignmentStoring {
     func saveStudent(_ student: StudentRecord) throws {}
     func deleteStudent(id: UUID) throws {}
     func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] { rosterEntries.filter { $0.assignmentID == assignmentID } }
-    func saveAssignmentRoster(_ entries: [AssignmentRosterEntry]) throws { self.rosterEntries = entries }
+    func loadAssignmentRosterSnapshot() throws -> [AssignmentRosterEntry] { rosterEntries }
+    func replaceAssignmentRosterSnapshot(_ entries: [AssignmentRosterEntry]) throws { self.rosterEntries = entries }
+    func replaceLocalDataSnapshot(_ snapshot: AssignmentStoreSnapshot) throws {
+        if let replaceSnapshotError { throw replaceSnapshotError }
+        self.assignments = snapshot.assignments
+        self.rosterEntries = snapshot.rosterEntries
+    }
     func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws {}
     func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws {}
     func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws {}
@@ -233,8 +240,12 @@ final class RestorePathSafetyTests: XCTestCase {
 
     @MainActor
     func testRestoreAsCopyRemapsRosterEntryToNewAssignmentID() throws {
-        let localAssignment = ExportFixtureFactory.sensitiveApprovedAssignment()
-        let localRosterEntry = AssignmentRosterEntry(assignmentID: localAssignment.id, studentID: UUID(), studentDisplayName: "Alice")
+        let studentID = UUID()
+        var localAssignment = ExportFixtureFactory.sensitiveApprovedAssignment()
+        localAssignment.studentID = studentID
+        localAssignment.studentDisplayName = "Alice"
+        let localStudent = StudentRecord(id: studentID, displayName: "Alice")
+        let localRosterEntry = AssignmentRosterEntry(assignmentID: localAssignment.id, studentID: studentID, studentDisplayName: "Alice")
 
         // Build a full backup that has the same assignment ID
         let backupRoot = ExportFixtureFactory.temporaryDirectory("RosterRemapBackup")
@@ -244,7 +255,7 @@ final class RestorePathSafetyTests: XCTestCase {
             sourceFiles: [],
             to: archive,
             classGroups: [],
-            students: [],
+            students: [localStudent],
             rosterEntries: [localRosterEntry]
         )
 
@@ -274,8 +285,12 @@ final class RestorePathSafetyTests: XCTestCase {
 
     @MainActor
     func testRestoreKeepLocalDoesNotImportConflictingRosterEntries() throws {
-        let localAssignment = ExportFixtureFactory.sensitiveApprovedAssignment()
-        let localRosterEntry = AssignmentRosterEntry(assignmentID: localAssignment.id, studentID: UUID(), studentDisplayName: "Bob")
+        let studentID = UUID()
+        var localAssignment = ExportFixtureFactory.sensitiveApprovedAssignment()
+        localAssignment.studentID = studentID
+        localAssignment.studentDisplayName = "Bob"
+        let localStudent = StudentRecord(id: studentID, displayName: "Bob")
+        let localRosterEntry = AssignmentRosterEntry(assignmentID: localAssignment.id, studentID: studentID, studentDisplayName: "Bob")
 
         let backupRoot = ExportFixtureFactory.temporaryDirectory("RosterKeepLocalBackup")
         let archive = backupRoot.appendingPathComponent("backup.zip")
@@ -284,7 +299,7 @@ final class RestorePathSafetyTests: XCTestCase {
             sourceFiles: [],
             to: archive,
             classGroups: [],
-            students: [],
+            students: [localStudent],
             rosterEntries: [localRosterEntry]
         )
 
@@ -299,6 +314,76 @@ final class RestorePathSafetyTests: XCTestCase {
 
         let entries = vm.assignmentRosterEntries.filter { $0.assignmentID == localAssignment.id }
         XCTAssertEqual(entries.count, 1, "Keep-local must not import duplicate roster entries for conflicting assignments")
+    }
+
+    @MainActor
+    func testRestoreSnapshotFailureKeepsPreviewRollsBackMemoryAndCleansSources() throws {
+        let root = ExportFixtureFactory.temporaryDirectory("RestoreSnapshotFailure")
+        var existingAssignment = ExportFixtureFactory.sensitiveApprovedAssignment()
+        existingAssignment.title = "Existing"
+        var restoredAssignment = ExportFixtureFactory.sensitiveApprovedAssignment()
+        restoredAssignment.title = "Restored"
+        let relative = "Sources/\(restoredAssignment.id.uuidString)/page-1.txt"
+        let source = try writeFile(root.appendingPathComponent(relative), contents: "restored source")
+        restoredAssignment.sourceInputs = [
+            SourceInputRef(
+                sourceType: .scan,
+                localRelativePath: relative,
+                fileName: "page-1.txt",
+                teacherIncludedInExport: true
+            )
+        ]
+        let archive = try BundleExportService.writeFullBackup(
+            assignments: [restoredAssignment],
+            sourceFiles: [source],
+            to: root.appendingPathComponent("backup.zip")
+        )
+
+        let restoreRoot = ExportFixtureFactory.temporaryDirectory("RestoreSnapshotFailureDestination")
+        let store = ArchiveTestAssignmentStore(assignments: [existingAssignment], root: restoreRoot)
+        store.replaceSnapshotError = GradeDraftError.persistenceFailed("snapshot persistence failed")
+        let vm = GradeDraftViewModel(assignments: [existingAssignment], store: store)
+        vm.backupConflictResolution = .replaceLocal
+
+        vm.previewBackupRestore(from: archive)
+        XCTAssertNotNil(vm.pendingRestorePreview)
+        vm.confirmPendingRestore()
+
+        XCTAssertEqual(vm.assignments.map(\.id), [existingAssignment.id])
+        XCTAssertEqual(store.assignments.map(\.id), [existingAssignment.id])
+        XCTAssertNotNil(vm.pendingRestorePreview, "Failed confirmed restore must keep the preview available for retry or cancellation.")
+        XCTAssertNotNil(vm.pendingRestoreFileURL, "Failed confirmed restore must keep the staged archive available for retry.")
+        XCTAssertTrue(vm.statusMessage.contains("Restore failed"))
+        XCTAssertFalse(vm.statusMessage.contains("Restored backup"))
+        let restoredSource = restoreRoot.appendingPathComponent(relative)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: restoredSource.path), "Extracted sources must be cleaned when record persistence fails.")
+    }
+
+    func testSourcePathResolutionRejectsSymlinkEscape() throws {
+        let root = ExportFixtureFactory.temporaryDirectory("SourceSymlinkEscape")
+        let outside = ExportFixtureFactory.temporaryDirectory("SourceSymlinkOutside")
+        let target = try writeFile(outside.appendingPathComponent("outside.txt"), contents: "outside")
+        let sources = root.appendingPathComponent("Sources")
+        try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
+        let link = sources.appendingPathComponent("link.txt")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        XCTAssertNil(SourcePathSafety.resolvedLocalSourceURL("Sources/link.txt", applicationSupportDirectory: root))
+    }
+
+    func testArchiveRejectsSymlinkSourceFile() throws {
+        let root = ExportFixtureFactory.temporaryDirectory("ArchiveSymlinkReject")
+        let target = try writeFile(root.appendingPathComponent("target.txt"), contents: "target")
+        let link = root.appendingPathComponent("link.txt")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        XCTAssertThrowsError(
+            try BundleExportService.writeTeacherAuditArchive(
+                assignment: ExportFixtureFactory.sensitiveApprovedAssignment(),
+                sourceFiles: [link],
+                to: root.appendingPathComponent("archive.zip")
+            )
+        )
     }
 
     private func backupWithAppManagedSource() throws -> (assignment: AssignmentRecord, archiveURL: URL, restoreRoot: URL) {
