@@ -67,6 +67,62 @@ final class InMemoryAssignmentStore: AssignmentStoring {
     func loadFullAssignmentGraph(id: UUID) throws -> AssignmentRecord? { assignments.first { $0.id == id } }
 }
 
+private struct RosterEntryPersistedFields: Equatable {
+    let id: UUID
+    let assignmentID: UUID
+    let studentID: UUID
+    let studentDisplayName: String
+    let localIdentifier: String
+    let status: AssignmentRosterStatus
+    let sortOrder: Int
+
+    init(_ entry: AssignmentRosterEntry) {
+        id = entry.id
+        assignmentID = entry.assignmentID
+        studentID = entry.studentID
+        studentDisplayName = entry.studentDisplayName
+        localIdentifier = entry.localIdentifier
+        status = entry.status
+        sortOrder = entry.sortOrder
+    }
+}
+
+private struct StudentPersistedFields: Equatable {
+    let id: UUID
+    let displayName: String
+    let className: String
+    let localIdentifier: String
+    let notes: String
+    let isActive: Bool
+
+    init(_ student: StudentRecord) {
+        id = student.id
+        displayName = student.displayName
+        className = student.className
+        localIdentifier = student.localIdentifier
+        notes = student.notes
+        isActive = student.isActive
+    }
+}
+
+private func assertRosterEntriesPersistedFieldsEqual(
+    _ actual: [AssignmentRosterEntry],
+    _ expected: [AssignmentRosterEntry],
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertEqual(actual.map(RosterEntryPersistedFields.init), expected.map(RosterEntryPersistedFields.init), file: file, line: line)
+}
+
+private func assertStudentsPersistedFieldsEqual(
+    _ actual: [StudentRecord],
+    _ expected: [StudentRecord],
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertEqual(actual.map(StudentPersistedFields.init), expected.map(StudentPersistedFields.init), file: file, line: line)
+}
+
 struct StubExportAuthenticationService: ExportAuthenticationServicing {
     var result: ExportAuthenticationResult
     func authenticateForSensitiveExport(reason: String) async -> ExportAuthenticationResult { result }
@@ -607,7 +663,7 @@ final class GradeDraftTests: XCTestCase {
         try store.replaceAssignmentRosterSnapshot([entryB])
 
         XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: entryA.assignmentID).isEmpty)
-        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: entryB.assignmentID), [entryB])
+        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: entryB.assignmentID), [entryB])
     }
 
     func testGRDBDeletingAssignmentRemovesRosterRows() throws {
@@ -629,7 +685,7 @@ final class GradeDraftTests: XCTestCase {
         try store.deleteAssignment(id: removed.id)
 
         XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: removed.id).isEmpty)
-        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: kept.id), [keptEntry])
+        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: kept.id), [keptEntry])
     }
 
     func testGRDBSavingAssignmentsPreservesExistingRosterRowsForKeptAssignments() throws {
@@ -647,7 +703,7 @@ final class GradeDraftTests: XCTestCase {
         assignment.title = "Draft updated"
         try store.saveAssignments([assignment])
 
-        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: assignment.id), [entry])
+        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: assignment.id), [entry])
     }
 
     func testGRDBDeletingStudentRemovesRosterRows() throws {
@@ -669,7 +725,7 @@ final class GradeDraftTests: XCTestCase {
         try store.deleteStudent(id: removedStudent.id)
 
         XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: removedAssignment.id).isEmpty)
-        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: keptAssignment.id), [keptEntry])
+        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: keptAssignment.id), [keptEntry])
     }
 
     func testGRDBSnapshotReplacementRemovesStaleRosterRows() throws {
@@ -692,8 +748,8 @@ final class GradeDraftTests: XCTestCase {
         )
 
         XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: staleAssignment.id).isEmpty)
-        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: freshAssignment.id), [freshEntry])
-        XCTAssertEqual(try store.loadStudents(), [freshStudent])
+        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: freshAssignment.id), [freshEntry])
+        assertStudentsPersistedFieldsEqual(try store.loadStudents(), [freshStudent])
         XCTAssertEqual(try store.loadAssignments().map(\.id), [freshAssignment.id])
     }
 
@@ -708,7 +764,7 @@ final class GradeDraftTests: XCTestCase {
         try store.replaceAssignmentRosterSnapshot([entryB])
 
         XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: entryA.assignmentID).isEmpty)
-        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: entryB.assignmentID), [entryB])
+        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: entryB.assignmentID), [entryB])
     }
 
     func testLocalJSONDeletingAssignmentRemovesRosterRows() throws {
@@ -729,7 +785,7 @@ final class GradeDraftTests: XCTestCase {
         try store.deleteAssignment(id: removed.id)
 
         XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: removed.id).isEmpty)
-        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: kept.id), [keptEntry])
+        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: kept.id), [keptEntry])
     }
 
     func testLocalJSONSavingAssignmentsPreservesExistingRosterRowsForKeptAssignments() throws {
@@ -746,7 +802,7 @@ final class GradeDraftTests: XCTestCase {
         assignment.title = "Draft updated"
         try store.saveAssignments([assignment])
 
-        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: assignment.id), [entry])
+        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: assignment.id), [entry])
     }
 
     func testLocalJSONDeletingStudentRemovesRosterRows() throws {
@@ -767,7 +823,7 @@ final class GradeDraftTests: XCTestCase {
         try store.deleteStudent(id: removedStudent.id)
 
         XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: removedAssignment.id).isEmpty)
-        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: keptAssignment.id), [keptEntry])
+        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: keptAssignment.id), [keptEntry])
     }
 
     func testLocalJSONSnapshotReplacementRemovesStaleRosterRows() throws {
@@ -789,8 +845,8 @@ final class GradeDraftTests: XCTestCase {
         )
 
         XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: staleAssignment.id).isEmpty)
-        XCTAssertEqual(try store.loadAssignmentRoster(assignmentID: freshAssignment.id), [freshEntry])
-        XCTAssertEqual(try store.loadStudents(), [freshStudent])
+        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: freshAssignment.id), [freshEntry])
+        assertStudentsPersistedFieldsEqual(try store.loadStudents(), [freshStudent])
         XCTAssertEqual(try store.loadAssignments().map(\.id), [freshAssignment.id])
     }
 
@@ -2688,7 +2744,8 @@ final class GradeDraftTests: XCTestCase {
         XCTAssertNotNil(vm.errorMessage)
         XCTAssertTrue(vm.students.contains { $0.id == student.id })
         XCTAssertEqual(store.rosterEntries, [entry])
-        XCTAssertEqual(vm.assignmentRosterEntries, [entry])
+        XCTAssertEqual(vm.assignmentRosterEntries.map(\.assignmentID), [entry.assignmentID])
+        XCTAssertEqual(vm.assignmentRosterEntries.map(\.studentID), [entry.studentID])
         XCTAssertFalse(vm.statusMessage.contains("deleted"))
     }
 

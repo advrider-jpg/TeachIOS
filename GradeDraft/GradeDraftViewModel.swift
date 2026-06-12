@@ -2666,7 +2666,7 @@ final class GradeDraftViewModel: ObservableObject {
         for record in assignments where !record.studentDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let key = [record.className, record.studentDisplayName].joined(separator: "|").lowercased()
             if byName[key] == nil {
-                byName[key] = StudentRecord(displayName: record.studentDisplayName, className: record.className)
+                byName[key] = StudentRecord(id: record.studentID ?? UUID(), displayName: record.studentDisplayName, className: record.className)
             }
         }
         return Array(byName.values).sorted { $0.displayName < $1.displayName }
