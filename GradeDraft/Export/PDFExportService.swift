@@ -24,7 +24,7 @@ enum PDFExportError: LocalizedError {
 struct PDFExportService {
     static func studentReportPDF(for assignment: AssignmentRecord, destination: URL) throws -> URL {
         try writePDF(
-            title: "Mark My Work Student Report",
+            title: "MarkForMe Student Report",
             markdown: MarkdownReportBuilder.studentMarkdown(for: assignment),
             destination: destination
         )
@@ -32,7 +32,7 @@ struct PDFExportService {
 
     static func teacherAuditPDF(for assignment: AssignmentRecord, destination: URL) throws -> URL {
         try writePDF(
-            title: "Mark My Work Teacher Review",
+            title: "MarkForMe Teacher Record",
             markdown: MarkdownReportBuilder.teacherAuditMarkdown(for: assignment),
             destination: destination
         )
@@ -63,7 +63,7 @@ struct PDFExportService {
     private static func renderStyledPDFData(title: String, markdown: String) throws -> Data {
         let document = PDFDocument(format: .usLetter)
         document.add(.headerLeft, attributedText: chromeText(title))
-        document.add(.footerLeft, attributedText: chromeText("Mark My Work · local export"))
+        document.add(.footerLeft, attributedText: chromeText("MarkForMe · local export"))
         document.pagination = PDFPagination(container: .footerRight)
 
         let lines = markdown
@@ -258,7 +258,7 @@ struct PDFExportService {
                     pageNumber += 1
                     context.beginPage()
                     title.draw(in: CGRect(x: margin, y: margin, width: contentWidth, height: 34), withAttributes: titleAttributes)
-                    let footer = "Mark My Work local export · Page \(pageNumber)"
+                    let footer = "MarkForMe local export · Page \(pageNumber)"
                     footer.draw(
                         in: CGRect(x: margin, y: pageBounds.height - margin + 12, width: contentWidth, height: 18),
                         withAttributes: footerAttributes

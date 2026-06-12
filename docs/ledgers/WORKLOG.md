@@ -117,7 +117,7 @@ The uploaded `TeachIOS`/`GradeDraft` ZIP was unpacked and treated as the source-
 - Added `CurriculumCatalogService.swift` for an offline curriculum catalog seeded from local Australian Curriculum source materials, filtering, provenance copy, and prompt/report labels.
 - Expanded `GradeDraftModels.swift` with roster, curriculum, evidence, OCR rejection, parsed-rubric, backup/restore, source-reference, and export-record models.
 - Hardened `GradeDraftViewModel.swift` with PDF import, PDF export, archive export, backup restore, OCR edit/confirm/reject, evidence linking, roster creation, curriculum mapping, rubric preview, and stale-state handling.
-- Updated `ContentView.swift` with visible UI paths for import/export, side-by-side OCR review, final-review evidence, rubric preview, curriculum browsing/mapping, roster/gradebook, and backup/restore.
+- Updated `ContentView.swift` with visible UI paths for import/export, side-by-side scanned text review, final-review evidence, rubric preview, curriculum browsing/mapping, roster/gradebook, and backup/restore.
 - Updated `PDFExportService.swift`, `BundleExportService.swift`, and `CSVExportService.swift` for real local export/archive behavior and sensitivity/source flags.
 - Updated `MarkdownRubricParser.swift` for heading, list, table, points, levels, duplicate, warning, and preview behavior.
 - Updated `Database.swift` and `GRDBAssignmentStore.swift` so normalized GRDB rows are written and read as the primary repository path.
@@ -158,9 +158,9 @@ Patch application and static scripts are run on a clean copy after patch generat
 
 # 2026-06-02 — Stationery redesign implementation
 
-- Implemented the native SwiftUI stationery redesign across Mark My Work’s shared design system, dashboard/class/assignment/review/rubric/export/privacy surfaces, and local capability banner while preserving native `List`/`Form` roots and teacher-gated flows.
+- Implemented the native SwiftUI stationery redesign across MarkForMe’s shared design system, dashboard/class/assignment/review/rubric/export/privacy surfaces, and local capability banner while preserving native `List`/`Form` roots and teacher-gated flows.
 - Fixed hosted CI follow-up issues for the stationery redesign: a SwiftLint identifier violation and a rubric-instructions compile failure from an unclosed stationery page closure.
-- Renamed the user-facing app, privacy prompts, report/export copy, content catalog, and curriculum attribution surfaces to Mark My Work while preserving internal GradeDraft project/module/schema identifiers.
+- Renamed the user-facing app, privacy prompts, report/export copy, content catalog, and curriculum attribution surfaces to MarkForMe while preserving internal GradeDraft project/module/schema identifiers.
 - Ran local static validation and diff hygiene checks in this Windows environment; Xcode, XCTest, simulator, and SwiftLint validation remain unavailable because Apple tooling is not installed here.
 
 # 2026-06-05 — Apple Intelligence source-completion slice

@@ -93,7 +93,7 @@ if pbxproj.exists():
         if token not in text:
             fail(f"Xcode project must reference {token}.")
     if "SnapshotTesting" in text:
-        app_target_match = re.search(r'name = "?Mark My Work"?;.*?packageProductDependencies = \((.*?)\);', text, re.S)
+        app_target_match = re.search(r'name = "?MarkForMe"?;.*?packageProductDependencies = \((.*?)\);', text, re.S)
         if app_target_match and "SnapshotTesting" in app_target_match.group(1):
             fail("SnapshotTesting must not be linked into the app target.")
 

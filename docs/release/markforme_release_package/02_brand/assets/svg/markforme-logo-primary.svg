@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-label="MarkForMe logo">
+  <rect width="1200" height="360" fill="none"/>
+  <g transform="translate(32 32) scale(0.29)">
+    <rect x="0" y="0" width="1024" height="1024" rx="180" fill="#10263F"/>
+    <rect x="190" y="150" width="646" height="723" rx="95" fill="#F7F4EB"/>
+    <rect x="260" y="236" width="80" height="80" rx="22" fill="#F3C437"/>
+    <rect x="372" y="270" width="368" height="46" rx="23" fill="#4F637D"/>
+    <rect x="260" y="360" width="80" height="80" rx="22" fill="#F3C437"/>
+    <rect x="372" y="394" width="368" height="46" rx="23" fill="#4F637D"/>
+    <rect x="260" y="484" width="80" height="80" rx="22" fill="#F3C437"/>
+    <rect x="372" y="518" width="368" height="46" rx="23" fill="#4F637D"/>
+    <rect x="292" y="645" width="448" height="44" rx="22" fill="#4F637D"/>
+    <path d="M318 760 L425 838 L716 642" fill="none" stroke="#F3C437" stroke-width="72" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="365" y="170" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="84" font-weight="700" fill="#10263F">MarkForMe</text>
+  <text x="370" y="225" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="500" fill="#4F637D">Teacher marking help</text>
+</svg>

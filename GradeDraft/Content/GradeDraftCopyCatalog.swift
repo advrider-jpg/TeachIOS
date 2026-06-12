@@ -5,9 +5,9 @@ import Foundation
 /// Copy and label rules generated from the grading content source of truth.
 enum GradeDraftCopyCatalog {
     enum ProductIdentity {
-        static let appName = "Mark My Work"
-        static let shortDescription = "An offline teacher-assist tool that helps teachers turn reviewed student work, rubrics, and teacher instructions into draft grading feedback."
-        static let teacherPositioning = "Mark My Work proposes draft feedback. Teachers remain responsible for final judgment."
+        static let appName = "MarkForMe"
+        static let shortDescription = "Teacher marking help that uses reviewed student work, rubrics and teacher notes to draft feedback."
+        static let teacherPositioning = "MarkForMe drafts suggestions. Nothing is final until the teacher approves it."
     }
 
     enum Labels {
@@ -78,7 +78,7 @@ One-click grade
         static let ready = "Ready for draft feedback"
         static let missingStudentText = "Add or review student work before generating draft feedback."
         static let missingStandard = "Add a rubric, answer key, or exemplar before generating draft feedback."
-        static let ocrReviewRequired = "Review OCR text before draft feedback."
+        static let ocrReviewRequired = "Check scanned text before draft feedback."
         static let finalReviewRequired = "Teacher review is required before a final grade is recorded."
     }
 
@@ -96,8 +96,8 @@ One-click grade
     }
 
     enum LocalAI {
-        static let noCloudFallback = "Mark My Work uses local processing for draft feedback. If local processing is unavailable, draft feedback is unavailable."
-        static let unavailable = "Local draft feedback is unavailable on this device or configuration."
+        static let noCloudFallback = "Draft feedback is not available on this device. MarkForMe does not send student work away for marking."
+        static let unavailable = "Draft feedback is not available on this device."
     }
 
     enum Australia {
@@ -110,7 +110,7 @@ One-click grade
             "Not needed: no scanned text requires review.",
             "Needs review: extracted text must be confirmed before draft feedback.",
             "Reviewed: teacher-confirmed text may be used in the grading packet.",
-            "Blocked: OCR output is too uncertain or incomplete for draft feedback."
+            "Blocked: scanned text is too uncertain or incomplete for draft feedback."
         ]
         static let confidenceBands = [
             "High confidence: review normally and confirm before grading.",
@@ -191,7 +191,7 @@ One-click grade
     enum ExportFormatRequirements {
         static let requirements = [
             "Student-facing reports exclude private teacher notes and internal review history by default.",
-            "Teacher review reports are sensitive student records.",
+            "Teacher records are sensitive student records.",
             "CSV exports must be treated as student-record data.",
             "ZIP archives and backups may include original files and complete local records.",
             "Clipboard and share-sheet actions require explicit teacher confirmation."
@@ -204,7 +204,7 @@ One-click grade
             "Template insertion changes the grading packet fingerprint without silently deleting teacher-entered content.",
             "Prompt generation includes optional teacher-supplied fields only when supplied.",
             "Student reports exclude teacher-only/internal fields by default.",
-            "Teacher audit reports include grading packet context and audit trail.",
+            "Teacher records include grading packet context and audit trail.",
             "Tests prevent catalog drift and prohibited wording."
         ]
     }
@@ -216,15 +216,15 @@ One-click grade
             "The default workflow must not use cloud OCR.",
             "The default workflow must not use cloud AI grading.",
             "The app must not generate a proposed grade without at least one teacher-provided grading standard: rubric, answer key, exemplar, achievement-standard aspect, or custom grading criteria.",
-            "The app must not grade OCR-derived text until required OCR review has been completed.",
+            "The app must not grade scanned text until required scanned text review has been completed.",
             "Every proposed criterion score must cite student evidence or be marked for teacher review.",
             "The AI proposes; the teacher finalizes.",
             "Proposed points and teacher-final points must remain separate.",
             "Totals must be calculated deterministically in app code, not trusted from model output.",
-            "Raw source input, OCR output, reviewed text, model proposal, teacher edits, final grade, exports, and audit events must remain separate records.",
+            "Raw source input, scanned text, reviewed text, model proposal, teacher edits, final grade, exports, and audit events must remain separate records.",
             "A draft or final review must become stale when its source grading packet changes.",
             "Student-facing exports must exclude private teacher notes by default.",
-            "Teacher-audit exports are sensitive student records.",
+            "Teacher record exports are sensitive student records.",
             "The UI must not imply that unavailable OCR, local AI, export, or grading functionality is working.",
             "The app must fail openly on OCR failure, local AI unavailability, malformed model output, persistence failure, or export failure.",
             "Handwriting, diagrams, posters, physical models, and visual artifacts require explicit teacher-confirmed evidence before grading.",
@@ -271,7 +271,7 @@ Assignment metadata:
 - Assignment type: {{assignmentTypeDisplayName}}
 - Assessment purpose: {{assessmentPurpose}}
 - Source input count: {{sourceInputCount}}
-- OCR review status: {{ocrReviewStatus}}
+- scanned text review status: {{ocrReviewStatus}}
 - OCR quality summary: {{ocrQualitySummary}}
 
 {{curriculumReferenceSection}}

@@ -131,7 +131,7 @@ The embedding page identifies a five-step process:
 | Plan | Assignment/rubric/curriculum focus setup. |
 | Design | Assessment type and evidence requirement setup. |
 | Collect evidence | Scan/import/paste student work. |
-| Analyse evidence | OCR review + proposed grading. |
+| Analyse evidence | scanned text review + proposed grading. |
 | Respond | Feedback, next steps, teacher notes, group insights. |
 
 ## 7. Product safety implications

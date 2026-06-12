@@ -29,7 +29,7 @@ struct ExportContentPolicy: Equatable, Identifiable {
         lines.append(includesStudentNames ? "Includes student names or local identifiers." : "Does not include student names beyond report header/context.")
         if includesAssignmentWork { lines.append("Includes student work or reviewed text.") }
         if includesReviewedText { lines.append("Includes teacher-reviewed student text.") }
-        if includesOCRText { lines.append("Includes OCR text or OCR review state.") }
+        if includesOCRText { lines.append("Includes scanned text and scanned text review state.") }
         if includesSourceFiles { lines.append("Includes original or rendered source files when available.") }
         if includesFinalGrades { lines.append("Includes teacher-final grades or scores.") }
         if includesDraftGrades { lines.append("Includes draft grading content for teacher review.") }
@@ -96,9 +96,9 @@ extension ExportKind {
         case .teacherAuditMarkdown:
             return ExportContentPolicy(
                 kind: self,
-                warningTitle: "Teacher-only review report",
-                warningBody: "This report is a teacher-only audit record. Do not share it with students or families unless you have separately reviewed and redacted it.",
-                primaryButtonTitle: "Export Teacher Review",
+                warningTitle: "Teacher record",
+                warningBody: "This report is a teacher-only record. Do not share it with students or families unless you have separately reviewed and redacted it.",
+                primaryButtonTitle: "Export Teacher Record",
                 secondaryButtonTitle: "Cancel",
                 isStudentFacing: false,
                 isTeacherOnly: true,
@@ -120,9 +120,9 @@ extension ExportKind {
         case .teacherAuditPDF:
             return ExportContentPolicy(
                 kind: self,
-                warningTitle: "Teacher-only review PDF",
-                warningBody: "This PDF is a teacher-only audit record. Do not share it with students or families unless you have separately reviewed and redacted it.",
-                primaryButtonTitle: "Create Teacher Review PDF",
+                warningTitle: "Teacher record PDF",
+                warningBody: "This PDF is a teacher-only record. Do not share it with students or families unless you have separately reviewed and redacted it.",
+                primaryButtonTitle: "Create Teacher Record PDF",
                 secondaryButtonTitle: "Cancel",
                 isStudentFacing: false,
                 isTeacherOnly: true,
@@ -169,7 +169,7 @@ extension ExportKind {
             return ExportContentPolicy(
                 kind: self,
                 warningTitle: "Teacher-only archive ZIP",
-                warningBody: "This ZIP may include private teacher notes, audit records, OCR review state, original files, and internal metadata. Treat it as a sensitive student record.",
+                warningBody: "This ZIP may include private teacher notes, audit records, scanned text review state, original files, and internal metadata. Treat it as a sensitive student record.",
                 primaryButtonTitle: "Create Teacher Archive",
                 secondaryButtonTitle: "Cancel",
                 isStudentFacing: false,
@@ -193,7 +193,7 @@ extension ExportKind {
             return ExportContentPolicy(
                 kind: self,
                 warningTitle: "Full local backup archive",
-                warningBody: "This backup includes Mark My Work records stored on this device, including teacher-only records and original files when available. Store it only in school-approved locations.",
+                warningBody: "This backup includes MarkForMe records stored on this device, including teacher-only records and original files when available. Store it only in school-approved locations.",
                 primaryButtonTitle: "Create Full Backup",
                 secondaryButtonTitle: "Cancel",
                 isStudentFacing: false,

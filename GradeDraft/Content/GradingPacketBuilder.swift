@@ -220,7 +220,7 @@ enum AIReadinessAnalyzer {
             ),
             AIReadinessCheck(
                 id: "ocr-review",
-                title: "OCR review",
+                title: "scanned text review",
                 detail: assignment.ocrReviewStatus.blocksGrading
                     ? "Review scanned text before drafting feedback."
                     : "Reviewed text is eligible for the grading packet.",
@@ -643,7 +643,7 @@ enum AIPacketPreviewBuilder {
         return AIPacketPreview(
             assignmentID: assignment.id,
             includedInLocalDraft: [
-                "Reviewed student response text: \(packet.studentEvidence.reviewedText.count) characters; OCR status: \(packet.studentEvidence.ocrReviewStatus.displayName).",
+                "Reviewed student response text: \(packet.studentEvidence.reviewedText.count) characters; scanned text status: \(packet.studentEvidence.ocrReviewStatus.displayName).",
                 "Rubric criteria: \(packet.rubric.criteria.count); total possible points: \(GradeTotals.formatted(packet.rubric.criteria.reduce(0.0) { $0 + $1.maxPoints })).",
                 "Teacher instructions: \(packet.teacherInstructions.count) block(s).",
                 "Answer key: \(packet.answerKey == nil ? "not included" : "included").",

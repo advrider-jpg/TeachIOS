@@ -6,10 +6,10 @@ import Foundation
 /// they do not expose deferred features as working functionality.
 enum PlannedContentSupportCatalog {
     static let ocrReviewStates: [PlannedCopyItem] = [
-        PlannedCopyItem(id: "ocr-not-needed", title: "No OCR review needed", body: "The assignment uses typed or pasted text and does not require scanned-text review."),
+        PlannedCopyItem(id: "ocr-not-needed", title: "No scanned text review needed", body: "The assignment uses typed or pasted text and does not require scanned-text review."),
         PlannedCopyItem(id: "ocr-needs-review", title: "Review scanned text", body: "Teacher review is required before scanned text can be used for drafting feedback."),
         PlannedCopyItem(id: "ocr-reviewed", title: "Scanned text reviewed", body: "A teacher confirmed the OCR text that will be used as student evidence."),
-        PlannedCopyItem(id: "ocr-blocked", title: "OCR review blocked", body: "The scanned text is not ready. Fix or replace the source before drafting feedback.")
+        PlannedCopyItem(id: "ocr-blocked", title: "scanned text review blocked", body: "The scanned text is not ready. Fix or replace the source before drafting feedback.")
     ]
 
     static let ocrConfidenceBands: [PlannedCopyItem] = [
@@ -42,7 +42,7 @@ enum PlannedContentSupportCatalog {
     ]
 
     static let privacyCopy: [PlannedCopyItem] = [
-        PlannedCopyItem(id: "privacy-local-first", title: "Local-first storage", body: "Student work and grading records are stored locally unless the teacher exports them."),
+        PlannedCopyItem(id: "privacy-local-first", title: "Student work is not sent to us", body: "Student work and grading records stay on this device unless the teacher exports or shares them."),
         PlannedCopyItem(id: "privacy-no-cloud-fallback", title: "No cloud fallback", body: "If a local feature is unavailable, the app does not silently switch to an external service."),
         PlannedCopyItem(id: "privacy-teacher-only", title: "Teacher-only by default", body: "Draft records, teacher notes, answer keys, exemplars, and audit data are private teacher content by default."),
         PlannedCopyItem(id: "privacy-export-control", title: "Teacher-controlled export", body: "The teacher must confirm export and share actions before content leaves local app storage.")
@@ -51,7 +51,7 @@ enum PlannedContentSupportCatalog {
     static let emptyAndReadinessStates: [PlannedCopyItem] = [
         PlannedCopyItem(id: "empty-add-work", title: "Add student work", body: "Paste text or add scanned work before grading."),
         PlannedCopyItem(id: "empty-add-standard", title: "Add a grading standard", body: "Add a rubric, answer key, exemplar, or grading criteria before drafting feedback."),
-        PlannedCopyItem(id: "empty-review-ocr", title: "Review scanned text", body: "Confirm OCR text before it is used as evidence."),
+        PlannedCopyItem(id: "empty-review-ocr", title: "Review scanned text", body: "Check the scanned text before it is used as evidence."),
         PlannedCopyItem(id: "empty-start-review", title: "Start final review", body: "Review and approve criterion scores before student-facing export."),
         PlannedCopyItem(id: "empty-export-blocked", title: "Export blocked", body: "Student-facing export is blocked until final review is approved and current.")
     ]
@@ -84,7 +84,7 @@ enum PlannedContentSupportCatalog {
 
     static let exportFormatRequirements: [PlannedCopyItem] = [
         PlannedCopyItem(id: "export-student-report", title: "Student report", body: "Student reports exclude teacher-only notes, draft reasoning, and internal audit trail by default."),
-        PlannedCopyItem(id: "export-teacher-audit", title: "Teacher audit", body: "Teacher audit reports include grading packet context, export records, and audit events."),
+        PlannedCopyItem(id: "export-teacher-audit", title: "Teacher record", body: "Teacher records include grading packet context, export records, and audit events."),
         PlannedCopyItem(id: "export-csv", title: "CSV grade summary", body: "CSV exports should be treated as student record exports and confirmed before sharing."),
         PlannedCopyItem(id: "export-archive", title: "Archive", body: "Archives may include original sources and private records, so inventory and confirmation are required."),
         PlannedCopyItem(id: "export-backup", title: "Backup", body: "Backups may include complete local records and must be treated as sensitive student data.")
@@ -96,7 +96,7 @@ enum PlannedContentSupportCatalog {
         PlannedRuleItem(id: "accept-answer-exemplar-formative", text: "Answer-key, exemplar, and formative templates are available and insertable without silently deleting teacher content."),
         PlannedRuleItem(id: "accept-warnings", text: "Export, share, backup, and delete warnings are available and attached to the correct flows."),
         PlannedRuleItem(id: "accept-stale", text: "Template insertion changes the grading packet fingerprint and stale-state behavior remains intact."),
-        PlannedRuleItem(id: "accept-report-separation", text: "Student reports exclude teacher-only content; teacher audit reports include grading context and audit trail."),
+        PlannedRuleItem(id: "accept-report-separation", text: "Student reports exclude teacher-only content; teacher records include grading context and audit trail."),
         PlannedRuleItem(id: "accept-prohibited", text: "Catalog and visible UI copy avoid prohibited product claims.")
     ]
 }

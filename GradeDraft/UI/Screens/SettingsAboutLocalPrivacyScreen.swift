@@ -10,7 +10,7 @@ struct SettingsAboutLocalPrivacyScreen: View {
                 ExportStationeryHeaderCard(
                     eyebrow: "Local privacy",
                     title: "Privacy & Storage",
-                    note: "Local-first copy must match the real app path: no cloud claims beyond what the core workflow actually avoids.",
+                    note: "Student work is not sent to us for marking. Copy must match the real app path.",
                     status: .teacherOnly
                 )
             }
@@ -25,7 +25,7 @@ struct SettingsAboutLocalPrivacyScreen: View {
                         PaperclipDecoration(theme: .exportPrivacy)
                             .frame(width: 28, height: 40)
                     }
-                    Text("Mark My Work stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The core workflow does not upload or send this information.")
+                    Text("MarkForMe stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The core workflow does not upload or send this information.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Label("No cloud text recognition in the core workflow.", systemImage: "checkmark.circle")
@@ -70,7 +70,7 @@ struct SettingsAboutLocalPrivacyScreen: View {
                 ExportStationeryCard(status: .needsAttention, showsPerforation: true) {
                     TapeLabel("Warnings", theme: .exportPrivacy)
                     BlockingIssueRow(title: "Exports", detail: "Exports may contain sensitive student information. Review the confirmation sheet before creating a file.", status: .needsAttention)
-                    BlockingIssueRow(title: "Exported backups", detail: "Full backup archive exports include all Mark My Work data stored on this device. Store exported files securely.", status: .teacherOnly)
+                    BlockingIssueRow(title: "Exported backups", detail: "Full backup archive exports include all MarkForMe data stored on this device. Store exported files securely.", status: .teacherOnly)
                     Label("Opening the share sheet sends the selected file to another app.", systemImage: "square.and.arrow.up")
                     Label("Backup import must preview before mutating records.", systemImage: "archivebox")
                 }
@@ -80,8 +80,8 @@ struct SettingsAboutLocalPrivacyScreen: View {
             Section("About") {
                 ExportStationeryCard(status: .studentFacing) {
                     TapeLabel("About", theme: .exportPrivacy)
-                    LabeledContent("App", value: "Mark My Work")
-                    LabeledContent("Mode", value: "Local-first teacher review")
+                    LabeledContent("App", value: "MarkForMe")
+                    LabeledContent("Mode", value: "Student work is not sent to us")
                     LabeledContent("Core workflow", value: "Local text review, teacher final grade, local export")
                 }
             }

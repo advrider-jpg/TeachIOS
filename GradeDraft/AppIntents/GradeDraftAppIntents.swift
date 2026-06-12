@@ -14,7 +14,7 @@ enum GradeDraftIntentDestination: String, AppEnum {
     case curriculum
     case studentWork
 
-    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Mark My Work Destination")
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "MarkForMe Destination")
     static let caseDisplayRepresentations: [GradeDraftIntentDestination: DisplayRepresentation] = [
         .assignments: "Assignments",
         .review: "Review",
@@ -22,7 +22,7 @@ enum GradeDraftIntentDestination: String, AppEnum {
         .finalReview: "Final Review",
         .latestDraft: "Latest Draft",
         .packetPreview: "AI Packet Preview",
-        .ocrReview: "OCR Review",
+        .ocrReview: "Check Scanned Text",
         .curriculum: "Curriculum",
         .studentWork: "Student Work"
     ]
@@ -134,8 +134,8 @@ enum AssignmentIntentResolver {
 }
 
 struct OpenGradeDraftDestinationIntent: AppIntent {
-    static let title: LocalizedStringResource = "Open Mark My Work"
-    static let description = IntentDescription("Opens a safe Mark My Work workflow. AI drafts, final approval, and exports still require in-app teacher action.")
+    static let title: LocalizedStringResource = "Open MarkForMe"
+    static let description = IntentDescription("Opens a safe MarkForMe workflow. AI drafts, final approval, and exports still require in-app teacher action.")
     static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Destination")
@@ -158,13 +158,13 @@ struct OpenGradeDraftDestinationIntent: AppIntent {
                 action: action
             )
         )
-        return .result(dialog: "Opening Mark My Work. Teacher review stays in the app.")
+        return .result(dialog: "Opening MarkForMe. Teacher review stays in the app.")
     }
 }
 
 struct OpenAIReadinessIntent: AppIntent {
     static let title: LocalizedStringResource = "Open AI Readiness"
-    static let description = IntentDescription("Opens Mark My Work to the deterministic local AI readiness center for teacher review. It does not generate a draft.")
+    static let description = IntentDescription("Opens MarkForMe to the deterministic local AI readiness center for teacher review. It does not generate a draft.")
     static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Assignment")
@@ -181,13 +181,13 @@ struct OpenAIReadinessIntent: AppIntent {
                 action: .preparePacketPreview
             )
         )
-        return .result(dialog: "Opening AI readiness in Mark My Work. No grade is generated.")
+        return .result(dialog: "Opening AI readiness in MarkForMe. No grade is generated.")
     }
 }
 
 struct OpenLatestDraftIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Latest Draft"
-    static let description = IntentDescription("Opens Mark My Work to the latest local draft or final-review workflow. It does not generate or approve a grade.")
+    static let description = IntentDescription("Opens MarkForMe to the latest local draft or final-review workflow. It does not generate or approve a grade.")
     static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Assignment")
@@ -203,13 +203,13 @@ struct OpenLatestDraftIntent: AppIntent {
                 assignmentID: AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText)
             )
         )
-        return .result(dialog: "Opening the latest local draft in Mark My Work. Teacher approval stays in the app.")
+        return .result(dialog: "Opening the latest local draft in MarkForMe. Teacher approval stays in the app.")
     }
 }
 
 struct PrepareLocalAIPacketPreviewIntent: AppIntent {
     static let title: LocalizedStringResource = "Prepare AI Packet Preview"
-    static let description = IntentDescription("Opens Mark My Work and prepares the local AI packet preview for teacher review. It does not generate a draft or approve a grade.")
+    static let description = IntentDescription("Opens MarkForMe and prepares the local AI packet preview for teacher review. It does not generate a draft or approve a grade.")
     static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Assignment")
@@ -226,26 +226,26 @@ struct PrepareLocalAIPacketPreviewIntent: AppIntent {
                 action: .preparePacketPreview
             )
         )
-        return .result(dialog: "Preparing the packet preview in Mark My Work. No draft or final grade is created by this shortcut.")
+        return .result(dialog: "Preparing the packet preview in MarkForMe. No draft or final grade is created by this shortcut.")
     }
 }
 
 struct CreateGradeDraftAssignmentShellIntent: AppIntent {
     static let title: LocalizedStringResource = "Create Assignment Shell"
-    static let description = IntentDescription("Opens Mark My Work and creates a local blank assignment record. Student work, grading, and export still require teacher action in the app.")
+    static let description = IntentDescription("Opens MarkForMe and creates a local blank assignment record. Student work, grading, and export still require teacher action in the app.")
     static let openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         AppLaunchRequestStore.save(
             AppLaunchRequest(destination: .assignments, action: .createAssignmentShell)
         )
-        return .result(dialog: "Creating a local assignment shell in Mark My Work.")
+        return .result(dialog: "Creating a local assignment shell in MarkForMe.")
     }
 }
 
 struct StartManualFinalReviewIntent: AppIntent {
     static let title: LocalizedStringResource = "Start Manual Final Review"
-    static let description = IntentDescription("Opens Mark My Work and starts a teacher-only manual final review when the assignment already has reviewed student work and a grading standard.")
+    static let description = IntentDescription("Opens MarkForMe and starts a teacher-only manual final review when the assignment already has reviewed student work and a grading standard.")
     static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Assignment")
@@ -262,13 +262,13 @@ struct StartManualFinalReviewIntent: AppIntent {
                 action: .startManualFinalReview
             )
         )
-        return .result(dialog: "Opening Mark My Work to start manual final review if the assignment is ready.")
+        return .result(dialog: "Opening MarkForMe to start manual final review if the assignment is ready.")
     }
 }
 
 struct ApplyRecommendedAIConstraintsIntent: AppIntent {
     static let title: LocalizedStringResource = "Apply Recommended AI Constraints"
-    static let description = IntentDescription("Opens Mark My Work and applies the app's recommended local-AI constraint templates to the selected assignment. Sensitive templates remain manual-only.")
+    static let description = IntentDescription("Opens MarkForMe and applies the app's recommended local-AI constraint templates to the selected assignment. Sensitive templates remain manual-only.")
     static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Assignment")
@@ -285,13 +285,13 @@ struct ApplyRecommendedAIConstraintsIntent: AppIntent {
                 action: .applyRecommendedAIConstraints
             )
         )
-        return .result(dialog: "Opening Mark My Work to apply recommended local AI constraints.")
+        return .result(dialog: "Opening MarkForMe to apply recommended local AI constraints.")
     }
 }
 
 struct AddPastedStudentWorkIntent: AppIntent {
     static let title: LocalizedStringResource = "Add Pasted Student Work"
-    static let description = IntentDescription("Opens Mark My Work and saves pasted student work as teacher-reviewed local input. Existing reviewed text for the selected assignment is replaced.")
+    static let description = IntentDescription("Opens MarkForMe and saves pasted student work as teacher-reviewed local input. Existing reviewed text for the selected assignment is replaced.")
     static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Student Work Text")
@@ -309,7 +309,7 @@ struct AddPastedStudentWorkIntent: AppIntent {
             return .result(dialog: "Paste non-empty student work text before running this shortcut.")
         }
         guard let assignmentID = AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText) else {
-            return .result(dialog: "Choose an assignment before saving pasted student work. Mark My Work did not change any student work.")
+            return .result(dialog: "Choose an assignment before saving pasted student work. MarkForMe did not change any student work.")
         }
         AppLaunchRequestStore.save(
             AppLaunchRequest(
@@ -319,7 +319,7 @@ struct AddPastedStudentWorkIntent: AppIntent {
                 payloadText: trimmed
             )
         )
-        return .result(dialog: "Opening Mark My Work to save pasted student work locally. No grade is generated.")
+        return .result(dialog: "Opening MarkForMe to save pasted student work locally. No grade is generated.")
     }
 }
 
@@ -340,7 +340,7 @@ struct SearchLocalGradeDraftAssignmentsIntent: AppIntent {
         do {
             assignments = try AssignmentIntentResolver.loadAssignments()
         } catch {
-            return .result(dialog: "Mark My Work could not read local assignments. No records were searched or changed.")
+            return .result(dialog: "MarkForMe could not read local assignments. No records were searched or changed.")
         }
         let matches = assignments
             .filter { $0.title.localizedCaseInsensitiveContains(query) }

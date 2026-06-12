@@ -1,4 +1,4 @@
-# Mark My Work Production Readiness Checklist
+# MarkForMe Production Readiness Checklist
 
 ## Source and configuration
 - [x] Build settings no longer use sample bundle identifiers.
@@ -50,7 +50,7 @@
 - [ ] Import rubric, review preview, confirm structured criteria.
 - [ ] Import roster CSV and verify preview warnings.
 - [ ] Verify student-facing export excludes private teacher/audit material.
-- [ ] Verify teacher audit export includes provenance and private/audit content.
+- [ ] Verify teacher record export includes provenance and private/audit content.
 - [ ] Verify curriculum search, map, unmap, and grading packet inclusion.
 
 ## Physical-device tests

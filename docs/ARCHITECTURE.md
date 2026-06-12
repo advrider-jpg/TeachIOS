@@ -1,6 +1,6 @@
-# Mark My Work Architecture
+# MarkForMe Architecture
 
-Mark My Work is an Apple-native, local-first iOS app scaffold. The architectural rule is that each state boundary remains explicit:
+MarkForMe is an Apple-native, local-first iOS app scaffold. The architectural rule is that each state boundary remains explicit:
 
 ```text
 source input -> OCR/PDF text extraction -> teacher-reviewed text -> grading packet -> prompt redaction -> AI readiness / packet preview -> read-only local lookup tools -> model draft / feedback rewrite / manual review -> teacher final review -> export/archive/backup
@@ -13,7 +13,7 @@ The app must not collapse those layers into one mutable blob.
 ```text
 GradeDraftApp.swift
 ContentView.swift           — NavigationSplitView with assignment list and feature sections
-GradeDraftViewModel.swift   — all state transitions; PDF import; OCR review; evidence; roster; curriculum; AI readiness/packet preview; feedback rewrite; safe App Intent handoff; backup/restore
+GradeDraftViewModel.swift   — all state transitions; PDF import; scanned text review; evidence; roster; curriculum; AI readiness/packet preview; feedback rewrite; safe App Intent handoff; backup/restore
 Models/GradeDraftModels.swift
 Services/
   OCRService.swift
@@ -86,7 +86,7 @@ Both paths use the same final-review editor, approval gate, export flow, evidenc
 
 ## Staleness
 
-`AssignmentRecord.gradingPacketFingerprint` is derived from assignment metadata, reviewed text, rubric, instructions, answer key, exemplar, OCR review status, source references, evidence references, and curriculum mappings. Draft and final review records store the fingerprint used to produce them. If inputs change, the app marks existing draft/final review state stale and blocks student-facing export until a fresh teacher-approved final review exists.
+`AssignmentRecord.gradingPacketFingerprint` is derived from assignment metadata, reviewed text, rubric, instructions, answer key, exemplar, scanned text review status, source references, evidence references, and curriculum mappings. Draft and final review records store the fingerprint used to produce them. If inputs change, the app marks existing draft/final review state stale and blocks student-facing export until a fresh teacher-approved final review exists.
 
 ## Persistence posture
 
@@ -98,7 +98,7 @@ No cloud services, remote AI, remote OCR, accounts, telemetry, analytics, subscr
 
 ## Foundation Models typed draft path
 
-Mark My Work uses Apple Foundation Models only as a local draft-assistance path. The production service requests typed guided-generation proposal objects, adapts those objects into `GradeDraftResult`, and then runs `GradeDraftValidator.normalizeAndValidate` before any draft is stored or shown for teacher final review.
+MarkForMe uses Apple Foundation Models only as a local draft-assistance path. The production service requests typed guided-generation proposal objects, adapts those objects into `GradeDraftResult`, and then runs `GradeDraftValidator.normalizeAndValidate` before any draft is stored or shown for teacher final review.
 
 The draft path is:
 
@@ -112,7 +112,7 @@ The deterministic local tool session is source-implemented under `AI/Tools`. It 
 
 The prompt budgeter must not silently truncate reviewed student text. When the packet cannot fit safely in the on-device model context, the app either drafts criterion-by-criterion from the full reviewed text and grading materials or fails with an explicit local-too-large message. Manual final review remains available when local AI is unavailable or blocked.
 
-Safe App Intents can hand off into review workflows, AI Readiness, packet preview, OCR review, curriculum, blank assignment-shell creation, pasted student-work save, recommended AI constraints, and local assignment-title search. Shortcuts resolve assignments through a local `AssignmentEntity` that redacts known student/class identity from display titles and does not expose class, roster, student-name, or student-ID properties. They do not perform background grading, final approval, student-facing export, upload, or network work.
+Safe App Intents can hand off into review workflows, AI Readiness, packet preview, scanned text review, curriculum, blank assignment-shell creation, pasted student-work save, recommended AI constraints, and local assignment-title search. Shortcuts resolve assignments through a local `AssignmentEntity` that redacts known student/class identity from display titles and does not expose class, roster, student-name, or student-ID properties. They do not perform background grading, final approval, student-facing export, upload, or network work.
 
 The App Intent handoff path stores a pending launch request locally, the app consumes it once, performs only the requested safe local action, and navigates to the concrete screen when an assignment can be resolved. Pasted student-work shortcuts save text through the same reviewed-input mutation path as the paste UI. Manual-review and recommended-constraint shortcuts reuse the existing view-model methods and surface normal in-app errors when gates are not met.
 

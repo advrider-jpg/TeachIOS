@@ -119,7 +119,7 @@ struct FinalReviewScreen: View {
                 } header: {
                     FinalReviewTapeSectionHeader(title: "Review Actions")
                 } footer: {
-                    Text("Mark My Work drafts suggestions only. The teacher approves the final grade.")
+                    Text("MarkForMe drafts suggestions only. The teacher approves the final grade.")
                 }
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 .listRowBackground(Color.clear)

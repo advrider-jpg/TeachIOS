@@ -201,5 +201,5 @@ struct GradingPromptBudgeter: GradingPromptBudgeting {
         max(1, Int(ceil(Double(text.count) / 3.2)))
     }
 
-    static let tooLargeMessage = "This grading packet is too large for the on-device model. Mark My Work did not truncate the student work or send it to a cloud model. Shorten or split the reviewed text, reduce the grading packet, or use manual final review."
+    static let tooLargeMessage = "This grading packet is too large for the on-device model. MarkForMe did not truncate the student work or send it to a cloud model. Shorten or split the reviewed text, reduce the grading packet, or use manual final review."
 }

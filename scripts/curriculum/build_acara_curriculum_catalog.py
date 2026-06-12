@@ -43,7 +43,7 @@ LICENSE_NAME = "CC BY 4.0, subject to Australian Curriculum website terms and ex
 NON_ENDORSEMENT = (
     "Australian Curriculum references are provided as local reference aids only. "
     "Confirm requirements with your school, sector, and jurisdiction before reporting. "
-    "Mark My Work does not claim ACARA endorsement, certification, compliance, or reporting approval."
+    "MarkForMe does not claim ACARA endorsement, certification, compliance, or reporting approval."
 )
 ICIP_WARNING = (
     "Some Australian Curriculum material relates to Aboriginal and Torres Strait Islander Histories and Cultures "
@@ -53,8 +53,8 @@ ICIP_WARNING = (
 ATTRIBUTION = (
     "© Australian Curriculum, Assessment and Reporting Authority (ACARA) 2010 to present, unless otherwise indicated. "
     "This material was downloaded from the Australian Curriculum website or machine-readable Australian Curriculum "
-    "source files and was normalized for offline reference display in Mark My Work. ACARA does not endorse Mark My Work. "
-    "ACARA has not authorized Mark My Work, and Mark My Work is not affiliated with or sponsored by ACARA."
+    "source files and was normalized for offline reference display in MarkForMe. ACARA does not endorse MarkForMe. "
+    "ACARA has not authorized MarkForMe, and MarkForMe is not affiliated with or sponsored by ACARA."
 )
 
 
@@ -214,7 +214,7 @@ def source_object(source: SourceDefinition, retrieved_at: str, sha: str, mode: s
         "id": source.key,
         "name": source.name,
         "version": SOURCE_VERSION,
-        "provenance": f"{mode}. Normalized for local Mark My Work search and mapping.",
+        "provenance": f"{mode}. Normalized for local MarkForMe search and mapping.",
         "localPath": "",
         "importedAt": retrieved_at,
         "kind": source.kind,

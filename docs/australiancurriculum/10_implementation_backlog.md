@@ -94,14 +94,14 @@
 ### Features
 
 - Student feedback PDF/Markdown.
-- Teacher audit PDF/Markdown.
+- Teacher record PDF/Markdown.
 - CSV gradebook export.
 - Archive export.
 
 ### Acceptance criteria
 
 - Student export excludes private teacher notes.
-- Teacher audit export includes source and AI/final distinction.
+- Teacher record export includes source and AI/final distinction.
 - CSV hardens formula-like strings.
 - Export includes jurisdiction/reporting caveat.
 

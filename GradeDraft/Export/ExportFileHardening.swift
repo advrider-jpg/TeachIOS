@@ -9,7 +9,7 @@ enum ExportFilenameBuilder {
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         let stamp = formatter.string(from: date)
         let idToken = assignmentID.map { String($0.uuidString.prefix(8)) } ?? String(UUID().uuidString.prefix(8))
-        return "MarkMyWork-\(kind.safeFilenameToken)-\(stamp)-\(idToken).\(ext)"
+        return "MarkForMe-\(kind.safeFilenameToken)-\(stamp)-\(idToken).\(ext)"
     }
 }
 

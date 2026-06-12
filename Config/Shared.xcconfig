@@ -1,6 +1,6 @@
-PRODUCT_NAME = Mark My Work
-GRADEDRAFT_BUNDLE_ID = com.markmywork.gradedraft
-GRADEDRAFT_TEST_BUNDLE_ID = com.markmywork.gradedraft.tests
+PRODUCT_NAME = MarkForMe
+GRADEDRAFT_BUNDLE_ID = com.markforme.app
+GRADEDRAFT_TEST_BUNDLE_ID = com.markforme.app.tests
 DEVELOPMENT_TEAM =
 IPHONEOS_DEPLOYMENT_TARGET = 17.0
 TARGETED_DEVICE_FAMILY = 1,2

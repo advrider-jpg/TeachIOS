@@ -8,7 +8,7 @@ final class GradeDraftViewModel: ObservableObject {
     @Published var assignments: [AssignmentRecord] = []
     @Published var selectedAssignmentID: UUID?
     @Published var isWorking = false
-    @Published var statusMessage = "Local-only mode. No student work is uploaded."
+    @Published var statusMessage = "Student work stays on this device."
     @Published var errorMessage: String?
     @Published var exportURL: URL?
     @Published var exportKind: ExportKind?
@@ -1140,7 +1140,7 @@ final class GradeDraftViewModel: ObservableObject {
             exportURL = try MarkdownReportBuilder.writeTemporaryTeacherAuditReport(for: assignment, generatedAt: generatedAt)
             exportKind = .teacherAuditMarkdown
             guard recordExport(kind: .teacherAuditMarkdown, content: markdown, includesPrivateNotes: true, includesOriginalSources: false) else { return }
-            statusMessage = "Teacher Review is ready to share. Treat it as sensitive."
+            statusMessage = "Teacher Record is ready to share. Treat it as sensitive."
         } catch {
             handleExportFailure(error)
         }
@@ -2022,7 +2022,7 @@ final class GradeDraftViewModel: ObservableObject {
             if let exportURL {
                 guard recordExport(kind: .teacherAuditPDF, fileURL: exportURL, includesPrivateNotes: true, includesOriginalSources: false) else { return }
             }
-            statusMessage = "Teacher Review PDF is ready to share. Treat it as sensitive."
+            statusMessage = "Teacher Record PDF is ready to share. Treat it as sensitive."
         } catch {
             handleExportFailure(error)
         }
@@ -2117,7 +2117,7 @@ final class GradeDraftViewModel: ObservableObject {
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         let ext = url.pathExtension.isEmpty ? "backup" : url.pathExtension.lowercased()
         let destination = fileManager.temporaryDirectory
-            .appendingPathComponent("MarkMyWork-PendingRestore-\(UUID().uuidString)")
+            .appendingPathComponent("MarkForMe-PendingRestore-\(UUID().uuidString)")
             .appendingPathExtension(ext)
         if fileManager.fileExists(atPath: destination.path) { try fileManager.removeItem(at: destination) }
         try fileManager.copyItem(at: url, to: destination)
@@ -2343,7 +2343,7 @@ final class GradeDraftViewModel: ObservableObject {
         } catch {
             exportURL = nil
             exportKind = nil
-            errorMessage = "Mark My Work could not create the export. No file was shared. Could not fingerprint the exported file."
+            errorMessage = "MarkForMe could not create the export. No file was shared. Could not fingerprint the exported file."
             return false
         }
     }
@@ -2373,7 +2373,7 @@ final class GradeDraftViewModel: ObservableObject {
         exportURL = nil
         exportKind = nil
         let detail = error.localizedDescription.replacingOccurrences(of: fileManager.temporaryDirectory.path, with: "[temporary directory]")
-        errorMessage = "Mark My Work could not create the export. No file was shared. \(detail)"
+        errorMessage = "MarkForMe could not create the export. No file was shared. \(detail)"
     }
 
     private func upsertAssignment(_ updated: AssignmentRecord) {

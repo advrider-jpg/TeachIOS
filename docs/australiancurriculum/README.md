@@ -1,4 +1,4 @@
-# Australian Curriculum extraction package for Mark My Work / TeachIOS
+# Australian Curriculum extraction package for MarkForMe / TeachIOS
 
 Prepared: 2026-05-28
 

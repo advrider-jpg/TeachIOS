@@ -1,0 +1,42 @@
+diff --git a/Config/Shared.xcconfig b/Config/Shared.xcconfig
+--- a/Config/Shared.xcconfig
++++ b/Config/Shared.xcconfig
+@@
+-PRODUCT_NAME = Mark My Work
+-GRADEDRAFT_BUNDLE_ID = com.markmywork.gradedraft
+-GRADEDRAFT_TEST_BUNDLE_ID = com.markmywork.gradedraft.tests
++PRODUCT_NAME = MarkForMe
++GRADEDRAFT_BUNDLE_ID = com.markforme.app
++GRADEDRAFT_TEST_BUNDLE_ID = com.markforme.app.tests
+ DEVELOPMENT_TEAM =
+ IPHONEOS_DEPLOYMENT_TARGET = 17.0
+ TARGETED_DEVICE_FAMILY = 1,2
+ ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+diff --git a/GradeDraft/Resources/Info.plist b/GradeDraft/Resources/Info.plist
+--- a/GradeDraft/Resources/Info.plist
++++ b/GradeDraft/Resources/Info.plist
+@@
+-	<key>CFBundleDisplayName</key>
+-	<string>Mark My Work</string>
++	<key>CFBundleDisplayName</key>
++	<string>MarkForMe</string>
+@@
+-	<key>CFBundleName</key>
+-	<string>Mark My Work</string>
++	<key>CFBundleName</key>
++	<string>MarkForMe</string>
+@@
+-	<key>NSCameraUsageDescription</key>
+-	<string>Mark My Work uses the camera to scan student work for on-device OCR.</string>
++	<key>NSCameraUsageDescription</key>
++	<string>MarkForMe uses the camera to scan student work so you can check the text before marking.</string>
+@@
+-	<key>NSFaceIDUsageDescription</key>
+-	<string>Mark My Work uses Face ID to confirm sensitive export actions before student work leaves the app.</string>
++	<key>NSFaceIDUsageDescription</key>
++	<string>MarkForMe uses Face ID to confirm exports that may contain student work.</string>
+@@
+-	<key>NSPhotoLibraryUsageDescription</key>
+-	<string>Mark My Work imports selected images of student work for on-device OCR.</string>
++	<key>NSPhotoLibraryUsageDescription</key>
++	<string>MarkForMe imports selected images of student work so you can check the text before marking.</string>

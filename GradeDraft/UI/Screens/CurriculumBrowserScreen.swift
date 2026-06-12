@@ -19,7 +19,7 @@ struct CurriculumBrowserScreen: View {
                     title: "Curriculum Catalog",
                     subtitle: "Bundled read-only references that teachers can explicitly map into the local grading packet.",
                     tapeLabel: "Catalog",
-                    annotation: "Mark My Work does not infer official alignment.",
+                    annotation: "MarkForMe does not infer official alignment.",
                     status: .teacherOnly
                 ) {
             RubricStationeryCard(

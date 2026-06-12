@@ -169,8 +169,8 @@ enum AIEvaluationChecker {
 
         if evaluationCase.expected.requiresOCRReview {
             checks.append(input.ocrQualitySummary.requiresTeacherOCRReview || input.ocrReviewStatus.blocksGrading
-                ? pass("ocr-risk", "OCR uncertainty is represented in the evaluation input.")
-                : fail("ocr-risk", "Expected OCR uncertainty was not represented."))
+                ? pass("ocr-risk", "scanned text uncertainty is represented in the evaluation input.")
+                : fail("ocr-risk", "Expected scanned text uncertainty was not represented."))
         }
 
         if evaluationCase.expected.requiresSourceReferences {
@@ -391,7 +391,7 @@ struct AIEvaluationRunner {
 enum AIEvaluationReportBuilder {
     static func markdown(results: [AIEvaluationResult], generatedAt: Date = Date()) -> String {
         var lines: [String] = [
-            "# Mark My Work Local AI Evaluation",
+            "# MarkForMe Local AI Evaluation",
             "",
             "- Generated: \(ISO8601DateFormatter().string(from: generatedAt))",
             "- Prompt version: \(GradeDraftPromptVersion.currentFoundationModelsTyped)",

@@ -58,14 +58,14 @@ This report is intended for student or family review. Confirm that it includes o
 Export teacher-only grading record?
 """#,
             body: #"""
-This file may include internal grading notes, draft scores, rubric reasoning, OCR uncertainty flags, and teacher annotations. It is not intended for students or families unless reviewed and redacted.
+This file may include internal grading notes, draft scores, rubric reasoning, scanned text uncertainty flags, and teacher annotations. It is not intended for students or families unless reviewed and redacted.
 """#,
             warningLine: "This is a private teacher record, not a student-facing report.",
             securityNote: "Store only with internal school records or other approved teacher-only systems.",
             checklist: [
                 "Confirm the export is for teacher or school recordkeeping.",
                 "Confirm students or families will not receive teacher-only sections without review.",
-                "Confirm draft and OCR uncertainty information is permitted in the destination."
+                "Confirm draft and scanned text uncertainty information is permitted in the destination."
             ],
             primaryButton: "Export Teacher Record",
             secondaryButton: "Cancel",
@@ -173,7 +173,7 @@ The copied text may include student information. Other apps, shared devices, or 
             primaryButton: "Copy",
             secondaryButton: "Cancel",
             finalButton: "Copy",
-            acknowledgementText: "I understand copied content may be exposed outside Mark My Work.",
+            acknowledgementText: "I understand copied content may be exposed outside MarkForMe.",
             requiresAcknowledgement: true
         ),
         ExportWarningDefinition(
@@ -183,7 +183,7 @@ The copied text may include student information. Other apps, shared devices, or 
 Share outside the app?
 """#,
             body: #"""
-You are about to send a file or text to another app. Mark My Work cannot control how that destination app stores, syncs, forwards, or protects the information.
+You are about to send a file or text to another app. MarkForMe cannot control how that destination app stores, syncs, forwards, or protects the information.
 """#,
             warningLine: "The destination app controls the shared content after you send it.",
             checklist: [
@@ -203,7 +203,7 @@ You are about to send a file or text to another app. Mark My Work cannot control
 Include student records in device backup?
 """#,
             body: #"""
-By default, Mark My Work keeps student records local and excludes sensitive app files from backup where supported. If you enable backup for student records, copies may be stored outside this device according to your device and account settings.
+By default, MarkForMe keeps student records local and excludes sensitive app files from backup where supported. If you enable backup for student records, copies may be stored outside this device according to your device and account settings.
 """#,
             warningLine: "Device backup may copy local student records outside this device.",
             securityNote: "Confirm this is permitted before changing the local backup exclusion setting.",
@@ -228,7 +228,7 @@ Delete local student records?
             body: #"""
 This will remove the selected records from this device. This action may delete scans, OCR text, scores, feedback, and teacher notes stored in the app. Export a permitted backup first if your school requires retention.
 """#,
-            warningLine: "This destructive action cannot be undone from inside Mark My Work.",
+            warningLine: "This destructive action cannot be undone from inside MarkForMe.",
             checklist: [
                 "Confirm the selected local records should be deleted.",
                 "Confirm required retention or backup obligations are satisfied.",
@@ -238,7 +238,7 @@ This will remove the selected records from this device. This action may delete s
             secondaryButton: "Cancel",
             finalButton: "Delete Records",
             escalatedConfirmation: "Type DELETE to confirm local record deletion.",
-            acknowledgementText: "I understand this local deletion cannot be undone from inside Mark My Work.",
+            acknowledgementText: "I understand this local deletion cannot be undone from inside MarkForMe.",
             requiresAcknowledgement: true
         ),
         ExportWarningDefinition(

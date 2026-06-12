@@ -19,7 +19,7 @@ final class GradeDraftCapabilityBannerTests: XCTestCase {
     }
 
     func testUnavailableStatusCarriesMessage() {
-        let message = "Local AI grading is unavailable. Mark My Work will not send student work to a cloud model."
+        let message = "Local AI grading is unavailable. MarkForMe will not send student work to a cloud model."
         let banner = LocalCapabilityBanner(
             status: .unavailable(message),
             message: message

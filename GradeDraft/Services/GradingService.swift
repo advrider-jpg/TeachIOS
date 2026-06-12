@@ -23,7 +23,7 @@ extension GradingServicing {
 
     func rewriteFeedback(input: FeedbackRewriteInput, progress: AIGenerationProgressHandler? = nil) async throws -> FeedbackRewriteResult {
         _ = progress
-        throw GradeDraftError.localModelUnavailable("Local feedback rewriting is unavailable. Mark My Work will not send teacher feedback to a cloud model as a fallback.")
+        throw GradeDraftError.localModelUnavailable("Local feedback rewriting is unavailable. MarkForMe will not send teacher feedback to a cloud model as a fallback.")
     }
 }
 
@@ -378,7 +378,7 @@ private extension Array where Element == String {
 
 final class UnavailableLocalGradingService: GradingServicing, CapabilityChecking, Sendable {
     var localAIStatus: LocalAIStatus {
-        .unavailable("Local AI grading is unavailable. Mark My Work will not send this student work to a cloud model as a fallback.")
+        .unavailable("Local AI grading is unavailable. MarkForMe will not send this student work to a cloud model as a fallback.")
     }
 
     func draftGrade(input: GradingInput, progress: AIGenerationProgressHandler? = nil) async throws -> GradeDraftResult {
@@ -397,7 +397,7 @@ final class UnavailableLocalGradingService: GradingServicing, CapabilityChecking
                 canCancel: true
             )
         )
-        throw GradeDraftError.localModelUnavailable("Local AI grading is unavailable. Mark My Work will not send this student work to a cloud model as a fallback.")
+        throw GradeDraftError.localModelUnavailable("Local AI grading is unavailable. MarkForMe will not send this student work to a cloud model as a fallback.")
     }
 
     func rewriteFeedback(input: FeedbackRewriteInput, progress: AIGenerationProgressHandler? = nil) async throws -> FeedbackRewriteResult {
@@ -408,6 +408,6 @@ final class UnavailableLocalGradingService: GradingServicing, CapabilityChecking
                 canCancel: true
             )
         )
-        throw GradeDraftError.localModelUnavailable("Local feedback rewriting is unavailable. Mark My Work will not send teacher feedback to a cloud model as a fallback.")
+        throw GradeDraftError.localModelUnavailable("Local feedback rewriting is unavailable. MarkForMe will not send teacher feedback to a cloud model as a fallback.")
     }
 }

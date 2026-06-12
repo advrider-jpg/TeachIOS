@@ -31,7 +31,7 @@ None in the core workflow.
 None.
 
 ## Third-party SDKs
-Runtime packages are GRDB.swift, swift-markdown, TPPDF, ZIPFoundation, SwiftCSV, and swift-dependencies. swift-snapshot-testing is test-only. No package introduces runtime network calls, telemetry, accounts, analytics, or cloud services in Mark My Work’s app path.
+Runtime packages are GRDB.swift, swift-markdown, TPPDF, ZIPFoundation, SwiftCSV, and swift-dependencies. swift-snapshot-testing is test-only. No package introduces runtime network calls, telemetry, accounts, analytics, or cloud services in MarkForMe’s app path.
 
 ## Privacy manifest status
 `PrivacyInfo.xcprivacy` explicitly sets tracking to false and contains no tracking domains. The manifest must be revisited if any telemetry, crash reporting, support upload, cloud sync, cloud AI, hosted curriculum refresh, account, or analytics feature is added.

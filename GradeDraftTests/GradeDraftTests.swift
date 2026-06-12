@@ -2060,7 +2060,7 @@ final class GradeDraftTests: XCTestCase {
         XCTAssertTrue(viewModel.canStartManualFinalReview, "Manual review should be available when local AI is unavailable")
     }
 
-    // MARK: - OCR review tests
+    // MARK: - scanned text review tests
 
     @MainActor
     func testScannedInputSetsOCRStatusNeedsReview() {
@@ -2070,14 +2070,14 @@ final class GradeDraftTests: XCTestCase {
             reviewedStudentText: "Scanned text",
             ocrReviewStatus: .needsReview
         )
-        XCTAssertTrue(assignment.requiresOCRReviewBeforeGrading, "Scan should require OCR review")
+        XCTAssertTrue(assignment.requiresOCRReviewBeforeGrading, "Scan should require scanned text review")
         XCTAssertTrue(assignment.ocrReviewStatus.blocksGrading, "OCR needsReview blocks grading")
     }
 
     @MainActor
     func testMarkingOCRReviewedSetsStatusReviewed() {
         var assignment = AssignmentRecord(
-            title: "OCR review test",
+            title: "scanned text review test",
             rubricText: "Claim: 0-2 points",
             reviewedStudentText: "Extracted text",
             ocrReviewStatus: .needsReview
@@ -2110,7 +2110,7 @@ final class GradeDraftTests: XCTestCase {
         let store = InMemoryAssignmentStore(assignments: [assignment])
         let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
 
-        XCTAssertFalse(viewModel.canDraftGrade, "Draft should be blocked before OCR review")
+        XCTAssertFalse(viewModel.canDraftGrade, "Draft should be blocked before scanned text review")
     }
 
     // MARK: - Advanced feature completion regression tests
@@ -2758,7 +2758,7 @@ final class GradeDraftTests: XCTestCase {
 
         vm.rejectOCRLine(pageID: page.id, lineID: line.id)
 
-        XCTAssertEqual(vm.assignment.ocrReviewStatus, .reviewed, "Assignment OCR status must be reviewed after last line resolved")
+        XCTAssertEqual(vm.assignment.ocrReviewStatus, .reviewed, "Assignment scanned text status must be reviewed after last line resolved")
         XCTAssertEqual(vm.assignment.ocrDocument?.reviewStatus, .reviewed, "Document reviewStatus must match assignment")
         XCTAssertNotNil(vm.assignment.ocrDocument?.reviewedAt, "Document reviewedAt must be set")
         XCTAssertNotNil(vm.assignment.ocrReviewedAt, "Assignment ocrReviewedAt must be set")

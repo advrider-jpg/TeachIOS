@@ -119,10 +119,10 @@ Student report export:
 - next steps;
 - no private notes.
 
-Teacher audit export:
+Teacher record export:
 
 - source input references;
-- OCR status;
+- scanned text status;
 - reviewed text;
 - rubric;
 - AI proposal;

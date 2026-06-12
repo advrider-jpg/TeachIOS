@@ -128,7 +128,7 @@ enum GradeDraftUIStatus: String, CaseIterable, Identifiable {
 
 // Visible workflow copy is centralized to keep v6 labels consistent across compact rows and deep screens.
 enum GradeDraftWorkflowLanguage {
-    static let ocrReviewStepLabel = "OCR Review"
+    static let ocrReviewStepLabel = "Check Scanned Text"
     static let reviewScannedTextScreenTitle = "Review Scanned Text"
     static let reviewTextActionLabel = "Review Text"
     static let reviewScannedTextExplanation = "Review scanned text before drafting feedback."
@@ -240,11 +240,11 @@ extension ExportKind {
         case .studentMarkdown:
             return "Student Report"
         case .teacherAuditMarkdown:
-            return "Teacher Review"
+            return "Teacher Record"
         case .studentPDF:
             return "Student Report PDF"
         case .teacherAuditPDF:
-            return "Teacher Review PDF"
+            return "Teacher Record PDF"
         case .csvGradebook:
             return "Gradebook CSV"
         case .zipArchive:

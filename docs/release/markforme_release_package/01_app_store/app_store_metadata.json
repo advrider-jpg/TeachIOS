@@ -1,0 +1,17 @@
+{
+  "app_name": "MarkForMe",
+  "subtitle": "Teacher marking help",
+  "category_primary": "Education",
+  "category_secondary": "Productivity",
+  "promotional_text": "Mark student work with your rubric or marking guide. Check the evidence, edit the feedback and approve the result before anything is final.",
+  "description": "MarkForMe is teacher marking help.\n\nAdd student work by scanning, importing or pasting.\n\nUse your rubric, marking guide, criteria, answer key or task instructions. MarkForMe can help draft marks and feedback, but the result is not final.\n\nCheck the scanned text before marking. Check the evidence from the student's work. Edit marks and feedback before anything is final.\n\nNothing is final until you approve it.\n\nExport student feedback or a teacher record when ready.\n\nStudent work is not sent to us for marking. Student work stays on your device unless you choose to export or share it.\n\nAlways follow your school's policy before entering student information into any app.\n\nMarkForMe helps with marking. It does not replace teacher judgement.",
+  "keywords": "teacher,marking,student work,rubric,feedback,assessment,school,criteria",
+  "support_url_placeholder": "https://markforme.app/support",
+  "privacy_policy_url_placeholder": "https://markforme.app/privacy",
+  "marketing_url_placeholder": "https://markforme.app",
+  "app_name_length": 9,
+  "subtitle_length": 20,
+  "promotional_text_length": 134,
+  "description_length": 719,
+  "keywords_bytes_utf8": 71
+}

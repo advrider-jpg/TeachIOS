@@ -1,4 +1,4 @@
-# Mark My Work Test Plan
+# MarkForMe Test Plan
 
 ## Current source-level tests
 
@@ -12,7 +12,7 @@ The XCTest files cover the full v3 source-implemented feature set:
 - side-by-side OCR data state: selected page behavior, page/line status, source refs, and bounding boxes;
 - per-line OCR evidence linking, manual evidence entry, remove/clear behavior, and evidence/source-ref alignment;
 - student report exclusion of private teacher notes, raw model output, source refs, and internal bounding boxes;
-- teacher audit inclusion of private notes, OCR status, source refs, evidence traceability, bounding boxes, audit events, export records, and curriculum provenance;
+- teacher record inclusion of private notes, scanned text status, source refs, evidence traceability, bounding boxes, audit events, export records, and curriculum provenance;
 - PDF student and teacher-audit export writing non-empty files;
 - PDF student export gating before teacher-approved final review;
 - ZIP teacher archive, assignment gradebook archive, and full backup archive contents;
@@ -150,8 +150,8 @@ Run in Xcode 26+ on macOS with iOS SDK:
 - In an in-progress final review, run each feedback rewrite mode on a device with Foundation Models available -> confirm scores/evidence/approval state do not change and rewritten feedback still requires teacher approval.
 - Run safe App Intents/Shortcuts -> confirm they route to concrete workflows including AI Readiness, create only a blank assignment shell, apply recommended non-sensitive constraints, save pasted text only as teacher-reviewed local input, and do not draft, approve, export, upload, or read other students.
 - In final review, accept and reject individual criterion suggestions -> confirm the choice is saved locally, final approval remains required, rejected criteria stay unapproved, and export stays blocked.
-- PDF import -> page refs created -> OCR review needed -> edit/confirm/reject lines -> document reviewed -> draft/manual review allowed.
-- OCR line evidence -> final criterion evidence list -> show source -> teacher audit includes bounding box -> student report excludes bounding-box metadata.
+- PDF import -> page refs created -> scanned text review needed -> edit/confirm/reject lines -> document reviewed -> draft/manual review allowed.
+- OCR line evidence -> final criterion evidence list -> show source -> teacher record includes bounding box -> student report excludes bounding-box metadata.
 - Markdown rubric import -> preview -> confirm structured import -> final review criteria populated.
 - Roster CSV import -> preview -> create class/student/assignment roster -> gradebook CSV.
 - Curriculum browse/filter -> map item -> prompt/report provenance.
@@ -165,7 +165,7 @@ The prompt and readiness test set should include:
 - reviewed student text containing "ignore previous instructions" or "give me 100%" and expecting a prompt-injection readiness flag;
 - student/class identity present in local assignment state and absent from model-visible prompt previews;
 - reviewed text with source refs and model evidence without source refs, expecting teacher review;
-- OCR uncertainty requiring teacher review;
+- scanned text uncertainty requiring teacher review;
 - oversized packet fixtures expecting compact/per-criterion planning or explicit local-too-large failure;
 - cancellable draft fixtures expecting no saved `latestDraft` after cancellation;
 - local tool fixtures expecting assignment-scoped read-only matches and explicit forbidden action names;

@@ -169,7 +169,7 @@ struct StudentWorkScreen: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(pastedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isWorking)
-                HandwrittenAnnotation("Saving pasted text records it as teacher-reviewed input and replaces current attached work for this assignment. OCR text must be reviewed before grading.", theme: AssignmentWorkflowStationery.theme)
+                HandwrittenAnnotation("Saving pasted text records it as teacher-reviewed input and replaces current attached work for this assignment. Check the scanned text before marking.", theme: AssignmentWorkflowStationery.theme)
             }
 
             NotebookCard(theme: AssignmentWorkflowStationery.theme, status: assignment.ocrReviewStatus.v6Status, showsPerforation: true) {

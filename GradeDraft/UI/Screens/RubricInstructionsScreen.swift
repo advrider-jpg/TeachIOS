@@ -96,7 +96,7 @@ struct RubricInstructionsScreen: View {
                 Button("Append Again") { performPendingTemplateApplication(mode: .appendAgain) }
                 Button("Cancel", role: .cancel) { pendingTemplateApplication = nil }
             } message: {
-                Text("Choose how Mark My Work should insert this template. Teacher-entered content is not deleted unless you choose Replace.")
+                Text("Choose how MarkForMe should insert this template. Teacher-entered content is not deleted unless you choose Replace.")
             }
             .sheet(item: $pendingSensitiveTemplate) { template in
                 sensitiveTemplateConfirmationSheet(template)
@@ -561,7 +561,7 @@ struct RubricInstructionsScreen: View {
             title: "AI Grading Constraints",
             tapeLabel: "Local AI",
             collapsedSummary: aiConstraintsSummary,
-            annotation: "Mark My Work drafts suggestions only. The teacher approves the final grade.",
+            annotation: "MarkForMe drafts suggestions only. The teacher approves the final grade.",
             status: .teacherOnly,
             isExpanded: expansionBinding(.aiConstraints)
         ) {
@@ -608,7 +608,7 @@ struct RubricInstructionsScreen: View {
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                                 if template.sensitiveContextRequired {
-                                    Label("Select only when teacher-provided context exists. Mark My Work must not infer it.", systemImage: "exclamationmark.triangle")
+                                    Label("Select only when teacher-provided context exists. MarkForMe must not infer it.", systemImage: "exclamationmark.triangle")
                                         .font(.caption)
                                         .foregroundStyle(.orange)
                                 }

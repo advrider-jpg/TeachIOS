@@ -1,0 +1,45 @@
+APP NAME
+MarkForMe
+
+SUBTITLE
+Teacher marking help
+
+PROMOTIONAL TEXT
+Scan, import or paste student work. Use your rubric, check the evidence, edit the mark and export feedback when ready.
+
+DESCRIPTION
+MarkForMe helps teachers mark student work faster.
+
+Add student work, add your rubric or marking guide, then review draft marks and feedback before anything is final.
+
+What you can do:
+- scan, import or paste student work
+- add a rubric, marking guide, success criteria or answer key
+- check scanned text before marking starts
+- get draft marks and feedback for each criterion where supported
+- check the evidence from the student's work
+- edit the mark, feedback and teacher notes
+- approve the final result yourself
+- export student feedback, a teacher record or a class gradebook
+
+Teachers stay in control.
+
+MarkForMe does not replace teacher judgement. It helps prepare marks and feedback, but you decide what is correct, what needs changing and what is ready to share.
+
+Student work is not sent to us for marking.
+
+Student names, class records, student work, rubrics, marks, feedback and teacher notes stay on your device unless you choose to export or share them. Always follow your school policy before entering student information into any app.
+
+MarkForMe is best for text-based student work, written responses and rubric-based tasks. It is not a replacement for moderation, school reporting requirements or your professional judgement.
+
+KEYWORDS
+teacher,marking,rubric,feedback,assessment,student,school,classwork,PDF,homework
+
+SUPPORT URL
+https://markforme.app/support
+
+PRIVACY POLICY URL
+https://markforme.app/privacy
+
+MARKETING URL
+https://markforme.app

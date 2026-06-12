@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="MarkForMe app icon">
+  <rect width="1024" height="1024" fill="#10263F"/>
+  <rect x="190" y="150" width="646" height="723" rx="95" fill="#F7F4EB"/>
+  <rect x="260" y="236" width="80" height="80" rx="22" fill="#F3C437"/>
+  <rect x="372" y="270" width="368" height="46" rx="23" fill="#4F637D"/>
+  <rect x="260" y="360" width="80" height="80" rx="22" fill="#F3C437"/>
+  <rect x="372" y="394" width="368" height="46" rx="23" fill="#4F637D"/>
+  <rect x="260" y="484" width="80" height="80" rx="22" fill="#F3C437"/>
+  <rect x="372" y="518" width="368" height="46" rx="23" fill="#4F637D"/>
+  <rect x="292" y="645" width="448" height="44" rx="22" fill="#4F637D"/>
+  <path d="M318 760 L425 838 L716 642" fill="none" stroke="#F3C437" stroke-width="72" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

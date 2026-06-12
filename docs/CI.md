@@ -1,13 +1,13 @@
-# Mark My Work CI
+# MarkForMe CI
 
-Mark My Work CI is layered so deterministic policy failures, Swift style failures, Xcode test failures, visual smoke failures, and Release build failures are diagnosed separately. The primary workflow lives at `.github/workflows/swift.yml` and is named `GradeDraft CI`. A separate visual workflow lives at `.github/workflows/core-page-screenshots.yml` and is named `GradeDraft Core Page Screenshots`.
+MarkForMe CI is layered so deterministic policy failures, Swift style failures, Xcode test failures, visual smoke failures, and Release build failures are diagnosed separately. The primary workflow lives at `.github/workflows/swift.yml` and is named `GradeDraft CI`. A separate visual workflow lives at `.github/workflows/core-page-screenshots.yml` and is named `GradeDraft Core Page Screenshots`.
 
 ## Jobs
 
 | Job | Runner | PR required | Purpose |
 | - | - | - | - |
 | `static-policy` | `ubuntu-latest` | Yes | Runs repo health, no-network, export-hardening, bad implementation string, project membership, and CI contract guardrails. |
-| `workflow-lint` | `ubuntu-latest` | Yes | Runs pinned `actionlint` plus the Mark My Work CI contract check. |
+| `workflow-lint` | `ubuntu-latest` | Yes | Runs pinned `actionlint` plus the MarkForMe CI contract check. |
 | `swiftlint` | `macos-26` | Yes | Selects Xcode 26+, then runs SwiftLint against `.swiftlint.yml`. |
 | `xcode-unit-tests` | `macos-26` | Yes | Selects Xcode 26+ and an iOS 26+ iPhone simulator, resolves packages, and runs deterministic XCTest coverage while skipping screenshot tests. |
 | `screenshot-smoke` | `macos-26` | No for ordinary PRs | Runs only `GradeDraftScreenshotTests` and uploads PNGs plus `.xcresult`. It runs on `main`, scheduled/manual runs, and PRs labeled `visual-check`. |

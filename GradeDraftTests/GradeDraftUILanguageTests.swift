@@ -27,7 +27,7 @@ final class GradeDraftUITabAndLanguageTests: XCTestCase {
         XCTAssertTrue(studentItems.contains("Other students' information"))
 
         let teacherItems = ExportConfirmationKind.teacherReviewPDF.sections.flatMap(\.items)
-        XCTAssertEqual(ExportConfirmationKind.teacherReviewPDF.title, "Teacher Review PDF")
+        XCTAssertEqual(ExportConfirmationKind.teacherReviewPDF.title, "Teacher Record PDF")
         XCTAssertTrue(ExportConfirmationKind.teacherReviewPDF.subtitle.contains("Teacher-only record"))
         XCTAssertTrue(teacherItems.contains("Private teacher notes"))
         XCTAssertTrue(teacherItems.contains("Review history"))
@@ -45,7 +45,7 @@ final class GradeDraftUITabAndLanguageTests: XCTestCase {
     }
 
     func testWorkflowLanguageConstantsKeepOCRReviewNamingStable() {
-        XCTAssertEqual(GradeDraftWorkflowLanguage.ocrReviewStepLabel, "OCR Review")
+        XCTAssertEqual(GradeDraftWorkflowLanguage.ocrReviewStepLabel, "Check Scanned Text")
         XCTAssertEqual(GradeDraftWorkflowLanguage.reviewScannedTextScreenTitle, "Review Scanned Text")
         XCTAssertEqual(GradeDraftWorkflowLanguage.reviewTextActionLabel, "Review Text")
         XCTAssertEqual(GradeDraftWorkflowLanguage.reviewScannedTextExplanation, "Review scanned text before drafting feedback.")
@@ -61,7 +61,7 @@ final class GradeDraftUITabAndLanguageTests: XCTestCase {
             .joined(separator: "\n")
 
         XCTAssertTrue(uiSource.contains("Student-facing exports omit private teacher notes"))
-        XCTAssertTrue(uiSource.contains("Mark My Work drafts suggestions only"))
+        XCTAssertTrue(uiSource.contains("MarkForMe drafts suggestions only"))
         XCTAssertTrue(uiSource.contains("No student work is uploaded"))
         XCTAssertTrue(uiSource.contains("Opening the share sheet sends the selected file to another app"))
         XCTAssertTrue(uiSource.contains(GradeDraftWorkflowLanguage.reviewScannedTextExplanation))
@@ -102,7 +102,7 @@ final class GradeDraftUITabAndLanguageTests: XCTestCase {
             "Restore as Copy",
             "Ready for grading",
             "OCR issues",
-            "OCR review needed"
+            "scanned text review needed"
         ]
 
         let repoRoot = URL(fileURLWithPath: #filePath)
