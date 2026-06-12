@@ -2545,7 +2545,7 @@ final class GradeDraftViewModel: ObservableObject {
         for candidate in candidates {
             guard let record = assignmentsByID[candidate.assignmentID],
                   let studentID = record.studentID,
-                  studentsByID[studentID] != nil || students.isEmpty else { continue }
+                  studentsByID[studentID] != nil else { continue }
             let key = "\(record.id.uuidString)|\(studentID.uuidString)"
             guard byAssignmentAndStudent[key] == nil else { continue }
             var entry = candidate
@@ -2561,7 +2561,7 @@ final class GradeDraftViewModel: ObservableObject {
 
         for (index, record) in assignments.enumerated() {
             guard let studentID = record.studentID,
-                  studentsByID[studentID] != nil || students.isEmpty else { continue }
+                  studentsByID[studentID] != nil else { continue }
             let key = "\(record.id.uuidString)|\(studentID.uuidString)"
             if byAssignmentAndStudent[key] == nil {
                 byAssignmentAndStudent[key] = AssignmentRosterEntry(
