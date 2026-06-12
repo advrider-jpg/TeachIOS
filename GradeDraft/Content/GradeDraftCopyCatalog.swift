@@ -148,7 +148,7 @@ One-click grade
             "Add student work before draft feedback.",
             "Review scanned text before draft feedback.",
             "Add a grading standard before draft feedback.",
-            "Local draft feedback is unavailable on this device or configuration.",
+            "Draft feedback is not available on this device.",
             "Student-facing export is blocked until teacher approval."
         ]
     }
