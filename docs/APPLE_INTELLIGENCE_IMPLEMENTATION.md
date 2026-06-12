@@ -1,6 +1,6 @@
 # Apple Intelligence Implementation
 
-Mark My Work uses Apple Foundation Models only as a local draft-assistance path. It is not an autonomous grader, does not use cloud AI fallback, and does not make AI output final.
+MarkForMe uses Apple Foundation Models only as a local draft-assistance path. It is not an autonomous grader, does not use cloud AI fallback, and does not make AI output final.
 
 ## Current source behavior
 
@@ -116,7 +116,7 @@ The draft-suggestion view now keeps criterion evidence review explicit before fi
 
 ## Local evaluation harness
 
-`GradeDraft/AI/Evaluation/AIEvaluation.swift` defines deterministic evaluation case models, preflight checks, draft-output checks, and anonymized Markdown report generation. The committed fixture corpus under `GradeDraftTests/Fixtures/AIEvaluation/` covers prompt injection, OCR uncertainty, source references, prohibited inference, answer keys, exemplars, formative feedback, summative caution, conventions, EAL/D context, adjustment context, off-prompt work, misconceptions, long context, unsupported language, guardrail-style errors, feedback rewriting, and batch workflow gates.
+`GradeDraft/AI/Evaluation/AIEvaluation.swift` defines deterministic evaluation case models, preflight checks, draft-output checks, and anonymized Markdown report generation. The committed fixture corpus under `GradeDraftTests/Fixtures/AIEvaluation/` covers prompt injection, scanned text uncertainty, source references, prohibited inference, answer keys, exemplars, formative feedback, summative caution, conventions, EAL/D context, adjustment context, off-prompt work, misconceptions, long context, unsupported language, guardrail-style errors, feedback rewriting, and batch workflow gates.
 
 The deterministic preflight runner does not call the model and does not simulate a model pass. It checks local input gates, prompt budget planning, readiness reporting, identity redaction, prompt-injection flags, OCR/source-reference fixture setup, and expected constraint selection. Device-only evaluation can use the same cases with an injected local `GradingServicing & CapabilityChecking` service when Foundation Models is available.
 

@@ -169,11 +169,11 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
         case .studentReportMarkdown:
             return "Student Report Markdown"
         case .teacherReviewMarkdown:
-            return "Teacher Review Markdown"
+            return "Teacher Record Markdown"
         case .studentReportPDF:
             return "Student Report PDF"
         case .teacherReviewPDF:
-            return "Teacher Review PDF"
+            return "Teacher Record PDF"
         case .fullBackup:
             return "Full Backup"
         case .teacherArchive:
@@ -211,11 +211,11 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
         case .studentReportMarkdown:
             return "Create Student Report Markdown"
         case .teacherReviewMarkdown:
-            return "Create Teacher Review Markdown"
+            return "Create Teacher Record Markdown"
         case .studentReportPDF:
             return "Create Student Report PDF"
         case .teacherReviewPDF:
-            return "Create Teacher Review PDF"
+            return "Create Teacher Record PDF"
         case .fullBackup:
             return "Create Full Backup"
         case .teacherArchive:
@@ -665,7 +665,7 @@ struct RestoreConflictRow: View {
     var body: some View {
         BlockingIssueRow(
             title: "Matching records found",
-            detail: "\(count) record(s) already exist on this device. Choose how Mark My Work should handle them.",
+            detail: "\(count) record(s) already exist on this device. Choose how MarkForMe should handle them.",
             status: .needsAttention
         )
     }

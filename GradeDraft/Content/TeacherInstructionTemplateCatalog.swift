@@ -71,7 +71,7 @@ This is formative feedback. Emphasize current evidence of understanding, one mis
             name: "Summative caution instruction",
             description: "Source-of-truth teacher instruction template: Summative caution instruction.",
             text: #"""
-This may be used for a summative record after teacher review. Keep score suggestions conservative when evidence is incomplete. Mark teacher review required for ambiguous rubric interpretation, missing evidence, or OCR uncertainty.
+This may be used for a summative record after teacher review. Keep score suggestions conservative when evidence is incomplete. Mark teacher review required for ambiguous rubric interpretation, missing evidence, or scanned text uncertainty.
 """#,
             scope: .summative,
             priority: .standard,
@@ -80,8 +80,8 @@ This may be used for a summative record after teacher review. Keep score suggest
         ),
         TeacherInstructionTemplate(
             id: "ocr-uncertainty",
-            name: "OCR uncertainty instruction",
-            description: "Source-of-truth teacher instruction template: OCR uncertainty instruction.",
+            name: "scanned text uncertainty instruction",
+            description: "Source-of-truth teacher instruction template: scanned text uncertainty instruction.",
             text: #"""
 Some text may have come from OCR. If a quote appears garbled, incomplete, or inconsistent, mark teacher review required and do not rely on that text for a confident score.
 """#,

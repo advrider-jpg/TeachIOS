@@ -897,7 +897,7 @@ struct CurriculumCatalog: Codable, Equatable {
         sourceVersion: String = "repository-local",
         filesUpdated: String = "",
         generatedAt: Date = Date(),
-        generatedBy: String = "Mark My Work",
+        generatedBy: String = "MarkForMe",
         licenseName: String = "",
         attributionText: String = "",
         nonEndorsementWarning: String = "",
@@ -938,7 +938,7 @@ struct CurriculumCatalog: Codable, Equatable {
         sourceVersion = (try? container.decode(String.self, forKey: .sourceVersion)) ?? "repository-local"
         filesUpdated = (try? container.decode(String.self, forKey: .filesUpdated)) ?? ""
         generatedAt = (try? container.decode(Date.self, forKey: .generatedAt)) ?? Date()
-        generatedBy = (try? container.decode(String.self, forKey: .generatedBy)) ?? "Mark My Work"
+        generatedBy = (try? container.decode(String.self, forKey: .generatedBy)) ?? "MarkForMe"
         licenseName = (try? container.decode(String.self, forKey: .licenseName)) ?? ""
         attributionText = (try? container.decode(String.self, forKey: .attributionText)) ?? ""
         nonEndorsementWarning = (try? container.decode(String.self, forKey: .nonEndorsementWarning)) ?? ""
@@ -1052,7 +1052,7 @@ struct BackupArchiveManifest: Codable, Equatable {
     var sourceFileCount: Int
     var recordCounts: [String: Int]
     var contentHashes: [String: String]
-    var restoreCompatibility: String = "Compatible with Mark My Work local backup restore v3 when schemaVersion begins with gradedraft-backup-v."
+    var restoreCompatibility: String = "Compatible with MarkForMe local backup restore v3 when schemaVersion begins with gradedraft-backup-v."
 }
 
 struct ExportArchiveInventoryItem: Codable, Equatable, Identifiable {
@@ -2072,11 +2072,11 @@ enum ExportKind: String, Codable, Equatable, Hashable, Identifiable {
         case .studentMarkdown:
             return "Student Report"
         case .teacherAuditMarkdown:
-            return "Teacher Review"
+            return "Teacher Record"
         case .studentPDF:
             return "Student Report PDF"
         case .teacherAuditPDF:
-            return "Teacher Review PDF"
+            return "Teacher Record PDF"
         case .csvGradebook:
             return "Gradebook CSV"
         case .zipArchive:
@@ -2109,7 +2109,7 @@ enum DeviceBackupPolicyStatus: Equatable {
         case .included:
             return "Student records may be included in device backup according to this device and account configuration."
         case .unknown(let detail):
-            return "Mark My Work could not verify whether local student records are excluded from device backup. \(detail)"
+            return "MarkForMe could not verify whether local student records are excluded from device backup. \(detail)"
         }
     }
 }

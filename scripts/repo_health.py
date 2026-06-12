@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pathlib
-import shutil
 import subprocess
 import sys
 
@@ -29,11 +28,9 @@ REQUIRED_FILES = [
 def run_check(label: str, command: list[str], timeout_seconds: int = 120) -> int:
     """Run one component check without allowing the aggregate health gate to hang indefinitely."""
     print(f"Running {label}...")
-    timeout_binary = shutil.which("timeout")
-    guarded_command = [timeout_binary, f"{timeout_seconds}s", *command] if timeout_binary else command
     try:
         result = subprocess.run(
-            guarded_command,
+            command,
             cwd=ROOT,
             timeout=timeout_seconds,
         )
@@ -41,8 +38,6 @@ def run_check(label: str, command: list[str], timeout_seconds: int = 120) -> int
         print(f"{label} timed out after {timeout_seconds} seconds.")
         return 124
 
-    if result.returncode == 124 and timeout_binary:
-        print(f"{label} timed out after {timeout_seconds} seconds.")
     return result.returncode
 
 

@@ -4,21 +4,21 @@ This file is descriptive repository memory. It records the current product and s
 
 ## Project name
 
-Mark My Work v3.
+MarkForMe v3.
 
 ## Current purpose
 
-Mark My Work is a local-first, teacher-controlled iOS/iPadOS grading assistant for text-based student work. The core lane is:
+MarkForMe is a local-first, teacher-controlled iOS/iPadOS grading assistant for text-based student work. The core lane is:
 
 ```text
-source import -> OCR/PDF extraction -> teacher OCR review -> grading packet -> local AI draft or manual review -> teacher final review -> export/archive/backup
+source import -> OCR/PDF extraction -> teacher scanned text review -> grading packet -> local AI draft or manual review -> teacher final review -> export/archive/backup
 ```
 
 ## Current durable status
 
 - The app uses the existing SwiftUI scaffold and project file.
-- The source tree implements PDF import, student PDF export, teacher audit PDF export, teacher ZIP archive export, assignment gradebook archive export, full local backup ZIP export, and backup restore.
-- OCR review is teacher-confirmed and line-level, with page selection, source preview, bounding boxes, corrected text, confirmation, rejection, and quality summaries.
+- The source tree implements PDF import, student PDF export, teacher record PDF export, teacher ZIP archive export, assignment gradebook archive export, full local backup ZIP export, and backup restore.
+- scanned text review is teacher-confirmed and line-level, with page selection, source preview, bounding boxes, corrected text, confirmation, rejection, and quality summaries.
 - Evidence references can originate from OCR lines, reviewed-text spans, or manual teacher entries, and source-reference arrays stay aligned with visible evidence text.
 - Normalized GRDB persistence is the primary repository path, with compatibility JSON payloads retained for fallback/export and tested by clearing compatibility rows after save.
 - Class, student, roster, assignment roster, gradebook, curriculum mapping, audit, export, and backup/restore records are modeled in source.
@@ -28,7 +28,7 @@ source import -> OCR/PDF extraction -> teacher OCR review -> grading packet -> l
 
 ## Major components
 
-- `GradeDraft/ContentView.swift` — SwiftUI shell, roster, PDF import/export, OCR review, rubric import, curriculum, backup/restore.
+- `GradeDraft/ContentView.swift` — SwiftUI shell, roster, PDF import/export, scanned text review, rubric import, curriculum, backup/restore.
 - `GradeDraft/GradeDraftViewModel.swift` — state transitions, PDF import orchestration, OCR edits, evidence linking, exports, restore merging.
 - `GradeDraft/Models/GradeDraftModels.swift` — assignment graph, OCR, evidence, roster, curriculum, backup/restore models.
 - `GradeDraft/Persistence/Database.swift` — normalized GRDB schema, migration, save/load/delete repository path.

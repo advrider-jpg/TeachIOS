@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Mark My Work</string>
+	<string>MarkForMe</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Mark My Work</string>
+	<string>MarkForMe</string>
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
@@ -23,14 +23,14 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Mark My Work uses the camera to scan student work for on-device OCR.</string>
+	<string>MarkForMe uses the camera so you can scan student work.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Mark My Work imports selected images of student work for on-device OCR.</string>
+	<string>MarkForMe needs photo access only when you choose a photo of student work to import.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Mark My Work uses Face ID to confirm sensitive export actions before student work leaves the app.</string>
+	<string>MarkForMe uses Face ID to confirm exports that may contain student work.</string>
 </dict>
 </plist>

@@ -20,7 +20,7 @@ Rule:
 The core grading workflow must not require a server, backend, network connection, analytics SDK, cloud OCR, cloud grading, remote rubric processing, account login, or network entitlement.
 
 Why it matters:
-This is the project’s product and privacy posture; changing it materially changes what Mark My Work is.
+This is the project’s product and privacy posture; changing it materially changes what MarkForMe is.
 
 Evidence:
 `README.md` (explicitly lists no backend, no cloud OCR, no cloud grading, no analytics, no account login, no network entitlement); `docs/OFFLINE_CAPABILITY.md`.
@@ -52,7 +52,7 @@ Violation of this rule is a release blocker unless the user expressly changes th
 ## C003 — Explicit state boundaries
 
 Rule:
-Keep source input, OCR output, teacher-reviewed text, grading packet, model draft, teacher final review, export, and audit events as separate state layers.
+Keep source input, scanned text, teacher-reviewed text, grading packet, model draft, teacher final review, export, and audit events as separate state layers.
 
 Why it matters:
 Single-mutable-state behavior would break traceability and undermine correction workflows.
@@ -66,10 +66,10 @@ No dedicated automated check identified.
 Release impact:
 Violation of this rule is a release blocker unless the user expressly changes the rule.
 
-## C004 — OCR review gating
+## C004 — scanned text review gating
 
 Rule:
-Draft grading must not proceed from OCR-derived work when required OCR review is incomplete.
+Draft grading must not proceed from OCR-derived work when required scanned text review is incomplete.
 
 Why it matters:
 It prevents grading from unreviewed machine text extraction.

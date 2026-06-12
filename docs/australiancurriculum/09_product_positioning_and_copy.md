@@ -83,7 +83,7 @@ Avoid:
 
 ## 8. Naming candidates
 
-- Mark My Work AU
+- MarkForMe AU
 - Curriculum Feedback
 - EvidenceMark
 - TeacherDraft
@@ -92,6 +92,6 @@ Avoid:
 
 Best current working name:
 
-> Mark My Work
+> MarkForMe
 
 It conveys draft status and avoids overclaiming.

@@ -217,7 +217,7 @@ final class GradeDraftScreenshotTests: XCTestCase {
         case .readyToExport:
             selectedTitle = "Ready to Export Essay"
         case .ocrReview:
-            selectedTitle = "OCR Review Essay"
+            selectedTitle = "Check Scanned Text Essay"
         case .finalReview:
             selectedTitle = "Final Review Essay"
         case .studentWork:
@@ -243,7 +243,7 @@ final class GradeDraftScreenshotTests: XCTestCase {
             )
         ]
 
-        var ocr = baseAssignment(title: "OCR Review Essay", student: "Bailey Chen")
+        var ocr = baseAssignment(title: "Check Scanned Text Essay", student: "Bailey Chen")
         let sourceID = UUID(uuidString: "00000000-0000-0000-0000-000000000011")!
         ocr.sourceInputs = [
             SourceInputRef(

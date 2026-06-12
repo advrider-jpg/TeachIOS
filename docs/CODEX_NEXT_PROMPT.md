@@ -8,7 +8,7 @@ Validate the source-implemented GradeDraft v3 feature set on Apple tooling witho
 
 ## Context
 
-The patch implements source-level support for PDF export, ZIP/archive export, PDF import, side-by-side OCR review, per-line OCR evidence linking, bounding-box traceability, Markdown rubric import, normalized GRDB persistence, offline curriculum mapping, roster workflows, and backup/restore UI.
+The patch implements source-level support for PDF export, ZIP/archive export, PDF import, side-by-side scanned text review, per-line OCR evidence linking, bounding-box traceability, Markdown rubric import, normalized GRDB persistence, offline curriculum mapping, roster workflows, and backup/restore UI.
 
 Runtime validation still requires Xcode because this environment does not launch the iOS app, run XCTest, render PDFKit/UIKit output, exercise Vision/VisionKit capture, or call Foundation Models APIs.
 
@@ -19,7 +19,7 @@ Runtime validation still requires Xcode because this environment does not launch
 3. Build the app target.
 4. Build and run the unit-test target.
 5. Confirm PDFKit import, UIKit PDF export, Vision/VisionKit OCR, SwiftUI file import/share sheets, and Foundation Models availability gates compile against the installed SDK.
-6. Run a simulator/device smoke flow for PDF import, OCR review, evidence linking, final approval, student PDF export, teacher audit ZIP export, roster import, curriculum mapping, full backup, and restore conflict choices.
+6. Run a simulator/device smoke flow for PDF import, scanned text review, evidence linking, final approval, student PDF export, teacher record ZIP export, roster import, curriculum mapping, full backup, and restore conflict choices.
 7. Preserve teacher-confirmation gating and export sensitivity warnings throughout any fixes.
 
 ## Scope guardrails

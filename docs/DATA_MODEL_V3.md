@@ -1,6 +1,6 @@
-# Mark My Work v3 Data Model
+# MarkForMe v3 Data Model
 
-Mark My Work v3 uses normalized GRDB persistence as the primary path while retaining complete assignment JSON payloads only for compatibility and backup/export fallback.
+MarkForMe v3 uses normalized GRDB persistence as the primary path while retaining complete assignment JSON payloads only for compatibility and backup/export fallback.
 
 ## Core assignment graph
 
@@ -24,7 +24,7 @@ Mark My Work v3 uses normalized GRDB persistence as the primary path while retai
 - `ClassGroupRecord` stores local class metadata.
 - `StudentRecord` stores local student metadata without accounts or cloud IDs.
 - `ClassStudentEnrollment` models class membership.
-- `AssignmentRosterEntry` stores per-student assignment status: not started, source needed, OCR review needed, ready for grading, draft generated, final review in progress, approved, or exported.
+- `AssignmentRosterEntry` stores per-student assignment status: not started, source needed, scanned text review needed, ready for grading, draft generated, final review in progress, approved, or exported.
 - `StudentWorkRecord` models per-student work when a class assignment is expanded into roster entries.
 
 ## Source and PDF records
@@ -78,7 +78,7 @@ The local catalog is a reference aid; it does not claim endorsement, compliance,
 
 ## Grading records
 
-- `GradeDraftResult` stores model proposals, packet fingerprint, student feedback, teacher notes, uncertainty flags, compliance flags, and raw model output for teacher audit only.
+- `GradeDraftResult` stores model proposals, packet fingerprint, student feedback, teacher notes, uncertainty flags, compliance flags, and raw model output for teacher record only.
 - `CriterionScore` stores proposed criterion scoring and source refs.
 - `FinalGradeReview` stores teacher-final status, final totals, feedback, private notes, and finalized timestamp.
 - `FinalCriterionScore` stores proposed points and teacher-final points separately, plus teacher rationale, evidence, and evidence source refs.

@@ -1,4 +1,4 @@
-# Mark My Work Grading Content Source of Truth
+# MarkForMe Grading Content Source of Truth
 
 **Status:** Canonical product/content specification for implementation agents  
 **Audience:** Codex, product, design, Swift implementation, QA, legal/compliance review  
@@ -23,7 +23,7 @@ This file is the human-authored answer to the questions Codex should not answer 
 - What may the local model produce?
 - What must the local model never infer?
 - How should uncertainty, OCR problems, ambiguous rubrics, weak evidence, and unsupported inputs be handled?
-- What should the student report and teacher audit report say?
+- What should the student report and teacher record say?
 - What warnings should appear before export, sharing, backup, deletion, clipboard copy, and teacher-note inclusion?
 - What copy should be shown in empty states, blocked states, stale states, and local-AI unavailable states?
 - How should Australian Curriculum references be represented without falsely claiming official grading or official ingestion?
@@ -34,13 +34,13 @@ This file is the human-authored answer to the questions Codex should not answer 
 
 ### 1.1 Working name
 
-Use **Mark My Work** as the current app name.
+Use **MarkForMe** as the current app name.
 
 Rationale: the name communicates that the app produces draft grading support, not final autonomous grading.
 
 ### 1.2 One-sentence product promise
 
-**Mark My Work helps teachers draft rubric-linked feedback from teacher-confirmed student work while keeping the final grading judgement in the teacher's hands.**
+**MarkForMe helps teachers draft rubric-linked feedback from teacher-confirmed student work while keeping the final grading judgement in the teacher's hands.**
 
 ### 1.3 Short app description
 
@@ -52,13 +52,13 @@ Use this where a compact product description is needed:
 
 Use this for onboarding, website copy, and App Store long description drafts:
 
-> Mark My Work is a local-first iPhone and iPad grading workspace for teachers. It helps you review student text, apply a rubric or answer key, draft criterion-by-criterion score suggestions, cite student evidence, flag uncertainty, and prepare feedback. The app is designed for teacher review and final approval. It is not an autonomous grader.
+> MarkForMe is a local-first iPhone and iPad grading workspace for teachers. It helps you review student text, apply a rubric or answer key, draft criterion-by-criterion score suggestions, cite student evidence, flag uncertainty, and prepare feedback. The app is designed for teacher review and final approval. It is not an autonomous grader.
 
 ### 1.5 Local-first privacy position
 
 Use this exact meaning whenever local-first privacy is described:
 
-> In the core workflow, student work, OCR text, rubrics, grading drafts, teacher notes, final grades, and feedback reports are processed and stored locally on the teacher's device. Mark My Work does not upload student work for cloud OCR, cloud AI grading, analytics, advertising, or model training.
+> In the core workflow, student work, OCR text, rubrics, grading drafts, teacher notes, final grades, and feedback reports are processed and stored locally on the teacher's device. MarkForMe does not upload student work for cloud OCR, cloud AI grading, analytics, advertising, or model training.
 
 Do not say: "we do not handle student data." The app does handle student data locally.
 
@@ -78,7 +78,7 @@ scan/import/paste student work
 
 ### 1.7 Product posture
 
-Mark My Work is:
+MarkForMe is:
 
 - a teacher-controlled grading assistant;
 - a rubric-assisted feedback drafting tool;
@@ -86,7 +86,7 @@ Mark My Work is:
 - a local-first Apple-native app;
 - a draft-generation tool that requires teacher final judgement.
 
-Mark My Work is not:
+MarkForMe is not:
 
 - an autonomous grader;
 - a replacement for teacher judgement;
@@ -106,12 +106,12 @@ These rules govern all implementation. If a planned UI, service, export, or prom
 3. The default workflow must not use cloud OCR.
 4. The default workflow must not use cloud AI grading.
 5. The app must not generate a proposed grade without at least one teacher-provided grading standard: rubric, answer key, exemplar, achievement-standard aspect, or custom grading criteria.
-6. The app must not grade OCR-derived text until required OCR review has been completed.
+6. The app must not grade scanned text until required scanned text review has been completed.
 7. Every proposed criterion score must cite student evidence or be marked for teacher review.
 8. The AI proposes; the teacher finalizes.
 9. Proposed points and teacher-final points must remain separate.
 10. Totals must be calculated deterministically in app code, not trusted from model output.
-11. Raw source input, OCR output, reviewed text, model proposal, teacher edits, final grade, exports, and audit events must remain separate records.
+11. Raw source input, scanned text, reviewed text, model proposal, teacher edits, final grade, exports, and audit events must remain separate records.
 12. A draft or final review must become stale when its source grading packet changes.
 13. Student-facing exports must exclude private teacher notes by default.
 14. Teacher-audit exports are sensitive student records.
@@ -133,7 +133,7 @@ The app may make these claims only to the extent the actual implementation suppo
 - "Drafts rubric-based grading suggestions for teacher review."
 - "Keeps teacher-approved final scores separate from AI suggestions."
 - "Cites student evidence for each criterion suggestion."
-- "Flags weak evidence, OCR uncertainty, and ambiguous criteria for teacher review."
+- "Flags weak evidence, scanned text uncertainty, and ambiguous criteria for teacher review."
 - "Processes the core grading workflow locally on compatible devices."
 - "Uses on-device text extraction for supported scans and images."
 - "Requires teacher review before finalizing grades."
@@ -172,7 +172,7 @@ Do not use these claims in UI, README, marketing, onboarding, App Store copy, or
 | Accept AI grade | Save teacher-final feedback |
 | AI final grade | Draft score suggestion |
 | AI decided | Suggested for teacher review |
-| OCR complete | Extracted text needs review / OCR reviewed |
+| OCR complete | Extracted text needs review / scanned text reviewed |
 | Evidence found | Evidence cited from reviewed text |
 | Private by default | Stored locally in the core workflow |
 | Secure export | Export may contain sensitive student information |
@@ -542,7 +542,7 @@ Purpose: preserve where student work came from.
 
 ### 5.15 OCRDocument
 
-Purpose: preserve OCR output separately from reviewed text.
+Purpose: preserve scanned text separately from reviewed text.
 
 | Field | Type | Required | Notes |
 |---|---|---:|---|
@@ -733,7 +733,7 @@ Purpose: teacher-final record separate from model proposal.
 | Field | Type | Required | Notes |
 |---|---|---:|---|
 | `id` | UUID | Yes | Stable local ID. |
-| `exportKind` | Enum | Yes | Student report, teacher audit, CSV, JSON backup, ZIP archive. |
+| `exportKind` | Enum | Yes | Student report, teacher record, CSV, JSON backup, ZIP archive. |
 | `createdAt` | Date | Yes | Local audit. |
 | `contentFingerprint` | String | Yes | Fingerprint of exported content. |
 | `includesPrivateTeacherNotes` | Bool | Yes | Must be false for student report by default. |
@@ -1183,10 +1183,10 @@ This is formative feedback. Emphasize current evidence of understanding, one mis
 ### 7.6 Summative caution instruction
 
 ```text
-This may be used for a summative record after teacher review. Keep score suggestions conservative when evidence is incomplete. Mark teacher review required for ambiguous rubric interpretation, missing evidence, or OCR uncertainty.
+This may be used for a summative record after teacher review. Keep score suggestions conservative when evidence is incomplete. Mark teacher review required for ambiguous rubric interpretation, missing evidence, or scanned text uncertainty.
 ```
 
-### 7.7 OCR uncertainty instruction
+### 7.7 scanned text uncertainty instruction
 
 ```text
 Some text may have come from OCR. If a quote appears garbled, incomplete, or inconsistent, mark teacher review required and do not rely on that text for a confident score.
@@ -1397,7 +1397,7 @@ Assignment metadata:
 - Assignment type: {{assignmentTypeDisplayName}}
 - Assessment purpose: {{assessmentPurpose}}
 - Source input count: {{sourceInputCount}}
-- OCR review status: {{ocrReviewStatus}}
+- scanned text review status: {{ocrReviewStatus}}
 - OCR quality summary: {{ocrQualitySummary}}
 
 Curriculum/reference material:
@@ -1476,7 +1476,7 @@ A draft is invalid if:
 - the model includes total score fields and app code trusts them;
 - evidence quotes are empty and `teacherReviewRequired` is false;
 - evidence quotes refer to text not present in reviewed student text, unless the quote is the exact missing-evidence marker;
-- uncertainty flags are empty despite OCR review warnings, parsed-rubric issues, missing evidence, or unsupported input type;
+- uncertainty flags are empty despite scanned text review warnings, parsed-rubric issues, missing evidence, or unsupported input type;
 - output contains prohibited inferences;
 - output says the grade is final before teacher approval.
 
@@ -1616,16 +1616,16 @@ Required handling:
 
 ## 12. OCR and text-review content
 
-### 12.1 OCR review states
+### 12.1 scanned text review states
 
 Use these document-level states:
 
 | State | Meaning | Blocks grading? | UI copy |
 |---|---|---:|---|
-| `notNeeded` | Pasted text or trusted digital text does not require OCR review. | No | No OCR review needed. |
+| `notNeeded` | Pasted text or trusted digital text does not require scanned text review. | No | No scanned text review needed. |
 | `processing` | OCR is running. | Yes | Extracting text on device... |
 | `needsReview` | OCR text requires teacher review. | Yes | Review extracted text before grading. |
-| `reviewed` | Teacher confirmed the extracted text. | No | OCR reviewed. |
+| `reviewed` | Teacher confirmed the extracted text. | No | scanned text reviewed. |
 | `blocked` | OCR result is too unreliable or unsupported. | Yes | OCR blocked. Enter or correct the text manually before grading. |
 | `failed` | OCR failed. | Yes | Text extraction failed. Enter the student text manually or try another scan. |
 
@@ -1655,11 +1655,11 @@ Use conservative default bands:
 | `< 0.90` | Mandatory review. | Review required |
 | `< 0.75` | Strong warning and default block. | Low confidence |
 
-The current scaffold uses a lower confidence threshold. If production OCR review is implemented, prefer the conservative bands above or expose thresholds as internal configuration.
+The current scaffold uses a lower confidence threshold. If production scanned text review is implemented, prefer the conservative bands above or expose thresholds as internal configuration.
 
 ### 12.4 Force-review triggers
 
-Force teacher OCR review when:
+Force teacher scanned text review when:
 
 - handwriting is detected or suspected;
 - mixed handwriting and print appear;
@@ -1674,10 +1674,10 @@ Force teacher OCR review when:
 
 ### 12.5 OCR UI copy
 
-#### OCR review banner
+#### scanned text review banner
 
 ```text
-Review extracted text before grading. Mark My Work can draft feedback only from text you have confirmed.
+Review extracted text before grading. MarkForMe can draft feedback only from text you have confirmed.
 ```
 
 #### Low-confidence line warning
@@ -1701,9 +1701,9 @@ Text extraction failed. You can try another scan, import a clearer image, or ent
 #### Mark reviewed confirmation
 
 ```text
-Mark OCR reviewed?
+Mark scanned text reviewed?
 
-Only continue if the text shown here accurately reflects the student work you want Mark My Work to use. The app will draft feedback from this reviewed text, not from the original image.
+Only continue if the text shown here accurately reflects the student work you want MarkForMe to use. The app will draft feedback from this reviewed text, not from the original image.
 ```
 
 Primary button:
@@ -1721,10 +1721,10 @@ Keep Reviewing
 #### Manual transcription mode
 
 ```text
-Enter the student text manually. Mark My Work will treat this as teacher-confirmed text for grading.
+Enter the student text manually. MarkForMe will treat this as teacher-confirmed text for grading.
 ```
 
-### 12.6 Side-by-side OCR review layout
+### 12.6 Side-by-side scanned text review layout
 
 When implemented, the preferred layout is:
 
@@ -1779,12 +1779,12 @@ Do not offer `Export Anyway` for student-facing final reports.
 | Model not ready | Local AI model is not ready | The local model may still be preparing on this device. Continue with manual grading or try again later. |
 | Unsupported language/region | Local AI unavailable for this language or region | Continue with manual grading. Do not use cloud fallback in the core workflow. |
 | Context too large | Assignment too large for one local draft | Shorten the input, draft by criterion, or split the submission. |
-| Unknown unavailable | Local AI grading unavailable | Mark My Work cannot generate a local AI draft right now. Manual review and export remain available. |
+| Unknown unavailable | Local AI grading unavailable | MarkForMe cannot generate a local AI draft right now. Manual review and export remain available. |
 
 ### 13.2 Unavailable-state copy
 
 ```text
-Local AI grading is unavailable in this build or on this device. Mark My Work will not send student work to a cloud model as a fallback. You can continue reviewing text, editing the rubric, and grading manually.
+Local AI grading is unavailable in this build or on this device. MarkForMe will not send student work to a cloud model as a fallback. You can continue reviewing text, editing the rubric, and grading manually.
 ```
 
 ### 13.3 Draft button labels
@@ -1824,7 +1824,7 @@ The local model returned a response the app could not use. No grade was saved. T
 ### 13.5 Invalid model grade error
 
 ```text
-The local model returned an invalid draft. Mark My Work rejected it because it did not meet the rubric/evidence rules.
+The local model returned an invalid draft. MarkForMe rejected it because it did not meet the rubric/evidence rules.
 ```
 
 ---
@@ -1979,7 +1979,7 @@ Avoid:
 - "The AI decided..."
 - "The app graded you..."
 - private teacher rationales;
-- raw OCR uncertainty flags unless teacher intentionally includes them;
+- raw scanned text uncertainty flags unless teacher intentionally includes them;
 - internal compliance flags;
 - raw model output.
 
@@ -2001,7 +2001,7 @@ Avoid:
 ### 16.1 Student report header
 
 ```markdown
-# Mark My Work Student Feedback
+# MarkForMe Student Feedback
 
 **Assignment:** {{assignmentTitle}}
 **Student:** {{studentDisplayNameOrLocalIdentifier}}
@@ -2011,7 +2011,7 @@ Avoid:
 **Assignment type:** {{assignmentTypeDisplayName}}
 **Updated:** {{updatedDate}}
 
-> Generated from local app state. Mark My Work does not upload this report.
+> Generated from local app state. MarkForMe does not upload this report.
 > This student-facing report excludes private teacher notes and raw model responses.
 ```
 
@@ -2071,14 +2071,14 @@ This is not a finalized grade. A teacher must review and approve it before use.
 
 ---
 
-## 17. Teacher audit report template
+## 17. Teacher record report template
 
-Teacher audit reports may include sensitive records. They are not student-facing by default.
+Teacher records may include sensitive records. They are not student-facing by default.
 
 ### 17.1 Header
 
 ```markdown
-# Mark My Work Teacher Audit Report
+# MarkForMe Teacher Record
 
 **Assignment:** {{assignmentTitle}}
 **Student:** {{studentDisplayNameOrLocalIdentifier}}
@@ -2088,15 +2088,15 @@ Teacher audit reports may include sensitive records. They are not student-facing
 **Assignment type:** {{assignmentTypeDisplayName}}
 **Updated:** {{updatedDate}}
 
-> This teacher audit report may include private notes, reviewed text, OCR warnings, source fingerprints, and grading-state metadata. Treat it as sensitive student data.
-> Generated from local app state. Mark My Work does not upload this report.
+> This teacher record may include private notes, reviewed text, scanned text warnings, source fingerprints, and grading-state metadata. Treat it as sensitive student data.
+> Generated from local app state. MarkForMe does not upload this report.
 ```
 
 ### 17.2 Required sections
 
 ```markdown
 ## Readiness and source state
-- OCR review status: {{ocrReviewStatus}}
+- scanned text review status: {{ocrReviewStatus}}
 - Source inputs: {{sourceInputCount}}
 - Current grading packet fingerprint: {{packetFingerprint}}
 - Draft stale: {{yesNo}}
@@ -2105,7 +2105,7 @@ Teacher audit reports may include sensitive records. They are not student-facing
 ## Source inputs
 {{sourceInputList}}
 
-## OCR summary
+## Scanned text summary
 - Engine: {{ocrEngine}}
 - Review status: {{ocrReviewStatus}}
 - Quality: {{ocrQualitySummary}}
@@ -2163,12 +2163,12 @@ Teacher audit reports may include sensitive records. They are not student-facing
 {{auditEvents}}
 ```
 
-### 17.3 Teacher audit privacy note
+### 17.3 Teacher record privacy note
 
 Include this near export:
 
 ```text
-Teacher audit reports may include private notes, OCR uncertainty, source references, draft scoring, final scoring, and reviewed student text. They are sensitive student records and should not be shared with students or families unless reviewed and redacted.
+Teacher records may include private notes, scanned text uncertainty, source references, draft scoring, final scoring, and reviewed student text. They are sensitive student records and should not be shared with students or families unless reviewed and redacted.
 ```
 
 ---
@@ -2264,7 +2264,7 @@ Export teacher-only grading record?
 Body:
 
 ```text
-This file may include internal grading notes, draft scores, rubric reasoning, OCR uncertainty flags, and teacher annotations. It is not intended for students or families unless reviewed and redacted.
+This file may include internal grading notes, draft scores, rubric reasoning, scanned text uncertainty flags, and teacher annotations. It is not intended for students or families unless reviewed and redacted.
 ```
 
 Primary button:
@@ -2334,7 +2334,7 @@ This CSV may include student names, scores, grades, rubric labels, and comments.
 Security note:
 
 ```text
-Mark My Work neutralizes spreadsheet formula-injection risks before export. Review free-text fields before sharing.
+MarkForMe neutralizes spreadsheet formula-injection risks before export. Review free-text fields before sharing.
 ```
 
 Primary button:
@@ -2462,7 +2462,7 @@ Share outside the app?
 Body:
 
 ```text
-You are about to send a file or text to another app. Mark My Work cannot control how that destination app stores, syncs, forwards, or protects the information.
+You are about to send a file or text to another app. MarkForMe cannot control how that destination app stores, syncs, forwards, or protects the information.
 ```
 
 Primary button:
@@ -2494,7 +2494,7 @@ Include student records in device backup?
 Body:
 
 ```text
-By default, Mark My Work keeps student records local and excludes sensitive app files from backup where supported. If you enable backup for student records, copies may be stored outside this device according to your device and account settings.
+By default, MarkForMe keeps student records local and excludes sensitive app files from backup where supported. If you enable backup for student records, copies may be stored outside this device according to your device and account settings.
 ```
 
 Primary button:
@@ -2614,13 +2614,13 @@ Required default: block student-facing export until all draft items are finalize
 ### 19.1 Privacy policy summary
 
 ```text
-Mark My Work stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The developer does not receive, upload, or access this information in the core app workflow. Because this information is processed only on device and is not transmitted to the developer or third-party partners, it is not collected by the developer in the core workflow. You should still treat local app data and exported files as sensitive student information.
+MarkForMe stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The developer does not receive, upload, or access this information in the core app workflow. Because this information is processed only on device and is not transmitted to the developer or third-party partners, it is not collected by the developer in the core workflow. You should still treat local app data and exported files as sensitive student information.
 ```
 
 ### 19.2 App Review notes draft
 
 ```text
-Mark My Work is a teacher-facing local-first grading assistant. The core workflow runs on device. The app does not upload student work, OCR text, rubrics, grading drafts, teacher notes, final grades, or feedback reports to the developer or third-party services. The app does not include third-party analytics, advertising, tracking, or cloud AI grading. Student work may be imported or scanned by the teacher and remains in local app storage unless the teacher explicitly exports it through the iOS share sheet. The app includes in-app warnings for sensitive exports and is intended for teachers, not direct child use.
+MarkForMe is a teacher-facing local-first grading assistant. The core workflow runs on device. The app does not upload student work, OCR text, rubrics, grading drafts, teacher notes, final grades, or feedback reports to the developer or third-party services. The app does not include third-party analytics, advertising, tracking, or cloud AI grading. Student work may be imported or scanned by the teacher and remains in local app storage unless the teacher explicitly exports it through the iOS share sheet. The app includes in-app warnings for sensitive exports and is intended for teachers, not direct child use.
 ```
 
 If no accounts exist, add:
@@ -2638,13 +2638,13 @@ The app includes local device authentication for sensitive areas and exports whe
 ### 19.3 Local lock description
 
 ```text
-Local lock helps prevent casual access to Mark My Work on this device. It does not make exported files encrypted and does not replace school-approved device security, passcodes, or records policies.
+Local lock helps prevent casual access to MarkForMe on this device. It does not make exported files encrypted and does not replace school-approved device security, passcodes, or records policies.
 ```
 
 ### 19.4 Data protection description
 
 ```text
-Mark My Work uses iOS/iPadOS local storage protections where implemented. Device passcode, Face ID or Touch ID, school device management, and careful export handling remain important.
+MarkForMe uses iOS/iPadOS local storage protections where implemented. Device passcode, Face ID or Touch ID, school device management, and careful export handling remain important.
 ```
 
 Avoid:
@@ -2662,7 +2662,7 @@ Exports are protected after they leave the app.
 ### 19.5 Student/parent notice short form
 
 ```text
-[School/District] uses Mark My Work, a teacher-facing iPad/iPhone tool, to help teachers review student work and draft rubric-based feedback. The app is designed for teacher use, not student sign-in or direct student use. In the core workflow, student work and grading information are processed locally on the teacher's device and are not uploaded to the app developer, cloud AI services, cloud OCR services, analytics providers, or advertisers. Teachers review and finalize all grades and feedback. Exported files, if created by the teacher, may contain student information and must be handled under [School/District] privacy and records policies.
+[School/District] uses MarkForMe, a teacher-facing iPad/iPhone tool, to help teachers review student work and draft rubric-based feedback. The app is designed for teacher use, not student sign-in or direct student use. In the core workflow, student work and grading information are processed locally on the teacher's device and are not uploaded to the app developer, cloud AI services, cloud OCR services, analytics providers, or advertisers. Teachers review and finalize all grades and feedback. Exported files, if created by the teacher, may contain student information and must be handled under [School/District] privacy and records policies.
 ```
 
 ### 19.6 Local data inventory copy
@@ -2670,7 +2670,7 @@ Exports are protected after they leave the app.
 Use in privacy settings or help:
 
 ```text
-Depending on how you use Mark My Work, local records may include student identifiers, scanned work, pasted text, OCR text, rubrics, answer keys, exemplars, draft scores, final scores, feedback, private teacher notes, export records, and audit events. These records stay on this device in the core workflow unless you export or share them.
+Depending on how you use MarkForMe, local records may include student identifiers, scanned work, pasted text, OCR text, rubrics, answer keys, exemplars, draft scores, final scores, feedback, private teacher notes, export records, and audit events. These records stay on this device in the core workflow unless you export or share them.
 ```
 
 ---
@@ -2703,13 +2703,13 @@ Create an assignment to start reviewing student work.
 No rubric:
 
 ```text
-Add a rubric, answer key, exemplar, or grading criteria so Mark My Work knows what to assess.
+Add a rubric, answer key, exemplar, or grading criteria so MarkForMe knows what to assess.
 ```
 
 No student text:
 
 ```text
-Scan, import, or paste student text. Mark My Work drafts feedback only from reviewed text.
+Scan, import, or paste student text. MarkForMe drafts feedback only from reviewed text.
 ```
 
 No OCR text:
@@ -2750,7 +2750,7 @@ Use these labels:
 - `Paste Text`
 - `Clear Source`
 - `Review OCR`
-- `Mark OCR Reviewed`
+- `Mark Check Scanned Texted`
 - `Apply Template`
 - `Draft Feedback Suggestion`
 - `Start Teacher Final Review`
@@ -2758,7 +2758,7 @@ Use these labels:
 - `Approve Final Grade`
 - `Preview Student Report`
 - `Export Student Report`
-- `Export Teacher Audit Report`
+- `Export Teacher Record`
 - `Export CSV`
 - `Review Export Contents`
 - `Open Share Sheet`
@@ -2787,7 +2787,7 @@ Missing student text:
 Add or review the student text before drafting feedback.
 ```
 
-OCR review required:
+scanned text review required:
 
 ```text
 Review and confirm OCR text before drafting feedback.
@@ -2796,7 +2796,7 @@ Review and confirm OCR text before drafting feedback.
 Local model unavailable:
 
 ```text
-Local AI grading is unavailable. Mark My Work will not send this student work to a cloud model as a fallback.
+Local AI grading is unavailable. MarkForMe will not send this student work to a cloud model as a fallback.
 ```
 
 Malformed model response:
@@ -2814,13 +2814,13 @@ The local model returned a draft that failed validation. No grade was saved.
 Persistence failure:
 
 ```text
-Mark My Work could not save local data. Do not close the app until you have copied or exported any important work.
+MarkForMe could not save local data. Do not close the app until you have copied or exported any important work.
 ```
 
 Export failure:
 
 ```text
-Mark My Work could not create the export. No file was shared.
+MarkForMe could not create the export. No file was shared.
 ```
 
 ---
@@ -2926,7 +2926,7 @@ Achievement standards support teacher judgement. Your school, sector, or jurisdi
 Official import warning when not implemented:
 
 ```text
-These curriculum references were entered by the teacher. Mark My Work has not verified them against an official curriculum import in this version.
+These curriculum references were entered by the teacher. MarkForMe has not verified them against an official curriculum import in this version.
 ```
 
 Jurisdiction warning:
@@ -2984,7 +2984,7 @@ Assess content separately from language control where appropriate.
 Help text:
 
 ```text
-Use this when you want feedback to focus on content understanding unless the rubric specifically assesses language control. Mark My Work will not infer a student's language background.
+Use this when you want feedback to focus on content understanding unless the rubric specifically assesses language control. MarkForMe will not infer a student's language background.
 ```
 
 ### 22.4 Adjustment notes warning
@@ -3132,18 +3132,18 @@ This is roadmap content only. Do not expose as working functionality until imple
 - private teacher notes;
 - raw model response;
 - internal compliance flags;
-- OCR uncertainty flags;
+- scanned text uncertainty flags;
 - audit events;
 - source-image fingerprints;
 - local file paths;
 - adjustment notes;
 - draft-only scores unless clearly marked and teacher-selected.
 
-### 25.3 Teacher audit report must include
+### 25.3 Teacher record report must include
 
 - assignment metadata;
 - source input references;
-- OCR status and quality summary;
+- scanned text status and quality summary;
 - reviewed student text;
 - rubric text;
 - answer key;
@@ -3201,7 +3201,7 @@ Codex should add tests that enforce this file's content rules when implementing.
 - Prompt prohibits effort/intent/demographic/disability inference.
 - Prompt requires evidence for every criterion.
 - Prompt tells model not to calculate totals.
-- Prompt includes OCR warning when OCR summary requires review.
+- Prompt includes OCR warning when Scanned text summary requires review.
 - Prompt includes structured criteria IDs when parsed rubric exists.
 - Prompt includes answer key and exemplar only when supplied.
 
@@ -3230,9 +3230,9 @@ Codex should add tests that enforce this file's content rules when implementing.
 
 - Student report excludes private teacher notes.
 - Student report excludes raw model response.
-- Teacher audit includes private teacher notes.
-- Teacher audit includes OCR status.
-- Teacher audit includes packet fingerprint.
+- Teacher record includes private teacher notes.
+- Teacher record includes scanned text status.
+- Teacher record includes packet fingerprint.
 - CSV prefers final approved totals over draft totals.
 - CSV neutralizes formula-like strings.
 - Student-facing export is blocked when final review is missing or stale unless explicitly preview-only.
@@ -3245,7 +3245,7 @@ Codex should add tests that enforce this file's content rules when implementing.
 - Draft generation button uses `Draft` or `Suggestion` language.
 - Final approval button refers to teacher approval.
 - Local AI unavailable state says there is no cloud fallback.
-- OCR review required state explains that grading is blocked.
+- scanned text review required state explains that grading is blocked.
 - Export warnings state what data is included and what changes after export.
 
 ### 26.6 Anti-fake-state tests
@@ -3291,7 +3291,7 @@ The next implementation pass should use this file to do the following, in order:
 7. Add CSV tests proving final-total preference and formula-injection hardening.
 8. Hide or disable PDF and archive export until real implementations exist.
 9. Add a typed `GradingPacket` so fingerprinting covers every prompt-affecting field.
-10. Add OCR review UI copy and states needed for side-by-side review.
+10. Add scanned text review UI copy and states needed for side-by-side review.
 
 ---
 

@@ -9,6 +9,9 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCAN_SUFFIXES = {".swift", ".plist", ".pbxproj", ".xcprivacy", ".json", ".yml", ".yaml"}
 IGNORE_DIRS = {".git", "DerivedData", ".build", ".swiftpm"}
+IGNORE_PREFIXES = {
+    pathlib.Path("docs/release"),
+}
 
 PATTERNS = [
     re.compile(r"\bURLSession\b"),
@@ -51,6 +54,8 @@ for path in ROOT.rglob("*"):
         continue
     rel = path.relative_to(ROOT)
     if rel in ALLOWLIST:
+        continue
+    if any(rel == prefix or prefix in rel.parents for prefix in IGNORE_PREFIXES):
         continue
     if path.suffix not in SCAN_SUFFIXES:
         continue

@@ -1,6 +1,6 @@
 # Australian Curriculum catalog generator
 
-`build_acara_curriculum_catalog.py` normalizes Australian Curriculum Version 9.0 source material into bundled Mark My Work JSON resources.
+`build_acara_curriculum_catalog.py` normalizes Australian Curriculum Version 9.0 source material into bundled MarkForMe JSON resources.
 
 Commands:
 

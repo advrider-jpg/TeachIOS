@@ -34,7 +34,7 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
         await progress?(
             AIGenerationProgress(
                 stage: .validatingInputs,
-                detail: "Checking reviewed text, OCR review, and grading standards.",
+                detail: "Checking reviewed text, scanned text review, and grading standards.",
                 canCancel: true
             )
         )

@@ -1,11 +1,11 @@
-# Mark My Work v3
+# MarkForMe v3
 
-Mark My Work is a local-first iOS/iPadOS repository for a teacher-controlled grading assistant for text-based student work.
+MarkForMe is a local-first iOS/iPadOS repository for a teacher-controlled grading assistant for text-based student work.
 
 The core lane is:
 
 ```text
-scan/import/paste/PDF student work -> local OCR where needed -> explicit teacher OCR review -> local rubric draft or manual review -> criterion-level teacher final review -> local export/archive/backup
+scan/import/paste/PDF student work -> local OCR where needed -> explicit teacher scanned text review -> local rubric draft or manual review -> criterion-level teacher final review -> local export/archive/backup
 ```
 
 The repo is deliberately scoped to text evidence workflows. Handwriting, posters, physical models, diagrams, symbolic math, LMS sync, cloud backup, accounts, subscriptions, and autonomous visual-artifact grading remain out of scope unless they are backed by teacher-confirmed evidence workflows and local-only implementation.
@@ -15,9 +15,9 @@ The repo is deliberately scoped to text evidence workflows. Handwriting, posters
 This patch level implements the complete v3 feature set in source code, tests, documentation, and project-file references:
 
 1. Student-facing and teacher-audit PDF export.
-2. Teacher audit ZIP archive, assignment gradebook archive, and full local backup archive.
+2. Teacher record ZIP archive, assignment gradebook archive, and full local backup archive.
 3. PDF import as student work, including original PDF source ref, rendered page refs, digital-text extraction, and OCR fallback path.
-4. Side-by-side OCR review with page preview, thumbnails, line list, status, confidence, bounding-box overlay, and navigation.
+4. Side-by-side scanned text review with page preview, thumbnails, line list, status, confidence, bounding-box overlay, and navigation.
 5. Per-line OCR correction, confirmation, rejection, and evidence linking.
 6. Bounding-box evidence traceability in teacher UI/report/archive while excluding internal coordinates from student reports.
 7. Markdown rubric import/parser with headings, lists, tables, point ranges, levels, warnings, and teacher-confirmed preview.
@@ -28,27 +28,27 @@ This patch level implements the complete v3 feature set in source code, tests, d
 
 ## Product promise
 
-Mark My Work is not an autonomous grader. It is a teacher-controlled assistant:
+MarkForMe is not an autonomous grader. It is a teacher-controlled assistant:
 
 1. The teacher supplies or confirms the rubric, answer key, exemplar, and custom grading instructions.
 2. The app extracts text locally with Apple Vision and PDFKit where needed.
 3. The teacher reviews and confirms OCR text before grading.
 4. The app proposes rubric scores and feedback using Apple’s on-device language model when available.
 5. The teacher edits or approves each criterion before treating the grade as final.
-6. The app preserves source input, OCR output, reviewed text, model proposal, final review, exports, archive records, curriculum mappings, and audit events as separate local records.
+6. The app preserves source input, scanned text, reviewed text, model proposal, final review, exports, archive records, curriculum mappings, and audit events as separate local records.
 
-Mark My Work does **not** upload student work, rubrics, prompts, draft grades, or final grades to a server.
+MarkForMe does **not** upload student work, rubrics, prompts, draft grades, or final grades to a server.
 
 
 ## Export hardening posture
 
-Mark My Work's export layer is intentionally separated by audience and sensitivity:
+MarkForMe's export layer is intentionally separated by audience and sensitivity:
 
 - Student-facing Markdown/PDF reports are final-only. They are blocked until a teacher-approved final review exists and the final review is not stale, and the student report builder does not render draft-only grade content.
 - Student-facing reports exclude private teacher notes, teacher rationale, raw model responses, audit events, source file paths, OCR internals, evidence source references, and bounding-box coordinates.
 - CSV gradebook exports quote every cell, escape embedded quotes, preserve commas/newlines as valid CSV content, and neutralize formula-like text values before writing.
-- Teacher audit reports, teacher archive ZIPs, and full local backups are teacher-only sensitive records. Archives include `archive_inventory.json` so teachers and restore tooling can see what categories of data were included.
-- Generated export filenames avoid assignment titles, student names, class names, and prompts by default. Filenames use the MarkMyWork prefix, export kind, timestamp, short identifier, and extension.
+- Teacher records, teacher archive ZIPs, and full local backups are teacher-only sensitive records. Archives include `archive_inventory.json` so teachers and restore tooling can see what categories of data were included.
+- Generated export filenames avoid assignment titles, student names, class names, and prompts by default. Filenames use the MarkForMe prefix, export kind, timestamp, short identifier, and extension.
 - Export files receive best-effort platform file-protection and exclude-from-backup attributes where supported. This does not make files encrypted after they leave the app.
 
 ## Apple framework posture
@@ -56,13 +56,13 @@ Mark My Work's export layer is intentionally separated by audience and sensitivi
 - OCR: Vision / VisionKit.
 - PDF import/export: PDFKit and UIKit local rendering.
 - Local grading draft: Foundation Models typed guided generation, when available on supported devices.
-- Long grading packets may be drafted criterion-by-criterion or blocked with an explicit local-too-large message; Mark My Work does not silently truncate reviewed student text.
+- Long grading packets may be drafted criterion-by-criterion or blocked with an explicit local-too-large message; MarkForMe does not silently truncate reviewed student text.
 - Storage: local-first GRDB database with normalized tables.
 - Export: teacher-controlled local Markdown, PDF, CSV, ZIP/archive, and backup files.
 - Minimum deployment target in this scaffold: iOS 17.0.
 - Foundation Models code is guarded with `canImport(FoundationModels)` and iOS availability checks.
 
-If Foundation Models is unavailable, Mark My Work shows a local-unavailable state and refuses to generate an AI grade. It does not fall back to a cloud model. Manual final review remains available.
+If Foundation Models is unavailable, MarkForMe shows a local-unavailable state and refuses to generate an AI grade. It does not fall back to a cloud model. Manual final review remains available.
 
 ## Local-only constraints
 

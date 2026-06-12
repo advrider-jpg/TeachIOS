@@ -25,7 +25,7 @@ enum FoundationModelErrorMapper {
         let combined = "\(description) \(localized)".lowercased()
 
         if isContextWindowError(error) {
-            return .promptTooLargeForLocalModel("This grading packet is too large for the on-device model. Mark My Work did not truncate the student work or send it to a cloud model. Shorten or split the reviewed text, reduce the grading packet, or use manual final review.")
+            return .promptTooLargeForLocalModel("This grading packet is too large for the on-device model. MarkForMe did not truncate the student work or send it to a cloud model. Shorten or split the reviewed text, reduce the grading packet, or use manual final review.")
         }
 
         if combined.contains("safety") || combined.contains("guardrail") || combined.contains("refus") {

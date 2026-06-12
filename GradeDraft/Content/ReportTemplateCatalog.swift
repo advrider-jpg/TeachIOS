@@ -5,7 +5,7 @@ import Foundation
 enum ReportTemplateCatalog {
     static let studentReportTemplates = [
         #"""
-# Mark My Work Student Feedback
+# MarkForMe Student Feedback
 
 **Assignment:** {{assignmentTitle}}
 **Student:** {{studentDisplayNameOrLocalIdentifier}}
@@ -15,7 +15,7 @@ enum ReportTemplateCatalog {
 **Assignment type:** {{assignmentTypeDisplayName}}
 **Updated:** {{updatedDate}}
 
-> Generated from local app state. Mark My Work does not upload this report.
+> Generated from local app state. MarkForMe does not upload this report.
 > This student-facing report excludes private teacher notes and raw model responses.
 """#,
         #"""
@@ -59,7 +59,7 @@ enum ReportTemplateCatalog {
     ]
     static let teacherAuditReportTemplates = [
         #"""
-# Mark My Work Teacher Audit Report
+# MarkForMe Teacher Record
 
 **Assignment:** {{assignmentTitle}}
 **Student:** {{studentDisplayNameOrLocalIdentifier}}
@@ -69,12 +69,12 @@ enum ReportTemplateCatalog {
 **Assignment type:** {{assignmentTypeDisplayName}}
 **Updated:** {{updatedDate}}
 
-> This teacher audit report may include private notes, reviewed text, OCR warnings, source fingerprints, and grading-state metadata. Treat it as sensitive student data.
-> Generated from local app state. Mark My Work does not upload this report.
+> This teacher record may include private notes, reviewed text, scanned text warnings, source fingerprints, and grading-state metadata. Treat it as sensitive student data.
+> Generated from local app state. MarkForMe does not upload this report.
 """#,
         #"""
 ## Readiness and source state
-- OCR review status: {{ocrReviewStatus}}
+- scanned text review status: {{ocrReviewStatus}}
 - Source inputs: {{sourceInputCount}}
 - Current grading packet fingerprint: {{packetFingerprint}}
 - Draft stale: {{yesNo}}
@@ -83,7 +83,7 @@ enum ReportTemplateCatalog {
 ## Source inputs
 {{sourceInputList}}
 
-## OCR summary
+## Scanned text summary
 - Engine: {{ocrEngine}}
 - Review status: {{ocrReviewStatus}}
 - Quality: {{ocrQualitySummary}}
@@ -147,7 +147,7 @@ enum ReportTemplateCatalog {
 {{auditEvents}}
 """#,
         #"""
-Teacher audit reports may include private notes, OCR uncertainty, source references, draft scoring, final scoring, and reviewed student text. They are sensitive student records and should not be shared with students or families unless reviewed and redacted.
+Teacher records may include private notes, scanned text uncertainty, source references, draft scoring, final scoring, and reviewed student text. They are sensitive student records and should not be shared with students or families unless reviewed and redacted.
 """#
     ]
 
@@ -155,7 +155,7 @@ Teacher audit reports may include private notes, OCR uncertainty, source referen
         "Exclude private teacher notes by default.",
         "Exclude raw model responses by default.",
         "Exclude internal compliance flags by default.",
-        "Exclude OCR uncertainty flags by default unless the teacher explicitly chooses otherwise.",
+        "Exclude scanned text uncertainty flags by default unless the teacher explicitly chooses otherwise.",
         "Exclude source fingerprints and audit events by default."
     ]
 
@@ -167,7 +167,7 @@ Teacher audit reports may include private notes, OCR uncertainty, source referen
         "Applied templates",
         "Answer key",
         "Exemplar",
-        "Student evidence and OCR status",
+        "Student evidence and scanned text status",
         "Draft proposal",
         "Final teacher review",
         "Uncertainty and compliance flags",

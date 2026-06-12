@@ -5,7 +5,7 @@ enum CurriculumCatalogService {
     static let manifestResourceName = "curriculum_catalog_acara_v9_manifest"
     static let summaryResourceName = "curriculum_catalog_acara_v9_summary"
 
-    static let sourceWarning = "Australian Curriculum references are bundled for offline teacher-controlled reference only. Mark My Work does not claim ACARA endorsement, certification, compliance, or jurisdiction reporting approval. Teachers must explicitly map each reference before it is used in grading context."
+    static let sourceWarning = "Australian Curriculum references are bundled for offline teacher-controlled reference only. MarkForMe does not claim ACARA endorsement, certification, compliance, or jurisdiction reporting approval. Teachers must explicitly map each reference before it is used in grading context."
 
     static let localCatalog: CurriculumCatalog = {
         do {
@@ -32,7 +32,7 @@ enum CurriculumCatalogService {
             catalogID: "empty-australian-curriculum-catalog",
             displayName: "Australian Curriculum catalog unavailable",
             sourceVersion: "unloaded",
-            generatedBy: "Mark My Work",
+            generatedBy: "MarkForMe",
             nonEndorsementWarning: sourceWarning,
             icipWarning: "Confirm Aboriginal and Torres Strait Islander Histories and Cultures material against current cultural protocols before use.",
             sources: [],
