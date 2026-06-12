@@ -526,8 +526,9 @@ final class AppleIntelligenceImplementationTests: XCTestCase {
         let rubric = "Claim: 0-4 points"
         let parsed = RubricParser.parse(rubric)
         let sourceReferencedText = reviewedTextWithSourceRefs ?? reviewedText
+        let stableAssignmentID = UUID(uuidString: "11111111-2222-4333-8444-555555555555")!
         return GradingInput(
-            assignmentID: UUID(),
+            assignmentID: stableAssignmentID,
             assignmentTitle: "Short answer",
             prompt: "State a claim.",
             subject: "ELA",
