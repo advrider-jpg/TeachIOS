@@ -6,7 +6,7 @@ MarkForMe CI is layered so deterministic policy failures, Swift style failures, 
 
 | Job | Runner | PR required | Purpose |
 | - | - | - | - |
-| `static-policy` | `ubuntu-latest` | Yes | Runs repo health, no-network, export-hardening, bad implementation string, native UI, route/export truthfulness, project membership, CI contract, and release static-readiness guardrails. |
+| `static-policy` | `ubuntu-latest` | Yes | Runs repo health, no-network, export-hardening, bad implementation string, native UI, route/export truthfulness, project membership, and CI contract guardrails. Release static-readiness runs only for manual/scheduled release validation. |
 | `workflow-lint` | `ubuntu-latest` | Yes | Runs pinned `actionlint` plus the MarkForMe CI contract check. |
 | `swiftlint` | `macos-26` | Yes | Selects Xcode 26+, then runs SwiftLint against `.swiftlint.yml`. |
 | `xcode-unit-tests` | `macos-26` | Yes | Selects Xcode 26+ and an iOS 26+ iPhone simulator, resolves packages, and runs deterministic XCTest coverage while skipping screenshot tests. |
@@ -43,6 +43,11 @@ python3 scripts/ci/check_native_ui_refactor.py
 python3 scripts/ci/check_route_and_export_truthfulness.py
 python3 scripts/ci/check_xcode_project_membership.py
 python3 scripts/ci/check_ci_contract.py
+```
+
+Run the explicit release-readiness gate before TestFlight/App Store submission or from manual/scheduled release validation:
+
+```bash
 python3 scripts/ci/check_release_readiness_static.py
 ```
 
@@ -158,7 +163,7 @@ Add new Swift files to the Xcode project target when adding them to `GradeDraft/
 
 ## CI Contract
 
-`scripts/ci/check_ci_contract.py` intentionally fails if the workflows lose required properties: explicit `macos-26` runners, minimal permissions, concurrency, job timeouts, direct no-network, export-hardening, native UI, route/export truthfulness, release-readiness guardrails, Xcode/simulator selector scripts, screenshot separation, core page screenshot verification, release build verification, and artifact uploads.
+`scripts/ci/check_ci_contract.py` intentionally fails if the workflows lose required properties: explicit `macos-26` runners, minimal permissions, concurrency, job timeouts, direct no-network, export-hardening, native UI, route/export truthfulness, explicit manual/scheduled release-readiness guardrails, Xcode/simulator selector scripts, screenshot separation, core page screenshot verification, release build verification, and artifact uploads.
 
 When CI fails, do not delete tests, mark deterministic tests as allowed failures, switch back to `macos-latest`, remove local-first guardrails, or move screenshot tests back into the deterministic job. Fix the implementation or the contract deliberately.
 

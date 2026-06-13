@@ -81,6 +81,11 @@ def main() -> int:
     require("scripts/curriculum/build_acara_curriculum_catalog.py --check" in text, failures, "Curriculum generator check must run.")
     require("scripts/ci/check_curriculum_catalog.py" in text, failures, "Curriculum catalog validator must run.")
     require("scripts/ci/check_release_readiness_static.py" in text, failures, "Production static readiness guardrail must run.")
+    require(
+        "if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'" in job_block(text, "static-policy"),
+        failures,
+        "Production static readiness must stay explicit to manual/scheduled release validation, not ordinary PR merge policy.",
+    )
     require("scripts/ci/select_xcode.sh" in text, failures, "Xcode selection must use the shared script.")
     require("scripts/ci/select_ios_simulator.py" in text, failures, "Simulator selection must use the shared script.")
     require("scripts/ci/select_xcode.sh" in screenshot_text, failures, "Core page screenshots workflow must use the shared Xcode selector.")

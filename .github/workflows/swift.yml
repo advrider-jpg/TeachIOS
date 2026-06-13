@@ -64,6 +64,7 @@ jobs:
         run: python3 scripts/ci/check_ci_contract.py
 
       - name: Production static readiness guardrail
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         run: python3 scripts/ci/check_release_readiness_static.py
 
       - name: Plist parse guardrail
@@ -84,6 +85,7 @@ jobs:
             echo ""
             echo "- Python: $(python3 --version)"
             echo "- Guardrails: repo_health, no_network_scan, export_hardening_scan, bad_string_scan, native_ui_refactor, route_export_truthfulness, project_membership, CI contract"
+            echo "- Release readiness: explicit manual/scheduled gate via scripts/ci/check_release_readiness_static.py"
             echo "- Local reproduction:"
             echo "  \`python3 scripts/repo_health.py && python3 scripts/no_network_scan.py && python3 scripts/export_hardening_scan.py && python3 scripts/ci/bad_string_scan.py && python3 scripts/ci/check_native_ui_refactor.py && python3 scripts/ci/check_route_and_export_truthfulness.py && python3 scripts/ci/check_xcode_project_membership.py && python3 scripts/ci/check_ci_contract.py\`"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -520,7 +522,7 @@ jobs:
             echo "| unsigned-archive-validation | ${{ needs.unsigned-archive-validation.result }} |"
             echo ""
             echo "Required for PR merge: static-policy, workflow-lint, swiftlint, xcode-unit-tests, ui-smoke."
-            echo "Release/tag readiness: all jobs, including screenshot-smoke, ui-smoke, release-build, and unsigned-archive-validation."
+            echo "Release readiness: manual/scheduled release-static readiness plus screenshot-smoke, ui-smoke, release-build, and unsigned-archive-validation."
           } >> "$GITHUB_STEP_SUMMARY"
 
           for required in \

@@ -9,12 +9,25 @@ where a new source file is added on disk and never added to the project.
 from __future__ import annotations
 
 import pathlib
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 PROJECT_FILE = ROOT / "GradeDraft.xcodeproj" / "project.pbxproj"
 SOURCE_ROOTS = [ROOT / "GradeDraft", ROOT / "GradeDraftTests", ROOT / "GradeDraftUITests"]
 IGNORED_PARTS = {"DerivedData", ".build", ".swiftpm"}
+REFERENCE_KEYS = {
+    "baseConfigurationReference",
+    "buildConfigurationList",
+    "containerPortal",
+    "fileRef",
+    "mainGroup",
+    "productReference",
+    "productRefGroup",
+    "target",
+    "targetProxy",
+}
+ARRAY_KEYS = {"buildConfigurations", "buildPhases", "children", "dependencies", "files", "packageReferences", "targets"}
 
 
 def swift_files() -> list[pathlib.Path]:
@@ -30,15 +43,35 @@ def swift_files() -> list[pathlib.Path]:
 
 def main() -> int:
     project_text = PROJECT_FILE.read_text(encoding="utf-8")
+    object_ids = set(re.findall(r"^\s*([A-Za-z0-9]{24})(?:\s*/\*.*?\*/)?\s*=", project_text, flags=re.MULTILINE))
+    dangling: list[str] = []
+
+    for key in REFERENCE_KEYS:
+        for match in re.finditer(rf"\b{key}\s*=\s*([A-Za-z0-9]{{24}})\b", project_text):
+            ref = match.group(1)
+            if ref not in object_ids:
+                dangling.append(f"{key} references missing object {ref}")
+
+    for key in ARRAY_KEYS:
+        for match in re.finditer(rf"\b{key}\s*=\s*\((.*?)\);", project_text, flags=re.S):
+            for ref in re.findall(r"\b([A-Za-z0-9]{24})\s*/\*", match.group(1)):
+                if ref not in object_ids:
+                    dangling.append(f"{key} contains missing object {ref}")
+
     missing = [
         path.relative_to(ROOT).as_posix()
         for path in swift_files()
         if path.name not in project_text
     ]
-    if missing:
-        print("Swift files missing from GradeDraft.xcodeproj/project.pbxproj:")
-        for path in missing:
-            print(f"- {path}")
+    if dangling or missing:
+        if dangling:
+            print("GradeDraft.xcodeproj/project.pbxproj contains dangling object references:")
+            for item in sorted(set(dangling)):
+                print(f"- {item}")
+        if missing:
+            print("Swift files missing from GradeDraft.xcodeproj/project.pbxproj:")
+            for path in missing:
+                print(f"- {path}")
         return 1
     print(f"All {len(swift_files())} Swift source/test files appear in the Xcode project.")
     return 0

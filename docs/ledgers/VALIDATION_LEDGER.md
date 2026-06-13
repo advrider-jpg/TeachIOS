@@ -2,6 +2,34 @@
 
 This ledger records source-level validation expectations for the all-features completion patch.
 
+## 2026-06-13 — PR CI repair validation
+
+GitHub PR #44 first reported these failures on commit `5d0b93c`: `static-policy` failed because `repo_health.py` included release-readiness blockers, and `core-page-screenshots` failed during `xcodebuild -resolvePackageDependencies` because the Xcode project contained dangling references for the split model files.
+
+Follow-up local validation passed in this Windows checkout after adding the missing model file references, strengthening Xcode project membership checks, and splitting release readiness from ordinary PR static health:
+
+```bash
+git diff --check
+python3 scripts/repo_health.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_curriculum_catalog.py
+```
+
+`python3 scripts/ci/check_release_readiness_static.py` still fails correctly with unresolved release blockers: no `Package.resolved`, support/contact not configured in `APP_STORE_METADATA.md` or `APP_REVIEW_NOTES.md`, and unrun simulator/device manual QA. That gate is now explicit manual/scheduled release validation rather than an ordinary PR merge gate.
+
 ## 2026-06-13 — Audit leftovers validation state
 
 Available validation run on Windows after the structural split, split curriculum resources, rendered-only native UI snapshots, page-level OCR batch persistence, and stable workflow timeline identity work:

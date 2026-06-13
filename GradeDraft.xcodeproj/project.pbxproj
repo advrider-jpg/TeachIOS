@@ -254,6 +254,13 @@
 		AI4000000000000000000001 /* LocalGradingToolSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalGradingToolSupport.swift; sourceTree = "<group>"; };
 		AI5000000000000000000001 /* AIBatchReadiness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIBatchReadiness.swift; sourceTree = "<group>"; };
 		BEAA58224F166E200203BADA /* GradeDraftModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftModels.swift; sourceTree = "<group>"; };
+		MDL0000000000000000000001 /* GradeDraftFoundationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftFoundationModels.swift; sourceTree = "<group>"; };
+		MDL0000000000000000000002 /* GradeDraftClassroomModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftClassroomModels.swift; sourceTree = "<group>"; };
+		MDL0000000000000000000003 /* GradeDraftOCRModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftOCRModels.swift; sourceTree = "<group>"; };
+		MDL0000000000000000000004 /* GradeDraftRubricModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftRubricModels.swift; sourceTree = "<group>"; };
+		MDL0000000000000000000005 /* GradeDraftGradingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftGradingModels.swift; sourceTree = "<group>"; };
+		MDL0000000000000000000006 /* GradeDraftExportAuditModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftExportAuditModels.swift; sourceTree = "<group>"; };
+		MDL0000000000000000000007 /* GradeDraftTemplateErrorModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTemplateErrorModels.swift; sourceTree = "<group>"; };
 		9A94B846A0C77767D20D29EA /* OCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRService.swift; sourceTree = "<group>"; };
 		FB4149F0A80F5AEF370D2C6F /* GradingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradingService.swift; sourceTree = "<group>"; };
 		C970390A677003FF366361E2 /* FoundationModelGradingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelGradingService.swift; sourceTree = "<group>"; };

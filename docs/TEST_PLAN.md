@@ -77,7 +77,7 @@ Remaining bad-string matches should be limited to canonical source-of-truth/rese
 
 ## CI gates
 
-The primary workflow is `.github/workflows/swift.yml` (`GradeDraft CI`). It separates static policy checks, workflow linting, SwiftLint, deterministic Xcode unit/integration tests, screenshot smoke tests, and unsigned Release build verification. Core page screenshot capture also has a separate workflow at `.github/workflows/core-page-screenshots.yml` (`GradeDraft Core Page Screenshots`).
+The primary workflow is `.github/workflows/swift.yml` (`GradeDraft CI`). It separates static policy checks, workflow linting, SwiftLint, deterministic Xcode unit/integration tests, screenshot smoke tests, explicit manual/scheduled release-readiness validation, and unsigned Release build verification. Core page screenshot capture also has a separate workflow at `.github/workflows/core-page-screenshots.yml` (`GradeDraft Core Page Screenshots`).
 
 Required PR jobs:
 
@@ -92,6 +92,8 @@ Main, scheduled, manual, or labeled deeper checks:
 - `screenshot-smoke`
 - `release-build`
 - `ci-summary`
+
+Manual/scheduled release validation additionally runs `python3 scripts/ci/check_release_readiness_static.py`; that command must remain fail-closed while `Package.resolved`, support/contact configuration, or manual QA evidence is missing.
 
 Separate visual PR check:
 
