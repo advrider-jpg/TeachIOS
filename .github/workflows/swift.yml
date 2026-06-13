@@ -192,6 +192,42 @@ jobs:
           rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
           mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
 
+      - name: Diagnose Xcode project parser inputs
+        run: |
+          set -euo pipefail
+          echo "Project package files:"
+          find GradeDraft.xcodeproj -maxdepth 5 -type f -print -exec sh -c 'file "$1"; xxd -g 1 -l 48 "$1" || true' sh {} \;
+          echo "Package.resolved files:"
+          find . -name Package.resolved -print -exec sh -c 'wc -c "$1"; sed -n "1,80p" "$1"' sh {} \; || true
+          echo "JSON resource validation:"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          failures = []
+          for path in sorted(Path(".").rglob("*.json")):
+              if ".git" in path.parts:
+                  continue
+              data = path.read_bytes()
+              if not data.lstrip().startswith((b"{", b"[")):
+                  failures.append((str(path), "leading byte", data[:16].hex()))
+                  continue
+              try:
+                  json.loads(data.decode("utf-8"))
+              except Exception as exc:
+                  failures.append((str(path), type(exc).__name__, str(exc)))
+
+          print(f"Checked JSON files: {sum(1 for _ in Path('.').rglob('*.json'))}")
+          for failure in failures:
+              print("JSON_FAILURE", *failure)
+          raise SystemExit(1 if failures else 0)
+          PY
+          echo "OpenStep project validation:"
+          tail -n +2 GradeDraft.xcodeproj/project.pbxproj > "$RUNNER_TEMP/project.openstep.plist"
+          /usr/bin/plutil -lint "$RUNNER_TEMP/project.openstep.plist" || true
+          /usr/bin/plutil -convert json -o "$RUNNER_TEMP/project.pbxproj.json" "$RUNNER_TEMP/project.openstep.plist" || true
+          test -s "$RUNNER_TEMP/project.pbxproj.json" && python3 -m json.tool "$RUNNER_TEMP/project.pbxproj.json" >/dev/null || true
+
       - name: Resolve Swift package dependencies
         run: |
           set -euo pipefail
