@@ -183,19 +183,12 @@ jobs:
         id: simulator
         run: python3 scripts/ci/select_ios_simulator.py
 
-      - name: Cache Swift package dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/Library/Caches/org.swift.swiftpm
-          key: spm-${{ runner.os }}-xcode26-${{ hashFiles('GradeDraft.xcodeproj/project.pbxproj', '**/Package.resolved') }}
-          restore-keys: |
-            spm-${{ runner.os }}-xcode26-
-
-      - name: Reset derived SwiftPM workspace state
+      - name: Reset SwiftPM workspace state
         run: |
           set -euo pipefail
           rm -rf "$HOME/Library/Developer/Xcode/DerivedData/SourcePackages"
+          rm -rf "$HOME/Library/Caches/org.swift.swiftpm"
+          rm -rf "$HOME/.swiftpm/cache"
           rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
           mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
 
@@ -278,10 +271,12 @@ jobs:
         id: simulator
         run: python3 scripts/ci/select_ios_simulator.py
 
-      - name: Reset derived SwiftPM workspace state
+      - name: Reset SwiftPM workspace state
         run: |
           set -euo pipefail
           rm -rf "$HOME/Library/Developer/Xcode/DerivedData/SourcePackages"
+          rm -rf "$HOME/Library/Caches/org.swift.swiftpm"
+          rm -rf "$HOME/.swiftpm/cache"
           rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
           mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
 
@@ -386,10 +381,12 @@ jobs:
         id: simulator
         run: python3 scripts/ci/select_ios_simulator.py
 
-      - name: Reset derived SwiftPM workspace state
+      - name: Reset SwiftPM workspace state
         run: |
           set -euo pipefail
           rm -rf "$HOME/Library/Developer/Xcode/DerivedData/SourcePackages"
+          rm -rf "$HOME/Library/Caches/org.swift.swiftpm"
+          rm -rf "$HOME/.swiftpm/cache"
           rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
           mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
 
@@ -447,10 +444,12 @@ jobs:
       - name: Select Xcode 26+
         run: bash scripts/ci/select_xcode.sh
 
-      - name: Reset derived SwiftPM workspace state
+      - name: Reset SwiftPM workspace state
         run: |
           set -euo pipefail
           rm -rf "$HOME/Library/Developer/Xcode/DerivedData/SourcePackages"
+          rm -rf "$HOME/Library/Caches/org.swift.swiftpm"
+          rm -rf "$HOME/.swiftpm/cache"
           rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
           mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
 
@@ -503,10 +502,12 @@ jobs:
       - name: Select Xcode 26+
         run: bash scripts/ci/select_xcode.sh
 
-      - name: Reset derived SwiftPM workspace state
+      - name: Reset SwiftPM workspace state
         run: |
           set -euo pipefail
           rm -rf "$HOME/Library/Developer/Xcode/DerivedData/SourcePackages"
+          rm -rf "$HOME/Library/Caches/org.swift.swiftpm"
+          rm -rf "$HOME/.swiftpm/cache"
           rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
           mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
 
