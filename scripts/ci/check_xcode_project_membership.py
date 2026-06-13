@@ -13,7 +13,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 PROJECT_FILE = ROOT / "GradeDraft.xcodeproj" / "project.pbxproj"
-SOURCE_ROOTS = [ROOT / "GradeDraft", ROOT / "GradeDraftTests"]
+SOURCE_ROOTS = [ROOT / "GradeDraft", ROOT / "GradeDraftTests", ROOT / "GradeDraftUITests"]
 IGNORED_PARTS = {"DerivedData", ".build", ".swiftpm"}
 
 

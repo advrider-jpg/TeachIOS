@@ -37,7 +37,7 @@ struct RubricInstructionsScreen: View {
     @State private var pendingSensitiveTemplate: GradingConstraintTemplate?
     @State private var expandedSections: Set<RubricSection> = [.rubric, .criteria, .importPreview]
 
-    private var assignment: AssignmentRecord { viewModel.assignment(for: assignmentID) ?? viewModel.assignment }
+    private var assignment: AssignmentRecord { viewModel.assignment(for: assignmentID)! }
     private var instructionTemplateOptions: [(String, String)] { TeacherInstructionTemplateCatalog.all.map { ($0.id, $0.name) } }
     private var answerKeyTemplates: [AnswerKeyTemplate] { AnswerKeyTemplateCatalog.templates(for: assignment.assignmentType) }
     private var exemplarTemplates: [ExemplarTemplate] { ExemplarTemplateCatalog.templates(for: assignment.assignmentType) }
@@ -47,6 +47,16 @@ struct RubricInstructionsScreen: View {
     private var formativeTemplateOptions: [(String, String)] { formativeTemplates.map { ($0.id, $0.name) } }
 
     var body: some View {
+        Group {
+            if viewModel.assignment(for: assignmentID) != nil {
+                rubricContent
+            } else {
+                MissingAssignmentRouteView(assignmentID: assignmentID, actionName: "Rubric and instructions editing")
+            }
+        }
+    }
+
+    private var rubricContent: some View {
         ScrollViewReader { proxy in
             Form {
                 Section {
@@ -80,8 +90,10 @@ struct RubricInstructionsScreen: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
             .onAppear {
-                viewModel.selectAssignment(assignmentID)
-                resetTemplateSelections()
+                if viewModel.assignment(for: assignmentID) != nil {
+                    viewModel.selectAssignment(assignmentID)
+                    resetTemplateSelections()
+                }
             }
             .onChange(of: assignment.assignmentType) { _, _ in
                 resetTemplateSelections()
@@ -264,7 +276,7 @@ struct RubricInstructionsScreen: View {
     private var sectionStack: some View {
         rubricSetupSection
             .id(RubricSection.rubric)
-        if let preview = viewModel.latestRubricPreview {
+        if let preview = viewModel.rubricPreview(for: assignmentID) {
             importPreviewSection(preview)
                 .id(RubricSection.importPreview)
         }
@@ -462,7 +474,8 @@ struct RubricInstructionsScreen: View {
                 }
                 VStack(alignment: .leading, spacing: 10) {
                     Button {
-                        viewModel.confirmMarkdownRubricImport(preview, useStructuredImport: true)
+                        viewModel.selectAssignment(assignmentID)
+                        viewModel.confirmMarkdownRubricImport(preview, for: assignmentID, useStructuredImport: true)
                     } label: {
                         Label("Confirm Structured Import", systemImage: "checkmark.circle")
                             .frame(minHeight: GradeDraftLayout.minimumTapTarget)
@@ -470,7 +483,8 @@ struct RubricInstructionsScreen: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(preview.detectedCriteria.isEmpty)
                     Button {
-                        viewModel.confirmMarkdownRubricImport(preview, useStructuredImport: false)
+                        viewModel.selectAssignment(assignmentID)
+                        viewModel.confirmMarkdownRubricImport(preview, for: assignmentID, useStructuredImport: false)
                     } label: {
                         Label("Use Rubric Text", systemImage: "text.alignleft")
                             .frame(minHeight: GradeDraftLayout.minimumTapTarget)

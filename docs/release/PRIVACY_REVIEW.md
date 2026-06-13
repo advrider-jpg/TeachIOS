@@ -31,10 +31,10 @@ None in the core workflow.
 None.
 
 ## Third-party SDKs
-Runtime packages are GRDB.swift, swift-markdown, TPPDF, ZIPFoundation, SwiftCSV, and swift-dependencies. swift-snapshot-testing is test-only. No package introduces runtime network calls, telemetry, accounts, analytics, or cloud services in MarkForMe’s app path.
+Runtime packages are GRDB.swift, swift-markdown, TPPDF, and ZIPFoundation. swift-snapshot-testing is test-only. SwiftCSV and swift-dependencies were removed; CSV handling and dependency injection are implemented in app code. No current package introduces runtime network calls, telemetry, accounts, analytics, or cloud services in MarkForMe's app path.
 
 ## Privacy manifest status
-`PrivacyInfo.xcprivacy` explicitly sets tracking to false and contains no tracking domains. The manifest must be revisited if any telemetry, crash reporting, support upload, cloud sync, cloud AI, hosted curriculum refresh, account, or analytics feature is added.
+`PrivacyInfo.xcprivacy` explicitly sets tracking to false and contains no tracking domains. UserDefaults is declared with `NSPrivacyAccessedAPICategoryUserDefaults` reason `CA92.1` for app functionality. App Shortcut pasted-work handoff stores raw student text in a protected transient local payload file, while UserDefaults stores only the launch request token and route metadata. The manifest must be revisited if any telemetry, crash reporting, support upload, cloud sync, cloud AI, hosted curriculum refresh, account, analytics feature, or additional required-reason API is added.
 
 ## Reviewer caveat
 This privacy conclusion is invalid if future changes add developer-accessible data collection, cloud services, account identifiers, analytics, telemetry, remote support uploads, or runtime curriculum downloads.

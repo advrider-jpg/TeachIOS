@@ -9,6 +9,8 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "swift.yml"
 CORE_SCREENSHOTS_WORKFLOW = ROOT / ".github" / "workflows" / "core-page-screenshots.yml"
+APP_FILE = ROOT / "GradeDraft" / "GradeDraftApp.swift"
+UI_TEST_FILE = ROOT / "GradeDraftUITests" / "GradeDraftCoreLaneUITests.swift"
 
 
 def require(condition: bool, failures: list[str], message: str) -> None:
@@ -36,6 +38,8 @@ def job_block(text: str, job_name: str) -> str:
 def main() -> int:
     text = WORKFLOW.read_text(encoding="utf-8")
     screenshot_text = CORE_SCREENSHOTS_WORKFLOW.read_text(encoding="utf-8")
+    app_text = APP_FILE.read_text(encoding="utf-8")
+    ui_test_text = UI_TEST_FILE.read_text(encoding="utf-8")
     failures: list[str] = []
     required_jobs = [
         "static-policy",
@@ -43,6 +47,7 @@ def main() -> int:
         "swiftlint",
         "xcode-unit-tests",
         "screenshot-smoke",
+        "ui-smoke",
         "release-build",
         "unsigned-archive-validation",
         "ci-summary",
@@ -70,6 +75,7 @@ def main() -> int:
     require("scripts/export_hardening_scan.py" in text, failures, "Export-hardening guardrail must run directly.")
     require("scripts/ci/bad_string_scan.py" in text, failures, "Bad string scan must run from a script.")
     require("scripts/ci/check_native_ui_refactor.py" in text, failures, "Native UI refactor guardrail must run.")
+    require("scripts/ci/check_route_and_export_truthfulness.py" in text, failures, "Route/export truthfulness guardrail must run.")
     require("scripts/ci/check_xcode_project_membership.py" in text, failures, "Xcode project membership scan must run.")
     require("scripts/ci/check_ci_contract.py" in text, failures, "CI contract scan must run.")
     require("scripts/curriculum/build_acara_curriculum_catalog.py --check" in text, failures, "Curriculum generator check must run.")
@@ -88,13 +94,23 @@ def main() -> int:
 
     unit = job_block(text, "xcode-unit-tests")
     screenshot = job_block(text, "screenshot-smoke")
+    ui_smoke = job_block(text, "ui-smoke")
     release = job_block(text, "release-build")
     unsigned_archive = job_block(text, "unsigned-archive-validation")
     require("continue-on-error: true" not in unit, failures, "Deterministic Xcode tests must not use broad continue-on-error.")
     require("-skip-testing:GradeDraftTests/GradeDraftScreenshotTests" in unit, failures, "Deterministic Xcode tests must skip screenshot tests.")
+    require("-skip-testing:GradeDraftUITests" in unit, failures, "Deterministic Xcode tests must skip app-driving UI tests.")
     require("ARCHS=arm64" in unit, failures, "Deterministic Xcode tests must pin simulator builds to arm64.")
     require("-only-testing:GradeDraftTests/GradeDraftScreenshotTests" in screenshot, failures, "Screenshot job must only run screenshot tests.")
     require("ARCHS=arm64" in screenshot, failures, "Screenshot tests must pin simulator builds to arm64.")
+    require("-only-testing:GradeDraftUITests/GradeDraftCoreLaneUITests" in ui_smoke, failures, "UI smoke job must only run the app-driving core lane tests.")
+    require("ARCHS=arm64" in ui_smoke, failures, "UI smoke tests must pin simulator builds to arm64.")
+    require("contains(github.event.pull_request.labels.*.name, 'ui-smoke')" not in ui_smoke, failures, "UI smoke must run as an ordinary PR gate, not only behind a label.")
+    summary = job_block(text, "ci-summary")
+    require("${{ needs.ui-smoke.result }}" in summary.split("for required in", 1)[-1], failures, "CI summary must fail when the PR-required UI smoke job fails.")
+    require("--ui-smoke-test" in ui_test_text, failures, "UI smoke test must launch the app with the deterministic smoke-test argument.")
+    require("--ui-smoke-test" in app_text, failures, "The app must handle the deterministic UI smoke-test launch argument.")
+    require("uiSmokeAssignments()" in app_text, failures, "The app must seed deterministic non-exported UI smoke assignments only for UI smoke tests.")
     require("CODE_SIGNING_ALLOWED=NO" in release, failures, "Release build must disable signing for CI.")
     require("configuration Release" in release or "-configuration Release" in release, failures, "Release build must use Release configuration.")
     require("CODE_SIGNING_ALLOWED=NO" in unsigned_archive, failures, "Unsigned archive validation must disable signing for CI.")
@@ -116,6 +132,7 @@ def main() -> int:
         "screenshots/*.png",
         "xcode-unit-tests-output",
         "xcode-screenshot-smoke-output",
+        "xcode-ui-smoke-output",
         "xcode-release-build-output",
         "xcode-unsigned-archive-output",
     ]

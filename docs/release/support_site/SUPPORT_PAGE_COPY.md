@@ -25,8 +25,8 @@ Student work is not sent to us for marking. It stays on your device unless you e
 
 ## Contact details
 
-Email: replace@example.com
+Release status: support contact is not configured. Do not publish this page until a real contact channel is available.
 
-Phone: replace before release
+Phone: NOT CONFIGURED - blocks publication.
 
-Postal address: replace before release
+Postal address: NOT CONFIGURED - blocks publication.

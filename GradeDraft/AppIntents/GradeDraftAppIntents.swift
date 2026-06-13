@@ -311,7 +311,7 @@ struct AddPastedStudentWorkIntent: AppIntent {
         guard let assignmentID = AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText) else {
             return .result(dialog: "Choose an assignment before saving pasted student work. MarkForMe did not change any student work.")
         }
-        AppLaunchRequestStore.save(
+        let saved = AppLaunchRequestStore.save(
             AppLaunchRequest(
                 destination: .studentWork,
                 assignmentID: assignmentID,
@@ -319,6 +319,9 @@ struct AddPastedStudentWorkIntent: AppIntent {
                 payloadText: trimmed
             )
         )
+        guard saved else {
+            return .result(dialog: "MarkForMe could not stage the pasted student work locally. No student work was changed.")
+        }
         return .result(dialog: "Opening MarkForMe to save pasted student work locally. No grade is generated.")
     }
 }

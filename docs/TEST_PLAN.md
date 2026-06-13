@@ -8,7 +8,7 @@ The XCTest files cover the full v3 source-implemented feature set:
 - missing-rubric and missing-student-text validation;
 - unreviewed-OCR grading gates;
 - OCR quality summaries for low-confidence, unconfirmed, confirmed, and rejected lines;
-- OCR line edit, confirm, reject, page review, document review, and stale draft/final reset behavior;
+- OCR line edit, confirm, reject, page review, document review, stale draft/final reset behavior, unchanged-edit no-op persistence, and staged editor commits instead of saving every keystroke;
 - side-by-side OCR data state: selected page behavior, page/line status, source refs, and bounding boxes;
 - per-line OCR evidence linking, manual evidence entry, remove/clear behavior, and evidence/source-ref alignment;
 - student report exclusion of private teacher notes, raw model output, source refs, and internal bounding boxes;
@@ -17,13 +17,14 @@ The XCTest files cover the full v3 source-implemented feature set:
 - PDF student export gating before teacher-approved final review;
 - ZIP teacher archive, assignment gradebook archive, and full backup archive contents;
 - full backup manifest counts, safe archive paths, restore preview, conflict handling, restore-as-copy, and source-file restoration;
-- PDF import metadata construction and source records, with runtime PDF rendering validation reserved for Xcode/iOS SDK tooling;
+- PDF import metadata construction, mixed digital/scanned page planning, source records, and empty-page preservation when OCR returns no text, with runtime PDF rendering validation reserved for Xcode/iOS SDK tooling;
 - Markdown rubric parsing for headings, bullets, numbered criteria, tables, point ranges, levels/bands, duplicate detection, stable IDs, warnings, and preview fallback;
 - normalized GRDB save/load from normalized rows after compatibility payload rows are removed;
 - legacy JSON migration into normalized tables;
 - evidence refs, OCR lines, final reviews, roster data, and curriculum mappings persistence;
 - roster CSV preview, duplicate name/identifier detection, rejected rows, class/student creation, assignment roster creation, status matrix, and gradebook CSV;
-- curriculum catalog load/filter/map, provenance in reports, prompt inclusion, and absence of endorsement/compliance claims;
+- curriculum catalog load/filter/map, indexed ID lookup, indexed search/filter parity, provenance in reports, prompt inclusion, and absence of endorsement/compliance claims;
+- curriculum catalog resource-size guardrails for the compact runtime shell, search index, and bounded shards so the prior monolithic payload cannot quietly return;
 - PromptBuilder safety rules, prompt field usage, v2 authority boundaries, and model-visible identity redaction;
 - custom teacher-instruction linting for unsafe rubric override, full-marks, effort, handwriting, student-background, no-evidence, and final-grade instructions;
 - AI readiness and packet preview behavior, including prompt-injection risk flags, token budget plan summaries, redacted technical prompt previews, prompt version, and packet/prompt fingerprints;
@@ -34,12 +35,15 @@ The XCTest files cover the full v3 source-implemented feature set:
 - rubric readiness warnings for duplicate criteria, raw/unstructured rubric states, contradictory instructions, non-textual judgment, and summative review friction;
 - local feedback rewrite validation and view-model persistence, including no approval-state change after a rewrite;
 - pending App Intent launch request storage and one-time consumption for safe app handoff, including payload persistence for pasted student work and AI Readiness launch preparation;
+- pending App Intent launch request storage that keeps raw pasted student text out of `UserDefaults` by staging payload text in a protected transient local file;
 - App Intent assignment-entity safety through `scripts/ci/check_app_intents_safety.py`, including foreground-only workflow intents, no unsafe approval/export/upload/background-grade intent names, and no assignment entity display of student/class metadata;
 - Shortcut-driven pasted student work, manual-review start, and recommended AI constraint application through real view-model state transitions;
 - final-review criterion accept/reject actions, including score clamping, unapproved rejection state, and continued final-approval gating;
 - prohibited UI label checks and no-cloud-fallback copy;
 - final-review approval gates, stale review blocking, criterion add/delete, totals recalculation, and manual grading path;
 - export records and sensitivity/source-inclusion flags;
+- route/export truthfulness checks for stale assignment IDs, scoped rubric previews, prepared export artifacts, shared export-risk policy, clipboard-sensitive export policy, and student-facing export completion based only on real student report files;
+- shared action-button Dynamic Type source guard ensuring primary/secondary labels use a reusable multiline label and allow unlimited wrapping at accessibility text sizes;
 - delete assignment persistence behavior, including persisted roster cleanup for deleted assignments and deleted students;
 - roster storage replacement semantics across GRDB and JSON fallback stores, corrupt JSON sidecar visibility, and roster CSV creation preserving existing roster rows;
 - restore confirmation failure handling when related class, student, or roster records cannot be persisted;
@@ -62,6 +66,7 @@ python3 scripts/ci/check_local_ai_tools.py
 python3 scripts/ci/check_ai_prompt_safety.py
 python3 scripts/ci/check_ai_batch_readiness.py
 python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_route_and_export_truthfulness.py
 python3 scripts/ci/check_native_ui_refactor.py
 python3 scripts/ci/check_release_readiness_static.py
 python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
@@ -80,6 +85,7 @@ Required PR jobs:
 - `workflow-lint`
 - `swiftlint`
 - `xcode-unit-tests`
+- `ui-smoke`
 
 Main, scheduled, manual, or labeled deeper checks:
 
@@ -134,6 +140,7 @@ Run in Xcode 26+ on macOS with iOS SDK:
 - Run unit tests.
 - Run the deterministic CI XCTest command while skipping screenshot tests.
 - Run core page screenshot tests separately and inspect uploaded PNG artifacts.
+- Run `GradeDraftUITests/GradeDraftCoreLaneUITests` as app-driving smoke coverage and inspect the `.xcresult` for real launch/navigation/export-gate behavior.
 - Run an unsigned Release build with `CODE_SIGNING_ALLOWED=NO`.
 - Confirm Foundation Models API calls compile against the installed SDK.
 - Confirm the AI readiness and packet preview surfaces render correctly before local draft generation.
@@ -157,6 +164,8 @@ Run in Xcode 26+ on macOS with iOS SDK:
 - Curriculum browse/filter -> map item -> prompt/report provenance.
 - Full local backup -> restore preview -> restore as copy/keep local/replace local -> source file restored.
 - Airplane-mode local flow: no network capability is required.
+- App-driving UI smoke: launch with `--ui-smoke-test` -> seed a deterministic non-exported local assignment -> navigate Home/Assignments/Exports -> confirm export share controls do not appear when no export artifact exists.
+- Native UI snapshot smoke: host each core SwiftUI screen in a temporary window and confirm a native `List`/`Form`-backed rendered hierarchy exists, then compare deterministic section/control summaries.
 
 ## Local AI evaluation fixtures
 
@@ -171,7 +180,7 @@ The prompt and readiness test set should include:
 - local tool fixtures expecting assignment-scoped read-only matches and explicit forbidden action names;
 - structured local tool fixtures expecting source-labeled snippets, call-limit failures, output truncation, and audit metadata;
 - feedback rewrite fixtures expecting no score/evidence mutation and deterministic rejection of final-grade or prohibited-inference language;
-- App Intent handoff fixtures expecting one-time pending launch request consumption, payload round trip, and visible in-app failure for invalid assignment IDs or missing pasted text;
+- App Intent handoff fixtures expecting one-time pending launch request consumption, raw pasted payload absence from `UserDefaults`, payload round trip, and visible in-app failure for invalid assignment IDs or missing pasted text;
 - local AI evaluation fixtures expecting deterministic preflight checks, no model attempt in CI, identity-redaction checks, required category coverage, and anonymized report metadata;
 - prohibited inference language expecting deterministic validation rejection; and
 - custom teacher-instruction lint fixtures expecting teacher-review warnings but no automatic final-grade path; and
@@ -223,3 +232,20 @@ The second-pass hardening layer adds or updates tests for:
 - rejection of symlink source files before teacher archive hashing or ZIP inclusion;
 - teacher archive failure when an included source reference is missing rather than silently producing an incomplete sensitive archive; and
 - backup restore preview fingerprint checking so a staged archive cannot be swapped between preview and confirmation without a visible failure.
+
+## Ridiculously-close audit follow-up coverage added on 2026-06-12
+
+The audit follow-up layer adds or updates tests/checks for:
+
+- fail-closed routed assignment screens and prepared export artifacts;
+- GRDB round trips for rubric import mode, confirmed parsed rubrics, OCR document metadata, OCR review status, empty OCR pages, and page dimensions;
+- low-confidence OCR line review blocking for bulk document/page review;
+- mixed-PDF planner coverage proving digital-text pages and OCR-recognized scanned pages are merged at their original page indexes;
+- final-review evidence edits not stale-locking the source fingerprint while still requiring criterion re-approval;
+- App Intent pasted payload staging outside `UserDefaults`;
+- bundle export failure on missing requested source files;
+- backup JSON clipboard affordance removal from the export screen;
+- shared export-risk summary coverage so ViewModel export state and confirmation sheets do not drift;
+- OCR correction no-op commits not causing durable saves or audit noise; and
+- native UI tests checking rendered container hierarchy in addition to source summaries; and
+- shared primary/secondary action-button source coverage for Dynamic Type wrapping behavior, with runtime XXL screenshots still reserved for Xcode/simulator validation.

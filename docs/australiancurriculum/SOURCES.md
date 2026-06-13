@@ -33,4 +33,4 @@
 
 ## Bundled catalog source notes — 2026-05-31
 
-The production catalog generator preserves MRAC JSON-LD source URLs for all 18 source families and records the source mode in `curriculum_catalog_acara_v9_manifest.json`. The committed catalog was generated from `docs/australiancurriculum/curriculum-workbook.xlsx` because direct MRAC JSON-LD refresh could not be completed in this Linux environment. Before TestFlight or App Store submission, rerun the generator on a network-enabled developer machine and review the manifest/source checksums.
+The production catalog generator preserves MRAC JSON-LD source URLs for all 18 source families and records the source mode in `curriculum_catalog_acara_v9_manifest.json`. The committed catalog was generated from `docs/australiancurriculum/curriculum-workbook.xlsx` because direct MRAC JSON-LD refresh could not be completed in the implementation environment. Before TestFlight or App Store submission, rerun the generator on a network-enabled developer machine and review the manifest/source checksums.

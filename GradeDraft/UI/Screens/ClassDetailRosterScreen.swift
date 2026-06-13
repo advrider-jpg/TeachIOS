@@ -85,9 +85,10 @@ struct ClassDetailRosterScreen: View {
                                     .frame(minHeight: GradeDraftLayout.minimumTapTarget)
                             }
                             .buttonStyle(.bordered)
-                            if let url = viewModel.exportURL {
-                                ShareLink(item: url) {
-                                    Label("Share Last Export", systemImage: "square.and.arrow.up")
+                            if let artifact = viewModel.preparedExportArtifact,
+                               artifact.kind == .csvGradebook || artifact.kind == .assignmentGradebookArchive {
+                                ShareLink(item: artifact.url) {
+                                    Label("Share \(artifact.displayName)", systemImage: "square.and.arrow.up")
                                         .frame(minHeight: GradeDraftLayout.minimumTapTarget)
                                 }
                             }

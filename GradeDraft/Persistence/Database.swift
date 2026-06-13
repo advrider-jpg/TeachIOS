@@ -229,6 +229,7 @@ final class GradeDraftDatabase {
         try databaseQueue.write { db in
             try db.execute(sql: "DELETE FROM grade_draft_ocr_lines WHERE assignment_id = ?", arguments: [assignmentID.uuidString])
             try db.execute(sql: "DELETE FROM ocr_pages WHERE student_work_id = ?", arguments: [assignmentID.uuidString])
+            try db.execute(sql: "DELETE FROM ocr_documents WHERE student_work_id = ?", arguments: [assignmentID.uuidString])
             try saveOCRDocumentRows(document, assignmentID: assignmentID.uuidString, in: db)
         }
     }
@@ -331,7 +332,7 @@ final class GradeDraftDatabase {
         let tables = [
             "grade_draft_draft_criteria", "grade_draft_drafts", "grade_draft_final_criteria", "grade_draft_final_reviews",
             "grade_draft_evidence_references", "grade_draft_curriculum_mappings", "grade_draft_export_records",
-            "grade_draft_audit_events", "grade_draft_ocr_lines", "ocr_pages", "grade_draft_source_inputs",
+            "grade_draft_audit_events", "grade_draft_ocr_lines", "ocr_pages", "ocr_documents", "grade_draft_source_inputs",
             "assignment_roster_entries", "grade_draft_assignments", "grade_draft_assignment_records",
             "class_students", "students", "class_groups"
         ]
@@ -348,14 +349,15 @@ final class GradeDraftDatabase {
         try db.execute(sql: """
         INSERT INTO grade_draft_assignments (
             id, class_group_id, student_id, title, prompt, subject, grade_level, class_name, student_display_name,
-            assignment_type, assessment_purpose, curriculum_reference, rubric_text, custom_instructions, selected_instruction_template_ids_json, answer_key_text,
+            assignment_type, assessment_purpose, curriculum_reference, rubric_text, rubric_import_mode, confirmed_parsed_rubric_json, custom_instructions, selected_instruction_template_ids_json, answer_key_text,
             exemplar_text, formative_focus_text, reviewed_student_text, ocr_review_status, ocr_reviewed_at, grading_packet_fingerprint,
             applied_templates_json, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET class_group_id = excluded.class_group_id, student_id = excluded.student_id, title = excluded.title,
         prompt = excluded.prompt, subject = excluded.subject, grade_level = excluded.grade_level, class_name = excluded.class_name,
         student_display_name = excluded.student_display_name, assignment_type = excluded.assignment_type, assessment_purpose = excluded.assessment_purpose,
-        curriculum_reference = excluded.curriculum_reference, rubric_text = excluded.rubric_text, custom_instructions = excluded.custom_instructions,
+        curriculum_reference = excluded.curriculum_reference, rubric_text = excluded.rubric_text, rubric_import_mode = excluded.rubric_import_mode,
+        confirmed_parsed_rubric_json = excluded.confirmed_parsed_rubric_json, custom_instructions = excluded.custom_instructions,
         selected_instruction_template_ids_json = excluded.selected_instruction_template_ids_json,
         answer_key_text = excluded.answer_key_text, exemplar_text = excluded.exemplar_text, formative_focus_text = excluded.formative_focus_text,
         reviewed_student_text = excluded.reviewed_student_text, ocr_review_status = excluded.ocr_review_status,
@@ -364,7 +366,8 @@ final class GradeDraftDatabase {
         """, arguments: [
             id, assignment.classGroupID?.uuidString, assignment.studentID?.uuidString, assignment.title, assignment.prompt ?? "",
             assignment.subject, assignment.gradeLevel, assignment.className, assignment.studentDisplayName, assignment.assignmentType.rawValue,
-            assignment.assessmentPurpose.rawValue, assignment.curriculumReference, assignment.rubricText, assignment.customInstructions,
+            assignment.assessmentPurpose.rawValue, assignment.curriculumReference, assignment.rubricText, assignment.rubricImportMode.rawValue,
+            assignment.confirmedParsedRubric.map { try jsonString($0) }, assignment.customInstructions,
             try jsonString(assignment.selectedInstructionTemplateIDs), assignment.answerKeyText, assignment.exemplarText,
             assignment.formativeFocusText, assignment.reviewedStudentText,
             assignment.ocrReviewStatus.rawValue, assignment.ocrReviewedAt.map { iso8601.string(from: $0) }, assignment.gradingPacketFingerprint,
@@ -388,6 +391,15 @@ final class GradeDraftDatabase {
     }
 
     private func saveOCRDocumentRows(_ document: OCRDocument, assignmentID: String, in db: Database) throws {
+        try db.execute(sql: """
+        INSERT INTO ocr_documents (id, student_work_id, engine, engine_version, review_status, created_at, reviewed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET engine = excluded.engine, engine_version = excluded.engine_version,
+        review_status = excluded.review_status, reviewed_at = excluded.reviewed_at
+        """, arguments: [
+            document.id.uuidString, assignmentID, document.engine, document.engineVersion, document.reviewStatus.rawValue,
+            iso8601.string(from: document.createdAt), document.reviewedAt.map { iso8601.string(from: $0) }
+        ])
         for page in document.pages {
             try db.execute(sql: """
             INSERT INTO ocr_pages (id, ocr_document_id, student_work_id, source_input_id, page_index, width, height, created_at)
@@ -478,6 +490,10 @@ final class GradeDraftDatabase {
                 studentDisplayName: text(row, "student_display_name"),
                 assignmentType: AssignmentType(rawValue: text(row, "assignment_type")) ?? .shortAnswer,
                 rubricText: text(row, "rubric_text"),
+                rubricImportMode: RubricImportMode(rawValue: text(row, "rubric_import_mode", defaultValue: "automatic")) ?? .automatic,
+                confirmedParsedRubric: optionalText(row, "confirmed_parsed_rubric_json").flatMap { value in
+                    decodeJSONString(value, defaultValue: ParsedRubric?.none)
+                },
                 customInstructions: text(row, "custom_instructions"),
                 selectedInstructionTemplateIDs: decodeJSONString(text(row, "selected_instruction_template_ids_json", defaultValue: "[]"), defaultValue: [String]()),
                 answerKeyText: text(row, "answer_key_text"),
@@ -530,31 +546,64 @@ final class GradeDraftDatabase {
     }
 
     private func loadOCRDocument(assignmentID: String, in db: Database) throws -> OCRDocument? {
-        let rows = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_ocr_lines WHERE assignment_id = ? ORDER BY page_index, rowid", arguments: [assignmentID])
-        guard !rows.isEmpty else { return nil }
-        let grouped = Dictionary(grouping: rows) { text($0, "page_id") }
-        let pages: [OCRPage] = grouped.values.map { pageRows in
-            let first = pageRows[0]
-            let lines = pageRows.map { row in
-                OCRLine(
-                    id: uuid(row, "id"),
-                    text: text(row, "raw_text"),
-                    confidence: Float(double(row, "confidence")),
-                    boundingBox: NormalizedRect(x: CGFloat(double(row, "bbox_x")), y: CGFloat(double(row, "bbox_y")), width: CGFloat(double(row, "bbox_width")), height: CGFloat(double(row, "bbox_height"))),
-                    correctedText: optionalText(row, "corrected_text"),
-                    teacherConfirmed: bool(row, "teacher_confirmed"),
-                    isRejected: bool(row, "is_rejected")
+        let documentRow = try Row.fetchOne(db, sql: "SELECT * FROM ocr_documents WHERE student_work_id = ? ORDER BY created_at DESC LIMIT 1", arguments: [assignmentID])
+        let pageRows = try Row.fetchAll(db, sql: "SELECT * FROM ocr_pages WHERE student_work_id = ? ORDER BY page_index", arguments: [assignmentID])
+        let lineRows = try Row.fetchAll(db, sql: "SELECT * FROM grade_draft_ocr_lines WHERE assignment_id = ? ORDER BY page_index, rowid", arguments: [assignmentID])
+        guard documentRow != nil || !pageRows.isEmpty || !lineRows.isEmpty else { return nil }
+        let groupedLines = Dictionary(grouping: lineRows) { text($0, "page_id") }
+        let pages: [OCRPage]
+        if !pageRows.isEmpty {
+            pages = pageRows.map { pageRow in
+                let pageID = text(pageRow, "id")
+                return OCRPage(
+                    id: uuid(pageRow, "id"),
+                    sourceInputID: optionalUUID(pageRow, "source_input_id"),
+                    pageIndex: int(pageRow, "page_index"),
+                    imageWidth: optionalDouble(pageRow, "width"),
+                    imageHeight: optionalDouble(pageRow, "height"),
+                    lines: ocrLines(from: groupedLines[pageID] ?? [])
                 )
             }
-            return OCRPage(
-                id: uuid(first, "page_id"),
-                sourceInputID: optionalUUID(first, "source_input_id"),
-                pageIndex: int(first, "page_index"),
-                lines: lines
+        } else {
+            pages = Dictionary(grouping: lineRows) { text($0, "page_id") }
+                .values
+                .map { pageRows in
+                    let first = pageRows[0]
+                    return OCRPage(
+                        id: uuid(first, "page_id"),
+                        sourceInputID: optionalUUID(first, "source_input_id"),
+                        pageIndex: int(first, "page_index"),
+                        lines: ocrLines(from: pageRows)
+                    )
+                }
+                .sorted { $0.pageIndex < $1.pageIndex }
+        }
+        guard let documentRow else {
+            return OCRDocument(pages: pages, reviewStatus: pages.flatMap(\.lines).contains { $0.needsReview } ? .needsReview : .reviewed)
+        }
+        return OCRDocument(
+            id: uuid(documentRow, "id"),
+            engine: text(documentRow, "engine", defaultValue: "Apple Vision"),
+            engineVersion: text(documentRow, "engine_version", defaultValue: "system"),
+            pages: pages,
+            createdAt: date(documentRow, "created_at"),
+            reviewStatus: OCRReviewStatus(rawValue: text(documentRow, "review_status", defaultValue: "needsReview")) ?? .needsReview,
+            reviewedAt: optionalDate(documentRow, "reviewed_at")
+        )
+    }
+
+    private func ocrLines(from rows: [Row]) -> [OCRLine] {
+        rows.map { row in
+            OCRLine(
+                id: uuid(row, "id"),
+                text: text(row, "raw_text"),
+                confidence: Float(double(row, "confidence")),
+                boundingBox: NormalizedRect(x: CGFloat(double(row, "bbox_x")), y: CGFloat(double(row, "bbox_y")), width: CGFloat(double(row, "bbox_width")), height: CGFloat(double(row, "bbox_height"))),
+                correctedText: optionalText(row, "corrected_text"),
+                teacherConfirmed: bool(row, "teacher_confirmed"),
+                isRejected: bool(row, "is_rejected")
             )
-        }.sorted { $0.pageIndex < $1.pageIndex }
-        let document = OCRDocument(pages: pages, reviewStatus: pages.flatMap(\.lines).contains { $0.needsReview } ? .needsReview : .reviewed)
-        return document
+        }
     }
 
     private func loadLatestDraft(assignmentID: String, in db: Database) throws -> GradeDraftResult? {
@@ -699,6 +748,7 @@ final class GradeDraftDatabase {
             try db.execute(sql: "DELETE FROM assignment_roster_entries WHERE assignment_id = ?", arguments: [id])
         }
         try db.execute(sql: "DELETE FROM ocr_pages WHERE student_work_id = ?", arguments: [id])
+        try db.execute(sql: "DELETE FROM ocr_documents WHERE student_work_id = ?", arguments: [id])
         if !keepPayload { try db.execute(sql: "DELETE FROM grade_draft_assignment_records WHERE id = ?", arguments: [id]) }
         try db.execute(sql: "DELETE FROM grade_draft_assignments WHERE id = ?", arguments: [id])
     }
@@ -743,6 +793,13 @@ final class GradeDraftDatabase {
             try self.addColumnIfNeeded(db, table: "grade_draft_drafts", column: "local_model_audit_json", definition: "TEXT")
             try self.migrateLegacyPayloads(in: db)
         }
+        migrator.registerMigration("008_rubric_and_ocr_metadata_roundtrip") { db in
+            try self.createCoreTables(in: db)
+            try self.createProductTables(in: db)
+            try self.addColumnIfNeeded(db, table: "grade_draft_assignments", column: "rubric_import_mode", definition: "TEXT NOT NULL DEFAULT 'automatic'")
+            try self.addColumnIfNeeded(db, table: "grade_draft_assignments", column: "confirmed_parsed_rubric_json", definition: "TEXT")
+            try self.migrateLegacyPayloads(in: db)
+        }
     }
 
     private func createCoreTables(in db: Database) throws {
@@ -752,7 +809,7 @@ final class GradeDraftDatabase {
             id TEXT PRIMARY KEY, class_group_id TEXT, student_id TEXT, title TEXT NOT NULL, prompt TEXT NOT NULL DEFAULT '',
             subject TEXT NOT NULL, grade_level TEXT NOT NULL, class_name TEXT NOT NULL DEFAULT '', student_display_name TEXT NOT NULL DEFAULT '',
             assignment_type TEXT NOT NULL, assessment_purpose TEXT NOT NULL DEFAULT 'summative', curriculum_reference TEXT NOT NULL DEFAULT '',
-            rubric_text TEXT NOT NULL DEFAULT '', custom_instructions TEXT NOT NULL DEFAULT '', selected_instruction_template_ids_json TEXT NOT NULL DEFAULT '[]', answer_key_text TEXT NOT NULL DEFAULT '',
+            rubric_text TEXT NOT NULL DEFAULT '', rubric_import_mode TEXT NOT NULL DEFAULT 'automatic', confirmed_parsed_rubric_json TEXT, custom_instructions TEXT NOT NULL DEFAULT '', selected_instruction_template_ids_json TEXT NOT NULL DEFAULT '[]', answer_key_text TEXT NOT NULL DEFAULT '',
             exemplar_text TEXT NOT NULL DEFAULT '', formative_focus_text TEXT NOT NULL DEFAULT '', reviewed_student_text TEXT NOT NULL DEFAULT '',
             ocr_review_status TEXT NOT NULL DEFAULT 'notNeeded', ocr_reviewed_at TEXT, grading_packet_fingerprint TEXT NOT NULL DEFAULT '',
             applied_templates_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL

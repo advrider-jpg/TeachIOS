@@ -219,6 +219,54 @@ final class AppleIntelligenceImplementationTests: XCTestCase {
         XCTAssertTrue(report.rows[0].blockers.joined(separator: " ").contains("Local AI availability"))
     }
 
+    func testBatchReadinessBlocksQueueWithoutBudgetPlan() throws {
+        var assignment = sampleAssignment()
+        assignment.assessmentPurpose = .formative
+
+        let report = AIBatchReadinessAnalyzer.report(
+            for: [assignment],
+            localAIStatus: .available,
+            budgetPlans: [:]
+        )
+
+        XCTAssertEqual(report.readyCount, 0)
+        XCTAssertEqual(report.blockedCount, 1)
+        XCTAssertFalse(report.canStartQueue)
+        XCTAssertFalse(report.rows[0].canQueueDraft)
+        XCTAssertTrue(report.rows[0].blockers.joined(separator: " ").contains("Packet budget"))
+    }
+
+    func testBatchReadinessBlocksQueueWithUnavailableBudgetPlan() throws {
+        var assignment = sampleAssignment()
+        assignment.assessmentPurpose = .formative
+        let blockedPlan = PromptBudgetPlan(
+            mode: .unavailable,
+            report: PromptBudgetReport(
+                contextSizeTokens: 128,
+                fullPacketTokens: nil,
+                compactPacketTokens: nil,
+                perCriterionTokenCounts: [:],
+                selectedMode: .unavailable,
+                reservedOutputTokens: 0,
+                promptFingerprint: StableFingerprint.fingerprint([assignment.gradingInput.packetFingerprint, "unavailable"]),
+                warnings: ["Packet exceeds the local model budget."]
+            )
+        )
+
+        let report = AIBatchReadinessAnalyzer.report(
+            for: [assignment],
+            localAIStatus: .available,
+            budgetPlans: [assignment.id: blockedPlan]
+        )
+
+        XCTAssertEqual(report.readyCount, 0)
+        XCTAssertEqual(report.blockedCount, 1)
+        XCTAssertFalse(report.canStartQueue)
+        XCTAssertFalse(report.rows[0].canQueueDraft)
+        XCTAssertEqual(report.rows[0].plannedGenerationMode, .unavailable)
+        XCTAssertTrue(report.rows[0].blockers.joined(separator: " ").contains("too large or unavailable"))
+    }
+
     func testReadOnlyLocalAIToolsAreAssignmentScopedAndBounded() {
         var input = sampleInput(
             reviewedText: "Clear claim\nUnrelated line\nClear evidence",
@@ -342,6 +390,25 @@ final class AppleIntelligenceImplementationTests: XCTestCase {
         let request = AppLaunchRequest(destination: .packetPreview, assignmentID: UUID(), action: .preparePacketPreview)
 
         AppLaunchRequestStore.save(request, defaults: defaults)
+
+        XCTAssertEqual(AppLaunchRequestStore.consume(defaults: defaults), request)
+        XCTAssertNil(AppLaunchRequestStore.consume(defaults: defaults))
+    }
+
+    func testPendingLaunchRequestStoresPastedPayloadOutsideUserDefaults() throws {
+        let defaults = UserDefaults(suiteName: "GradeDraftTests.\(UUID().uuidString)")!
+        let sensitiveText = "student response sentinel that must not be stored in defaults"
+        let request = AppLaunchRequest(
+            destination: .studentWork,
+            assignmentID: UUID(),
+            action: .applyPastedStudentText,
+            payloadText: sensitiveText
+        )
+
+        XCTAssertTrue(AppLaunchRequestStore.save(request, defaults: defaults))
+        let storedData = try XCTUnwrap(defaults.data(forKey: AppLaunchRequestStore.storageKey))
+        let storedJSON = String(data: storedData, encoding: .utf8) ?? ""
+        XCTAssertFalse(storedJSON.contains(sensitiveText))
 
         XCTAssertEqual(AppLaunchRequestStore.consume(defaults: defaults), request)
         XCTAssertNil(AppLaunchRequestStore.consume(defaults: defaults))

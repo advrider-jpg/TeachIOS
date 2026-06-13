@@ -1,8 +1,10 @@
 # Privacy policy draft
 
-Last updated: 2026-06-08
+Release status: blocked. Do not publish this policy until the release owner supplies the final effective date, legal owner, contact channel, support URL, and privacy policy URL.
 
-Replace the date, contact details and legal owner before release.
+Effective date: NOT CONFIGURED - blocks publication.
+
+Legal owner: NOT CONFIGURED - blocks publication.
 
 ## Summary
 
@@ -54,8 +56,8 @@ Teachers should follow their school policy before entering student information i
 
 ## Contact
 
-Email: replace@example.com
+Release status: privacy contact is not configured. Do not publish this policy until a real contact channel is available.
 
-Phone: replace before release
+Phone: NOT CONFIGURED - blocks publication.
 
-Postal address: replace before release
+Postal address: NOT CONFIGURED - blocks publication.

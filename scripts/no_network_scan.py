@@ -40,8 +40,12 @@ PACKAGE_DOCS_ALLOWLIST = {
 }
 CURRICULUM_PROVENANCE_ALLOWLIST = {
     pathlib.Path("GradeDraft/Resources/JSON/curriculum_catalog_acara_v9.json"),
+    pathlib.Path("GradeDraft/Resources/JSON/curriculum_catalog_acara_v9_index.json"),
     pathlib.Path("GradeDraft/Resources/JSON/curriculum_catalog_acara_v9_manifest.json"),
     pathlib.Path("GradeDraft/Resources/JSON/curriculum_catalog_acara_v9_summary.json"),
+}
+CURRICULUM_PROVENANCE_PREFIXES = {
+    pathlib.Path("GradeDraft/Resources/JSON/CurriculumShards"),
 }
 PBX_REPO_PATTERN = re.compile(r"^\s*repositoryURL\s*=")
 APPLE_PLIST_DTD_PATTERN = re.compile(r"https?://www\.apple\.com/DTDs/PropertyList-1\.0\.dtd")
@@ -70,7 +74,7 @@ for path in ROOT.rglob("*"):
             continue
         if rel in PACKAGE_DOCS_ALLOWLIST and "github.com/" in line:
             continue
-        if rel in CURRICULUM_PROVENANCE_ALLOWLIST:
+        if rel in CURRICULUM_PROVENANCE_ALLOWLIST or any(prefix in rel.parents for prefix in CURRICULUM_PROVENANCE_PREFIXES):
             # These generated resources may contain official provenance URLs and
             # ordinary curriculum vocabulary that collides with product-blocked
             # analytics/network terms. Runtime Swift code remains scanned below.

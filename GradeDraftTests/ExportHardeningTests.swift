@@ -290,4 +290,32 @@ final class ViewModelExportHardeningTests: XCTestCase {
         XCTAssertFalse(detail.contains(ExportFixtureFactory.privateTeacherNote))
         XCTAssertFalse(detail.contains(FileManager.default.temporaryDirectory.path))
     }
+
+    @MainActor
+    func testExportsBlockWithoutSelectedSavedAssignmentBeforeCreatingArtifact() {
+        let actions: [(String, (GradeDraftViewModel) -> Void)] = [
+            ("student markdown", { $0.exportStudentReport() }),
+            ("student pdf", { $0.exportStudentPDF() }),
+            ("teacher markdown", { $0.exportTeacherAuditReport() }),
+            ("teacher pdf", { $0.exportTeacherAuditPDF() }),
+            ("gradebook csv", { $0.exportCSVGradebook() }),
+            ("gradebook archive", { $0.exportGradebookArchive() }),
+            ("teacher archive", { $0.exportArchiveBundle() }),
+            ("full backup", { $0.exportBackupJSON() })
+        ]
+
+        for (label, action) in actions {
+            let assignment = ExportFixtureFactory.sensitiveApprovedAssignment()
+            let viewModel = GradeDraftViewModel(assignments: [assignment], store: InMemoryAssignmentStore(assignments: [assignment]))
+
+            XCTAssertFalse(viewModel.selectAssignment(UUID()), label)
+            action(viewModel)
+
+            XCTAssertNil(viewModel.exportURL, label)
+            XCTAssertNil(viewModel.exportKind, label)
+            XCTAssertNil(viewModel.preparedExportArtifact, label)
+            XCTAssertEqual(viewModel.assignments.first?.exportRecords.count, 0, label)
+            XCTAssertTrue(viewModel.errorMessage?.contains("no saved assignment is selected") == true, label)
+        }
+    }
 }

@@ -386,6 +386,21 @@ final class RestorePathSafetyTests: XCTestCase {
         )
     }
 
+    func testTeacherArchiveFailsWhenRequestedSourceFileIsMissing() throws {
+        let root = ExportFixtureFactory.temporaryDirectory("ArchiveMissingSource")
+        let missingSource = root.appendingPathComponent("Sources/missing.png")
+
+        XCTAssertThrowsError(
+            try BundleExportService.writeTeacherAuditArchive(
+                assignment: ExportFixtureFactory.sensitiveApprovedAssignment(),
+                sourceFiles: [missingSource],
+                to: root.appendingPathComponent("archive.zip")
+            )
+        ) { error in
+            XCTAssertTrue(error.localizedDescription.contains("missing"))
+        }
+    }
+
     private func backupWithAppManagedSource() throws -> (assignment: AssignmentRecord, archiveURL: URL, restoreRoot: URL) {
         let root = ExportFixtureFactory.temporaryDirectory("RestoreBackup")
         var assignment = ExportFixtureFactory.sensitiveApprovedAssignment()

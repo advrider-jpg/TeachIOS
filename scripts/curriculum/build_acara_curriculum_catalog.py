@@ -31,8 +31,13 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 CACHE_DIR = ROOT / ".build" / "curriculum-cache"
 RESOURCE_DIR = ROOT / "GradeDraft" / "Resources" / "JSON"
 CATALOG_PATH = RESOURCE_DIR / "curriculum_catalog_acara_v9.json"
+INDEX_PATH = RESOURCE_DIR / "curriculum_catalog_acara_v9_index.json"
+SHARD_DIR = RESOURCE_DIR / "CurriculumShards"
 MANIFEST_PATH = RESOURCE_DIR / "curriculum_catalog_acara_v9_manifest.json"
 SUMMARY_PATH = RESOURCE_DIR / "curriculum_catalog_acara_v9_summary.json"
+MAX_RUNTIME_CATALOG_SHELL_BYTES = 250_000
+MAX_INDEX_BYTES = 30_000_000
+MAX_SHARD_BYTES = 3_000_000
 WORKBOOK_PATH = ROOT / "docs" / "australiancurriculum" / "curriculum-workbook.xlsx"
 SCRIPT_NAME = "scripts/curriculum/build_acara_curriculum_catalog.py"
 SOURCE_VERSION = "Australian Curriculum Version 9.0 / MRAC 2024-04"
@@ -708,6 +713,90 @@ def write_json(path: pathlib.Path, data: dict[str, Any]) -> None:
     path.write_bytes((json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8"))
 
 
+def shard_file_name(source_key: str, part: int) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "_", source_key)
+    return f"curriculum_catalog_acara_v9_{safe}_{part:03d}.json"
+
+
+def normalized_search_value(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def split_catalog_resources(catalog: dict[str, Any], chunk_size: int = 1000) -> tuple[dict[str, Any], dict[str, Any], list[tuple[str, dict[str, Any]]]]:
+    items = list(catalog.get("items", []))
+    compact_catalog = dict(catalog)
+    compact_catalog["items"] = []
+    compact_catalog["warning"] = (
+        str(compact_catalog.get("warning", "")).strip()
+        + " Runtime item detail is stored in bundled source-key shards and searched through curriculum_catalog_acara_v9_index.json."
+    ).strip()
+    by_source: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        source_key = str(item.get("sourceKey") or item.get("source") or "UNKNOWN")
+        by_source.setdefault(source_key, []).append(item)
+
+    rows: list[dict[str, Any]] = []
+    shard_entries: list[dict[str, Any]] = []
+    shard_payloads: list[tuple[str, dict[str, Any]]] = []
+    for source_key in sorted(by_source):
+        source_items = by_source[source_key]
+        for part, start in enumerate(range(0, len(source_items), chunk_size), start=1):
+            shard_items = source_items[start:start + chunk_size]
+            file_name = shard_file_name(source_key, part)
+            payload = {
+                "schemaVersion": catalog.get("schemaVersion"),
+                "catalogID": catalog.get("catalogID"),
+                "sourceKey": source_key,
+                "part": part,
+                "itemCount": len(shard_items),
+                "items": shard_items,
+            }
+            shard_payloads.append((file_name, payload))
+            for shard_item_index, item in enumerate(shard_items):
+                searchable = " ".join(
+                    [str(item.get(key, "")) for key in ["code", "title", "shortDescription", "learningArea", "subject", "strand", "substrand", "organizer"]]
+                    + list(item.get("altLabels") or [])
+                    + list(item.get("tags") or [])
+                )
+                rows.append({
+                    "itemID": item.get("id", ""),
+                    "shardName": file_name,
+                    "shardItemIndex": shard_item_index,
+                    "catalogKind": normalized_search_value(item.get("catalogKind") or item.get("itemType")),
+                    "itemType": normalized_search_value(item.get("itemType")),
+                    "subject": normalized_search_value(item.get("subject")),
+                    "learningArea": normalized_search_value(item.get("learningArea")),
+                    "yearLevel": normalized_search_value(item.get("yearLevel")),
+                    "band": normalized_search_value(item.get("band")),
+                    "searchable": normalized_search_value(searchable),
+                })
+
+    for file_name, payload in shard_payloads:
+        data = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        shard_entries.append({
+            "sourceKey": payload["sourceKey"],
+            "fileName": file_name,
+            "itemCount": payload["itemCount"],
+            "sha256": sha256_bytes(data),
+        })
+
+    index = {
+        "schemaVersion": catalog.get("schemaVersion"),
+        "catalogID": catalog.get("catalogID"),
+        "displayName": catalog.get("displayName"),
+        "sourceVersion": catalog.get("sourceVersion"),
+        "itemCount": len(items),
+        "shardDirectory": SHARD_DIR.name,
+        "shards": shard_entries,
+        "catalogKinds": sorted({str(item.get("catalogKind") or item.get("itemType") or "").strip() for item in items if str(item.get("catalogKind") or item.get("itemType") or "").strip()}, key=str.lower),
+        "learningAreas": sorted({str(item.get("learningArea") or "").strip() for item in items if str(item.get("learningArea") or "").strip()}, key=str.lower),
+        "subjects": sorted({str(item.get("subject") or "").strip() for item in items if str(item.get("subject") or "").strip()}, key=str.lower),
+        "yearLevelsAndBands": sorted({str(item.get("yearLevel") or item.get("band") or "").strip() for item in items if str(item.get("yearLevel") or item.get("band") or "").strip()}, key=str.lower),
+        "rows": rows,
+    }
+    return compact_catalog, index, shard_payloads
+
+
 def generate(refresh_jsonld: bool) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     generated_at = utcnow()
     if refresh_jsonld:
@@ -773,23 +862,64 @@ def validate_loaded(catalog: dict[str, Any], manifest: dict[str, Any], summary: 
 
 def validate_files() -> list[str]:
     failures: list[str] = []
-    for path in [CATALOG_PATH, MANIFEST_PATH, SUMMARY_PATH]:
+    for path in [CATALOG_PATH, INDEX_PATH, MANIFEST_PATH, SUMMARY_PATH]:
         if not path.exists():
             failures.append(f"Missing generated resource: {path.relative_to(ROOT)}")
     if failures:
         return failures
     try:
         catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        index = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         summary = json.loads(SUMMARY_PATH.read_text(encoding="utf-8"))
+        shard_items: list[dict[str, Any]] = []
+        for shard in index.get("shards", []):
+            shard_path = SHARD_DIR / str(shard.get("fileName", ""))
+            if not shard_path.exists():
+                failures.append(f"Missing generated curriculum shard: {shard_path.relative_to(ROOT)}")
+                continue
+            payload = json.loads(shard_path.read_text(encoding="utf-8"))
+            items = payload.get("items", [])
+            if len(items) != int(shard.get("itemCount", -1)):
+                failures.append(f"Shard {shard_path.name} itemCount does not match its index entry")
+            if sha256_bytes(shard_path.read_bytes()) != shard.get("sha256"):
+                failures.append(f"Shard {shard_path.name} checksum does not match its index entry")
+            shard_items.extend(items)
     except json.JSONDecodeError as error:
         return [f"Generated JSON did not decode: {error}"]
-    failures.extend(validate_loaded(catalog, manifest, summary))
+    if CATALOG_PATH.stat().st_size > MAX_RUNTIME_CATALOG_SHELL_BYTES:
+        failures.append(
+            f"Runtime catalog shell is {CATALOG_PATH.stat().st_size} bytes; "
+            f"expected <= {MAX_RUNTIME_CATALOG_SHELL_BYTES} bytes so item detail stays in shards"
+        )
+    if INDEX_PATH.stat().st_size > MAX_INDEX_BYTES:
+        failures.append(
+            f"Curriculum search index is {INDEX_PATH.stat().st_size} bytes; "
+            f"expected <= {MAX_INDEX_BYTES} bytes"
+        )
+    for shard_path in sorted(SHARD_DIR.glob("*.json")):
+        if shard_path.stat().st_size > MAX_SHARD_BYTES:
+            failures.append(
+                f"Curriculum shard {shard_path.name} is {shard_path.stat().st_size} bytes; "
+                f"expected <= {MAX_SHARD_BYTES} bytes"
+            )
+    if catalog.get("items") != []:
+        failures.append("Runtime catalog shell must not contain bundled item detail; use CurriculumShards instead")
+    if int(index.get("itemCount", 0)) != len(shard_items):
+        failures.append("Index itemCount does not match loaded curriculum shards")
+    if len(index.get("rows", [])) != len(shard_items):
+        failures.append("Index rows do not match loaded curriculum shards")
+    full_catalog = dict(catalog)
+    full_catalog["items"] = shard_items
+    failures.extend(validate_loaded(full_catalog, manifest, summary))
     # Verify committed checksum metadata after reading all resources.
     actual = {
         CATALOG_PATH.name: sha256_bytes(CATALOG_PATH.read_bytes()),
+        INDEX_PATH.name: sha256_bytes(INDEX_PATH.read_bytes()),
         SUMMARY_PATH.name: sha256_bytes(SUMMARY_PATH.read_bytes()),
     }
+    for shard_path in sorted(SHARD_DIR.glob("*.json")):
+        actual[f"{SHARD_DIR.name}/{shard_path.name}"] = sha256_bytes(shard_path.read_bytes())
     recorded = manifest.get("resourceChecksums", {})
     for required_name in actual:
         if required_name not in recorded:
@@ -805,15 +935,26 @@ def validate_files() -> list[str]:
 
 def command_refresh(args: argparse.Namespace) -> int:
     catalog, manifest, summary = generate(refresh_jsonld=not args.workbook_only)
+    compact_catalog, index, shard_payloads = split_catalog_resources(catalog)
     # Write once without resource checksums, compute, then write manifest with final checksums.
-    write_json(CATALOG_PATH, catalog)
+    write_json(CATALOG_PATH, compact_catalog)
+    write_json(INDEX_PATH, index)
+    if SHARD_DIR.exists():
+        for stale in SHARD_DIR.glob("*.json"):
+            stale.unlink()
+    SHARD_DIR.mkdir(parents=True, exist_ok=True)
+    for file_name, payload in shard_payloads:
+        write_json(SHARD_DIR / file_name, payload)
     write_json(SUMMARY_PATH, summary)
     manifest["resourceChecksums"] = {
         CATALOG_PATH.name: sha256_bytes(CATALOG_PATH.read_bytes()),
+        INDEX_PATH.name: sha256_bytes(INDEX_PATH.read_bytes()),
         SUMMARY_PATH.name: sha256_bytes(SUMMARY_PATH.read_bytes()),
     }
+    for shard_path in sorted(SHARD_DIR.glob("*.json")):
+        manifest["resourceChecksums"][f"{SHARD_DIR.name}/{shard_path.name}"] = sha256_bytes(shard_path.read_bytes())
     write_json(MANIFEST_PATH, manifest)
-    print(f"Wrote {CATALOG_PATH.relative_to(ROOT)} with {len(catalog['items'])} items from {len(catalog['sources'])} sources.")
+    print(f"Wrote split curriculum catalog with {len(catalog['items'])} items across {len(shard_payloads)} shards from {len(catalog['sources'])} sources.")
     return 0
 
 

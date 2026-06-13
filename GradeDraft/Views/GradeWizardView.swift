@@ -110,6 +110,7 @@ struct GradeWizardView: View {
     @State private var step: GradeWizardStep = .setup
     @State private var deepLink: GradeWizardStep?
     @State private var didPosition = false
+    @State private var confirmationKind: ExportConfirmationKind?
 
     private var assignment: AssignmentRecord? { viewModel.assignment(for: assignmentID) }
 
@@ -155,6 +156,24 @@ struct GradeWizardView: View {
                 if !didPosition, let assignment {
                     step = GradeWizardProgress.firstIncompleteStep(for: assignment)
                     didPosition = true
+                }
+            }
+            .sheet(item: $confirmationKind) { kind in
+                if let assignment {
+                    ExportConfirmationSheet(
+                        kind: kind,
+                        assignment: assignment,
+                        allAssignments: viewModel.assignments,
+                        onCancel: { confirmationKind = nil },
+                        onConfirm: { confirmExport(kind) }
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Assignment not found",
+                        systemImage: "doc.text.magnifyingglass",
+                        description: Text("Close and choose a saved assignment before exporting.")
+                    )
+                    .presentationDetents([.medium])
                 }
             }
         }
@@ -323,8 +342,7 @@ struct GradeWizardView: View {
             if assignment.isStudentFacingExportReady {
                 statusRow(done: exported, exported ? "A student-facing report has been exported." : "Ready to export the student-facing report.")
                 Button {
-                    viewModel.selectAssignment(assignmentID)
-                    viewModel.exportStudentPDF()
+                    confirmationKind = .studentReportPDF
                 } label: {
                     Label("Create Student Report PDF", systemImage: "doc.richtext")
                         .frame(minHeight: 44)
@@ -332,17 +350,18 @@ struct GradeWizardView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 Button {
-                    viewModel.selectAssignment(assignmentID)
-                    viewModel.exportStudentReport()
+                    confirmationKind = .studentReportMarkdown
                 } label: {
                     Label("Create Student Report (Markdown)", systemImage: "doc.plaintext")
                         .frame(minHeight: 44)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                if let url = viewModel.exportURL {
-                    ShareLink(item: url) {
-                        Label("Share Last Export", systemImage: "square.and.arrow.up")
+                if let artifact = viewModel.preparedExportArtifact,
+                   artifact.assignmentID == assignmentID,
+                   artifact.kind == .studentPDF || artifact.kind == .studentMarkdown {
+                    ShareLink(item: artifact.url) {
+                        Label("Share \(artifact.displayName)", systemImage: "square.and.arrow.up")
                             .frame(minHeight: 44)
                     }
                 }
@@ -468,5 +487,11 @@ struct GradeWizardView: View {
         } catch {
             viewModel.errorMessage = error.localizedDescription
         }
+    }
+
+    private func confirmExport(_ kind: ExportConfirmationKind) {
+        confirmationKind = nil
+        viewModel.selectAssignment(assignmentID)
+        Task { await viewModel.performConfirmedExport(kind) }
     }
 }

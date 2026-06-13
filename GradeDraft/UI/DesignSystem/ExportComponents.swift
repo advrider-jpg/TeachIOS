@@ -353,7 +353,11 @@ struct ExportConfirmationSheet: View {
     @State private var step: ExportConfirmationStep = .warning
 
     private var riskSummary: ExportRiskSummary {
-        ExportRiskSummary(kind: kind, assignment: assignment, allAssignments: allAssignments)
+        ExportRiskSummary.summary(
+            for: kind.exportKind,
+            currentAssignment: assignment,
+            allAssignments: allAssignments
+        )
     }
 
     private var warningDefinitions: [ExportWarningDefinition] {
@@ -598,66 +602,6 @@ private extension ExportConfirmationKind {
         }
     }
 }
-
-private extension ExportRiskSummary {
-    init(kind: ExportConfirmationKind, assignment: AssignmentRecord, allAssignments: [AssignmentRecord]) {
-        let scopedAssignments: [AssignmentRecord]
-        switch kind {
-        case .fullBackup, .gradebookCSV, .gradebookArchive:
-            scopedAssignments = allAssignments.isEmpty ? [assignment] : allAssignments
-        default:
-            scopedAssignments = [assignment]
-        }
-
-        let includesDraft: Bool
-        switch kind {
-        case .studentReportMarkdown, .studentReportPDF:
-            includesDraft = false
-        case .gradebookCSV, .gradebookArchive:
-            includesDraft = scopedAssignments.contains { $0.gradebookExportContainsDraftState }
-        case .teacherReviewMarkdown, .teacherReviewPDF, .teacherArchive, .fullBackup:
-            includesDraft = scopedAssignments.contains { $0.containsDraftGradingContent }
-        }
-
-        let includesPrivate: Bool
-        switch kind {
-        case .studentReportMarkdown, .studentReportPDF:
-            includesPrivate = false
-        case .teacherReviewMarkdown, .teacherReviewPDF, .fullBackup, .teacherArchive, .gradebookArchive:
-            includesPrivate = true
-        case .gradebookCSV:
-            includesPrivate = false
-        }
-
-        let includesSources: Bool
-        switch kind {
-        case .teacherArchive, .fullBackup, .gradebookArchive:
-            includesSources = scopedAssignments.contains { !$0.sourceInputs.isEmpty }
-        default:
-            includesSources = false
-        }
-
-        self.init(
-            includesDraftContent: includesDraft,
-            includesPrivateNotes: includesPrivate,
-            includesOriginalSources: includesSources,
-            affectedAssignmentCount: scopedAssignments.count
-        )
-    }
-}
-
-private extension AssignmentRecord {
-    var containsDraftGradingContent: Bool {
-        latestDraft != nil || (finalReview.map { $0.status != .approved } ?? false) || finalReviewIsStale
-    }
-
-    var gradebookExportContainsDraftState: Bool {
-        if finalReview == nil, latestDraft != nil { return true }
-        if let finalReview, finalReview.status != .approved { return true }
-        return finalReviewIsStale
-    }
-}
-
 
 struct RestoreConflictRow: View {
     var count: Int

@@ -27,11 +27,15 @@ def main() -> int:
     text = pbxproj.read_text(encoding="utf-8") if pbxproj.exists() else ""
     for resource in [
         "curriculum_catalog_acara_v9.json",
+        "curriculum_catalog_acara_v9_index.json",
         "curriculum_catalog_acara_v9_manifest.json",
         "curriculum_catalog_acara_v9_summary.json",
     ]:
         if resource not in text:
             failures.append(f"Xcode project does not include bundled curriculum resource {resource}")
+    for shard in sorted((ROOT / "GradeDraft" / "Resources" / "JSON" / "CurriculumShards").glob("*.json")):
+        if shard.name not in text:
+            failures.append(f"Xcode project does not include bundled curriculum shard {shard.name}")
     if failures:
         print("Curriculum catalog validator failed:")
         for failure in failures:

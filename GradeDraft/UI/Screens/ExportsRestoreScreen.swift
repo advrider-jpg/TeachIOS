@@ -12,8 +12,20 @@ struct ExportsRestoreScreen: View {
     @State private var showingResolutionSheet = false
 
     var body: some View {
+        Group {
+            if let assignmentID, selectedAssignment == nil {
+                MissingAssignmentRouteView(assignmentID: assignmentID, actionName: "Assignment export")
+            } else {
+                exportsForm
+            }
+        }
+        .navigationTitle("Exports & Backup")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var exportsForm: some View {
         Form {
-            let assignment = selectedAssignment
+            let assignment = selectedAssignment ?? viewModel.assignment
             Section {
                 ExportStationeryHeaderCard(
                     eyebrow: "Local files",
@@ -92,49 +104,57 @@ struct ExportsRestoreScreen: View {
                 restorePreviewSection(preview, title: "Backup Preview", pending: false)
             }
 
-            if let url = viewModel.exportURL {
+            if let artifact = viewModel.preparedExportArtifact {
                 Section {
-                    ExportStationeryCard(status: viewModel.exportKind?.v6AudienceStatus ?? .teacherOnly, showsPerforation: true) {
+                    ExportStationeryCard(status: artifact.audienceStatus, showsPerforation: true) {
                         HStack(alignment: .top, spacing: 10) {
                             TapeLabel("Ready", theme: .exportPrivacy)
                             Spacer(minLength: 8)
-                            StatusChip(viewModel.exportKind?.v6AudienceStatus ?? .teacherOnly, compact: true, theme: .exportPrivacy)
+                            StatusChip(artifact.audienceStatus, compact: true, theme: .exportPrivacy)
                             PaperclipDecoration(theme: .exportPrivacy)
                                 .frame(width: 28, height: 40)
                         }
                         HStack(spacing: 12) {
-                            StatusIconBubble(viewModel.exportKind?.v6AudienceStatus ?? .teacherOnly, theme: .exportPrivacy)
+                            StatusIconBubble(artifact.audienceStatus, theme: .exportPrivacy)
                                 .frame(width: 34, height: 34)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(viewModel.exportKind?.v6DisplayName ?? "Local export")
+                                Text(artifact.displayName)
                                     .font(.system(.headline, design: .serif).weight(.semibold))
                                     .lineLimit(1)
-                                Text(url.lastPathComponent)
+                                Text(artifact.url.lastPathComponent)
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 8)
                         }
-                        LabeledContent("Audience", value: viewModel.exportKind?.v6DisplayName ?? "Unknown")
+                        LabeledContent("Audience", value: artifact.audienceStatus.fullAccessibilityLabel)
+                            .accessibilityLabel("Export audience")
+                            .accessibilityValue("\(artifact.displayName). \(artifact.audienceStatus.fullAccessibilityLabel).")
                         LabeledContent("Stored", value: "Local file")
                         if shareLinkApproved {
-                            ShareLink(item: url) {
+                            ShareLink(item: artifact.url) {
                                 Label("Share Export", systemImage: "square.and.arrow.up")
                             }
+                            .accessibilityLabel("Share \(artifact.displayName)")
+                            .accessibilityValue("\(artifact.audienceStatus.fullAccessibilityLabel). Opens the system share sheet.")
                         } else {
                             Button {
                                 showingShareSheetWarning = true
                             } label: {
                                 Label("Review Share Warning", systemImage: "exclamationmark.triangle")
                             }
+                            .accessibilityLabel("Review share warning for \(artifact.displayName)")
+                            .accessibilityValue(artifact.audienceStatus.fullAccessibilityLabel)
                         }
-                        if clipboardCopyAvailable(for: viewModel.exportKind) {
+                        if clipboardCopyAvailable(for: artifact.kind) {
                             Button {
                                 showingClipboardWarning = true
                             } label: {
                                 Label("Copy Text", systemImage: "doc.on.clipboard")
                             }
+                            .accessibilityLabel("Copy text from \(artifact.displayName)")
+                            .accessibilityValue("\(artifact.audienceStatus.fullAccessibilityLabel). Requires clipboard warning confirmation.")
                         }
                     }
                 } header: {
@@ -189,10 +209,8 @@ struct ExportsRestoreScreen: View {
             .listRowBackground(Color.clear)
         }
         .stationeryScreen(theme: .exportPrivacy)
-        .navigationTitle("Exports & Backup")
-        .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $confirmationKind) { kind in
-            ExportConfirmationSheet(kind: kind, assignment: selectedAssignment, allAssignments: viewModel.assignments, onCancel: { confirmationKind = nil }, onConfirm: { confirm(kind) })
+            ExportConfirmationSheet(kind: kind, assignment: selectedAssignment ?? viewModel.assignment, allAssignments: viewModel.assignments, onCancel: { confirmationKind = nil }, onConfirm: { confirm(kind) })
         }
         .sheet(isPresented: $showingResolutionSheet) {
             RestoreConflictResolutionSheet(selection: $viewModel.backupConflictResolution) {
@@ -219,21 +237,18 @@ struct ExportsRestoreScreen: View {
         } message: {
             Text(clipboardWarningBody)
         }
-        .onChange(of: viewModel.exportURL) { _, _ in
-            shareLinkApproved = false
-        }
-        .onChange(of: viewModel.exportKind) { _, _ in
+        .onChange(of: viewModel.preparedExportArtifact) { _, _ in
             shareLinkApproved = false
         }
         .onAppear {
-            if let assignmentID {
+            if let assignmentID, viewModel.assignment(for: assignmentID) != nil {
                 viewModel.selectAssignment(assignmentID)
             }
         }
     }
 
-    private var selectedAssignment: AssignmentRecord {
-        assignmentID.flatMap { viewModel.assignment(for: $0) } ?? viewModel.assignment
+    private var selectedAssignment: AssignmentRecord? {
+        assignmentID.flatMap { viewModel.assignment(for: $0) }
     }
 
     @ViewBuilder
@@ -302,9 +317,9 @@ struct ExportsRestoreScreen: View {
     private func clipboardCopyAvailable(for kind: ExportKind?) -> Bool {
         guard let kind else { return false }
         switch kind {
-        case .studentMarkdown, .teacherAuditMarkdown, .csvGradebook, .backupJSON:
+        case .studentMarkdown, .teacherAuditMarkdown, .csvGradebook:
             return true
-        case .studentPDF, .teacherAuditPDF, .zipArchive, .fullBackupArchive, .assignmentGradebookArchive:
+        case .studentPDF, .teacherAuditPDF, .zipArchive, .fullBackupArchive, .backupJSON, .assignmentGradebookArchive:
             return false
         }
     }

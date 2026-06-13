@@ -1,10 +1,12 @@
 # Privacy Policy Draft
 
-Last updated: replace before release
+Release status: blocked. Do not publish this policy until the release owner supplies the final effective date, legal owner, contact channel, support URL, and privacy policy URL.
 
-Legal owner: replace before release
+Effective date: NOT CONFIGURED - blocks publication.
 
-Contact: replace before release
+Legal owner: NOT CONFIGURED - blocks publication.
+
+Contact: NOT CONFIGURED - blocks publication.
 
 ## Summary
 
@@ -40,11 +42,12 @@ Use the app's delete controls where provided. Delete exported files and backups 
 
 Always follow your school's policy before entering student information into any app.
 
-## Placeholders to replace
+## Publication blockers
 
-- Effective date
-- Legal owner
-- Contact email
-- Phone or contact method
-- Support URL
-- Privacy Policy URL
+- Effective date is not configured.
+- Legal owner is not configured.
+- Contact email or equivalent contact method is not configured.
+- Support URL is not configured.
+- Privacy Policy URL is not configured.
+
+This draft must stay out of the App Store release package until each blocker has a real value controlled by the release owner.

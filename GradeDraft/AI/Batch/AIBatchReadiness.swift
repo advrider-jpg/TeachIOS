@@ -64,9 +64,14 @@ enum AIBatchReadinessAnalyzer {
             budgetPlan: budgetPlan,
             budgetError: budgetError
         )
-        let blockers = readiness.checks
+        var blockers = readiness.checks
             .filter { $0.status == .blocked || $0.status == .unavailable }
             .map { "\($0.title): \($0.detail)" }
+        if budgetPlan == nil {
+            blockers.append("Packet budget: Run the local packet budget check before queueing this draft.")
+        } else if budgetPlan?.mode == .unavailable {
+            blockers.append("Packet budget: The grading packet is too large or unavailable for local generation.")
+        }
         let warnings = readiness.checks
             .filter { $0.status == .needsReview }
             .map { "\($0.title): \($0.detail)" }

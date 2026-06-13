@@ -116,4 +116,13 @@ final class GradeWizardProgressTests: XCTestCase {
         XCTAssertEqual(GradeWizardProgress.firstIncompleteStep(for: assignment), .finalReview)
         XCTAssertEqual(GradeWizardProgress.completedCount(for: assignment), 4)
     }
+
+    func testWorkflowTimelineStepIdentityDoesNotUsePosition() {
+        let first = WorkflowTimeline.Step(index: 1, title: "Text Review", detail: "Check OCR", status: .needsAttention)
+        let reordered = WorkflowTimeline.Step(index: 4, title: "Text Review", detail: "Check OCR", status: .needsAttention)
+
+        XCTAssertEqual(first.id, reordered.id)
+        XCTAssertFalse(first.id.contains("1-"))
+        XCTAssertFalse(reordered.id.contains("4-"))
+    }
 }

@@ -264,3 +264,92 @@ extension ExportKind {
         }
     }
 }
+
+extension ExportRiskSummary {
+    static func summary(
+        for exportKind: ExportKind,
+        currentAssignment: AssignmentRecord,
+        allAssignments: [AssignmentRecord],
+        sourceAvailability: (AssignmentRecord) -> Bool = { !$0.sourceInputs.isEmpty }
+    ) -> ExportRiskSummary {
+        let scopedAssignments = scopedAssignments(
+            for: exportKind,
+            currentAssignment: currentAssignment,
+            allAssignments: allAssignments
+        )
+        return ExportRiskSummary(
+            includesDraftContent: includesDraftContent(for: exportKind, scopedAssignments: scopedAssignments),
+            includesPrivateNotes: includesPrivateNotes(for: exportKind),
+            includesOriginalSources: includesOriginalSources(
+                for: exportKind,
+                currentAssignment: currentAssignment,
+                scopedAssignments: scopedAssignments,
+                sourceAvailability: sourceAvailability
+            ),
+            affectedAssignmentCount: scopedAssignments.count
+        )
+    }
+
+    private static func scopedAssignments(
+        for exportKind: ExportKind,
+        currentAssignment: AssignmentRecord,
+        allAssignments: [AssignmentRecord]
+    ) -> [AssignmentRecord] {
+        switch exportKind {
+        case .fullBackupArchive, .backupJSON, .csvGradebook, .assignmentGradebookArchive:
+            return allAssignments.isEmpty ? [currentAssignment] : allAssignments
+        default:
+            return [currentAssignment]
+        }
+    }
+
+    private static func includesDraftContent(for exportKind: ExportKind, scopedAssignments: [AssignmentRecord]) -> Bool {
+        switch exportKind {
+        case .studentMarkdown, .studentPDF:
+            return false
+        case .csvGradebook, .assignmentGradebookArchive:
+            return scopedAssignments.contains { $0.gradebookExportContainsDraftState }
+        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .backupJSON, .fullBackupArchive:
+            return scopedAssignments.contains { $0.containsDraftGradingContent }
+        }
+    }
+
+    private static func includesPrivateNotes(for exportKind: ExportKind) -> Bool {
+        switch exportKind {
+        case .studentMarkdown, .studentPDF, .csvGradebook:
+            return false
+        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .backupJSON, .fullBackupArchive, .assignmentGradebookArchive:
+            return true
+        }
+    }
+
+    private static func includesOriginalSources(
+        for exportKind: ExportKind,
+        currentAssignment: AssignmentRecord,
+        scopedAssignments: [AssignmentRecord],
+        sourceAvailability: (AssignmentRecord) -> Bool
+    ) -> Bool {
+        switch exportKind {
+        case .zipArchive:
+            return sourceAvailability(currentAssignment)
+        case .fullBackupArchive, .assignmentGradebookArchive:
+            return scopedAssignments.contains(where: sourceAvailability)
+        default:
+            return false
+        }
+    }
+}
+
+extension AssignmentRecord {
+    var containsDraftGradingContent: Bool {
+        latestDraft != nil ||
+        (finalReview.map { $0.status != .approved } ?? false) ||
+        finalReviewIsStale
+    }
+
+    var gradebookExportContainsDraftState: Bool {
+        if finalReview == nil, latestDraft != nil { return true }
+        if let finalReview, finalReview.status != .approved { return true }
+        return finalReviewIsStale
+    }
+}

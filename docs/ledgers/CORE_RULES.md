@@ -201,3 +201,37 @@ No dedicated automated check identified; runtime behavior is verified via source
 
 Release impact:
 Violation of this rule is a release blocker unless the user expressly changes the rule.
+
+## C012 — Routed assignment IDs fail closed
+
+Rule:
+Screens opened for a concrete assignment ID must not silently fall back to the currently selected assignment when that route ID is missing or stale.
+
+Why it matters:
+A stale route must not mutate, grade, import, review, or export another student's work while appearing to operate on the requested assignment.
+
+Evidence:
+`docs/ARCHITECTURE.md` persistence posture and routed-screen rule; `MissingAssignmentRouteView` in `GradeDraft/UI/Screens/ScreenModels.swift`; routed screens under `GradeDraft/UI/Screens`.
+
+Validation:
+`python3 scripts/ci/check_route_and_export_truthfulness.py` provides a static guardrail for known fallback patterns and required missing-assignment surfaces.
+
+Release impact:
+Violation of this rule is a release blocker unless the user expressly changes the rule.
+
+## C013 — Low-confidence OCR requires line-level teacher action
+
+Rule:
+Low-confidence OCR lines must be explicitly confirmed, corrected, or rejected line by line before scanned text can be marked reviewed.
+
+Why it matters:
+Bulk page/document review of uncertain machine text would turn unverified OCR into grading input.
+
+Evidence:
+`docs/ARCHITECTURE.md` OCR state boundary; `OCRLine.needsReview`; `GradeDraftViewModel.markOCRReviewed()` and `markOCRPageReviewed(pageID:)`.
+
+Validation:
+XCTest coverage in `GradeDraftTests/GradeDraftTests.swift`; `docs/TEST_PLAN.md` OCR review coverage.
+
+Release impact:
+Violation of this rule is a release blocker unless the user expressly changes the rule.

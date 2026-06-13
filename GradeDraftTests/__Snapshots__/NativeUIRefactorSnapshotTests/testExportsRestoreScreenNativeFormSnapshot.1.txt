@@ -3,20 +3,6 @@ hostedController: UIHostingController
 hostedViewLoaded: true
 hostedViewSize: 390x844
 expectedContainer: Form
-sourceContainerPresent: true
-sections:
-- Create Export
-- Import Backup
-- Ready to Share
-- Recent Exports
-- Export Safety
+renderedNativeContainerPresent: true
 nativeControls:
-- Form
-- Section
-- ContentUnavailableView
-- ShareLink
-- fileImporter
-- confirmationDialog
-- LabeledContent
-forbiddenScreenTokens:
-- none
+- CollectionView

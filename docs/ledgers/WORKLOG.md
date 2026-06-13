@@ -1,5 +1,21 @@
 # Worklog
 
+## 2026-06-13 — Audit leftovers: structural split, curriculum shards, OCR batching
+
+- Split `GradeDraftViewModel.swift`, `GradeDraftModels.swift`, `GradeDraftTests.swift`, and `GradeDraftHardeningTests.swift` into domain files while preserving existing behavior and Xcode target membership.
+- Replaced the remaining native UI source-shape snapshot helper with rendered hierarchy evidence only.
+- Replaced the former large Australian Curriculum runtime catalog with a compact metadata shell, generated search index, and bounded source-key item shards; updated the generator, manifest checksums, project resources, static checks, and production tests for the split format.
+- Added a real `OCRLineCorrection` batch mutation path and page-level "Save Page Corrections" review UI so multi-line OCR corrections persist once, with tests for single-save large-page correction, no-save unchanged batches, and failed-save reporting.
+- Changed workflow timeline identity to use stable semantic IDs rather than position-derived IDs, with regression coverage.
+
+## 2026-06-12 — Ridiculously close audit completion
+
+- Fixed routed assignment screens to fail closed on stale IDs, scoped rubric previews/import confirmation to the target assignment, and replaced raw export URL sharing with typed prepared export artifacts.
+- Hardened normalized GRDB persistence for rubric import state and OCR document/page metadata, blocked low-confidence OCR bulk confirmation, preserved mixed digital/scanned PDF pages, and rolled back newly persisted source files on failed imports.
+- Made archive exports fail on requested missing source files, kept raw Shortcut-pasted student text out of `UserDefaults`, added the UserDefaults privacy reason, and tightened release-readiness/support docs so missing release artifacts block visibly.
+- Added regression coverage and a route/export truthfulness guardrail wired into repo health and CI.
+- Added `GradeDraftUITests/GradeDraftCoreLaneUITests` with a separate `ui-smoke` CI job, made deterministic unit tests skip UI automation explicitly, made release readiness fail on unrun manual QA evidence, and ignored generated Python cache files.
+
 ## 2026-06-05 — Local AI v2 readiness, packet preview, and prompt redaction
 
 - Implemented the first production-safe Dream AI slice: deterministic AI readiness reports, local AI packet previews, model-visible identity redaction, prompt-injection risk flags, shared conservative budget planning for preview/generation, and prompt version `gradedraft.foundationmodels.typed.v2`.
@@ -154,7 +170,7 @@ Patch application and static scripts are run on a clean copy after patch generat
 - Added local-data protection helper and applied backup exclusion/file protection to GRDB, fallback JSON persistence, staged backups, source images, and export hardening paths.
 - Removed `MainActor.assumeIsolated` from document-scanner delegate handling.
 - Updated prompt, grading-packet, export/audit, dependency, OSS, Australian Curriculum, and release documentation to preserve local-first, teacher-controlled, no-runtime-network boundaries.
-- Xcode, package resolution, signing, archive, App Store Connect, and physical-device validation remain blocked in this Linux environment and are tracked in release docs.
+- Xcode, package resolution, signing, archive, App Store Connect, and physical-device validation remain blocked in this non-Xcode implementation environment and are tracked in release docs.
 
 # 2026-06-02 — Stationery redesign implementation
 
@@ -169,3 +185,57 @@ Patch application and static scripts are run on a clean copy after patch generat
 - Added a dedicated AI Readiness Center, rubric-side AI readiness and packet-preview warnings, persisted final-review criterion accept/reject actions, and source-review navigation from final-review evidence details.
 - Added source tests for App Intent payload/action behavior and criterion decision persistence, structured local tool policy/audit behavior, custom-instruction linting, batch AI readiness behavior, local AI evaluation fixture models/tests, a fixture corpus static guardrail, App Intent, local tool, prompt-safety, and batch-readiness guardrails, and updated Apple Intelligence, architecture, offline capability, test-plan, and production-readiness docs.
 - Followed up on PR CI by fixing SwiftLint naming, Swift 6 App Intents metadata/parameter compile issues, duplicate extension helper symbols, invalid bundle ID placeholders, and the core-page screenshot manifest entry for the curriculum browser page.
+
+## 2026-06-12 — Ridiculously-close audit hardening pass
+
+- Fixed fail-closed routed assignment screens, GRDB rubric/OCR round trips, low-confidence OCR review gates, mixed PDF import coverage, protected Shortcut payload staging, typed prepared export state, missing-source archive failures, audience-specific export status, backup JSON clipboard affordance removal, and release-readiness fail-closed checks.
+- Added UI smoke target wiring, route/export truthfulness guardrail, final-review evidence-staleness regression coverage, App Intent payload privacy coverage, OCR no-op persistence coverage, and native UI rendered-hierarchy snapshot evidence.
+- Consolidated export risk-summary calculation into shared export policy so ViewModel export state and SwiftUI confirmation sheets use one audience/sensitivity source of truth.
+- Extracted deterministic mixed-PDF import planning into `PDFImportPlanner` and added unit coverage for scanned-page selection, digital/OCR page merging, and empty OCR page preservation.
+- Reduced repeated curriculum lookup cost with bundled-catalog ID and normalized search/filter indexes as an interim step; this was superseded on 2026-06-13 by the generated split catalog shell, search index, and bounded source-key shards. Device performance evidence remains release-gated.
+- Updated shared primary/secondary action buttons to use a reusable Dynamic Type-aware multiline label with unlimited wrapping at accessibility text sizes, plus a source guard for that behavior; simulator XXL screenshots remain required before release.
+- Local static validation was run on Windows. Xcode package resolution, SwiftLint, XCTest, simulator, Vision/VisionKit, Foundation Models, LocalAuthentication, share-sheet, and device/manual QA validation remain unavailable without Apple tooling.
+
+## 2026-06-13 — Audit miss closure follow-up
+
+- Added regression coverage proving failed photo/PDF imports remove copied source files and restore the visible assignment state when OCR or durable assignment save fails.
+- Added clipboard policy coverage proving backup, archive, and PDF artifacts are not clipboard-copyable; only text export kinds can use the explicit clipboard-warning path.
+- Re-ran the available static guardrails in the Windows checkout. Release readiness still fails only on real external/release evidence blockers: missing `Package.resolved`, unconfigured support/contact surfaces, and unrun manual QA.
+
+## 2026-06-13 — Routed export and selection hardening follow-up
+
+- Routed guided-grading student exports through the shared export confirmation sheet so the wizard no longer bypasses audience warnings, preview acknowledgement, local authentication policy, or typed prepared-export state.
+- Hardened assignment selection so missing routed assignment IDs clear the active selection and mutation/save helpers refuse to update a fallback assignment when no saved record is selected.
+- Added UI-test fixture coverage for the approved final-review-to-confirmed-export path and ViewModel regression coverage for rejecting missing assignment IDs without mutating another record.
+
+## 2026-06-13 — Saved-assignment preflight for file-producing actions
+
+- Added a shared saved-assignment preflight for imports, exports, and clipboard copy so invalid or cleared selection cannot create temporary files, copy text, publish artifacts, or record success for a fallback assignment.
+- Updated student, teacher, gradebook, archive, backup, PDF import, photo/scan import, and clipboard paths to fail visibly before side effects when no saved assignment is selected.
+- Strengthened the route/export truthfulness guardrail and export hardening coverage so this model-level preflight remains enforced.
+
+## 2026-06-13 — Saved-assignment preflight for previews and local AI
+
+- Extended the saved-assignment preflight to source-file lookup, clear-student-work, Markdown rubric preview/import, roster preview/creation, curriculum import, AI readiness, AI packet preview, local draft generation, and feedback rewrite.
+- Cleared stale AI readiness/packet preview state when a missing routed assignment clears selection, so no local-AI ready state survives without a saved assignment.
+- Added ViewModel hardening coverage and route/export guardrail requirements for the new fail-closed preview and AI boundaries.
+
+## 2026-06-13 — Saved-assignment preflight closure for review and template actions
+
+- Extended fail-closed saved-assignment checks to OCR review mutations, final-review start/edit/approval/evidence actions, rubric/template application, pasted student work, direct rubric text edits, curriculum map/unmap actions, and export audit-record helpers.
+- Added regression coverage proving those actions do not mutate the fallback assignment or report helper success after a routed/missing assignment clears selection.
+- Tightened the route/export truthfulness guardrail so template, paste, rubric text, curriculum mapping, review, OCR, and export audit-record boundaries remain enforced by static validation.
+
+## 2026-06-13 — Release evidence and stale test expectation closure
+
+- Added a single release-status page and converted the promoted and packaged release blocker registers into owner/status/evidence tables so release materials cannot look complete while support/contact, manual QA, package resolution, signing, and Xcode validation are missing.
+- Replaced remaining release-package "replace before release/submission" text with explicit not-configured blocker language and extended the static release-readiness script to catch those placeholder patterns across release docs.
+- Added dated provenance/status framing to the grading content source of truth and linked the production checklist/release package to the active blocker/status evidence docs.
+- Updated stale XCTest expectations for batch AI budget blocking and low-confidence OCR bulk confirmation so the Xcode suite reflects the current fail-closed product behavior.
+
+## 2026-06-13 — Accessibility labels and PR UI gate closure
+
+- Updated the prepared-export sharing surface so the visible and VoiceOver audience value is the actual student-facing or teacher-only status, while share and clipboard controls announce the artifact and warning requirements.
+- Added scanned-text line review accessibility values that include review status, confidence, and reviewed text context for OCR line highlights and editor cards.
+- Made the app-driving `ui-smoke` job an ordinary PR-required CI gate, updated the CI contract to prevent label-only UI smoke coverage, and documented the new branch-protection expectation.
+- Added curriculum catalog resource-size guardrails for the compact runtime shell, generated search index, and per-shard JSON files so the 55 MB monolith cannot return without a failing validator.

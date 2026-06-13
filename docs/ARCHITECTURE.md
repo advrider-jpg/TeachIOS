@@ -50,17 +50,18 @@ Resources/
 
 ## Service boundaries
 
-- `OCRServicing` owns local OCR. The default implementation uses Apple Vision.
+- `OCRServicing` owns local OCR. The default implementation uses Apple Vision. `PDFImportPlanner` owns deterministic mixed-PDF page classification and merges digital text pages with OCR-recognized scanned pages so page-level coverage can be tested without PDFKit runtime access.
 - `GradeDraftViewModel.applyPDFFile(_:)` owns local PDF import orchestration using PDFKit, rendered page images, source refs, digital text extraction, and OCR fallback.
 - `GradingServicing` owns local AI draft generation and feedback rewrite. The default implementation is guarded behind Foundation Models availability.
 - `LocalGradingToolSession` owns assignment-scoped, read-only, source-labeled lookup helpers for rubric, evidence, OCR/source references, answer keys, exemplars, curriculum references, selected constraints, and packet limits. It enforces per-request call limits, output character limits, no writes, no network, and produces `LocalToolCallAudit` records. `LocalAIGradingToolbox` remains as compatibility wrappers for simple call sites.
 - `CapabilityChecking` exposes local AI availability so the UI only presents capabilities that are actually available.
 - `AssignmentStoring` owns local assignment, class, student, roster, source, OCR, final review, and evidence persistence.
 - `MarkdownReportBuilder` owns local Markdown reports with student/audit separation.
+- `ExportPolicy` owns export audience/sensitivity policy and shared risk-summary calculation used by both ViewModel export state and SwiftUI confirmation sheets.
 - `PDFExportService` owns deterministic local PDF rendering with headings, page breaks, and page numbers.
 - `BundleExportService` owns ZIP archives, full backup manifests, restore preview, source restoration, conflict handling, and safe archive paths.
 - `RosterImportService` owns CSV roster preview, duplicate detection, and rejected-row reasons.
-- `CurriculumCatalogService` owns local offline curriculum catalog references and provenance copy.
+- `CurriculumCatalogService` owns local offline curriculum catalog references and provenance copy. The bundled Australian Curriculum catalog is a compact shell plus `curriculum_catalog_acara_v9_index.json` and bounded source-key shards under `Resources/JSON/CurriculumShards`; the loader fails closed if an indexed shard is missing or has the wrong item count, then reconstructs the full offline catalog for existing UI flows. Repeated lookup uses the prebuilt item/search index for the bundled catalog and falls back to an in-memory index for teacher-imported catalogs.
 
 ## Grading paths
 
@@ -76,6 +77,7 @@ Both paths use the same final-review editor, approval gate, export flow, evidenc
 - `SourceInputRef` records pasted text, scans/photos, original PDFs, and rendered PDF pages.
 - `OCRDocument`, `OCRPage`, and `OCRLine` store OCR pages, raw/corrected text, line confidence, line review status, rejection state, and normalized bounding boxes.
 - `reviewedStudentText` is the only student text eligible for grading.
+- OCR correction typing is staged in the line editor and becomes durable only on an explicit save/commit, focus loss, confirm, reject, or evidence action. Unchanged correction commits do not create duplicate saves or misleading audit events.
 - Rejected OCR lines are preserved for audit but excluded from reviewed text.
 - `EvidenceReference` stores source kind, OCR line ID, page index, span offsets where known, bounding box where known, confirmation state, and quote.
 - `GradeDraftResult` stores model-proposed scoring and raw model/audit metadata.
@@ -91,6 +93,10 @@ Both paths use the same final-review editor, approval gate, export flow, evidenc
 ## Persistence posture
 
 The primary persistence path is normalized GRDB. `GradeDraftDatabase` creates and uses tables for classes, students, rosters, student work, source inputs, PDF sources, OCR documents/pages/lines/revisions, rubrics/criteria/levels, instructions, answer keys, expected elements, exemplars, curriculum items/mappings, grading packets, proposals, reviews, evidence references, exports, audit events, and backup/restore events. Complete JSON payload rows are retained as compatibility/export fallback, and tests cover loading from normalized rows after compatibility payloads are removed.
+
+Normalized GRDB rows must cover user-visible grading state, not just a lossy subset. Rubric import mode and teacher-confirmed parsed rubric JSON are persisted with the assignment row. OCR document metadata is persisted through `ocr_documents`, pages through `ocr_pages`, and lines through `grade_draft_ocr_lines`; load must preserve engine, engine version, created date, review status, reviewed date, page dimensions, and empty pages rather than inferring a default document from line flags.
+
+Routed screen assignment IDs fail closed. A stale or invalid route shows an assignment-not-found state and exposes no mutation, grading, import, review, or export controls for the currently selected assignment.
 
 ## Local-only posture
 

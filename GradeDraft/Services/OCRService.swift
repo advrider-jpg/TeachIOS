@@ -91,6 +91,70 @@ final class VisionOCRService: OCRServicing, Sendable {
     }
 }
 
+enum PDFImportPlanner {
+    static func pageIndexesNeedingOCR(digitalTextByPage: [String]) -> [Int] {
+        digitalTextByPage.enumerated()
+            .filter { $0.element.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .map(\.offset)
+    }
+
+    static func digitalDocument(pageTexts: [String], sourceRefs: [SourceInputRef]) -> OCRDocument {
+        let pages: [OCRPage] = pageTexts.enumerated().map { pageIndex, text in
+            let lines = text.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .enumerated()
+                .map { lineIndex, lineText in
+                    OCRLine(
+                        text: lineText,
+                        confidence: 1.0,
+                        boundingBox: NormalizedRect(x: 0.02, y: CGFloat(lineIndex) * 0.035, width: 0.96, height: 0.03),
+                        teacherConfirmed: false
+                    )
+                }
+            return OCRPage(
+                sourceInputID: sourceRefs[safe: pageIndex]?.id,
+                pageIndex: pageIndex,
+                imageWidth: sourceRefs[safe: pageIndex]?.imageWidth,
+                imageHeight: sourceRefs[safe: pageIndex]?.imageHeight,
+                lines: lines
+            )
+        }
+        return OCRDocument(engine: "PDFKit digital text", engineVersion: "system", pages: pages)
+    }
+
+    static func mergedDocument(
+        digitalTextByPage: [String],
+        sourceRefs: [SourceInputRef],
+        recognizedOCRPagesByPageIndex: [Int: OCRPage],
+        pageCount: Int
+    ) -> OCRDocument {
+        let digital = digitalDocument(pageTexts: digitalTextByPage, sourceRefs: sourceRefs)
+        let pages = (0..<pageCount).map { index in
+            let digitalText = digitalTextByPage[safe: index] ?? ""
+            if !digitalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let page = digital.pages[safe: index] {
+                return page
+            }
+            return recognizedOCRPagesByPageIndex[index] ?? OCRPage(
+                sourceInputID: sourceRefs[safe: index]?.id,
+                pageIndex: index,
+                imageWidth: sourceRefs[safe: index]?.imageWidth,
+                imageHeight: sourceRefs[safe: index]?.imageHeight,
+                lines: []
+            )
+        }
+        return OCRDocument(
+            engine: engineName(pageIndexesNeedingOCR: pageIndexesNeedingOCR(digitalTextByPage: digitalTextByPage)),
+            engineVersion: "system",
+            pages: pages
+        )
+    }
+
+    static func engineName(pageIndexesNeedingOCR: [Int]) -> String {
+        pageIndexesNeedingOCR.isEmpty ? "PDFKit digital text" : "PDFKit digital text + Apple Vision"
+    }
+}
 
 extension CGImagePropertyOrientation {
     init(_ uiOrientation: UIImage.Orientation) {

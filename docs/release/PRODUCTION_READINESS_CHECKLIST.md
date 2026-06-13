@@ -1,5 +1,9 @@
 # MarkForMe Production Readiness Checklist
 
+Status: blocked for TestFlight and App Store submission.
+
+Unchecked items below are release blockers unless explicitly marked non-release. Owner, evidence date, required evidence, and exit criteria are tracked in `RELEASE_BLOCKERS.md`; the current aggregate release state is tracked in `RELEASE_STATUS.md`.
+
 ## Source and configuration
 - [x] Build settings no longer use sample bundle identifiers.
 - [x] Release configuration files exist under `Config/` with replace-before-release bundle ID and team values.

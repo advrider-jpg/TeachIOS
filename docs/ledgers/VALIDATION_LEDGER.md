@@ -2,6 +2,95 @@
 
 This ledger records source-level validation expectations for the all-features completion patch.
 
+## 2026-06-13 — Audit leftovers validation state
+
+Available validation run on Windows after the structural split, split curriculum resources, rendered-only native UI snapshots, page-level OCR batch persistence, and stable workflow timeline identity work:
+
+```bash
+git diff --check
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_curriculum_catalog.py
+```
+
+All commands above passed.
+
+Aggregate repo health and release static readiness were run and still fail only on externally gated release evidence:
+
+```bash
+python3 scripts/ci/check_release_readiness_static.py
+python3 scripts/repo_health.py
+```
+
+Current reported blockers:
+
+- No `Package.resolved` exists; requires Xcode package resolution on macOS/Xcode.
+- Release support/contact values are still intentionally marked not configured in `docs/release/APP_STORE_METADATA.md` and `docs/release/APP_REVIEW_NOTES.md` because no release-owner-controlled contact details were available in this environment.
+- `docs/release/MANUAL_QA_RESULTS.md` records unrun simulator/device manual QA.
+
+XcodeBuildMCP validation was attempted. `session_show_defaults` reported no configured project, scheme, or simulator, and `list_sims` failed with `spawn xcrun ENOENT`. Direct command probes also failed because this Windows host has no `xcodebuild`, `xcrun`, or `swiftlint`.
+
+## 2026-06-12 — Ridiculously close audit validation state
+
+Available static validation run on Windows in this session:
+
+```bash
+git diff --check
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_curriculum_catalog.py
+```
+
+All commands above passed.
+
+Release static readiness was run and intentionally failed open:
+
+```bash
+python3 scripts/ci/check_release_readiness_static.py
+python3 scripts/repo_health.py
+```
+
+Current blockers reported by both release-readiness and aggregate repo health:
+
+- No `Package.resolved` exists; run Xcode package resolution on macOS/Xcode and commit the generated lockfile before release readiness can pass.
+- `docs/release/APP_STORE_METADATA.md` says release support/contact is not configured.
+- `docs/release/APP_REVIEW_NOTES.md` says release support/contact is not configured.
+- `docs/release/MANUAL_QA_RESULTS.md` records unrun simulator/device manual QA.
+
+XcodeBuildMCP validation was attempted first. `session_show_defaults` reported no configured project, scheme, or simulator. `list_schemes` failed with `spawn xcodebuild ENOENT`; `list_sims` failed with `spawn xcrun ENOENT`. Shell checks also found no `xcodebuild`, `xcrun`, `swift`, or `swiftlint` on this Windows host.
+
+Required outside this environment:
+
+```bash
+xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft
+swiftlint lint --config .swiftlint.yml
+DESTINATION="$(python3 scripts/ci/select_ios_simulator.py --print-destination)"
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination "$DESTINATION" -derivedDataPath /tmp/GradeDraftDerivedData -resultBundlePath /tmp/GradeDraftUnitTests.xcresult -skip-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 clean test
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination "$DESTINATION" -derivedDataPath /tmp/GradeDraftScreenshotDerivedData -resultBundlePath /tmp/GradeDraftScreenshotTests.xcresult -only-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 test
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination "$DESTINATION" -derivedDataPath /tmp/GradeDraftUISmokeDerivedData -resultBundlePath /tmp/GradeDraftUISmoke.xcresult -only-testing:GradeDraftUITests/GradeDraftCoreLaneUITests ARCHS=arm64 test
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -configuration Release -destination "generic/platform=iOS" -derivedDataPath /tmp/GradeDraftReleaseDerivedData CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -configuration Release -destination "generic/platform=iOS" -archivePath /tmp/GradeDraft.xcarchive CODE_SIGNING_ALLOWED=NO archive
+```
+
 ## 2026-05-31 — Separate core page screenshot workflow
 
 The repository now has a separate GitHub Actions workflow at `.github/workflows/core-page-screenshots.yml` (`GradeDraft Core Page Screenshots`) with one job:
@@ -28,6 +117,7 @@ The primary GitHub Actions workflow is now `.github/workflows/swift.yml` (`Grade
 - `workflow-lint`
 - `swiftlint`
 - `xcode-unit-tests`
+- `ui-smoke`
 
 Deeper validation runs on `main`, schedule, manual dispatch, or visual-check PRs:
 
@@ -108,7 +198,7 @@ Xcode, simulator, and real-device Foundation Models validation were not run in t
 
 ## 2026-05-31 — Mega production-readiness patch validation scope
 
-Available in this Linux environment:
+Available in this non-Xcode implementation environment:
 
 ```bash
 python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
@@ -136,7 +226,7 @@ Manual physical-device validation is still required for camera OCR, LocalAuthent
 
 ## 2026-06-10 — Full audit hardening patch static validation
 
-Available in this Linux environment after the hardening patch:
+Available in this non-Xcode implementation environment after the hardening patch:
 
 ```bash
 python3 scripts/repo_health.py
@@ -157,7 +247,7 @@ python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
 python3 scripts/ci/check_curriculum_catalog.py
 ```
 
-Required outside this Linux environment:
+Required outside this non-Xcode implementation environment:
 
 ```bash
 xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft
@@ -173,7 +263,7 @@ Xcode, SwiftLint, simulator, UIKit/PDFKit runtime, Vision/VisionKit OCR, Foundat
 
 ## 2026-06-10 — Second-pass maximum-effort hardening validation scope
 
-Available in this Linux environment after applying the second-pass incremental patch:
+Available in this non-Xcode implementation environment after applying the second-pass incremental patch:
 
 ```bash
 git apply --check mark_my_work_full_audit_hardening.patch
@@ -206,7 +296,7 @@ git apply --check mark_my_work_consolidated_full_hardening_v2.patch
 
 `python3 scripts/repo_health.py` remains the intended aggregate local static gate. If it is unavailable or times out in a constrained environment, run each component check above individually and record the timeout honestly.
 
-Required outside this Linux environment:
+Required outside this non-Xcode implementation environment:
 
 ```bash
 xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft
@@ -219,3 +309,290 @@ xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -configuration Relea
 ```
 
 Simulator/device validation is still required for UIKit/PDFKit rendering, Vision/VisionKit OCR, Foundation Models availability, LocalAuthentication export gates, file importers, share sheets, Airplane Mode behavior, backup/restore UI copy, and physical-device source capture.
+
+## 2026-06-12 — Ridiculously-close audit Windows validation
+
+Passed in this Windows checkout after the audit hardening pass:
+
+```bash
+git diff --check
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_curriculum_catalog.py
+```
+
+`python3 scripts/ci/check_release_readiness_static.py` fails correctly because release readiness is still blocked by:
+
+- missing `Package.resolved`;
+- support/contact URLs explicitly not configured in release docs; and
+- unrun manual QA in `docs/release/MANUAL_QA_RESULTS.md`.
+
+`python3 scripts/repo_health.py` passes the component static scans and then fails at the release static readiness gate for the same reasons above.
+
+Unavailable in this Windows checkout: `xcodebuild`, `xcrun`, `swift`, and `swiftlint` are not installed, so package resolution, SwiftLint, Xcode build/test, XCUITest, simulator screenshots, Vision/VisionKit OCR runtime, Foundation Models runtime, LocalAuthentication, share sheets, and physical-device/manual QA remain required on macOS/Xcode or CI.
+
+Follow-up export-risk consolidation validation in the same Windows checkout:
+
+```bash
+git diff --check
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_curriculum_catalog.py
+```
+
+`python3 scripts/ci/check_release_readiness_static.py` and `python3 scripts/repo_health.py` still fail only at the release-readiness blockers listed above.
+
+Follow-up curriculum index validation in the same Windows checkout:
+
+```bash
+git diff --check
+python3 scripts/ci/check_curriculum_catalog.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+```
+
+`python3 scripts/ci/check_release_readiness_static.py` fails correctly with the unresolved release blockers: no `Package.resolved`, support/contact not configured in release docs, and unrun manual QA. `python3 scripts/repo_health.py` runs the component scans successfully and then fails at that release-readiness gate.
+
+Build iOS Apps / XcodeBuildMCP was checked with `session_show_defaults`; no project, scheme, or simulator defaults are configured in this session. `where.exe xcodebuild`, `where.exe xcrun`, `where.exe swift`, and `where.exe swiftlint` also failed to find Apple tooling, so Xcode package resolution, SwiftLint, XCTest, XCUITest, simulator/device runtime checks, and manual QA remain unavailable in this Windows checkout.
+
+## 2026-06-13 — Dynamic Type button audit validation
+
+Passed in this Windows checkout after the shared action-button Dynamic Type update:
+
+```bash
+git diff --check
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+python3 scripts/ci/check_curriculum_catalog.py
+```
+
+`python3 scripts/ci/check_release_readiness_static.py` still fails correctly because release readiness remains blocked by the missing `Package.resolved`, unconfigured support/contact release docs, and unrun simulator/device manual QA. `python3 scripts/repo_health.py` runs the component scans successfully and then fails at that release-readiness gate.
+
+Build iOS Apps / XcodeBuildMCP was checked again: `session_show_defaults` reported no configured project, scheme, or simulator defaults, and `list_sims` failed with `spawn xcrun ENOENT`. Simulator/device Dynamic Type XXL screenshots and VoiceOver inspection remain unavailable in this Windows checkout.
+
+## 2026-06-13 — Import rollback and clipboard guard follow-up
+
+Passed in this Windows checkout after adding focused regression coverage for failed import transactions and non-text clipboard export blocking:
+
+```bash
+git diff --check
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/ci/check_curriculum_catalog.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+```
+
+`python3 scripts/ci/check_release_readiness_static.py` fails correctly with unresolved release blockers: no `Package.resolved`, support/contact not configured in release docs, and unrun manual QA. `python3 scripts/repo_health.py` runs the component scans successfully and then fails at that release-readiness gate.
+
+Build iOS Apps / XcodeBuildMCP was checked again: `session_show_defaults` reported no configured project, scheme, or simulator defaults, and `list_sims` failed with `spawn xcrun ENOENT`. Direct command probes also reported `xcodebuild: not found`, `xcrun: not found`, `swiftlint: not found`, and `actionlint: not found`; `python3 scripts/ci/select_ios_simulator.py` failed because `xcrun` was not found.
+
+## 2026-06-13 — Routed export confirmation and selection hardening follow-up
+
+Passed in this Windows checkout after routing guided-grading exports through the shared confirmation sheet, adding the core-lane export XCUITest fixture path, and hardening invalid assignment selection against fallback mutation:
+
+```bash
+git diff --check
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_curriculum_catalog.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+```
+
+`python3 scripts/ci/check_release_readiness_static.py` fails correctly with unresolved release blockers: no `Package.resolved`, support/contact not configured in `APP_STORE_METADATA.md` or `APP_REVIEW_NOTES.md`, and unrun simulator/device manual QA. `python3 scripts/repo_health.py` runs the component scans successfully and then fails at that release-readiness gate.
+
+## 2026-06-13 — Saved-assignment preflight for import/export side effects
+
+Passed in this Windows checkout after adding a shared saved-assignment preflight for file-producing imports, all export kinds, and clipboard copy:
+
+```bash
+git diff --check
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_curriculum_catalog.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+```
+
+`python3 scripts/ci/check_release_readiness_static.py` fails correctly with unresolved release blockers: no `Package.resolved`, support/contact not configured in `APP_STORE_METADATA.md` or `APP_REVIEW_NOTES.md`, and unrun simulator/device manual QA. `python3 scripts/repo_health.py` runs the component scans successfully and then fails at that release-readiness gate.
+
+## 2026-06-13 — Saved-assignment preflight for previews and local AI
+
+Passed in this Windows checkout after extending fail-closed saved-assignment checks to source lookup, clear-student-work, rubric/roster/curriculum previews and imports, AI readiness, AI packet preview, draft generation, and feedback rewrite:
+
+```bash
+git diff --check
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_curriculum_catalog.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+```
+
+`python3 scripts/ci/check_release_readiness_static.py` fails correctly with unresolved release blockers: no `Package.resolved`, support/contact not configured in `APP_STORE_METADATA.md` or `APP_REVIEW_NOTES.md`, and unrun simulator/device manual QA. `python3 scripts/repo_health.py` runs the component scans successfully and then fails at that release-readiness gate.
+
+## 2026-06-13 — Saved-assignment preflight closure for review and template actions
+
+Passed in this Windows checkout after extending fail-closed saved-assignment checks to OCR review, final-review, template/rubric, pasted-text, curriculum map/unmap, and export audit-record helper boundaries:
+
+```bash
+git diff --check
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_curriculum_catalog.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+```
+
+`python3 scripts/ci/check_release_readiness_static.py` fails correctly with unresolved release blockers: no `Package.resolved`, support/contact not configured in `APP_STORE_METADATA.md` or `APP_REVIEW_NOTES.md`, and unrun simulator/device manual QA. `python3 scripts/repo_health.py` runs the component scans successfully and then fails at that release-readiness gate. XcodeBuildMCP `session_show_defaults` reported no configured project, scheme, or simulator defaults, and XcodeBuildMCP `list_sims` failed with `spawn xcrun ENOENT`. Direct Windows command probes reported `xcodebuild`, `xcrun`, `swiftlint`, and `actionlint` unavailable, so Xcode package resolution, SwiftLint, XCTest, simulator/device QA, and actionlint cannot be completed in this environment.
+
+## 2026-06-13 — Release evidence cleanup and stale expectation follow-up
+
+Passed in this Windows checkout after adding release status/blocker evidence docs, removing release-package placeholder wording, enforcing release placeholder scans, and aligning stale batch/OCR XCTest expectations with fail-closed behavior:
+
+```bash
+git diff --check
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_curriculum_catalog.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+```
+
+`python3 scripts/ci/check_release_readiness_static.py` fails correctly with unresolved release blockers: no `Package.resolved`, support/contact not configured in `APP_STORE_METADATA.md` or `APP_REVIEW_NOTES.md`, and unrun simulator/device manual QA. `python3 scripts/repo_health.py` runs the component scans successfully and then fails at that release-readiness gate.
+
+XcodeBuildMCP `session_show_defaults` reported no configured project, scheme, or simulator defaults, and XcodeBuildMCP `list_sims` failed with `spawn xcrun ENOENT`. Direct Windows command probes reported `xcodebuild`, `xcrun`, `swiftlint`, and `actionlint` unavailable, so Xcode package resolution, SwiftLint, XCTest, simulator/device QA, and actionlint remain unavailable in this environment.
+
+## 2026-06-13 — Accessibility labels, PR UI gate, and curriculum size guard closure
+
+Passed in this Windows checkout after adding export/OCR accessibility source coverage, making `ui-smoke` a PR-required CI gate, and enforcing static size budgets for the split curriculum catalog resources:
+
+```bash
+git diff --check
+python3 scripts/ci/check_ci_contract.py
+python3 scripts/ci/check_route_and_export_truthfulness.py
+python3 scripts/ci/check_xcode_project_membership.py
+python3 scripts/no_network_scan.py
+python3 scripts/export_hardening_scan.py
+python3 scripts/ci/bad_string_scan.py
+python3 scripts/ci/check_native_ui_refactor.py
+python3 scripts/ci/check_ai_evaluation_fixtures.py
+python3 scripts/ci/check_app_intents_safety.py
+python3 scripts/ci/check_local_ai_tools.py
+python3 scripts/ci/check_ai_prompt_safety.py
+python3 scripts/ci/check_ai_batch_readiness.py
+python3 scripts/ci/check_ai_packet_preview_screen.py
+python3 scripts/ci/check_curriculum_catalog.py
+python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+```
+
+`python3 scripts/ci/check_release_readiness_static.py` fails correctly with unresolved release blockers: no `Package.resolved`, support/contact not configured in `APP_STORE_METADATA.md` or `APP_REVIEW_NOTES.md`, and unrun simulator/device manual QA. `python3 scripts/repo_health.py` runs the component scans successfully and then fails at that release-readiness gate.
+
+XcodeBuildMCP `session_show_defaults` reported no configured project, scheme, or simulator defaults, and XcodeBuildMCP `list_sims` failed with `spawn xcrun ENOENT`. Direct Windows command probes reported `xcodebuild`, `xcrun`, `swiftlint`, and `actionlint` unavailable, so Xcode package resolution, SwiftLint, XCTest, simulator/device QA, and actionlint remain unavailable in this environment.

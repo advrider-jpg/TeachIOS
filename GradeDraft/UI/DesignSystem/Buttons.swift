@@ -64,6 +64,7 @@ struct PrimaryActionButton: View {
     var systemImage: String?
     var action: () -> Void
     var disabled: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(title: String, systemImage: String? = nil, action: @escaping () -> Void, disabled: Bool = false) {
         self.title = title
@@ -74,10 +75,11 @@ struct PrimaryActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage ?? "arrow.right.circle")
-                .lineLimit(1)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+            ActionButtonLabel(
+                title: title,
+                systemImage: systemImage ?? "arrow.right.circle",
+                isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+            )
         }
         .buttonStyle(StationeryButtonStyle(prominence: .primary))
         .disabled(disabled)
@@ -90,6 +92,7 @@ struct SecondaryActionButton: View {
     var systemImage: String?
     var action: () -> Void
     var disabled: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(title: String, systemImage: String? = nil, action: @escaping () -> Void, disabled: Bool = false) {
         self.title = title
@@ -100,11 +103,34 @@ struct SecondaryActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage ?? "arrow.right")
-                .lineLimit(1)
-                .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+            ActionButtonLabel(
+                title: title,
+                systemImage: systemImage ?? "arrow.right",
+                isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+            )
         }
         .buttonStyle(StationeryButtonStyle(prominence: .secondary))
         .disabled(disabled)
+    }
+}
+
+private struct ActionButtonLabel: View {
+    var title: String
+    var systemImage: String
+    var isAccessibilitySize: Bool
+
+    var body: some View {
+        Label {
+            Text(title)
+                .lineLimit(isAccessibilitySize ? nil : 3)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: systemImage)
+        }
+        .labelStyle(.titleAndIcon)
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+        .accessibilityLabel(title)
     }
 }

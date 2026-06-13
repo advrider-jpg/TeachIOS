@@ -89,11 +89,12 @@ def function_body(text: str, func_name: str) -> tuple[int, str] | None:
         idx += 1
     return brace + 1, text[brace + 1:idx - 1]
 
-for path, funcs in {
-    ROOT / "GradeDraft/Services/LocalJSONStore.swift": ["writeTemporaryReport"],
-    ROOT / "GradeDraft/GradeDraftViewModel.swift": ["temporaryExportURL", "exportCSVGradebook", "exportArchiveBundle", "exportBackupJSON"],
-}.items():
-    text = path.read_text(encoding="utf-8")
+viewmodel_paths = sorted((ROOT / "GradeDraft").glob("GradeDraftViewModel*.swift"))
+inspection_targets = [
+    (ROOT / "GradeDraft/Services/LocalJSONStore.swift", (ROOT / "GradeDraft/Services/LocalJSONStore.swift").read_text(encoding="utf-8"), ["writeTemporaryReport"]),
+    (ROOT / "GradeDraft/GradeDraftViewModel*.swift", "\n".join(path.read_text(encoding="utf-8") for path in viewmodel_paths), ["temporaryExportURL", "exportCSVGradebook", "exportArchiveBundle", "exportBackupJSON"]),
+]
+for path, text, funcs in inspection_targets:
     for func_name in funcs:
         body_info = function_body(text, func_name)
         if not body_info:

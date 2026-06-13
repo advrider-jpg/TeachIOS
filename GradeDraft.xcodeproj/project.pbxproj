@@ -122,10 +122,102 @@
 		E00000000000000000000014 /* ExportHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000114 /* ExportHardeningTests.swift */; };
 		E00000000000000000000015 /* ArchiveRestoreSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000115 /* ArchiveRestoreSafetyTests.swift */; };
 		E00000000000000000000016 /* GradeDraftProductionPathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000116 /* GradeDraftProductionPathTests.swift */; };
+		UI1000000000000000000002 /* GradeDraftCoreLaneUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI1000000000000000000001 /* GradeDraftCoreLaneUITests.swift */; };
+		MDL1000000000000000000001 /* GradeDraftFoundationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000001 /* GradeDraftFoundationModels.swift */; };
+		MDL1000000000000000000002 /* GradeDraftClassroomModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000002 /* GradeDraftClassroomModels.swift */; };
+		MDL1000000000000000000003 /* GradeDraftOCRModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000003 /* GradeDraftOCRModels.swift */; };
+		MDL1000000000000000000004 /* GradeDraftRubricModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000004 /* GradeDraftRubricModels.swift */; };
+		MDL1000000000000000000005 /* GradeDraftGradingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000005 /* GradeDraftGradingModels.swift */; };
+		MDL1000000000000000000006 /* GradeDraftExportAuditModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000006 /* GradeDraftExportAuditModels.swift */; };
+		MDL1000000000000000000007 /* GradeDraftTemplateErrorModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000007 /* GradeDraftTemplateErrorModels.swift */; };
+		0C55357E2EA994B8380D7AB1 /* AssignmentRecordHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C06DFF6BC576C159831DD66C /* AssignmentRecordHardeningTests.swift */; };
+		5E3BE13B489065C77E291351 /* BundleExportHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F66758139222FFECE5F126C /* BundleExportHardeningTests.swift */; };
+		EA73F6D87FE9A65B902EE52C /* CodableRoundTripHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3534ACE2818C8554E59FFB30 /* CodableRoundTripHardeningTests.swift */; };
+		7731CF7D7297B8ECBA38E919 /* CSVExportServiceHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F49293B199FF8EC37435D0 /* CSVExportServiceHardeningTests.swift */; };
+		85FA93103677B91F2A4215B9 /* EnumDisplayNameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B6C8F837408C1BCCBBCE003 /* EnumDisplayNameTests.swift */; };
+		CC1E7DAC34A158D098C4C8F7 /* EvidenceReferenceHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DCB7784932A5550CE2F2DD8 /* EvidenceReferenceHardeningTests.swift */; };
+		2CD3830AF175EC71702FA466 /* ExportReportHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F02110C400757D8F21485D /* ExportReportHardeningTests.swift */; };
+		9C3C0F25680BE4140E2F7B37 /* FinalGradeReviewHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A904004119C2E710055F71 /* FinalGradeReviewHardeningTests.swift */; };
+		B1BC3F6920BDDCE7E9403535 /* GradeDraftErrorHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF827731D9DCF5B8D08DFD62 /* GradeDraftErrorHardeningTests.swift */; };
+		A6880FFC5781120B60BD7E4E /* GradeDraftValidatorHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBC32D64EC709AB385F50FFB /* GradeDraftValidatorHardeningTests.swift */; };
+		6FB11CE9F8C2629C22C0775A /* GradeTotalsHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B56F8223DEA4679988D8086A /* GradeTotalsHardeningTests.swift */; };
+		69FBA4336656A04B5AF5F1D0 /* LocalOnlyGradingValidatorHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547EECC1F511B7AA182C4293 /* LocalOnlyGradingValidatorHardeningTests.swift */; };
+		3A252CE32D6DD0D3DAD3FA73 /* MarkdownRubricParserHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F183DCD86BB2F7BEB566DAF /* MarkdownRubricParserHardeningTests.swift */; };
+		42F155D5DC060F5564E12960 /* OCRModelHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F2447B7BF35665C9E9D0F0 /* OCRModelHardeningTests.swift */; };
+		87B8308CF5CD389DE2D8D567 /* OCRQualitySummaryHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0037B14D3D950A7D447C5EB /* OCRQualitySummaryHardeningTests.swift */; };
+		F1E45A7CC92CC94C75D43C53 /* OCRReviewStatusHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF2C37383A7D63EB085CA79A /* OCRReviewStatusHardeningTests.swift */; };
+		5303E43E963663593781B278 /* PromptBuilderHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1849669791F9FCAED8A48F06 /* PromptBuilderHardeningTests.swift */; };
+		A77D0393BE5203ECA65883BC /* RubricParserHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F343E9B6DA1021B567B0BA2 /* RubricParserHardeningTests.swift */; };
+		9FE8E360B7B2CBEB84DC87C9 /* SourceInputRefHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37705F41F886930456D40D20 /* SourceInputRefHardeningTests.swift */; };
+		7FBEC0C9C98125AB5D2909A0 /* SpreadsheetSafetyHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5B96D1530E7FF6DC8142172 /* SpreadsheetSafetyHardeningTests.swift */; };
+		1FC10291B26491E5DC888627 /* StableFingerprintTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E69FFC0259CA37C1AAEB72 /* StableFingerprintTests.swift */; };
+		EBD42BA8869153EBF0DE1E4A /* ViewModelHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1588166080A1703A6771F32E /* ViewModelHardeningTests.swift */; };
+		C2C9E2779692A32DD68479D2 /* GradeDraftViewModel+AssignmentPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D2D3D57504D3B991B01E74A /* GradeDraftViewModel+AssignmentPersistence.swift */; };
+		115DA10C8C6953F8BB7BBB0C /* GradeDraftViewModel+BackupRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC603AD2E26BC84726131CC7 /* GradeDraftViewModel+BackupRestore.swift */; };
+		280FA9066C0EC9ACFF99067A /* GradeDraftViewModel+DraftFinalReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = D924B73BDE382C31DC96FA3F /* GradeDraftViewModel+DraftFinalReview.swift */; };
+		467EB123EE6E7595BC11F234 /* GradeDraftViewModel+Export.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B94D30A1551DD0E05854C11 /* GradeDraftViewModel+Export.swift */; };
+		7181F38663F3774F111CE291 /* GradeDraftViewModel+OCRReviewEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2D0FA759B764E5635E9D84 /* GradeDraftViewModel+OCRReviewEvidence.swift */; };
+		6A6EFB17CF88F9184B1DDCE7 /* GradeDraftViewModel+RoutingStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F5EB0B461B1EE7D616587F /* GradeDraftViewModel+RoutingStatus.swift */; };
+		046B19E0F0134B6DFED63D48 /* GradeDraftViewModel+RubricCurriculumRoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF41474E6A0819DAC71DCD94 /* GradeDraftViewModel+RubricCurriculumRoster.swift */; };
+		AD34C8708DD0DFAD4C8397D0 /* GradeDraftViewModel+StudentWorkImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41BEFCF205EF1F9DE2E6D18B /* GradeDraftViewModel+StudentWorkImport.swift */; };
+		099A4E764BC798E22B3817C6 /* GradeDraftViewModel+Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB3AF955066F841CF4665452 /* GradeDraftViewModel+Utilities.swift */; };
+		73EEBBF156FD196F8175BCE3 /* GradeDraftTests+ExportTrust.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883C71AB9C71AC03A0153B4D /* GradeDraftTests+ExportTrust.swift */; };
+		BEF71A9CC539B08344105BF4 /* GradeDraftTests+FinalReviewEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC5C82792F07C766312BE60 /* GradeDraftTests+FinalReviewEvidence.swift */; };
+		D21A8AC30082FC997903F21C /* GradeDraftTests+InputOCRAndShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C655D6186DE07BEBF8C3E03 /* GradeDraftTests+InputOCRAndShortcuts.swift */; };
+		F8CA27408198127C2F43C669 /* GradeDraftTests+LocalAIAndDrafting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39F4E97B5A027241055406D9 /* GradeDraftTests+LocalAIAndDrafting.swift */; };
+		3C96AD0CE4E5D965769F0A7B /* GradeDraftTests+Misc.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF2F06AFC1A8C06B6873114C /* GradeDraftTests+Misc.swift */; };
+		4F7FACCD1479AB1520CDD156 /* GradeDraftTests+PersistenceRosterRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6833FEE7402292DA656A90 /* GradeDraftTests+PersistenceRosterRestore.swift */; };
+		5473A48FC6C347D5E0CB6367 /* GradeDraftTests+RubricValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84040B66C897442E8ECE53C7 /* GradeDraftTests+RubricValidation.swift */; };
+		084F4069CA284DE974656F0B /* GradeDraftTests+UIStatusAndImportModes.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD50E4DC8FCB77CD206E5048 /* GradeDraftTests+UIStatusAndImportModes.swift */; };
+		2BD0DD770A7FEAB03E2DB1A6 /* curriculum_catalog_acara_v9_index.json in Resources */ = {isa = PBXBuildFile; fileRef = D984B6E76C2555A1EDF4269D /* curriculum_catalog_acara_v9_index.json */; };
+		04C90A9C11FA8C2A01F98FD8 /* curriculum_catalog_acara_v9_CCP_AA_001.json in Resources */ = {isa = PBXBuildFile; fileRef = B8AE0D0864BF1C32F4B4AA81 /* curriculum_catalog_acara_v9_CCP_AA_001.json */; };
+		C38EBAF4A567F2CD00AB67F8 /* curriculum_catalog_acara_v9_CCP_A_TSI_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 46925CD1A27AB046A4319A52 /* curriculum_catalog_acara_v9_CCP_A_TSI_001.json */; };
+		1B70546E51890FEFB36BD385 /* curriculum_catalog_acara_v9_CCP_S_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 9C95CA613B9474A9F2C1CE40 /* curriculum_catalog_acara_v9_CCP_S_001.json */; };
+		A85069BC496F6AE92A425EBA /* curriculum_catalog_acara_v9_GC_CCT_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 81C223D13BB36B660342BDAD /* curriculum_catalog_acara_v9_GC_CCT_001.json */; };
+		B59CBC20F66A7EBE5AC9508B /* curriculum_catalog_acara_v9_GC_DL_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 615224EC8267F4CF1DF1ADDD /* curriculum_catalog_acara_v9_GC_DL_001.json */; };
+		FB45D35AC8CF38067F128CCE /* curriculum_catalog_acara_v9_GC_EU_001.json in Resources */ = {isa = PBXBuildFile; fileRef = D88DF2C5D9CC3954DB09ADF4 /* curriculum_catalog_acara_v9_GC_EU_001.json */; };
+		49F84836DBA3209864148999 /* curriculum_catalog_acara_v9_GC_IU_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 42ABE0400A67372454C2CA14 /* curriculum_catalog_acara_v9_GC_IU_001.json */; };
+		FCD4DF21015BC5EE5DDC2834 /* curriculum_catalog_acara_v9_GC_L_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 157C5E4D9C0AB73235B22231 /* curriculum_catalog_acara_v9_GC_L_001.json */; };
+		F198B1D1E3EA59843586BB54 /* curriculum_catalog_acara_v9_GC_L_002.json in Resources */ = {isa = PBXBuildFile; fileRef = A487A22333AA85B22B6275CA /* curriculum_catalog_acara_v9_GC_L_002.json */; };
+		0654B4562EC277ED452A03AA /* curriculum_catalog_acara_v9_GC_N_001.json in Resources */ = {isa = PBXBuildFile; fileRef = D41D8897E8C29B8CED5417AE /* curriculum_catalog_acara_v9_GC_N_001.json */; };
+		862F07C53D482B06C8F80177 /* curriculum_catalog_acara_v9_GC_PSC_001.json in Resources */ = {isa = PBXBuildFile; fileRef = BD0F6D420A4A10DE0CF98D9B /* curriculum_catalog_acara_v9_GC_PSC_001.json */; };
+		041125BCC81B48D65D8D905B /* curriculum_catalog_acara_v9_LA_ART_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 74D29A846776BFF70D7D6FD4 /* curriculum_catalog_acara_v9_LA_ART_001.json */; };
+		6867F924D31BCD296275478D /* curriculum_catalog_acara_v9_LA_ART_002.json in Resources */ = {isa = PBXBuildFile; fileRef = 408D2E07AE03DC5F5A6FC456 /* curriculum_catalog_acara_v9_LA_ART_002.json */; };
+		661B879C41659544FF8B357F /* curriculum_catalog_acara_v9_LA_ENG_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 6C1C97BB9AAA0E5A68649913 /* curriculum_catalog_acara_v9_LA_ENG_001.json */; };
+		5A08CB2AD04B6EB50663417C /* curriculum_catalog_acara_v9_LA_ENG_002.json in Resources */ = {isa = PBXBuildFile; fileRef = 076CAC65F0B8DFFAF8A9B829 /* curriculum_catalog_acara_v9_LA_ENG_002.json */; };
+		7C90848AB63F4F9902618C68 /* curriculum_catalog_acara_v9_LA_HASS_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 61A4F9658D483502DA28E304 /* curriculum_catalog_acara_v9_LA_HASS_001.json */; };
+		0A360FC512B33794F366A7C6 /* curriculum_catalog_acara_v9_LA_HASS_002.json in Resources */ = {isa = PBXBuildFile; fileRef = 6EB25A892F91AC85350A1569 /* curriculum_catalog_acara_v9_LA_HASS_002.json */; };
+		463587600E43EFF5D1B7004E /* curriculum_catalog_acara_v9_LA_HPE_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 579743EEC712E87A28A3B091 /* curriculum_catalog_acara_v9_LA_HPE_001.json */; };
+		F8B96EAE08D0B808DB7E35BF /* curriculum_catalog_acara_v9_LA_LAN_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 7435528CAFA7F4A4224386C4 /* curriculum_catalog_acara_v9_LA_LAN_001.json */; };
+		97518D0BDF7F22923169CF47 /* curriculum_catalog_acara_v9_LA_LAN_002.json in Resources */ = {isa = PBXBuildFile; fileRef = D07DBC4C66DD236940F22317 /* curriculum_catalog_acara_v9_LA_LAN_002.json */; };
+		D9D7C51CE1981D3A527AA7AC /* curriculum_catalog_acara_v9_LA_LAN_003.json in Resources */ = {isa = PBXBuildFile; fileRef = 4B6C7770DA12DC5794612F6E /* curriculum_catalog_acara_v9_LA_LAN_003.json */; };
+		4B64B466BB355A957E5DA590 /* curriculum_catalog_acara_v9_LA_LAN_004.json in Resources */ = {isa = PBXBuildFile; fileRef = 6E2AA4FD6C8F1A08F2C9EB83 /* curriculum_catalog_acara_v9_LA_LAN_004.json */; };
+		409F64C5FAB126ABBAEAE7E5 /* curriculum_catalog_acara_v9_LA_LAN_005.json in Resources */ = {isa = PBXBuildFile; fileRef = EF49390394A3D809AA6EF3F0 /* curriculum_catalog_acara_v9_LA_LAN_005.json */; };
+		34F1B887F7CE780CD0019D1D /* curriculum_catalog_acara_v9_LA_LAN_006.json in Resources */ = {isa = PBXBuildFile; fileRef = 3CE91073E38BE8335CC97A0F /* curriculum_catalog_acara_v9_LA_LAN_006.json */; };
+		98D2F7DBCA7B9954753D5690 /* curriculum_catalog_acara_v9_LA_LAN_007.json in Resources */ = {isa = PBXBuildFile; fileRef = 37AC0B3410344FB92442DA73 /* curriculum_catalog_acara_v9_LA_LAN_007.json */; };
+		B917FB211ADEC9E23028CCF2 /* curriculum_catalog_acara_v9_LA_LAN_008.json in Resources */ = {isa = PBXBuildFile; fileRef = EF92CF5F03F93650CABAF9A9 /* curriculum_catalog_acara_v9_LA_LAN_008.json */; };
+		07FAB8B957248032DD746DBF /* curriculum_catalog_acara_v9_LA_LAN_009.json in Resources */ = {isa = PBXBuildFile; fileRef = CDDD2610623AA09C3A961A4E /* curriculum_catalog_acara_v9_LA_LAN_009.json */; };
+		58A40581C58E56E8134E7D22 /* curriculum_catalog_acara_v9_LA_LAN_010.json in Resources */ = {isa = PBXBuildFile; fileRef = CBB03B8C35AF786DD5AFB4C0 /* curriculum_catalog_acara_v9_LA_LAN_010.json */; };
+		56954109EEB0128D4B37F671 /* curriculum_catalog_acara_v9_LA_LAN_011.json in Resources */ = {isa = PBXBuildFile; fileRef = 99F7EFE75BA2134077A6012A /* curriculum_catalog_acara_v9_LA_LAN_011.json */; };
+		B00F2F42021D1780B28E5D48 /* curriculum_catalog_acara_v9_LA_LAN_012.json in Resources */ = {isa = PBXBuildFile; fileRef = DCEDC99D1E9DC7137257F218 /* curriculum_catalog_acara_v9_LA_LAN_012.json */; };
+		68D481E863825C67C3D876AE /* curriculum_catalog_acara_v9_LA_LAN_013.json in Resources */ = {isa = PBXBuildFile; fileRef = 76EAB437B10B8D8C196B1AC4 /* curriculum_catalog_acara_v9_LA_LAN_013.json */; };
+		677D5CD625F13EA5B840BF34 /* curriculum_catalog_acara_v9_LA_LAN_014.json in Resources */ = {isa = PBXBuildFile; fileRef = B4E07F61F2F79DF165CEB550 /* curriculum_catalog_acara_v9_LA_LAN_014.json */; };
+		1C8CAA2DA0A95CE9E04DE903 /* curriculum_catalog_acara_v9_LA_MAT_001.json in Resources */ = {isa = PBXBuildFile; fileRef = BB18693D5575B6CB0CB6CC2A /* curriculum_catalog_acara_v9_LA_MAT_001.json */; };
+		02EBA707E97AB7E55DC3127E /* curriculum_catalog_acara_v9_LA_MAT_002.json in Resources */ = {isa = PBXBuildFile; fileRef = 07C20FA46C7A12FCD904402E /* curriculum_catalog_acara_v9_LA_MAT_002.json */; };
+		F280FCE2F69D059B5AC44C38 /* curriculum_catalog_acara_v9_LA_SCI_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 20EE7629E9903263846CBC7D /* curriculum_catalog_acara_v9_LA_SCI_001.json */; };
+		CE883C3D46E4187E35FCE24C /* curriculum_catalog_acara_v9_LA_SCI_002.json in Resources */ = {isa = PBXBuildFile; fileRef = 4D58E611510D87B41E57041E /* curriculum_catalog_acara_v9_LA_SCI_002.json */; };
+		763FBF72B718F10BBF20839D /* curriculum_catalog_acara_v9_LA_TEC_001.json in Resources */ = {isa = PBXBuildFile; fileRef = 38FD8C16E0B820CBD449F5EA /* curriculum_catalog_acara_v9_LA_TEC_001.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		2E3D29777300EC14B10D95BE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 16EEAF57BAFC2A41CAB7C99A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C9F45524962D088FBA96DA08;
+			remoteInfo = GradeDraft;
+		};
+		UI1000000000000000000007 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 16EEAF57BAFC2A41CAB7C99A /* Project object */;
 			proxyType = 1;
@@ -148,6 +240,7 @@
 
 		D9730C12B890D116AC692E1F /* MarkForMe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MarkForMe.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GradeDraftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		UI1000000000000000000003 /* GradeDraftUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GradeDraftUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2235988D2937F275CA4EA14B /* GradeDraftApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftApp.swift; sourceTree = "<group>"; };
 		8CBAC66372CFBDF2A09FD7CE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		4D671A939D9C358A3A671EFC /* GradeDraftViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftViewModel.swift; sourceTree = "<group>"; };
@@ -249,6 +342,84 @@
 		C00000000000000000000016 /* PlannedContentSupportCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannedContentSupportCatalog.swift; sourceTree = "<group>"; };
 		C00000000000000000000100 /* GradeDraftContentCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftContentCatalogTests.swift; sourceTree = "<group>"; };
 		C00000000000000000000200 /* grade_draft_content_catalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = grade_draft_content_catalog.json; sourceTree = "<group>"; };
+		UI1000000000000000000001 /* GradeDraftCoreLaneUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftCoreLaneUITests.swift; sourceTree = "<group>"; };
+		C06DFF6BC576C159831DD66C /* AssignmentRecordHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentRecordHardeningTests.swift; sourceTree = "<group>"; };
+		7F66758139222FFECE5F126C /* BundleExportHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleExportHardeningTests.swift; sourceTree = "<group>"; };
+		3534ACE2818C8554E59FFB30 /* CodableRoundTripHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodableRoundTripHardeningTests.swift; sourceTree = "<group>"; };
+		B6F49293B199FF8EC37435D0 /* CSVExportServiceHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVExportServiceHardeningTests.swift; sourceTree = "<group>"; };
+		1B6C8F837408C1BCCBBCE003 /* EnumDisplayNameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnumDisplayNameTests.swift; sourceTree = "<group>"; };
+		1DCB7784932A5550CE2F2DD8 /* EvidenceReferenceHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceReferenceHardeningTests.swift; sourceTree = "<group>"; };
+		69F02110C400757D8F21485D /* ExportReportHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportReportHardeningTests.swift; sourceTree = "<group>"; };
+		58A904004119C2E710055F71 /* FinalGradeReviewHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinalGradeReviewHardeningTests.swift; sourceTree = "<group>"; };
+		AF827731D9DCF5B8D08DFD62 /* GradeDraftErrorHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftErrorHardeningTests.swift; sourceTree = "<group>"; };
+		CBC32D64EC709AB385F50FFB /* GradeDraftValidatorHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftValidatorHardeningTests.swift; sourceTree = "<group>"; };
+		B56F8223DEA4679988D8086A /* GradeTotalsHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeTotalsHardeningTests.swift; sourceTree = "<group>"; };
+		547EECC1F511B7AA182C4293 /* LocalOnlyGradingValidatorHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalOnlyGradingValidatorHardeningTests.swift; sourceTree = "<group>"; };
+		1F183DCD86BB2F7BEB566DAF /* MarkdownRubricParserHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRubricParserHardeningTests.swift; sourceTree = "<group>"; };
+		46F2447B7BF35665C9E9D0F0 /* OCRModelHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRModelHardeningTests.swift; sourceTree = "<group>"; };
+		A0037B14D3D950A7D447C5EB /* OCRQualitySummaryHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRQualitySummaryHardeningTests.swift; sourceTree = "<group>"; };
+		DF2C37383A7D63EB085CA79A /* OCRReviewStatusHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRReviewStatusHardeningTests.swift; sourceTree = "<group>"; };
+		1849669791F9FCAED8A48F06 /* PromptBuilderHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptBuilderHardeningTests.swift; sourceTree = "<group>"; };
+		9F343E9B6DA1021B567B0BA2 /* RubricParserHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RubricParserHardeningTests.swift; sourceTree = "<group>"; };
+		37705F41F886930456D40D20 /* SourceInputRefHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceInputRefHardeningTests.swift; sourceTree = "<group>"; };
+		C5B96D1530E7FF6DC8142172 /* SpreadsheetSafetyHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpreadsheetSafetyHardeningTests.swift; sourceTree = "<group>"; };
+		D6E69FFC0259CA37C1AAEB72 /* StableFingerprintTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StableFingerprintTests.swift; sourceTree = "<group>"; };
+		1588166080A1703A6771F32E /* ViewModelHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewModelHardeningTests.swift; sourceTree = "<group>"; };
+		9D2D3D57504D3B991B01E74A /* GradeDraftViewModel+AssignmentPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftViewModel+AssignmentPersistence.swift; sourceTree = "<group>"; };
+		DC603AD2E26BC84726131CC7 /* GradeDraftViewModel+BackupRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftViewModel+BackupRestore.swift; sourceTree = "<group>"; };
+		D924B73BDE382C31DC96FA3F /* GradeDraftViewModel+DraftFinalReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftViewModel+DraftFinalReview.swift; sourceTree = "<group>"; };
+		5B94D30A1551DD0E05854C11 /* GradeDraftViewModel+Export.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftViewModel+Export.swift; sourceTree = "<group>"; };
+		3D2D0FA759B764E5635E9D84 /* GradeDraftViewModel+OCRReviewEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftViewModel+OCRReviewEvidence.swift; sourceTree = "<group>"; };
+		49F5EB0B461B1EE7D616587F /* GradeDraftViewModel+RoutingStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftViewModel+RoutingStatus.swift; sourceTree = "<group>"; };
+		CF41474E6A0819DAC71DCD94 /* GradeDraftViewModel+RubricCurriculumRoster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftViewModel+RubricCurriculumRoster.swift; sourceTree = "<group>"; };
+		41BEFCF205EF1F9DE2E6D18B /* GradeDraftViewModel+StudentWorkImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftViewModel+StudentWorkImport.swift; sourceTree = "<group>"; };
+		FB3AF955066F841CF4665452 /* GradeDraftViewModel+Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftViewModel+Utilities.swift; sourceTree = "<group>"; };
+		883C71AB9C71AC03A0153B4D /* GradeDraftTests+ExportTrust.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTests+ExportTrust.swift; sourceTree = "<group>"; };
+		3FC5C82792F07C766312BE60 /* GradeDraftTests+FinalReviewEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTests+FinalReviewEvidence.swift; sourceTree = "<group>"; };
+		9C655D6186DE07BEBF8C3E03 /* GradeDraftTests+InputOCRAndShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTests+InputOCRAndShortcuts.swift; sourceTree = "<group>"; };
+		39F4E97B5A027241055406D9 /* GradeDraftTests+LocalAIAndDrafting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTests+LocalAIAndDrafting.swift; sourceTree = "<group>"; };
+		DF2F06AFC1A8C06B6873114C /* GradeDraftTests+Misc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTests+Misc.swift; sourceTree = "<group>"; };
+		DF6833FEE7402292DA656A90 /* GradeDraftTests+PersistenceRosterRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTests+PersistenceRosterRestore.swift; sourceTree = "<group>"; };
+		84040B66C897442E8ECE53C7 /* GradeDraftTests+RubricValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTests+RubricValidation.swift; sourceTree = "<group>"; };
+		FD50E4DC8FCB77CD206E5048 /* GradeDraftTests+UIStatusAndImportModes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTests+UIStatusAndImportModes.swift; sourceTree = "<group>"; };
+		D984B6E76C2555A1EDF4269D /* curriculum_catalog_acara_v9_index.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_index.json; sourceTree = "<group>"; };
+		B8AE0D0864BF1C32F4B4AA81 /* curriculum_catalog_acara_v9_CCP_AA_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_CCP_AA_001.json; sourceTree = "<group>"; };
+		46925CD1A27AB046A4319A52 /* curriculum_catalog_acara_v9_CCP_A_TSI_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_CCP_A_TSI_001.json; sourceTree = "<group>"; };
+		9C95CA613B9474A9F2C1CE40 /* curriculum_catalog_acara_v9_CCP_S_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_CCP_S_001.json; sourceTree = "<group>"; };
+		81C223D13BB36B660342BDAD /* curriculum_catalog_acara_v9_GC_CCT_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_GC_CCT_001.json; sourceTree = "<group>"; };
+		615224EC8267F4CF1DF1ADDD /* curriculum_catalog_acara_v9_GC_DL_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_GC_DL_001.json; sourceTree = "<group>"; };
+		D88DF2C5D9CC3954DB09ADF4 /* curriculum_catalog_acara_v9_GC_EU_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_GC_EU_001.json; sourceTree = "<group>"; };
+		42ABE0400A67372454C2CA14 /* curriculum_catalog_acara_v9_GC_IU_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_GC_IU_001.json; sourceTree = "<group>"; };
+		157C5E4D9C0AB73235B22231 /* curriculum_catalog_acara_v9_GC_L_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_GC_L_001.json; sourceTree = "<group>"; };
+		A487A22333AA85B22B6275CA /* curriculum_catalog_acara_v9_GC_L_002.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_GC_L_002.json; sourceTree = "<group>"; };
+		D41D8897E8C29B8CED5417AE /* curriculum_catalog_acara_v9_GC_N_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_GC_N_001.json; sourceTree = "<group>"; };
+		BD0F6D420A4A10DE0CF98D9B /* curriculum_catalog_acara_v9_GC_PSC_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_GC_PSC_001.json; sourceTree = "<group>"; };
+		74D29A846776BFF70D7D6FD4 /* curriculum_catalog_acara_v9_LA_ART_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_ART_001.json; sourceTree = "<group>"; };
+		408D2E07AE03DC5F5A6FC456 /* curriculum_catalog_acara_v9_LA_ART_002.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_ART_002.json; sourceTree = "<group>"; };
+		6C1C97BB9AAA0E5A68649913 /* curriculum_catalog_acara_v9_LA_ENG_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_ENG_001.json; sourceTree = "<group>"; };
+		076CAC65F0B8DFFAF8A9B829 /* curriculum_catalog_acara_v9_LA_ENG_002.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_ENG_002.json; sourceTree = "<group>"; };
+		61A4F9658D483502DA28E304 /* curriculum_catalog_acara_v9_LA_HASS_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_HASS_001.json; sourceTree = "<group>"; };
+		6EB25A892F91AC85350A1569 /* curriculum_catalog_acara_v9_LA_HASS_002.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_HASS_002.json; sourceTree = "<group>"; };
+		579743EEC712E87A28A3B091 /* curriculum_catalog_acara_v9_LA_HPE_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_HPE_001.json; sourceTree = "<group>"; };
+		7435528CAFA7F4A4224386C4 /* curriculum_catalog_acara_v9_LA_LAN_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_001.json; sourceTree = "<group>"; };
+		D07DBC4C66DD236940F22317 /* curriculum_catalog_acara_v9_LA_LAN_002.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_002.json; sourceTree = "<group>"; };
+		4B6C7770DA12DC5794612F6E /* curriculum_catalog_acara_v9_LA_LAN_003.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_003.json; sourceTree = "<group>"; };
+		6E2AA4FD6C8F1A08F2C9EB83 /* curriculum_catalog_acara_v9_LA_LAN_004.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_004.json; sourceTree = "<group>"; };
+		EF49390394A3D809AA6EF3F0 /* curriculum_catalog_acara_v9_LA_LAN_005.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_005.json; sourceTree = "<group>"; };
+		3CE91073E38BE8335CC97A0F /* curriculum_catalog_acara_v9_LA_LAN_006.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_006.json; sourceTree = "<group>"; };
+		37AC0B3410344FB92442DA73 /* curriculum_catalog_acara_v9_LA_LAN_007.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_007.json; sourceTree = "<group>"; };
+		EF92CF5F03F93650CABAF9A9 /* curriculum_catalog_acara_v9_LA_LAN_008.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_008.json; sourceTree = "<group>"; };
+		CDDD2610623AA09C3A961A4E /* curriculum_catalog_acara_v9_LA_LAN_009.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_009.json; sourceTree = "<group>"; };
+		CBB03B8C35AF786DD5AFB4C0 /* curriculum_catalog_acara_v9_LA_LAN_010.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_010.json; sourceTree = "<group>"; };
+		99F7EFE75BA2134077A6012A /* curriculum_catalog_acara_v9_LA_LAN_011.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_011.json; sourceTree = "<group>"; };
+		DCEDC99D1E9DC7137257F218 /* curriculum_catalog_acara_v9_LA_LAN_012.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_012.json; sourceTree = "<group>"; };
+		76EAB437B10B8D8C196B1AC4 /* curriculum_catalog_acara_v9_LA_LAN_013.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_013.json; sourceTree = "<group>"; };
+		B4E07F61F2F79DF165CEB550 /* curriculum_catalog_acara_v9_LA_LAN_014.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_LAN_014.json; sourceTree = "<group>"; };
+		BB18693D5575B6CB0CB6CC2A /* curriculum_catalog_acara_v9_LA_MAT_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_MAT_001.json; sourceTree = "<group>"; };
+		07C20FA46C7A12FCD904402E /* curriculum_catalog_acara_v9_LA_MAT_002.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_MAT_002.json; sourceTree = "<group>"; };
+		20EE7629E9903263846CBC7D /* curriculum_catalog_acara_v9_LA_SCI_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_SCI_001.json; sourceTree = "<group>"; };
+		4D58E611510D87B41E57041E /* curriculum_catalog_acara_v9_LA_SCI_002.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_SCI_002.json; sourceTree = "<group>"; };
+		38FD8C16E0B820CBD449F5EA /* curriculum_catalog_acara_v9_LA_TEC_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = curriculum_catalog_acara_v9_LA_TEC_001.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -272,6 +443,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		UI1000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -281,6 +459,7 @@
 				F20000000000000000000002 /* Config */,
 				FDBDEEC77EA1DB023A30F615 /* GradeDraft */,
 				D672293B1BCDE5BD8B87F945 /* GradeDraftTests */,
+				UI1000000000000000000004 /* GradeDraftUITests */,
 				5ADE8A4128725EB9150C196B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -300,6 +479,15 @@
 				2235988D2937F275CA4EA14B /* GradeDraftApp.swift */,
 				8CBAC66372CFBDF2A09FD7CE /* ContentView.swift */,
 				4D671A939D9C358A3A671EFC /* GradeDraftViewModel.swift */,
+				FB3AF955066F841CF4665452 /* GradeDraftViewModel+Utilities.swift */,
+				41BEFCF205EF1F9DE2E6D18B /* GradeDraftViewModel+StudentWorkImport.swift */,
+				CF41474E6A0819DAC71DCD94 /* GradeDraftViewModel+RubricCurriculumRoster.swift */,
+				49F5EB0B461B1EE7D616587F /* GradeDraftViewModel+RoutingStatus.swift */,
+				3D2D0FA759B764E5635E9D84 /* GradeDraftViewModel+OCRReviewEvidence.swift */,
+				5B94D30A1551DD0E05854C11 /* GradeDraftViewModel+Export.swift */,
+				D924B73BDE382C31DC96FA3F /* GradeDraftViewModel+DraftFinalReview.swift */,
+				DC603AD2E26BC84726131CC7 /* GradeDraftViewModel+BackupRestore.swift */,
+				9D2D3D57504D3B991B01E74A /* GradeDraftViewModel+AssignmentPersistence.swift */,
 				AI2000000000000000000001 /* AppRouting.swift */,
 				BF657CFE8769AAE6C0570C29 /* Models */,
 				6EE67047A4B2648DDBB08231 /* Services */,
@@ -313,6 +501,13 @@
 			isa = PBXGroup;
 			children = (
 				BEAA58224F166E200203BADA /* GradeDraftModels.swift */,
+				MDL0000000000000000000001 /* GradeDraftFoundationModels.swift */,
+				MDL0000000000000000000002 /* GradeDraftClassroomModels.swift */,
+				MDL0000000000000000000003 /* GradeDraftOCRModels.swift */,
+				MDL0000000000000000000004 /* GradeDraftRubricModels.swift */,
+				MDL0000000000000000000005 /* GradeDraftGradingModels.swift */,
+				MDL0000000000000000000006 /* GradeDraftExportAuditModels.swift */,
+				MDL0000000000000000000007 /* GradeDraftTemplateErrorModels.swift */,
 				AI0000000000000000000001 /* GradingConstraintTemplates.swift */,
 			);
 			path = Models;
@@ -405,8 +600,38 @@
 			isa = PBXGroup;
 			children = (
 				E7540F0CD4B719C0E75EBE09 /* GradeDraftTests.swift */,
+				FD50E4DC8FCB77CD206E5048 /* GradeDraftTests+UIStatusAndImportModes.swift */,
+				84040B66C897442E8ECE53C7 /* GradeDraftTests+RubricValidation.swift */,
+				DF6833FEE7402292DA656A90 /* GradeDraftTests+PersistenceRosterRestore.swift */,
+				DF2F06AFC1A8C06B6873114C /* GradeDraftTests+Misc.swift */,
+				39F4E97B5A027241055406D9 /* GradeDraftTests+LocalAIAndDrafting.swift */,
+				9C655D6186DE07BEBF8C3E03 /* GradeDraftTests+InputOCRAndShortcuts.swift */,
+				3FC5C82792F07C766312BE60 /* GradeDraftTests+FinalReviewEvidence.swift */,
+				883C71AB9C71AC03A0153B4D /* GradeDraftTests+ExportTrust.swift */,
 				C00000000000000000000100 /* GradeDraftContentCatalogTests.swift */,
 				A1B2C3D4E5F6A7B8C9D0E1F4 /* GradeDraftHardeningTests.swift */,
+				C06DFF6BC576C159831DD66C /* AssignmentRecordHardeningTests.swift */,
+				7F66758139222FFECE5F126C /* BundleExportHardeningTests.swift */,
+				3534ACE2818C8554E59FFB30 /* CodableRoundTripHardeningTests.swift */,
+				B6F49293B199FF8EC37435D0 /* CSVExportServiceHardeningTests.swift */,
+				1B6C8F837408C1BCCBBCE003 /* EnumDisplayNameTests.swift */,
+				1DCB7784932A5550CE2F2DD8 /* EvidenceReferenceHardeningTests.swift */,
+				69F02110C400757D8F21485D /* ExportReportHardeningTests.swift */,
+				58A904004119C2E710055F71 /* FinalGradeReviewHardeningTests.swift */,
+				AF827731D9DCF5B8D08DFD62 /* GradeDraftErrorHardeningTests.swift */,
+				CBC32D64EC709AB385F50FFB /* GradeDraftValidatorHardeningTests.swift */,
+				B56F8223DEA4679988D8086A /* GradeTotalsHardeningTests.swift */,
+				547EECC1F511B7AA182C4293 /* LocalOnlyGradingValidatorHardeningTests.swift */,
+				1F183DCD86BB2F7BEB566DAF /* MarkdownRubricParserHardeningTests.swift */,
+				46F2447B7BF35665C9E9D0F0 /* OCRModelHardeningTests.swift */,
+				A0037B14D3D950A7D447C5EB /* OCRQualitySummaryHardeningTests.swift */,
+				DF2C37383A7D63EB085CA79A /* OCRReviewStatusHardeningTests.swift */,
+				1849669791F9FCAED8A48F06 /* PromptBuilderHardeningTests.swift */,
+				9F343E9B6DA1021B567B0BA2 /* RubricParserHardeningTests.swift */,
+				37705F41F886930456D40D20 /* SourceInputRefHardeningTests.swift */,
+				C5B96D1530E7FF6DC8142172 /* SpreadsheetSafetyHardeningTests.swift */,
+				D6E69FFC0259CA37C1AAEB72 /* StableFingerprintTests.swift */,
+				1588166080A1703A6771F32E /* ViewModelHardeningTests.swift */,
 				AA22AA22AA22AA22AA220002 /* GradeWizardProgressTests.swift */,
 				9f0175805dd24b9d9cdbd081 /* GradeDraftSnapshotTests.swift */,
 				B2C3D4E5F6A7B8C9D0E1F2A3 /* GradeDraftScreenshotTests.swift */,
@@ -425,7 +650,15 @@
 			path = GradeDraftTests;
 			sourceTree = "<group>";
 		};
-		5ADE8A4128725EB9150C196B /* Products */ = {isa = PBXGroup; children = ( D9730C12B890D116AC692E1F /* MarkForMe.app */, AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */, ); name = Products; sourceTree = "<group>"; };
+		UI1000000000000000000004 /* GradeDraftUITests */ = {
+			isa = PBXGroup;
+			children = (
+				UI1000000000000000000001 /* GradeDraftCoreLaneUITests.swift */,
+			);
+			path = GradeDraftUITests;
+			sourceTree = "<group>";
+		};
+		5ADE8A4128725EB9150C196B /* Products */ = {isa = PBXGroup; children = ( D9730C12B890D116AC692E1F /* MarkForMe.app */, AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */, UI1000000000000000000003 /* GradeDraftUITests.xctest */, ); name = Products; sourceTree = "<group>"; };
 		76b6d5b0f6a84a6f8c3b4f17 /* Persistence */ = {
 			isa = PBXGroup;
 			children = (
@@ -563,6 +796,8 @@
 				F10000000000000000000005 /* curriculum_catalog_acara_v9.json */,
 				F10000000000000000000006 /* curriculum_catalog_acara_v9_manifest.json */,
 				F10000000000000000000007 /* curriculum_catalog_acara_v9_summary.json */,
+				CURSHARDS000000000000001 /* CurriculumShards */,
+				D984B6E76C2555A1EDF4269D /* curriculum_catalog_acara_v9_index.json */,
 				C00000000000000000000200 /* grade_draft_content_catalog.json */,
 			);
 			path = JSON;
@@ -585,6 +820,50 @@
 				F10000000000000000000008 /* Shared.xcconfig */,
 			);
 			path = Config;
+			sourceTree = "<group>";
+		};
+		CURSHARDS000000000000001 /* CurriculumShards */ = {
+			isa = PBXGroup;
+			children = (
+				B8AE0D0864BF1C32F4B4AA81 /* curriculum_catalog_acara_v9_CCP_AA_001.json */,
+				46925CD1A27AB046A4319A52 /* curriculum_catalog_acara_v9_CCP_A_TSI_001.json */,
+				9C95CA613B9474A9F2C1CE40 /* curriculum_catalog_acara_v9_CCP_S_001.json */,
+				81C223D13BB36B660342BDAD /* curriculum_catalog_acara_v9_GC_CCT_001.json */,
+				615224EC8267F4CF1DF1ADDD /* curriculum_catalog_acara_v9_GC_DL_001.json */,
+				D88DF2C5D9CC3954DB09ADF4 /* curriculum_catalog_acara_v9_GC_EU_001.json */,
+				42ABE0400A67372454C2CA14 /* curriculum_catalog_acara_v9_GC_IU_001.json */,
+				157C5E4D9C0AB73235B22231 /* curriculum_catalog_acara_v9_GC_L_001.json */,
+				A487A22333AA85B22B6275CA /* curriculum_catalog_acara_v9_GC_L_002.json */,
+				D41D8897E8C29B8CED5417AE /* curriculum_catalog_acara_v9_GC_N_001.json */,
+				BD0F6D420A4A10DE0CF98D9B /* curriculum_catalog_acara_v9_GC_PSC_001.json */,
+				74D29A846776BFF70D7D6FD4 /* curriculum_catalog_acara_v9_LA_ART_001.json */,
+				408D2E07AE03DC5F5A6FC456 /* curriculum_catalog_acara_v9_LA_ART_002.json */,
+				6C1C97BB9AAA0E5A68649913 /* curriculum_catalog_acara_v9_LA_ENG_001.json */,
+				076CAC65F0B8DFFAF8A9B829 /* curriculum_catalog_acara_v9_LA_ENG_002.json */,
+				61A4F9658D483502DA28E304 /* curriculum_catalog_acara_v9_LA_HASS_001.json */,
+				6EB25A892F91AC85350A1569 /* curriculum_catalog_acara_v9_LA_HASS_002.json */,
+				579743EEC712E87A28A3B091 /* curriculum_catalog_acara_v9_LA_HPE_001.json */,
+				7435528CAFA7F4A4224386C4 /* curriculum_catalog_acara_v9_LA_LAN_001.json */,
+				D07DBC4C66DD236940F22317 /* curriculum_catalog_acara_v9_LA_LAN_002.json */,
+				4B6C7770DA12DC5794612F6E /* curriculum_catalog_acara_v9_LA_LAN_003.json */,
+				6E2AA4FD6C8F1A08F2C9EB83 /* curriculum_catalog_acara_v9_LA_LAN_004.json */,
+				EF49390394A3D809AA6EF3F0 /* curriculum_catalog_acara_v9_LA_LAN_005.json */,
+				3CE91073E38BE8335CC97A0F /* curriculum_catalog_acara_v9_LA_LAN_006.json */,
+				37AC0B3410344FB92442DA73 /* curriculum_catalog_acara_v9_LA_LAN_007.json */,
+				EF92CF5F03F93650CABAF9A9 /* curriculum_catalog_acara_v9_LA_LAN_008.json */,
+				CDDD2610623AA09C3A961A4E /* curriculum_catalog_acara_v9_LA_LAN_009.json */,
+				CBB03B8C35AF786DD5AFB4C0 /* curriculum_catalog_acara_v9_LA_LAN_010.json */,
+				99F7EFE75BA2134077A6012A /* curriculum_catalog_acara_v9_LA_LAN_011.json */,
+				DCEDC99D1E9DC7137257F218 /* curriculum_catalog_acara_v9_LA_LAN_012.json */,
+				76EAB437B10B8D8C196B1AC4 /* curriculum_catalog_acara_v9_LA_LAN_013.json */,
+				B4E07F61F2F79DF165CEB550 /* curriculum_catalog_acara_v9_LA_LAN_014.json */,
+				BB18693D5575B6CB0CB6CC2A /* curriculum_catalog_acara_v9_LA_MAT_001.json */,
+				07C20FA46C7A12FCD904402E /* curriculum_catalog_acara_v9_LA_MAT_002.json */,
+				20EE7629E9903263846CBC7D /* curriculum_catalog_acara_v9_LA_SCI_001.json */,
+				4D58E611510D87B41E57041E /* curriculum_catalog_acara_v9_LA_SCI_002.json */,
+				38FD8C16E0B820CBD449F5EA /* curriculum_catalog_acara_v9_LA_TEC_001.json */,
+			);
+			path = CurriculumShards;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -628,6 +907,21 @@
 			productReference = AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		UI1000000000000000000006 /* GradeDraftUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = UI1000000000000000000010 /* Build configuration list for PBXNativeTarget "GradeDraftUITests" */;
+			buildPhases = (
+				UI1000000000000000000009 /* Sources */,
+				UI1000000000000000000005 /* Frameworks */,
+			);
+			buildRules = ( );
+			dependencies = ( UI1000000000000000000008 /* PBXTargetDependency */, );
+			name = GradeDraftUITests;
+			packageProductDependencies = (
+			);
+			productReference = UI1000000000000000000003 /* GradeDraftUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -640,6 +934,7 @@
 				TargetAttributes = {
 					C9F45524962D088FBA96DA08 = { CreatedOnToolsVersion = 26.0; };
 					385F6D1BD8E774F956FF142E = { CreatedOnToolsVersion = 26.0; TestTargetID = C9F45524962D088FBA96DA08; };
+					UI1000000000000000000006 = { CreatedOnToolsVersion = 26.0; TestTargetID = C9F45524962D088FBA96DA08; };
 				};
 			};
 			buildConfigurationList = 4098280B01B3EBC6C4399C36 /* Build configuration list for PBXProject "GradeDraft" */;
@@ -658,12 +953,12 @@
 				c8e0d6aabf7c4b98ba263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				13164971737547e2884e1c6e /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
 			);
-			targets = ( C9F45524962D088FBA96DA08 /* GradeDraft */, 385F6D1BD8E774F956FF142E /* GradeDraftTests */, );
+			targets = ( C9F45524962D088FBA96DA08 /* GradeDraft */, 385F6D1BD8E774F956FF142E /* GradeDraftTests */, UI1000000000000000000006 /* GradeDraftUITests */, );
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		1D1DCE0D308435F6082AAF5E /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( F00000000000000000000004 /* Assets.xcassets in Resources */, 7B431331244B2236C5880029 /* PrivacyInfo.xcprivacy in Resources */, C10000000000000000000200 /* grade_draft_content_catalog.json in Resources */, F00000000000000000000005 /* curriculum_catalog_acara_v9.json in Resources */, F00000000000000000000006 /* curriculum_catalog_acara_v9_manifest.json in Resources */, F00000000000000000000007 /* curriculum_catalog_acara_v9_summary.json in Resources */, ); runOnlyForDeploymentPostprocessing = 0; };
+		1D1DCE0D308435F6082AAF5E /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( F00000000000000000000004 /* Assets.xcassets in Resources */, 7B431331244B2236C5880029 /* PrivacyInfo.xcprivacy in Resources */, C10000000000000000000200 /* grade_draft_content_catalog.json in Resources */, F00000000000000000000005 /* curriculum_catalog_acara_v9.json in Resources */, F00000000000000000000006 /* curriculum_catalog_acara_v9_manifest.json in Resources */, F00000000000000000000007 /* curriculum_catalog_acara_v9_summary.json in Resources */, 763FBF72B718F10BBF20839D /* curriculum_catalog_acara_v9_LA_TEC_001.json in Resources */, CE883C3D46E4187E35FCE24C /* curriculum_catalog_acara_v9_LA_SCI_002.json in Resources */, F280FCE2F69D059B5AC44C38 /* curriculum_catalog_acara_v9_LA_SCI_001.json in Resources */, 02EBA707E97AB7E55DC3127E /* curriculum_catalog_acara_v9_LA_MAT_002.json in Resources */, 1C8CAA2DA0A95CE9E04DE903 /* curriculum_catalog_acara_v9_LA_MAT_001.json in Resources */, 677D5CD625F13EA5B840BF34 /* curriculum_catalog_acara_v9_LA_LAN_014.json in Resources */, 68D481E863825C67C3D876AE /* curriculum_catalog_acara_v9_LA_LAN_013.json in Resources */, B00F2F42021D1780B28E5D48 /* curriculum_catalog_acara_v9_LA_LAN_012.json in Resources */, 56954109EEB0128D4B37F671 /* curriculum_catalog_acara_v9_LA_LAN_011.json in Resources */, 58A40581C58E56E8134E7D22 /* curriculum_catalog_acara_v9_LA_LAN_010.json in Resources */, 07FAB8B957248032DD746DBF /* curriculum_catalog_acara_v9_LA_LAN_009.json in Resources */, B917FB211ADEC9E23028CCF2 /* curriculum_catalog_acara_v9_LA_LAN_008.json in Resources */, 98D2F7DBCA7B9954753D5690 /* curriculum_catalog_acara_v9_LA_LAN_007.json in Resources */, 34F1B887F7CE780CD0019D1D /* curriculum_catalog_acara_v9_LA_LAN_006.json in Resources */, 409F64C5FAB126ABBAEAE7E5 /* curriculum_catalog_acara_v9_LA_LAN_005.json in Resources */, 4B64B466BB355A957E5DA590 /* curriculum_catalog_acara_v9_LA_LAN_004.json in Resources */, D9D7C51CE1981D3A527AA7AC /* curriculum_catalog_acara_v9_LA_LAN_003.json in Resources */, 97518D0BDF7F22923169CF47 /* curriculum_catalog_acara_v9_LA_LAN_002.json in Resources */, F8B96EAE08D0B808DB7E35BF /* curriculum_catalog_acara_v9_LA_LAN_001.json in Resources */, 463587600E43EFF5D1B7004E /* curriculum_catalog_acara_v9_LA_HPE_001.json in Resources */, 0A360FC512B33794F366A7C6 /* curriculum_catalog_acara_v9_LA_HASS_002.json in Resources */, 7C90848AB63F4F9902618C68 /* curriculum_catalog_acara_v9_LA_HASS_001.json in Resources */, 5A08CB2AD04B6EB50663417C /* curriculum_catalog_acara_v9_LA_ENG_002.json in Resources */, 661B879C41659544FF8B357F /* curriculum_catalog_acara_v9_LA_ENG_001.json in Resources */, 6867F924D31BCD296275478D /* curriculum_catalog_acara_v9_LA_ART_002.json in Resources */, 041125BCC81B48D65D8D905B /* curriculum_catalog_acara_v9_LA_ART_001.json in Resources */, 862F07C53D482B06C8F80177 /* curriculum_catalog_acara_v9_GC_PSC_001.json in Resources */, 0654B4562EC277ED452A03AA /* curriculum_catalog_acara_v9_GC_N_001.json in Resources */, F198B1D1E3EA59843586BB54 /* curriculum_catalog_acara_v9_GC_L_002.json in Resources */, FCD4DF21015BC5EE5DDC2834 /* curriculum_catalog_acara_v9_GC_L_001.json in Resources */, 49F84836DBA3209864148999 /* curriculum_catalog_acara_v9_GC_IU_001.json in Resources */, FB45D35AC8CF38067F128CCE /* curriculum_catalog_acara_v9_GC_EU_001.json in Resources */, B59CBC20F66A7EBE5AC9508B /* curriculum_catalog_acara_v9_GC_DL_001.json in Resources */, A85069BC496F6AE92A425EBA /* curriculum_catalog_acara_v9_GC_CCT_001.json in Resources */, 1B70546E51890FEFB36BD385 /* curriculum_catalog_acara_v9_CCP_S_001.json in Resources */, C38EBAF4A567F2CD00AB67F8 /* curriculum_catalog_acara_v9_CCP_A_TSI_001.json in Resources */, 04C90A9C11FA8C2A01F98FD8 /* curriculum_catalog_acara_v9_CCP_AA_001.json in Resources */, 2BD0DD770A7FEAB03E2DB1A6 /* curriculum_catalog_acara_v9_index.json in Resources */, ); runOnlyForDeploymentPostprocessing = 0; };
 		4C1C9CA0B2757DBC822D263B /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( C10000000000000000000201 /* grade_draft_content_catalog.json in Resources */, ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
@@ -719,6 +1014,15 @@
 				87C11B82C1B3493DEB9EF36F /* GradeDraftApp.swift in Sources */,
 				1A2F1E13B4A601B308F525EE /* ContentView.swift in Sources */,
 				5228B779E078711C4ADE8832 /* GradeDraftViewModel.swift in Sources */,
+				099A4E764BC798E22B3817C6 /* GradeDraftViewModel+Utilities.swift in Sources */,
+				AD34C8708DD0DFAD4C8397D0 /* GradeDraftViewModel+StudentWorkImport.swift in Sources */,
+				046B19E0F0134B6DFED63D48 /* GradeDraftViewModel+RubricCurriculumRoster.swift in Sources */,
+				6A6EFB17CF88F9184B1DDCE7 /* GradeDraftViewModel+RoutingStatus.swift in Sources */,
+				7181F38663F3774F111CE291 /* GradeDraftViewModel+OCRReviewEvidence.swift in Sources */,
+				467EB123EE6E7595BC11F234 /* GradeDraftViewModel+Export.swift in Sources */,
+				280FA9066C0EC9ACFF99067A /* GradeDraftViewModel+DraftFinalReview.swift in Sources */,
+				115DA10C8C6953F8BB7BBB0C /* GradeDraftViewModel+BackupRestore.swift in Sources */,
+				C2C9E2779692A32DD68479D2 /* GradeDraftViewModel+AssignmentPersistence.swift in Sources */,
 				AI2000000000000000000002 /* AppRouting.swift in Sources */,
 				98C89CBBC31867AF0C9BF5BE /* GradeDraftModels.swift in Sources */,
 				E9EF92B5433A17AD97549061 /* OCRService.swift in Sources */,
@@ -757,7 +1061,37 @@
 				); runOnlyForDeploymentPostprocessing = 0; };
 		C2C867FEB507DB914C2126B0 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
 				E92F15694F5C9C14E9C64B87 /* GradeDraftTests.swift in Sources */,
+				084F4069CA284DE974656F0B /* GradeDraftTests+UIStatusAndImportModes.swift in Sources */,
+				5473A48FC6C347D5E0CB6367 /* GradeDraftTests+RubricValidation.swift in Sources */,
+				4F7FACCD1479AB1520CDD156 /* GradeDraftTests+PersistenceRosterRestore.swift in Sources */,
+				3C96AD0CE4E5D965769F0A7B /* GradeDraftTests+Misc.swift in Sources */,
+				F8CA27408198127C2F43C669 /* GradeDraftTests+LocalAIAndDrafting.swift in Sources */,
+				D21A8AC30082FC997903F21C /* GradeDraftTests+InputOCRAndShortcuts.swift in Sources */,
+				BEF71A9CC539B08344105BF4 /* GradeDraftTests+FinalReviewEvidence.swift in Sources */,
+				73EEBBF156FD196F8175BCE3 /* GradeDraftTests+ExportTrust.swift in Sources */,
 				A1B2C3D4E5F6A7B8C9D0E1F3 /* GradeDraftHardeningTests.swift in Sources */,
+				0C55357E2EA994B8380D7AB1 /* AssignmentRecordHardeningTests.swift in Sources */,
+				5E3BE13B489065C77E291351 /* BundleExportHardeningTests.swift in Sources */,
+				EA73F6D87FE9A65B902EE52C /* CodableRoundTripHardeningTests.swift in Sources */,
+				7731CF7D7297B8ECBA38E919 /* CSVExportServiceHardeningTests.swift in Sources */,
+				85FA93103677B91F2A4215B9 /* EnumDisplayNameTests.swift in Sources */,
+				CC1E7DAC34A158D098C4C8F7 /* EvidenceReferenceHardeningTests.swift in Sources */,
+				2CD3830AF175EC71702FA466 /* ExportReportHardeningTests.swift in Sources */,
+				9C3C0F25680BE4140E2F7B37 /* FinalGradeReviewHardeningTests.swift in Sources */,
+				B1BC3F6920BDDCE7E9403535 /* GradeDraftErrorHardeningTests.swift in Sources */,
+				A6880FFC5781120B60BD7E4E /* GradeDraftValidatorHardeningTests.swift in Sources */,
+				6FB11CE9F8C2629C22C0775A /* GradeTotalsHardeningTests.swift in Sources */,
+				69FBA4336656A04B5AF5F1D0 /* LocalOnlyGradingValidatorHardeningTests.swift in Sources */,
+				3A252CE32D6DD0D3DAD3FA73 /* MarkdownRubricParserHardeningTests.swift in Sources */,
+				42F155D5DC060F5564E12960 /* OCRModelHardeningTests.swift in Sources */,
+				87B8308CF5CD389DE2D8D567 /* OCRQualitySummaryHardeningTests.swift in Sources */,
+				F1E45A7CC92CC94C75D43C53 /* OCRReviewStatusHardeningTests.swift in Sources */,
+				5303E43E963663593781B278 /* PromptBuilderHardeningTests.swift in Sources */,
+				A77D0393BE5203ECA65883BC /* RubricParserHardeningTests.swift in Sources */,
+				9FE8E360B7B2CBEB84DC87C9 /* SourceInputRefHardeningTests.swift in Sources */,
+				7FBEC0C9C98125AB5D2909A0 /* SpreadsheetSafetyHardeningTests.swift in Sources */,
+				1FC10291B26491E5DC888627 /* StableFingerprintTests.swift in Sources */,
+				EBD42BA8869153EBF0DE1E4A /* ViewModelHardeningTests.swift in Sources */,
 				AA22AA22AA22AA22AA220001 /* GradeWizardProgressTests.swift in Sources */,
 				83fb1a487f92415bb6a08568 /* GradeDraftSnapshotTests.swift in Sources */,
 				C3D4E5F6A7B8C9D0E1F2A3B4 /* GradeDraftScreenshotTests.swift in Sources */,
@@ -774,6 +1108,9 @@
 				F00000000000000000000003 /* CurriculumCatalogProductionTests.swift in Sources */,
 				AI3000000000000000000004 /* AIEvaluationFixtureTests.swift in Sources */,
 			); runOnlyForDeploymentPostprocessing = 0; };
+		UI1000000000000000000009 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
+				UI1000000000000000000002 /* GradeDraftCoreLaneUITests.swift in Sources */,
+			); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -781,6 +1118,11 @@
 			isa = PBXTargetDependency;
 			target = C9F45524962D088FBA96DA08 /* GradeDraft */;
 			targetProxy = 2E3D29777300EC14B10D95BE /* PBXContainerItemProxy */;
+		};
+		UI1000000000000000000008 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C9F45524962D088FBA96DA08 /* GradeDraft */;
+			targetProxy = UI1000000000000000000007 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1025,12 +1367,43 @@
 			};
 			name = Release;
 		};
+		UI1000000000000000000011 /* Debug */ = {
+			baseConfigurationReference = F10000000000000000000009 /* Debug.xcconfig */;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(GRADEDRAFT_TEST_BUNDLE_ID).ui";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = MarkForMe;
+			};
+			name = Debug;
+		};
+		UI1000000000000000000012 /* Release */ = {
+			baseConfigurationReference = F1000000000000000000000A /* Release.xcconfig */;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(GRADEDRAFT_TEST_BUNDLE_ID).ui";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = MarkForMe;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
 		4098280B01B3EBC6C4399C36 /* Build configuration list for PBXProject "GradeDraft" */ = {isa = XCConfigurationList; buildConfigurations = ( 44F8FE9E42EE10FA95BF5EC7 /* Debug */, 4716E1B4F36A39044E1BE345 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		7D5CC26B5D8184F60C162E3E /* Build configuration list for PBXNativeTarget "MarkForMe" */ = {isa = XCConfigurationList; buildConfigurations = ( AA42A96571B68018722E06D1 /* Debug */, D1EF6BA381CF098EC2C15B86 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		97A2EC73EC7ED3717951F45B /* Build configuration list for PBXNativeTarget "GradeDraftTests" */ = {isa = XCConfigurationList; buildConfigurations = ( 7E49AA4734F9B1DA6D85775C /* Debug */, 71A699ED4E27E90F54E3EFE9 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		UI1000000000000000000010 /* Build configuration list for PBXNativeTarget "GradeDraftUITests" */ = {isa = XCConfigurationList; buildConfigurations = ( UI1000000000000000000011 /* Debug */, UI1000000000000000000012 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 	};
 	rootObject = 16EEAF57BAFC2A41CAB7C99A /* Project object */;

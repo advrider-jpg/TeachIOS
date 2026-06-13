@@ -48,6 +48,9 @@ jobs:
       - name: Native UI refactor guardrail
         run: python3 scripts/ci/check_native_ui_refactor.py
 
+      - name: Route and export truthfulness guardrail
+        run: python3 scripts/ci/check_route_and_export_truthfulness.py
+
       - name: Xcode project membership guardrail
         run: python3 scripts/ci/check_xcode_project_membership.py
 
@@ -80,9 +83,9 @@ jobs:
             echo "## static-policy"
             echo ""
             echo "- Python: $(python3 --version)"
-            echo "- Guardrails: repo_health, no_network_scan, export_hardening_scan, bad_string_scan, native_ui_refactor, project_membership, CI contract"
+            echo "- Guardrails: repo_health, no_network_scan, export_hardening_scan, bad_string_scan, native_ui_refactor, route_export_truthfulness, project_membership, CI contract"
             echo "- Local reproduction:"
-            echo "  \`python3 scripts/repo_health.py && python3 scripts/no_network_scan.py && python3 scripts/export_hardening_scan.py && python3 scripts/ci/bad_string_scan.py && python3 scripts/ci/check_native_ui_refactor.py && python3 scripts/ci/check_xcode_project_membership.py && python3 scripts/ci/check_ci_contract.py\`"
+            echo "  \`python3 scripts/repo_health.py && python3 scripts/no_network_scan.py && python3 scripts/export_hardening_scan.py && python3 scripts/ci/bad_string_scan.py && python3 scripts/ci/check_native_ui_refactor.py && python3 scripts/ci/check_route_and_export_truthfulness.py && python3 scripts/ci/check_xcode_project_membership.py && python3 scripts/ci/check_ci_contract.py\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   workflow-lint:
@@ -211,6 +214,7 @@ jobs:
             -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$RESULT_BUNDLE" \
             -skip-testing:GradeDraftTests/GradeDraftScreenshotTests \
+            -skip-testing:GradeDraftUITests \
             ARCHS=arm64 \
             clean test \
             | tee xcode-logs/xcode-unit-tests.log
@@ -238,13 +242,13 @@ jobs:
             echo "| Simulator | ${{ steps.simulator.outputs.device_name }} (${{ steps.simulator.outputs.runtime_name }}) |"
             echo "| Destination | ${{ steps.simulator.outputs.destination }} |"
             echo "| Result bundle | ${{ runner.temp }}/GradeDraftUnitTests.xcresult |"
-            echo "| Command | \`xcodebuild -project $PROJECT -scheme $SCHEME -destination '${{ steps.simulator.outputs.destination }}' -derivedDataPath \$RUNNER_TEMP/GradeDraftDerivedData -resultBundlePath \$RUNNER_TEMP/GradeDraftUnitTests.xcresult -skip-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 clean test\` |"
+            echo "| Command | \`xcodebuild -project $PROJECT -scheme $SCHEME -destination '${{ steps.simulator.outputs.destination }}' -derivedDataPath \$RUNNER_TEMP/GradeDraftDerivedData -resultBundlePath \$RUNNER_TEMP/GradeDraftUnitTests.xcresult -skip-testing:GradeDraftTests/GradeDraftScreenshotTests -skip-testing:GradeDraftUITests ARCHS=arm64 clean test\` |"
             echo ""
             echo "Local reproduction:"
             echo "\`\`\`bash"
             echo "bash scripts/ci/select_xcode.sh"
             echo "DESTINATION=\"\$(python3 scripts/ci/select_ios_simulator.py --print-destination)\""
-            echo "xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination \"\$DESTINATION\" -derivedDataPath /tmp/GradeDraftDerivedData -resultBundlePath /tmp/GradeDraftUnitTests.xcresult -skip-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 clean test"
+            echo "xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination \"\$DESTINATION\" -derivedDataPath /tmp/GradeDraftDerivedData -resultBundlePath /tmp/GradeDraftUnitTests.xcresult -skip-testing:GradeDraftTests/GradeDraftScreenshotTests -skip-testing:GradeDraftUITests ARCHS=arm64 clean test"
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -349,6 +353,62 @@ jobs:
             echo "- Local reproduction: \`bash scripts/ci/select_xcode.sh && DESTINATION=\"\$(python3 scripts/ci/select_ios_simulator.py --print-destination)\" && xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination \"\$DESTINATION\" -derivedDataPath /tmp/GradeDraftScreenshotDerivedData -resultBundlePath /tmp/GradeDraftScreenshotTests.xcresult -only-testing:GradeDraftTests/GradeDraftScreenshotTests ARCHS=arm64 test\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  ui-smoke:
+    name: ui-smoke
+    runs-on: macos-26
+    needs: xcode-unit-tests
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26+
+        run: bash scripts/ci/select_xcode.sh
+
+      - name: Select iOS 26+ iPhone simulator
+        id: simulator
+        run: python3 scripts/ci/select_ios_simulator.py
+
+      - name: Run app-driving UI smoke test
+        run: |
+          set -euo pipefail
+          DERIVED_DATA="$RUNNER_TEMP/GradeDraftUISmokeDerivedData"
+          RESULT_BUNDLE="$RUNNER_TEMP/GradeDraftUISmoke.xcresult"
+          mkdir -p xcode-logs
+          rm -rf "$RESULT_BUNDLE"
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -derivedDataPath "$DERIVED_DATA" \
+            -resultBundlePath "$RESULT_BUNDLE" \
+            -only-testing:GradeDraftUITests/GradeDraftCoreLaneUITests \
+            ARCHS=arm64 \
+            test \
+            | tee xcode-logs/xcode-ui-smoke.log
+
+      - name: Upload UI smoke result bundle and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-ui-smoke-output
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/GradeDraftUISmoke.xcresult
+            xcode-logs/xcode-ui-smoke.log
+
+      - name: Write UI smoke summary
+        if: always()
+        run: |
+          {
+            echo "## ui-smoke"
+            echo ""
+            echo "- Xcode: $(xcodebuild -version | head -1)"
+            echo "- Simulator: ${{ steps.simulator.outputs.device_name }} (${{ steps.simulator.outputs.runtime_name }})"
+            echo "- Result bundle: ${{ runner.temp }}/GradeDraftUISmoke.xcresult"
+            echo "- Local reproduction: \`bash scripts/ci/select_xcode.sh && DESTINATION=\"\$(python3 scripts/ci/select_ios_simulator.py --print-destination)\" && xcodebuild -project GradeDraft.xcodeproj -scheme GradeDraft -destination \"\$DESTINATION\" -derivedDataPath /tmp/GradeDraftUISmokeDerivedData -resultBundlePath /tmp/GradeDraftUISmoke.xcresult -only-testing:GradeDraftUITests/GradeDraftCoreLaneUITests ARCHS=arm64 test\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   release-build:
     name: release-build
     runs-on: macos-26
@@ -439,7 +499,7 @@ jobs:
   ci-summary:
     name: ci-summary
     runs-on: ubuntu-latest
-    needs: [static-policy, workflow-lint, swiftlint, xcode-unit-tests, screenshot-smoke, release-build, unsigned-archive-validation]
+    needs: [static-policy, workflow-lint, swiftlint, xcode-unit-tests, screenshot-smoke, ui-smoke, release-build, unsigned-archive-validation]
     timeout-minutes: 5
     if: always()
     steps:
@@ -455,18 +515,20 @@ jobs:
             echo "| swiftlint | ${{ needs.swiftlint.result }} |"
             echo "| xcode-unit-tests | ${{ needs.xcode-unit-tests.result }} |"
             echo "| screenshot-smoke | ${{ needs.screenshot-smoke.result }} |"
+            echo "| ui-smoke | ${{ needs.ui-smoke.result }} |"
             echo "| release-build | ${{ needs.release-build.result }} |"
             echo "| unsigned-archive-validation | ${{ needs.unsigned-archive-validation.result }} |"
             echo ""
-            echo "Required for PR merge: static-policy, workflow-lint, swiftlint, xcode-unit-tests."
-            echo "Release/tag readiness: all jobs, including screenshot-smoke, release-build, and unsigned-archive-validation."
+            echo "Required for PR merge: static-policy, workflow-lint, swiftlint, xcode-unit-tests, ui-smoke."
+            echo "Release/tag readiness: all jobs, including screenshot-smoke, ui-smoke, release-build, and unsigned-archive-validation."
           } >> "$GITHUB_STEP_SUMMARY"
 
           for required in \
             "${{ needs.static-policy.result }}" \
             "${{ needs.workflow-lint.result }}" \
             "${{ needs.swiftlint.result }}" \
-            "${{ needs.xcode-unit-tests.result }}"; do
+            "${{ needs.xcode-unit-tests.result }}" \
+            "${{ needs.ui-smoke.result }}"; do
             if [ "$required" != "success" ]; then
               exit 1
             fi

@@ -173,4 +173,74 @@ final class ExportPolicyTests: XCTestCase {
         XCTAssertFalse(ExportKind.studentMarkdown.contentPolicy.requiresLocalAuthenticationWhenAvailable)
         XCTAssertFalse(ExportKind.studentPDF.contentPolicy.requiresLocalAuthenticationWhenAvailable)
     }
+
+    func testExportRiskSummaryDoesNotInventDraftContentForBlankAssignment() {
+        let assignment = AssignmentRecord(title: "Blank local record")
+
+        let summary = ExportRiskSummary.summary(
+            for: .teacherAuditMarkdown,
+            currentAssignment: assignment,
+            allAssignments: [assignment]
+        )
+
+        XCTAssertFalse(summary.includesDraftContent)
+        XCTAssertTrue(summary.includesPrivateNotes)
+        XCTAssertFalse(summary.includesOriginalSources)
+        XCTAssertEqual(summary.affectedAssignmentCount, 1)
+    }
+
+    func testExportRiskSummaryFlagsActualDraftAndUnapprovedFinalContent() {
+        var draftAssignment = AssignmentRecord(title: "Draft")
+        draftAssignment.latestDraft = GradeDraftResult(
+            studentResponseSummary: "Summary",
+            criteria: [],
+            totalScore: 0,
+            maxScore: 0,
+            studentFeedback: "Draft feedback",
+            teacherNotes: "",
+            uncertaintyFlags: []
+        )
+        var finalAssignment = AssignmentRecord(title: "Final in progress")
+        finalAssignment.finalReview = FinalGradeReview(
+            status: .inProgress,
+            criteria: [FinalCriterionScore(
+                criterion: "Claim",
+                rating: "",
+                proposedPoints: 1,
+                finalPoints: 1,
+                maxPoints: 2,
+                evidence: [],
+                explanation: "",
+                teacherApproved: false
+            )],
+            totalScore: 1,
+            maxScore: 2,
+            studentFeedback: "",
+            privateTeacherNotes: "",
+            teacherEdited: true
+        )
+
+        XCTAssertTrue(ExportRiskSummary.summary(for: .teacherAuditPDF, currentAssignment: draftAssignment, allAssignments: []).includesDraftContent)
+        XCTAssertTrue(ExportRiskSummary.summary(for: .csvGradebook, currentAssignment: finalAssignment, allAssignments: [finalAssignment]).includesDraftContent)
+    }
+
+    func testExportRiskSummaryUsesInjectedSourceAvailability() {
+        let assignment = AssignmentRecord(title: "Archived")
+
+        let noSource = ExportRiskSummary.summary(
+            for: .zipArchive,
+            currentAssignment: assignment,
+            allAssignments: [assignment],
+            sourceAvailability: { _ in false }
+        )
+        let hasSource = ExportRiskSummary.summary(
+            for: .zipArchive,
+            currentAssignment: assignment,
+            allAssignments: [assignment],
+            sourceAvailability: { _ in true }
+        )
+
+        XCTAssertFalse(noSource.includesOriginalSources)
+        XCTAssertTrue(hasSource.includesOriginalSources)
+    }
 }
