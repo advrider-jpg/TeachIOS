@@ -188,10 +188,16 @@ jobs:
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm
-            ~/Library/Developer/Xcode/DerivedData/SourcePackages
           key: spm-${{ runner.os }}-xcode26-${{ hashFiles('GradeDraft.xcodeproj/project.pbxproj', '**/Package.resolved') }}
           restore-keys: |
             spm-${{ runner.os }}-xcode26-
+
+      - name: Reset derived SwiftPM workspace state
+        run: |
+          set -euo pipefail
+          rm -rf "$HOME/Library/Developer/Xcode/DerivedData/SourcePackages"
+          rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
+          mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
 
       - name: Resolve Swift package dependencies
         run: |
@@ -200,6 +206,7 @@ jobs:
           xcodebuild -resolvePackageDependencies \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/GradeDraftSourcePackages" \
             | tee xcode-logs/spm-resolve.log
 
       - name: Build and run deterministic unit/integration tests
@@ -214,6 +221,7 @@ jobs:
             -scheme "$SCHEME" \
             -destination "${{ steps.simulator.outputs.destination }}" \
             -derivedDataPath "$DERIVED_DATA" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/GradeDraftSourcePackages" \
             -resultBundlePath "$RESULT_BUNDLE" \
             -skip-testing:GradeDraftTests/GradeDraftScreenshotTests \
             -skip-testing:GradeDraftUITests \
@@ -270,6 +278,13 @@ jobs:
         id: simulator
         run: python3 scripts/ci/select_ios_simulator.py
 
+      - name: Reset derived SwiftPM workspace state
+        run: |
+          set -euo pipefail
+          rm -rf "$HOME/Library/Developer/Xcode/DerivedData/SourcePackages"
+          rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
+          mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
+
       - name: Run screenshot smoke tests only
         run: |
           set -euo pipefail
@@ -282,6 +297,7 @@ jobs:
             -scheme "$SCHEME" \
             -destination "${{ steps.simulator.outputs.destination }}" \
             -derivedDataPath "$DERIVED_DATA" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/GradeDraftSourcePackages" \
             -resultBundlePath "$RESULT_BUNDLE" \
             -only-testing:GradeDraftTests/GradeDraftScreenshotTests \
             ARCHS=arm64 \
@@ -370,6 +386,13 @@ jobs:
         id: simulator
         run: python3 scripts/ci/select_ios_simulator.py
 
+      - name: Reset derived SwiftPM workspace state
+        run: |
+          set -euo pipefail
+          rm -rf "$HOME/Library/Developer/Xcode/DerivedData/SourcePackages"
+          rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
+          mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
+
       - name: Run app-driving UI smoke test
         run: |
           set -euo pipefail
@@ -382,6 +405,7 @@ jobs:
             -scheme "$SCHEME" \
             -destination "${{ steps.simulator.outputs.destination }}" \
             -derivedDataPath "$DERIVED_DATA" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/GradeDraftSourcePackages" \
             -resultBundlePath "$RESULT_BUNDLE" \
             -only-testing:GradeDraftUITests/GradeDraftCoreLaneUITests \
             ARCHS=arm64 \
@@ -423,6 +447,13 @@ jobs:
       - name: Select Xcode 26+
         run: bash scripts/ci/select_xcode.sh
 
+      - name: Reset derived SwiftPM workspace state
+        run: |
+          set -euo pipefail
+          rm -rf "$HOME/Library/Developer/Xcode/DerivedData/SourcePackages"
+          rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
+          mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
+
       - name: Build Release without signing
         run: |
           set -euo pipefail
@@ -434,6 +465,7 @@ jobs:
             -configuration Release \
             -destination "generic/platform=iOS" \
             -derivedDataPath "$DERIVED_DATA" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/GradeDraftSourcePackages" \
             CODE_SIGNING_ALLOWED=NO \
             build \
             | tee xcode-logs/xcode-release-build.log
@@ -471,8 +503,15 @@ jobs:
       - name: Select Xcode 26+
         run: bash scripts/ci/select_xcode.sh
 
+      - name: Reset derived SwiftPM workspace state
+        run: |
+          set -euo pipefail
+          rm -rf "$HOME/Library/Developer/Xcode/DerivedData/SourcePackages"
+          rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
+          mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
+
       - name: Resolve Swift package dependencies
-        run: xcodebuild -resolvePackageDependencies -project "$PROJECT" -scheme "$SCHEME"
+        run: xcodebuild -resolvePackageDependencies -project "$PROJECT" -scheme "$SCHEME" -clonedSourcePackagesDirPath "$RUNNER_TEMP/GradeDraftSourcePackages"
 
       - name: Unsigned archive build gate
         run: |
@@ -484,6 +523,7 @@ jobs:
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/GradeDraft.xcarchive" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/GradeDraftSourcePackages" \
             CODE_SIGNING_ALLOWED=NO \
             archive \
             | tee xcode-logs/xcode-unsigned-archive.log

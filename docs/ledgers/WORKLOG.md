@@ -4,6 +4,7 @@
 
 - Repaired `GradeDraft.xcodeproj/project.pbxproj` by adding the missing file references for the split model files that GitHub Xcode rejected while resolving packages.
 - Strengthened `scripts/ci/check_xcode_project_membership.py` so it fails on non-Xcode object IDs and dangling project object references, not only Swift filenames missing from the project.
+- Isolated CI SwiftPM resolution from restored Xcode `DerivedData/SourcePackages` state by using a clean per-run cloned package directory for Xcode jobs.
 - Split ordinary PR/static health from explicit release readiness: `repo_health.py` now aggregates implementation/static guardrails, while `check_release_readiness_static.py` remains a fail-closed manual/scheduled release gate for `Package.resolved`, support/contact, and manual QA evidence.
 - Validation: local non-Xcode guardrails pass after the repair; release readiness still fails correctly on unresolved release evidence blockers.
 
