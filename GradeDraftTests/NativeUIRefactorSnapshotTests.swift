@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import UIKit
 import XCTest
@@ -101,7 +102,7 @@ final class NativeUIRefactorSnapshotTests: XCTestCase {
     @MainActor
     private func assertNativeSnapshot<Content: View>(
         screen: String,
-        sourceFile _: String,
+        sourceFile: String,
         expectedContainer: NativeContainer,
         file: StaticString = #filePath,
         testName: String = #function,
@@ -133,9 +134,9 @@ final class NativeUIRefactorSnapshotTests: XCTestCase {
         }
         // Normalize line endings for comparison so Windows-authored files always match.
         let normalizedStored = stored.replacingOccurrences(of: "\r\n", with: "\n")
-            .trimmingCharacters(in: .newlines)
+            .trimmingCharacters(in: CharacterSet.newlines)
         let normalizedActual = snapshot.renderedSummary
-            .trimmingCharacters(in: .newlines)
+            .trimmingCharacters(in: CharacterSet.newlines)
         XCTAssertEqual(normalizedActual, normalizedStored,
                        "Snapshot mismatch for \(screen). Update the .txt file in "
                        + "__Snapshots__/NativeUIRefactorSnapshotTests/ if the source changed intentionally.",
@@ -196,6 +197,7 @@ private struct NativeHostedScreenSnapshot {
         )
     }
 
+    @MainActor
     private static func renderedHierarchyContainsNativeContainer(_ container: NativeContainer, rootView: UIView) -> Bool {
         let classNames = renderedViewClassNames(rootView)
         switch container {
@@ -210,6 +212,7 @@ private struct NativeHostedScreenSnapshot {
         }
     }
 
+    @MainActor
     private static func renderedViewClassNames(_ view: UIView) -> [String] {
         [String(describing: type(of: view))] + view.subviews.flatMap(renderedViewClassNames)
     }
