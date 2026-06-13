@@ -40,8 +40,8 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
     private func tapTab(named name: String, in app: XCUIApplication) {
         if app.tabBars.buttons[name].waitForExistence(timeout: 5) {
             app.tabBars.buttons[name].tap()
-        } else if app.buttons[name].waitForExistence(timeout: 5) {
-            app.buttons[name].tap()
+        } else if let button = firstHittableButton(named: name, in: app, timeout: 5) {
+            button.tap()
         } else {
             XCTFail("Could not find \(name) tab or button.")
         }
@@ -84,8 +84,8 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
     }
 
     private func tapTextOrButton(named name: String, in app: XCUIApplication) {
-        if app.buttons[name].waitForExistence(timeout: 5) {
-            app.buttons[name].tap()
+        if let button = firstHittableButton(named: name, in: app, timeout: 5) {
+            button.tap()
         } else if app.staticTexts[name].waitForExistence(timeout: 5) {
             app.staticTexts[name].tap()
         } else {
@@ -94,15 +94,14 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
     }
 
     private func tapButton(named name: String, in app: XCUIApplication, scrolls: Bool) {
-        let button = app.buttons[name]
-        if button.waitForExistence(timeout: 3) {
+        if let button = firstHittableButton(named: name, in: app, timeout: 3) {
             button.tap()
             return
         }
         if scrolls {
             for _ in 0..<6 {
                 app.swipeUp()
-                if button.waitForExistence(timeout: 1) {
+                if let button = firstHittableButton(named: name, in: app, timeout: 1) {
                     button.tap()
                     return
                 }
@@ -111,17 +110,35 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
         XCTFail("Could not find button \(name).")
     }
 
+    private func firstHittableButton(named name: String, in app: XCUIApplication, timeout: TimeInterval) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let buttons = app.buttons
+                .matching(NSPredicate(format: "label == %@", name))
+                .allElementsBoundByIndex
+            if let button = buttons.first(where: { $0.exists && $0.isHittable }) {
+                return button
+            }
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
+        } while Date() < deadline
+        return nil
+    }
+
     private func tapFirstAvailableButton(_ names: [String], in app: XCUIApplication, scrolls: Bool) {
-        for name in names where app.buttons[name].waitForExistence(timeout: 1) {
-            app.buttons[name].tap()
-            return
+        for name in names {
+            if let button = firstHittableButton(named: name, in: app, timeout: 1) {
+                button.tap()
+                return
+            }
         }
         if scrolls {
             for _ in 0..<6 {
                 app.swipeUp()
-                for name in names where app.buttons[name].waitForExistence(timeout: 1) {
-                    app.buttons[name].tap()
-                    return
+                for name in names {
+                    if let button = firstHittableButton(named: name, in: app, timeout: 1) {
+                        button.tap()
+                        return
+                    }
                 }
             }
         }
