@@ -54,7 +54,7 @@ def scheme_reference_failures(object_ids: set[str]) -> list[str]:
         for reference in scheme.findall(".//BuildableReference"):
             blueprint_id = reference.attrib.get("BlueprintIdentifier", "")
             blueprint_name = reference.attrib.get("BlueprintName", "<unknown>")
-            if not re.fullmatch(r"[A-F0-9]{24}", blueprint_id):
+            if not re.fullmatch(r"[A-Fa-f0-9]{24}", blueprint_id):
                 failures.append(
                     f"{scheme_path.relative_to(ROOT).as_posix()} has non-Xcode BlueprintIdentifier "
                     f"{blueprint_id} for {blueprint_name}"
@@ -73,7 +73,7 @@ def main() -> int:
     object_ids.update(
         re.findall(r"^\s*([A-Za-z0-9]+)\s*/\*.*?\*/\s*=\s*\{isa\s*=", project_text, flags=re.MULTILINE)
     )
-    invalid_object_ids = sorted(object_id for object_id in object_ids if not re.fullmatch(r"[A-F0-9]{24}", object_id))
+    invalid_object_ids = sorted(object_id for object_id in object_ids if not re.fullmatch(r"[A-Fa-f0-9]{24}", object_id))
     dangling: list[str] = []
     scheme_failures = scheme_reference_failures(object_ids)
 

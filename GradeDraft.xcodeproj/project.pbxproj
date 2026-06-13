@@ -54,14 +54,14 @@
 		6003CC01CCC64FC9BE4830EF /* BundleExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EF318821D8B4BD997E1DEBC /* BundleExportService.swift */; };
 		83FB1A487F92415BB6A08568 /* GradeDraftSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F0175805DD24B9D9CDBD081 /* GradeDraftSnapshotTests.swift */; };
 		C3D4E5F6A7B8C9D0E1F2A3B4 /* GradeDraftScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* GradeDraftScreenshotTests.swift */; };
-		111111111111111111111111 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 3CB5E66DF7814C5C88F70055 /* GRDB */; };
-		222222222222222222222222 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 6D3552C8565E4DFA821C11EC /* Markdown */; };
-		333333333333333333333333 /* TPPDF in Frameworks */ = {isa = PBXBuildFile; productRef = 6007A9E299F6471DA0E60897 /* TPPDF */; };
-		444444444444444444444444 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 39A5973C95874D3383CCD429 /* ZIPFoundation */; };
-		777777777777777777777777 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 139742736E6D4F7889DF30A6 /* SnapshotTesting */; };
+		111111111111111111111111 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 3cb5e66df7814c5c88f70055 /* GRDB */; };
+		222222222222222222222222 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 6d3552c8565e4dfa821c11ec /* Markdown */; };
+		333333333333333333333333 /* TPPDF in Frameworks */ = {isa = PBXBuildFile; productRef = 6007a9e299f6471da0e60897 /* TPPDF */; };
+		444444444444444444444444 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 39a5973c95874d3383ccd429 /* ZIPFoundation */; };
+		777777777777777777777777 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 139742736e6d4f7889df30a6 /* SnapshotTesting */; };
 		9C0011111111111111110001 /* RosterImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0011111111111111110002 /* RosterImportService.swift */; };
 		9C0011111111111111110003 /* CurriculumCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0011111111111111110004 /* CurriculumCatalogService.swift */; };
-		888888888888888888888888 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 39A5973C95874D3383CCD429 /* ZIPFoundation */; };
+		888888888888888888888888 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 39a5973c95874d3383ccd429 /* ZIPFoundation */; };
 		B70000000000000000000001 /* AppTabShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000001 /* AppTabShell.swift */; };
 		B70000000000000000000003 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000003 /* Buttons.swift */; };
 		B70000000000000000000004 /* Cards.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000004 /* Cards.swift */; };
@@ -888,10 +888,10 @@
 			dependencies = ( );
 			name = "MarkForMe";
 			packageProductDependencies = (
-				3CB5E66DF7814C5C88F70055 /* GRDB */,
-				6D3552C8565E4DFA821C11EC /* Markdown */,
-				6007A9E299F6471DA0E60897 /* TPPDF */,
-				39A5973C95874D3383CCD429 /* ZIPFoundation */,
+				3cb5e66df7814c5c88f70055 /* GRDB */,
+				6d3552c8565e4dfa821c11ec /* Markdown */,
+				6007a9e299f6471da0e60897 /* TPPDF */,
+				39a5973c95874d3383ccd429 /* ZIPFoundation */,
 			);
 			productReference = D9730C12B890D116AC692E1F /* MarkForMe.app */;
 			productType = "com.apple.product-type.application";
@@ -908,8 +908,8 @@
 			dependencies = ( 9D32D393BF0F2714F54E714F /* PBXTargetDependency */, );
 			name = GradeDraftTests;
 			packageProductDependencies = (
-				139742736E6D4F7889DF30A6 /* SnapshotTesting */,
-				39A5973C95874D3383CCD429 /* ZIPFoundation */,
+				139742736e6d4f7889df30a6 /* SnapshotTesting */,
+				39a5973c95874d3383ccd429 /* ZIPFoundation */,
 			);
 			productReference = AC603BF7E2B08C9B4FFBF819 /* GradeDraftTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -954,11 +954,11 @@
 			projectDirPath = "";
 			projectRoot = "";
 			packageReferences = (
-				159C835C21734A81A06DA1EA /* XCRemoteSwiftPackageReference "GRDB.swift" */,
-				DF62DCD3A3FB42508FA24C7F /* XCRemoteSwiftPackageReference "swift-markdown" */,
-				0FAABABA1C004F16A92686AC /* XCRemoteSwiftPackageReference "TPPDF" */,
-				C8E0D6AABF7C4B98BA263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
-				13164971737547E2884E1C6E /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
+				159c835c21734a81a06da1ea /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				df62dcd3a3fb42508fa24c7f /* XCRemoteSwiftPackageReference "swift-markdown" */,
+				0faababa1c004f16a92686ac /* XCRemoteSwiftPackageReference "TPPDF" */,
+				c8e0d6aabf7c4b98ba263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+				13164971737547e2884e1c6e /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
 			);
 			targets = ( C9F45524962D088FBA96DA08 /* GradeDraft */, 385F6D1BD8E774F956FF142E /* GradeDraftTests */, A90000000000000000000028 /* GradeDraftUITests */, );
 		};
@@ -1134,57 +1134,57 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		159C835C21734A81A06DA1EA /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+		159c835c21734a81a06da1ea /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/groue/GRDB.swift.git";
-			requirement = { kind = upToNextMajorVersion; minimumVersion = "6.0.0"; };
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 6.0.0; };
 		};
-		DF62DCD3A3FB42508FA24C7F /* XCRemoteSwiftPackageReference "swift-markdown" */ = {
+		df62dcd3a3fb42508fa24c7f /* XCRemoteSwiftPackageReference "swift-markdown" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/swiftlang/swift-markdown.git";
-			requirement = { kind = upToNextMajorVersion; minimumVersion = "0.2.0"; };
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 0.2.0; };
 		};
-		0FAABABA1C004F16A92686AC /* XCRemoteSwiftPackageReference "TPPDF" */ = {
+		0faababa1c004f16a92686ac /* XCRemoteSwiftPackageReference "TPPDF" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/techprimate/TPPDF.git";
-			requirement = { kind = upToNextMajorVersion; minimumVersion = "2.0.0"; };
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 2.0.0; };
 		};
-		C8E0D6AABF7C4B98BA263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+		c8e0d6aabf7c4b98ba263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
-			requirement = { kind = upToNextMajorVersion; minimumVersion = "0.9.0"; };
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 0.9.0; };
 		};
-		13164971737547E2884E1C6E /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
+		13164971737547e2884e1c6e /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing.git";
-			requirement = { kind = upToNextMajorVersion; minimumVersion = "1.0.0"; };
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 1.0.0; };
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		3CB5E66DF7814C5C88F70055 /* GRDB */ = {
+		3cb5e66df7814c5c88f70055 /* GRDB */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 159C835C21734A81A06DA1EA /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			package = 159c835c21734a81a06da1ea /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
 		};
-		6D3552C8565E4DFA821C11EC /* Markdown */ = {
+		6d3552c8565e4dfa821c11ec /* Markdown */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = DF62DCD3A3FB42508FA24C7F /* XCRemoteSwiftPackageReference "swift-markdown" */;
+			package = df62dcd3a3fb42508fa24c7f /* XCRemoteSwiftPackageReference "swift-markdown" */;
 			productName = Markdown;
 		};
-		6007A9E299F6471DA0E60897 /* TPPDF */ = {
+		6007a9e299f6471da0e60897 /* TPPDF */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 0FAABABA1C004F16A92686AC /* XCRemoteSwiftPackageReference "TPPDF" */;
+			package = 0faababa1c004f16a92686ac /* XCRemoteSwiftPackageReference "TPPDF" */;
 			productName = TPPDF;
 		};
-		39A5973C95874D3383CCD429 /* ZIPFoundation */ = {
+		39a5973c95874d3383ccd429 /* ZIPFoundation */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = C8E0D6AABF7C4B98BA263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			package = c8e0d6aabf7c4b98ba263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
 			productName = ZIPFoundation;
 		};
-		139742736E6D4F7889DF30A6 /* SnapshotTesting */ = {
+		139742736e6d4f7889df30a6 /* SnapshotTesting */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 13164971737547E2884E1C6E /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			package = 13164971737547e2884e1c6e /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
 			productName = SnapshotTesting;
 		};
 /* End XCSwiftPackageProductDependency section */
