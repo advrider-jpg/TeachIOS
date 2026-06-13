@@ -305,7 +305,7 @@ extension GradeDraftViewModel {
 
     func previewRosterCSV(_ text: String, className: String? = nil) -> RosterImportPreview {
         guard let currentAssignment = currentSavedAssignmentForAction("Roster preview") else {
-            return RosterImportService.preview(csvText: text, defaultClassName: className)
+            return RosterImportService.preview(csvText: text, defaultClassName: className?.nilIfBlank ?? "")
         }
         let defaultClassName = currentAssignment.className
         let preview = RosterImportService.preview(csvText: text, defaultClassName: className ?? defaultClassName)
