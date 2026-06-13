@@ -30,6 +30,7 @@ REFERENCE_KEYS = {
     "targetProxy",
 }
 ARRAY_KEYS = {"buildConfigurations", "buildPhases", "children", "dependencies", "files", "packageReferences", "targets"}
+SAFE_UNQUOTED_PATH = re.compile(r"^[A-Za-z0-9_./-]+$")
 
 
 def swift_files() -> list[pathlib.Path]:
@@ -67,6 +68,25 @@ def scheme_reference_failures(object_ids: set[str]) -> list[str]:
     return failures
 
 
+def file_reference_path_failures(project_text: str) -> list[str]:
+    failures: list[str] = []
+    for line_number, line in enumerate(project_text.splitlines(), start=1):
+        if "isa = PBXFileReference" not in line or " path = " not in line:
+            continue
+        match = re.search(r"\bpath = ([^;]+);", line)
+        if match is None:
+            continue
+        value = match.group(1).strip()
+        if value.startswith('"') and value.endswith('"'):
+            continue
+        if not SAFE_UNQUOTED_PATH.fullmatch(value):
+            failures.append(
+                f"line {line_number} has unquoted PBXFileReference path {value!r}; "
+                "quote paths containing special characters"
+            )
+    return failures
+
+
 def main() -> int:
     project_text = PROJECT_FILE.read_text(encoding="utf-8")
     object_ids = set(re.findall(r"^\s*([A-Za-z0-9]{24})(?:\s*/\*.*?\*/)?\s*=", project_text, flags=re.MULTILINE))
@@ -76,6 +96,7 @@ def main() -> int:
     invalid_object_ids = sorted(object_id for object_id in object_ids if not re.fullmatch(r"[A-Fa-f0-9]{24}", object_id))
     dangling: list[str] = []
     scheme_failures = scheme_reference_failures(object_ids)
+    path_failures = file_reference_path_failures(project_text)
 
     for key in REFERENCE_KEYS:
         for match in re.finditer(rf"\b{key}\s*=\s*([A-Za-z0-9]{{24}})\b", project_text):
@@ -94,7 +115,7 @@ def main() -> int:
         for path in swift_files()
         if path.name not in project_text
     ]
-    if invalid_object_ids or dangling or scheme_failures or missing:
+    if invalid_object_ids or dangling or scheme_failures or path_failures or missing:
         if invalid_object_ids:
             print("GradeDraft.xcodeproj/project.pbxproj contains non-Xcode object IDs:")
             for object_id in invalid_object_ids:
@@ -106,6 +127,10 @@ def main() -> int:
         if scheme_failures:
             print("GradeDraft.xcodeproj shared schemes contain invalid project references:")
             for item in scheme_failures:
+                print(f"- {item}")
+        if path_failures:
+            print("GradeDraft.xcodeproj/project.pbxproj contains paths that Xcode cannot parse:")
+            for item in path_failures:
                 print(f"- {item}")
         if missing:
             print("Swift files missing from GradeDraft.xcodeproj/project.pbxproj:")
