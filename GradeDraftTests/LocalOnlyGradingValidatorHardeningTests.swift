@@ -1,4 +1,5 @@
 import XCTest
+import ZIPFoundation
 @testable import GradeDraft
 
 // MARK: - LocalOnlyGradingValidator
