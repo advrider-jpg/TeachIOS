@@ -1137,27 +1137,27 @@
 		159C835C21734A81A06DA1EA /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/groue/GRDB.swift.git";
-			requirement = { kind = upToNextMajorVersion; minimumVersion = 6.0.0; };
+			requirement = { kind = upToNextMajorVersion; minimumVersion = "6.0.0"; };
 		};
 		DF62DCD3A3FB42508FA24C7F /* XCRemoteSwiftPackageReference "swift-markdown" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/swiftlang/swift-markdown.git";
-			requirement = { kind = upToNextMajorVersion; minimumVersion = 0.2.0; };
+			requirement = { kind = upToNextMajorVersion; minimumVersion = "0.2.0"; };
 		};
 		0FAABABA1C004F16A92686AC /* XCRemoteSwiftPackageReference "TPPDF" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/techprimate/TPPDF.git";
-			requirement = { kind = upToNextMajorVersion; minimumVersion = 2.0.0; };
+			requirement = { kind = upToNextMajorVersion; minimumVersion = "2.0.0"; };
 		};
 		C8E0D6AABF7C4B98BA263638 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
-			requirement = { kind = upToNextMajorVersion; minimumVersion = 0.9.0; };
+			requirement = { kind = upToNextMajorVersion; minimumVersion = "0.9.0"; };
 		};
 		13164971737547E2884E1C6E /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing.git";
-			requirement = { kind = upToNextMajorVersion; minimumVersion = 1.0.0; };
+			requirement = { kind = upToNextMajorVersion; minimumVersion = "1.0.0"; };
 		};
 /* End XCRemoteSwiftPackageReference section */
 
