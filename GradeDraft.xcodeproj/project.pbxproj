@@ -123,13 +123,13 @@
 		E00000000000000000000015 /* ArchiveRestoreSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000115 /* ArchiveRestoreSafetyTests.swift */; };
 		E00000000000000000000016 /* GradeDraftProductionPathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000116 /* GradeDraftProductionPathTests.swift */; };
 		A90000000000000000000024 /* GradeDraftCoreLaneUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000023 /* GradeDraftCoreLaneUITests.swift */; };
-		MDL1000000000000000000001 /* GradeDraftFoundationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000001 /* GradeDraftFoundationModels.swift */; };
-		MDL1000000000000000000002 /* GradeDraftClassroomModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000002 /* GradeDraftClassroomModels.swift */; };
-		MDL1000000000000000000003 /* GradeDraftOCRModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000003 /* GradeDraftOCRModels.swift */; };
-		MDL1000000000000000000004 /* GradeDraftRubricModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000004 /* GradeDraftRubricModels.swift */; };
-		MDL1000000000000000000005 /* GradeDraftGradingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000005 /* GradeDraftGradingModels.swift */; };
-		MDL1000000000000000000006 /* GradeDraftExportAuditModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000006 /* GradeDraftExportAuditModels.swift */; };
-		MDL1000000000000000000007 /* GradeDraftTemplateErrorModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MDL0000000000000000000007 /* GradeDraftTemplateErrorModels.swift */; };
+		A90000000000000000000036 /* GradeDraftFoundationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9000000000000000000002F /* GradeDraftFoundationModels.swift */; };
+		A90000000000000000000037 /* GradeDraftClassroomModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000030 /* GradeDraftClassroomModels.swift */; };
+		A90000000000000000000038 /* GradeDraftOCRModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000031 /* GradeDraftOCRModels.swift */; };
+		A90000000000000000000039 /* GradeDraftRubricModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000032 /* GradeDraftRubricModels.swift */; };
+		A9000000000000000000003A /* GradeDraftGradingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000033 /* GradeDraftGradingModels.swift */; };
+		A9000000000000000000003B /* GradeDraftExportAuditModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000034 /* GradeDraftExportAuditModels.swift */; };
+		A9000000000000000000003C /* GradeDraftTemplateErrorModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000035 /* GradeDraftTemplateErrorModels.swift */; };
 		0C55357E2EA994B8380D7AB1 /* AssignmentRecordHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C06DFF6BC576C159831DD66C /* AssignmentRecordHardeningTests.swift */; };
 		5E3BE13B489065C77E291351 /* BundleExportHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F66758139222FFECE5F126C /* BundleExportHardeningTests.swift */; };
 		EA73F6D87FE9A65B902EE52C /* CodableRoundTripHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3534ACE2818C8554E59FFB30 /* CodableRoundTripHardeningTests.swift */; };
@@ -254,13 +254,13 @@
 		A9000000000000000000001A /* LocalGradingToolSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalGradingToolSupport.swift; sourceTree = "<group>"; };
 		A9000000000000000000001D /* AIBatchReadiness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIBatchReadiness.swift; sourceTree = "<group>"; };
 		BEAA58224F166E200203BADA /* GradeDraftModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftModels.swift; sourceTree = "<group>"; };
-		MDL0000000000000000000001 /* GradeDraftFoundationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftFoundationModels.swift; sourceTree = "<group>"; };
-		MDL0000000000000000000002 /* GradeDraftClassroomModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftClassroomModels.swift; sourceTree = "<group>"; };
-		MDL0000000000000000000003 /* GradeDraftOCRModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftOCRModels.swift; sourceTree = "<group>"; };
-		MDL0000000000000000000004 /* GradeDraftRubricModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftRubricModels.swift; sourceTree = "<group>"; };
-		MDL0000000000000000000005 /* GradeDraftGradingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftGradingModels.swift; sourceTree = "<group>"; };
-		MDL0000000000000000000006 /* GradeDraftExportAuditModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftExportAuditModels.swift; sourceTree = "<group>"; };
-		MDL0000000000000000000007 /* GradeDraftTemplateErrorModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTemplateErrorModels.swift; sourceTree = "<group>"; };
+		A9000000000000000000002F /* GradeDraftFoundationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftFoundationModels.swift; sourceTree = "<group>"; };
+		A90000000000000000000030 /* GradeDraftClassroomModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftClassroomModels.swift; sourceTree = "<group>"; };
+		A90000000000000000000031 /* GradeDraftOCRModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftOCRModels.swift; sourceTree = "<group>"; };
+		A90000000000000000000032 /* GradeDraftRubricModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftRubricModels.swift; sourceTree = "<group>"; };
+		A90000000000000000000033 /* GradeDraftGradingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftGradingModels.swift; sourceTree = "<group>"; };
+		A90000000000000000000034 /* GradeDraftExportAuditModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftExportAuditModels.swift; sourceTree = "<group>"; };
+		A90000000000000000000035 /* GradeDraftTemplateErrorModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeDraftTemplateErrorModels.swift; sourceTree = "<group>"; };
 		9A94B846A0C77767D20D29EA /* OCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRService.swift; sourceTree = "<group>"; };
 		FB4149F0A80F5AEF370D2C6F /* GradingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradingService.swift; sourceTree = "<group>"; };
 		C970390A677003FF366361E2 /* FoundationModelGradingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelGradingService.swift; sourceTree = "<group>"; };
@@ -508,13 +508,13 @@
 			isa = PBXGroup;
 			children = (
 				BEAA58224F166E200203BADA /* GradeDraftModels.swift */,
-				MDL0000000000000000000001 /* GradeDraftFoundationModels.swift */,
-				MDL0000000000000000000002 /* GradeDraftClassroomModels.swift */,
-				MDL0000000000000000000003 /* GradeDraftOCRModels.swift */,
-				MDL0000000000000000000004 /* GradeDraftRubricModels.swift */,
-				MDL0000000000000000000005 /* GradeDraftGradingModels.swift */,
-				MDL0000000000000000000006 /* GradeDraftExportAuditModels.swift */,
-				MDL0000000000000000000007 /* GradeDraftTemplateErrorModels.swift */,
+				A9000000000000000000002F /* GradeDraftFoundationModels.swift */,
+				A90000000000000000000030 /* GradeDraftClassroomModels.swift */,
+				A90000000000000000000031 /* GradeDraftOCRModels.swift */,
+				A90000000000000000000032 /* GradeDraftRubricModels.swift */,
+				A90000000000000000000033 /* GradeDraftGradingModels.swift */,
+				A90000000000000000000034 /* GradeDraftExportAuditModels.swift */,
+				A90000000000000000000035 /* GradeDraftTemplateErrorModels.swift */,
 				A90000000000000000000001 /* GradingConstraintTemplates.swift */,
 			);
 			path = Models;

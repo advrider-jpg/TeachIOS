@@ -44,6 +44,9 @@ def swift_files() -> list[pathlib.Path]:
 def main() -> int:
     project_text = PROJECT_FILE.read_text(encoding="utf-8")
     object_ids = set(re.findall(r"^\s*([A-Za-z0-9]{24})(?:\s*/\*.*?\*/)?\s*=", project_text, flags=re.MULTILINE))
+    object_ids.update(
+        re.findall(r"^\s*([A-Za-z0-9]+)\s*/\*.*?\*/\s*=\s*\{isa\s*=", project_text, flags=re.MULTILINE)
+    )
     invalid_object_ids = sorted(object_id for object_id in object_ids if not re.fullmatch(r"[A-F0-9]{24}", object_id))
     dangling: list[str] = []
 
@@ -55,7 +58,7 @@ def main() -> int:
 
     for key in ARRAY_KEYS:
         for match in re.finditer(rf"\b{key}\s*=\s*\((.*?)\);", project_text, flags=re.S):
-            for ref in re.findall(r"\b([A-Za-z0-9]{24})\s*/\*", match.group(1)):
+            for ref in re.findall(r"\b([A-Za-z0-9]+)\s*/\*", match.group(1)):
                 if ref not in object_ids:
                     dangling.append(f"{key} contains missing object {ref}")
 
