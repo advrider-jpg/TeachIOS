@@ -12,7 +12,6 @@ import pathlib
 import re
 import shutil
 import subprocess
-import sys
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -46,6 +45,23 @@ BASE_APP_RESOURCES = (
     "F00000000000000000000007 /* curriculum_catalog_acara_v9_summary.json in Resources */, ); "
     "runOnlyForDeploymentPostprocessing = 0; };"
 )
+
+SECTIONS = [
+    "PBXBuildFile",
+    "PBXContainerItemProxy",
+    "PBXFileReference",
+    "PBXFrameworksBuildPhase",
+    "PBXGroup",
+    "PBXNativeTarget",
+    "PBXProject",
+    "PBXResourcesBuildPhase",
+    "PBXSourcesBuildPhase",
+    "PBXTargetDependency",
+    "XCRemoteSwiftPackageReference",
+    "XCSwiftPackageProductDependency",
+    "XCBuildConfiguration",
+    "XCConfigurationList",
+]
 
 
 def remove_object_blocks(text: str, object_ids: set[str]) -> str:
@@ -92,6 +108,59 @@ def variant_minimal_resources(text: str) -> str:
     )
 
 
+def section_pattern(section: str) -> re.Pattern[str]:
+    return re.compile(
+        rf"/\* Begin {re.escape(section)} section \*/.*?/\* End {re.escape(section)} section \*/",
+        re.DOTALL,
+    )
+
+
+def replace_section(text: str, source_text: str, section: str) -> str:
+    source_match = section_pattern(section).search(source_text)
+    if source_match is None:
+        return text
+    replacement = source_match.group(0)
+    updated, count = section_pattern(section).subn(replacement, text, count=1)
+    if count != 1:
+        print(f"section {section} not found in destination")
+        return text
+    return updated
+
+
+def replace_sections(text: str, source_text: str, sections: list[str]) -> str:
+    updated = text
+    for section in sections:
+        updated = replace_section(updated, source_text, section)
+    return updated
+
+
+def load_main_project_text() -> str:
+    result = subprocess.run(
+        ["git", "show", "origin/main:GradeDraft.xcodeproj/project.pbxproj"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        subprocess.run(
+            ["git", "fetch", "--depth=1", "origin", "main:refs/remotes/origin/main"],
+            cwd=ROOT,
+            check=True,
+        )
+        result = subprocess.run(
+            ["git", "show", "origin/main:GradeDraft.xcodeproj/project.pbxproj"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    if result.returncode != 0:
+        print(result.stderr)
+        raise RuntimeError("Unable to load origin/main project.pbxproj for probes")
+    return result.stdout
+
+
 def write_variant(name: str, text: str) -> pathlib.Path:
     destination = PROBE_ROOT / name / "GradeDraft.xcodeproj"
     if destination.parent.exists():
@@ -103,6 +172,15 @@ def write_variant(name: str, text: str) -> pathlib.Path:
 
 def run_list(name: str, project: pathlib.Path) -> int:
     print(f"## probe {name}")
+    lint = subprocess.run(
+        ["plutil", "-lint", str(project / "project.pbxproj")],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    print(lint.stdout)
+    print(f"probe {name} plutil exit: {lint.returncode}")
     result = subprocess.run(
         ["xcodebuild", "-list", "-project", str(project)],
         cwd=ROOT,
@@ -117,12 +195,38 @@ def run_list(name: str, project: pathlib.Path) -> int:
 
 def main() -> int:
     text = PBXPROJ.read_text(encoding="utf-8")
+    main_text = load_main_project_text()
+    target_model_sections = [
+        "PBXContainerItemProxy",
+        "PBXFrameworksBuildPhase",
+        "PBXNativeTarget",
+        "PBXProject",
+        "PBXResourcesBuildPhase",
+        "PBXSourcesBuildPhase",
+        "PBXTargetDependency",
+        "XCBuildConfiguration",
+        "XCConfigurationList",
+    ]
     variants = {
         "current": text,
+        "origin-main-pbxproj": main_text,
         "without-ui-test-target": variant_no_ui_target(text),
         "minimal-app-resources": variant_minimal_resources(text),
         "minimal-resources-without-ui": variant_no_ui_target(variant_minimal_resources(text)),
+        "current-with-main-target-model": replace_sections(text, main_text, target_model_sections),
+        "current-with-main-files-groups": replace_sections(
+            text,
+            main_text,
+            ["PBXBuildFile", "PBXFileReference", "PBXGroup"],
+        ),
+        "current-with-main-packages": replace_sections(
+            text,
+            main_text,
+            ["XCRemoteSwiftPackageReference", "XCSwiftPackageProductDependency"],
+        ),
     }
+    for section in SECTIONS:
+        variants[f"current-with-main-{section}"] = replace_section(text, main_text, section)
     failures = 0
     for name, variant_text in variants.items():
         project = write_variant(name, variant_text)
