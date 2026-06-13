@@ -146,15 +146,16 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
     }
 
     private func acknowledgeVisibleSwitches(in app: XCUIApplication) {
-        for _ in 0..<8 {
+        for _ in 0..<10 {
             let switches = app.switches.allElementsBoundByIndex
-            if switches.isEmpty { break }
             var changed = false
             for toggle in switches where toggle.exists && toggle.isHittable && (toggle.value as? String) != "1" {
                 toggle.tap()
                 changed = true
             }
-            if !changed { break }
+            if changed {
+                RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))
+            }
             app.swipeUp()
         }
     }
