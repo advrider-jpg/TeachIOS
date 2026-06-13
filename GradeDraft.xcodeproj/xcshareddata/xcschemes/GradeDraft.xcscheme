@@ -42,7 +42,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "UI1000000000000000000006"
+               BlueprintIdentifier = "A90000000000000000000028"
                BuildableName = "GradeDraftUITests.xctest"
                BlueprintName = "GradeDraftUITests"
                ReferencedContainer = "container:GradeDraft.xcodeproj">

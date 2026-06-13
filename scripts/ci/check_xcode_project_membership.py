@@ -11,9 +11,11 @@ from __future__ import annotations
 import pathlib
 import re
 import sys
+import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 PROJECT_FILE = ROOT / "GradeDraft.xcodeproj" / "project.pbxproj"
+SCHEME_DIR = ROOT / "GradeDraft.xcodeproj" / "xcshareddata" / "xcschemes"
 SOURCE_ROOTS = [ROOT / "GradeDraft", ROOT / "GradeDraftTests", ROOT / "GradeDraftUITests"]
 IGNORED_PARTS = {"DerivedData", ".build", ".swiftpm"}
 REFERENCE_KEYS = {
@@ -41,6 +43,30 @@ def swift_files() -> list[pathlib.Path]:
     return sorted(files)
 
 
+def scheme_reference_failures(object_ids: set[str]) -> list[str]:
+    failures: list[str] = []
+    for scheme_path in sorted(SCHEME_DIR.glob("*.xcscheme")):
+        try:
+            scheme = ET.parse(scheme_path)
+        except ET.ParseError as error:
+            failures.append(f"{scheme_path.relative_to(ROOT).as_posix()} is not valid XML: {error}")
+            continue
+        for reference in scheme.findall(".//BuildableReference"):
+            blueprint_id = reference.attrib.get("BlueprintIdentifier", "")
+            blueprint_name = reference.attrib.get("BlueprintName", "<unknown>")
+            if not re.fullmatch(r"[A-F0-9]{24}", blueprint_id):
+                failures.append(
+                    f"{scheme_path.relative_to(ROOT).as_posix()} has non-Xcode BlueprintIdentifier "
+                    f"{blueprint_id} for {blueprint_name}"
+                )
+            elif blueprint_id not in object_ids:
+                failures.append(
+                    f"{scheme_path.relative_to(ROOT).as_posix()} references missing BlueprintIdentifier "
+                    f"{blueprint_id} for {blueprint_name}"
+                )
+    return failures
+
+
 def main() -> int:
     project_text = PROJECT_FILE.read_text(encoding="utf-8")
     object_ids = set(re.findall(r"^\s*([A-Za-z0-9]{24})(?:\s*/\*.*?\*/)?\s*=", project_text, flags=re.MULTILINE))
@@ -49,6 +75,7 @@ def main() -> int:
     )
     invalid_object_ids = sorted(object_id for object_id in object_ids if not re.fullmatch(r"[A-F0-9]{24}", object_id))
     dangling: list[str] = []
+    scheme_failures = scheme_reference_failures(object_ids)
 
     for key in REFERENCE_KEYS:
         for match in re.finditer(rf"\b{key}\s*=\s*([A-Za-z0-9]{{24}})\b", project_text):
@@ -67,7 +94,7 @@ def main() -> int:
         for path in swift_files()
         if path.name not in project_text
     ]
-    if invalid_object_ids or dangling or missing:
+    if invalid_object_ids or dangling or scheme_failures or missing:
         if invalid_object_ids:
             print("GradeDraft.xcodeproj/project.pbxproj contains non-Xcode object IDs:")
             for object_id in invalid_object_ids:
@@ -75,6 +102,10 @@ def main() -> int:
         if dangling:
             print("GradeDraft.xcodeproj/project.pbxproj contains dangling object references:")
             for item in sorted(set(dangling)):
+                print(f"- {item}")
+        if scheme_failures:
+            print("GradeDraft.xcodeproj shared schemes contain invalid project references:")
+            for item in scheme_failures:
                 print(f"- {item}")
         if missing:
             print("Swift files missing from GradeDraft.xcodeproj/project.pbxproj:")
