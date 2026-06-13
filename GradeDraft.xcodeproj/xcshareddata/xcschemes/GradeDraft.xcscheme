@@ -38,6 +38,16 @@
                ReferencedContainer = "container:GradeDraft.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A90000000000000000000028"
+               BuildableName = "GradeDraftUITests.xctest"
+               BlueprintName = "GradeDraftUITests"
+               ReferencedContainer = "container:GradeDraft.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

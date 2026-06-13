@@ -132,6 +132,10 @@ GradeDraft/
 
 Static checks are available through `scripts/repo_health.py` and `scripts/no_network_scan.py`. Xcode build, iOS simulator smoke tests, Vision/PDFKit runtime behavior, and Foundation Models runtime behavior must be validated on macOS with the relevant Apple SDK and device/simulator support.
 
+## Current Release Status
+
+The source implementation is not release-validated as of this checkout. Release readiness remains blocked until Xcode package resolution produces a committed `Package.resolved`, Xcode/SwiftLint/unit/simulator validation passes on macOS, manual simulator/device QA is dated and recorded, and real support/privacy contact URLs are configured. The static release readiness script must fail while those blockers remain.
+
 ## Production-readiness patch notes — 2026-05-31
 
 This source tree now includes release configuration scaffolding, an app icon asset catalog, Face ID usage copy, local-data backup-exclusion hardening, a static production-readiness guardrail, and a generated bundled Australian Curriculum Version 9.0 reference catalog. The app runtime remains local-first: curriculum resources are bundled, official entries are read-only, teachers map references explicitly, and no runtime curriculum download path is added.

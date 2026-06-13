@@ -5,3 +5,5 @@ DerivedData/
 .build/
 .swiftpm/
 *.log
+__pycache__/
+*.py[cod]

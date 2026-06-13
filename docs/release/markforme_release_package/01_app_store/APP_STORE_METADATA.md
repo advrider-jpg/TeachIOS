@@ -44,11 +44,11 @@ UTF-8 byte count: 71. App Store limit: 100 bytes.
 
 ## URLs
 
-- Support URL placeholder: https://markforme.app/support
-- Privacy Policy URL placeholder: https://markforme.app/privacy
-- Marketing URL placeholder: https://markforme.app
+- Support URL: NOT CONFIGURED - blocks App Store submission.
+- Privacy Policy URL: NOT CONFIGURED - blocks App Store submission.
+- Marketing URL: NOT CONFIGURED - omit unless a real marketing site is live.
 
-Replace these placeholders before App Store submission.
+Configure real, working URLs controlled by the release owner before App Store submission.
 
 ## Copyright
 
@@ -90,7 +90,7 @@ Optional. If used, show only fake student work and real app screens. Do not impl
 - Confirm app name availability.
 - Confirm bundle ID and App ID.
 - Configure signing.
-- Replace support, privacy and marketing URL placeholders.
+- Configure support, privacy and marketing URLs where required.
 - Complete privacy answers and age rating.
 - Upload real screenshots captured from the app.
 - Review all final fields in App Store Connect before submission.

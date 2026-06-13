@@ -1,9 +1,12 @@
 # MarkForMe Grading Content Source of Truth
 
 **Status:** Canonical product/content specification for implementation agents  
+**Last reviewed:** 2026-06-13 during the ridiculously-close audit closure pass
 **Audience:** Codex, product, design, Swift implementation, QA, legal/compliance review  
 **Scope:** Local-first iOS/iPadOS teacher-controlled rubric-assisted grading assistant  
 **Rule:** Coding agents must implement from this file rather than inventing educational, rubric, grading, report, warning, or privacy copy.
+
+**Provenance summary:** This document consolidates local-first product rules, teacher-controlled grading requirements, OCR/review invariants, export/privacy copy, Australian Curriculum positioning, and anti-fake-state implementation guidance from the repository's committed source materials. It is not runtime evidence and does not by itself prove Xcode, simulator, device, release, support-contact, or App Store readiness.
 
 ---
 

@@ -87,7 +87,7 @@ struct BundleExportService {
 
     static func writeTeacherAuditArchive(assignment: AssignmentRecord, sourceFiles: [URL], to destination: URL) throws -> URL {
         try prepareDestination(destination)
-        let existingSourceFiles = sourceFiles.filter { FileManager.default.fileExists(atPath: $0.path) }
+        let existingSourceFiles = try validatedSourceFiles(sourceFiles)
         do {
             guard let archive = Archive(url: destination, accessMode: .create) else {
                 throw BundleExportError.archiveFailed("Could not create ZIP archive at \(destination.lastPathComponent).")
@@ -132,7 +132,7 @@ struct BundleExportService {
 
     static func writeAssignmentArchive(assignments: [AssignmentRecord], sourceFiles: [URL], to destination: URL) throws -> URL {
         try prepareDestination(destination)
-        let existingSourceFiles = sourceFiles.filter { FileManager.default.fileExists(atPath: $0.path) }
+        let existingSourceFiles = try validatedSourceFiles(sourceFiles)
         do {
             guard let archive = Archive(url: destination, accessMode: .create) else {
                 throw BundleExportError.archiveFailed("Could not create ZIP archive at \(destination.lastPathComponent).")
@@ -175,7 +175,7 @@ struct BundleExportService {
         rosterEntries: [AssignmentRosterEntry] = []
     ) throws -> URL {
         try prepareDestination(destination)
-        let existingSourceFiles = sourceFiles.filter { FileManager.default.fileExists(atPath: $0.path) }
+        let existingSourceFiles = try validatedSourceFiles(sourceFiles)
         do {
             guard let archive = Archive(url: destination, accessMode: .create) else {
                 throw BundleExportError.archiveFailed("Could not create ZIP archive at \(destination.lastPathComponent).")
@@ -360,7 +360,7 @@ struct BundleExportService {
 
     private static func contentHashes(for assignments: [AssignmentRecord], extraFiles: [URL]) throws -> [String: String] {
         var hashes = Dictionary(uniqueKeysWithValues: assignments.map { ($0.id.uuidString, $0.gradingPacketFingerprint) })
-        for file in extraFiles where FileManager.default.fileExists(atPath: file.path) {
+        for file in extraFiles {
             guard !isSymbolicLink(file) else {
                 throw BundleExportError.archiveFailed("Source file \(file.lastPathComponent) is a symbolic link and was not archived.")
             }
@@ -376,13 +376,22 @@ struct BundleExportService {
 
     private static func addSources(_ sourceFiles: [URL], to archive: Archive, inventory: inout [ExportArchiveInventoryItem]) throws {
         var usedNames: Set<String> = []
-        for sourceURL in sourceFiles where FileManager.default.fileExists(atPath: sourceURL.path) {
+        for sourceURL in sourceFiles {
             guard !isSymbolicLink(sourceURL) else {
                 throw BundleExportError.archiveFailed("Source file \(sourceURL.lastPathComponent) is a symbolic link and was not archived.")
             }
             let entryName = sourceArchivePath(for: sourceURL, usedNames: &usedNames)
             try addFile(sourceURL, named: entryName, category: "sourceFile", sensitivity: .sourceFile, description: "Original source file included by the teacher.", inventory: &inventory, to: archive)
         }
+    }
+
+    private static func validatedSourceFiles(_ sourceFiles: [URL]) throws -> [URL] {
+        for sourceURL in sourceFiles {
+            guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+                throw BundleExportError.archiveFailed("Requested source file is missing and was not archived: \(sourceURL.lastPathComponent).")
+            }
+        }
+        return sourceFiles
     }
 
     @discardableResult

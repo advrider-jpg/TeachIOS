@@ -46,11 +46,11 @@ For this repo’s CI/debugging workflow, use this order:
 
 | Rank | Skill / repo                                                      | GitHub signal | Why it matters for your iOS CI work |
 | ---: | ----------------------------------------------------------------- | ------------- | ---------------------------------- |
-|    1 | **OpenAI `gh-fix-ci`** (inside `openai/skills`)                    | `openai/skills` (about 21.1k stars) | Uses `gh` to inspect PR checks, fetch logs, identify failing jobs, summarize failures, and propose a fix plan. |
-|    2 | **`getsentry/XcodeBuildMCP`** (`xcodebuildmcp` skill)             | `getsentry/XcodeBuildMCP` (~5.8k stars, latest release v2.6.0, June 1, 2026) | Best iOS-specific debugging companion with build, test, run, simulator, log capture, LLDB, screenshots, view hierarchy, and automation workflows. |
-|    3 | **twostraws/SwiftUI-Agent-Skill**                                 | ~4k stars | Targets common SwiftUI mistakes (deprecated API, accessibility, performance) when CI failures are SwiftUI-subtle. |
-|    4 | **Dimillian/Skills** (`ios-debugger-agent`)                         | ~3.6k stars | Builds on XcodeBuildMCP for simulator launch, inspection, and log capture when local runtime differs from CI behavior. |
-|    5 | **AvdLee/SwiftUI-Agent-Skill**                                    | ~2.9k stars | Useful second-pass SwiftUI/code quality review for state management and composition issues. |
+|    1 | **OpenAI `gh-fix-ci`** (inside `openai/skills`)                    | Check upstream live when needed. | Uses `gh` to inspect PR checks, fetch logs, identify failing jobs, summarize failures, and propose a fix plan. |
+|    2 | **`getsentry/XcodeBuildMCP`** (`xcodebuildmcp` skill)             | Check upstream live when needed. | Best iOS-specific debugging companion with build, test, run, simulator, log capture, LLDB, screenshots, view hierarchy, and automation workflows. |
+|    3 | **twostraws/SwiftUI-Agent-Skill**                                 | Check upstream live when needed. | Targets common SwiftUI mistakes (deprecated API, accessibility, performance) when CI failures are SwiftUI-subtle. |
+|    4 | **Dimillian/Skills** (`ios-debugger-agent`)                         | Check upstream live when needed. | Builds on XcodeBuildMCP for simulator launch, inspection, and log capture when local runtime differs from CI behavior. |
+|    5 | **AvdLee/SwiftUI-Agent-Skill**                                    | Check upstream live when needed. | Useful second-pass SwiftUI/code quality review for state management and composition issues. |
 
 Practical first-line setup:
 
@@ -106,6 +106,9 @@ GitHub references:
 - No core rule violations.
 - No cloud/network path added to core behavior.
 - No fake local AI/OCR/export/grading states.
+- Routed assignment IDs must fail closed. A stale or invalid assignment route must show an explicit not-found state and must not display, mutate, export, or grade the currently selected assignment as a fallback.
+- Low-confidence OCR lines require explicit teacher line-level action before scanned text can be marked reviewed.
+- If source code adds or keeps an Apple required-reason API such as `UserDefaults`, update `GradeDraft/Resources/PrivacyInfo.xcprivacy` and static checks in the same change.
 - Relevant validation evidence captured or explicitly marked unavailable.
 - Validation commands run where possible; if not run, report exactly what was not run and why.
 - Never claim validation passed unless it actually passed in this session or explicit repo evidence exists.

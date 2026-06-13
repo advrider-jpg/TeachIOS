@@ -1,5 +1,35 @@
 import SwiftUI
 
+struct MissingAssignmentRouteView: View {
+    var assignmentID: UUID
+    var actionName: String
+
+    var body: some View {
+        ContentUnavailableView(
+            "Assignment not found",
+            systemImage: "doc.text.magnifyingglass",
+            description: Text("\(actionName) is unavailable because this route points to an assignment that is not saved on this device. Choose a saved assignment before making changes.")
+        )
+        .accessibilityLabel("Assignment not found")
+    }
+}
+
+struct PreparedExportArtifact: Identifiable, Equatable {
+    var id: String { "\(kind.rawValue)-\(assignmentID?.uuidString ?? "all")-\(url.path)" }
+    var assignmentID: UUID?
+    var kind: ExportKind
+    var url: URL
+    var createdAt: Date
+
+    var audienceStatus: GradeDraftUIStatus {
+        kind.v6AudienceStatus
+    }
+
+    var displayName: String {
+        kind.v6DisplayName
+    }
+}
+
 enum ReviewSegment: String, CaseIterable, Identifiable {
     case all = "All"
     case scannedText = "Scanned Text"
@@ -190,7 +220,7 @@ extension GradeDraftViewModel {
         // If the final review is nil (e.g. a new draft was started after export) or
         // not approved, fall through so the assignment surfaces in the review queue.
         if assignment.finalReview?.status == .approved,
-           assignment.exportRecords.contains(where: { $0.exportKind == .studentPDF || $0.exportKind == .zipArchive }) {
+           assignment.exportRecords.contains(where: { $0.exportKind == .studentPDF || $0.exportKind == .studentMarkdown }) {
             return .exported
         }
         if assignment.finalReview?.status == .approved {

@@ -1,6 +1,6 @@
 # Manual QA Results
 
-No simulator, Xcode, App Store Connect, signing, physical-device, camera, biometric, or Apple Intelligence manual QA has been run in this Linux implementation environment. Record dated results here before any TestFlight or App Store claim.
+No simulator, Xcode, App Store Connect, signing, physical-device, camera, biometric, or Apple Intelligence manual QA has been run in this non-Xcode implementation environment. Record dated results here before any TestFlight or App Store claim.
 
 | Test | Result | Date | Device/OS | Notes |
 |---|---:|---|---|---|

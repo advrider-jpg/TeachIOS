@@ -20,6 +20,7 @@ The support-site folder is also exposed at:
 - `docs/release/SCHOOL_ONE_PAGER.md`
 - `docs/release/SCREENSHOT_COPY_PLAN.md`
 - `docs/release/RELEASE_BLOCKERS.md`
+- `docs/release/RELEASE_STATUS.md`
 
 ## App changes
 

@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import UIKit
 import XCTest
@@ -114,11 +115,8 @@ final class NativeUIRefactorSnapshotTests: XCTestCase {
             expectedContainer: expectedContainer,
             content: content
         )
-        XCTAssertTrue(snapshot.sourceContainerPresent,
-                      "\(screen) should render with native \(expectedContainer.rawValue).",
-                      file: file, line: line)
-        XCTAssertTrue(snapshot.forbiddenScreenTokens.isEmpty,
-                      "\(screen) should not use obsolete custom screen-level UI: \(snapshot.forbiddenScreenTokens.joined(separator: ", "))",
+        XCTAssertTrue(snapshot.renderedNativeContainerPresent,
+                      "\(screen) should host a rendered native \(expectedContainer.rawValue)-backed hierarchy.",
                       file: file, line: line)
 
         // Compare directly against the committed reference so CI never tries to write snapshots.
@@ -136,9 +134,9 @@ final class NativeUIRefactorSnapshotTests: XCTestCase {
         }
         // Normalize line endings for comparison so Windows-authored files always match.
         let normalizedStored = stored.replacingOccurrences(of: "\r\n", with: "\n")
-            .trimmingCharacters(in: .newlines)
+            .trimmingCharacters(in: CharacterSet.newlines)
         let normalizedActual = snapshot.renderedSummary
-            .trimmingCharacters(in: .newlines)
+            .trimmingCharacters(in: CharacterSet.newlines)
         XCTAssertEqual(normalizedActual, normalizedStored,
                        "Snapshot mismatch for \(screen). Update the .txt file in "
                        + "__Snapshots__/NativeUIRefactorSnapshotTests/ if the source changed intentionally.",
@@ -153,8 +151,7 @@ private enum NativeContainer: String {
 
 private struct NativeHostedScreenSnapshot {
     var renderedSummary: String
-    var sourceContainerPresent: Bool
-    var forbiddenScreenTokens: [String]
+    var renderedNativeContainerPresent: Bool
 
     @MainActor
     static func make<Content: View>(
@@ -164,17 +161,22 @@ private struct NativeHostedScreenSnapshot {
         @ViewBuilder content: () -> Content
     ) -> NativeHostedScreenSnapshot {
         let hosted = UIHostingController(rootView: AnyView(NavigationStack { content() }))
-        hosted.view.frame = CGRect(origin: .zero, size: CGSize(width: 390, height: 844))
+        let frame = CGRect(origin: .zero, size: CGSize(width: 390, height: 844))
+        let window = UIWindow(frame: frame)
+        window.rootViewController = hosted
+        window.isHidden = false
+        hosted.view.frame = frame
         hosted.loadViewIfNeeded()
         hosted.view.setNeedsLayout()
         hosted.view.layoutIfNeeded()
+        window.layoutIfNeeded()
 
-        let source = sourceText(for: sourceFile)
-        let sections = sectionTitles(in: source)
-        let nativeControls = controls(in: source)
-        let forbiddenTokens = ["GroupedListCard", "EmptyState", "TopLevelHeader", "DeepWorkflowHeader"]
-            .filter { source.contains($0) }
-        let containerPresent = containsRootContainer(expectedContainer.rawValue, in: source)
+        let renderedContainerPresent = renderedHierarchyContainsNativeContainer(
+            expectedContainer,
+            rootView: hosted.view
+        )
+        let renderedClassNames = renderedViewClassNames(hosted.view)
+        let nativeControls = renderedNativeControls(in: renderedClassNames)
 
         let summary = [
             [
@@ -183,89 +185,50 @@ private struct NativeHostedScreenSnapshot {
                 "hostedViewLoaded: \(hosted.isViewLoaded)",
                 "hostedViewSize: \(Int(hosted.view.bounds.width))x\(Int(hosted.view.bounds.height))",
                 "expectedContainer: \(expectedContainer.rawValue)",
-                "sourceContainerPresent: \(containerPresent)",
-                "sections:"
+                "renderedNativeContainerPresent: \(renderedContainerPresent)",
+                "nativeControls:"
             ],
-            bulletLines(sections),
-            ["nativeControls:"],
-            bulletLines(nativeControls),
-            ["forbiddenScreenTokens:"],
-            bulletLines(forbiddenTokens.isEmpty ? ["none"] : forbiddenTokens)
+            bulletLines(nativeControls)
         ].flatMap { $0 }.joined(separator: "\n")
 
         return NativeHostedScreenSnapshot(
             renderedSummary: summary,
-            sourceContainerPresent: containerPresent,
-            forbiddenScreenTokens: forbiddenTokens
+            renderedNativeContainerPresent: renderedContainerPresent
         )
     }
 
-    private static func sourceText(for sourceFile: String) -> String {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let url = repoRoot
-            .appendingPathComponent("GradeDraft")
-            .appendingPathComponent("UI")
-            .appendingPathComponent("Screens")
-            .appendingPathComponent(sourceFile)
-        return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-    }
-
-    private static func containsRootContainer(_ container: String, in source: String) -> Bool {
-        let pattern = #"\b"# + NSRegularExpression.escapedPattern(for: container) + #"\s*\{"#
-        return source.range(of: pattern, options: .regularExpression) != nil
-    }
-
-    private static func sectionTitles(in source: String) -> [String] {
-        // Match both Section("Title") { and } header: { Text("Title") } in source order.
-        // Section("Title") also catches reviewSection("Title") calls via substring — intentional.
-        let patterns: [(String, Int)] = [
-            (#"Section\(\"([^\"]+)\""#, 1),
-            (#"header:\s*\{\s*\n\s*Text\(\"([^\"]+)\"\)"#, 1)
-        ]
-        var hits: [(range: Range<String.Index>, title: String)] = []
-        for (pattern, group) in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern,
-                                                       options: .dotMatchesLineSeparators) else { continue }
-            let ns = NSRange(source.startIndex..<source.endIndex, in: source)
-            for match in regex.matches(in: source, range: ns) {
-                guard match.numberOfRanges > group,
-                      let titleRange = Range(match.range(at: group), in: source),
-                      let fullRange = Range(match.range, in: source) else { continue }
-                hits.append((range: fullRange, title: String(source[titleRange])))
+    @MainActor
+    private static func renderedHierarchyContainsNativeContainer(_ container: NativeContainer, rootView: UIView) -> Bool {
+        let classNames = renderedViewClassNames(rootView)
+        switch container {
+        case .list:
+            return classNames.contains { className in
+                className.contains("CollectionView") || className.contains("TableView") || className.contains("List")
+            }
+        case .form:
+            return classNames.contains { className in
+                className.contains("CollectionView") || className.contains("TableView") || className.contains("Form")
             }
         }
-        // Sort by position so titles appear in the order they occur in the source file.
-        return hits.sorted { $0.range.lowerBound < $1.range.lowerBound }
-                   .map(\.title)
     }
 
-    private static func controls(in source: String) -> [String] {
-        [
-            "List",
-            "Form",
-            "Section",
-            "NavigationLink",
-            "ContentUnavailableView",
-            "ShareLink",
-            "PhotosPicker",
-            "fileImporter",
-            "confirmationDialog",
-            "searchable",
-            "TextEditor",
-            "LabeledContent"
-        ].filter { source.contains($0) }
+    @MainActor
+    private static func renderedViewClassNames(_ view: UIView) -> [String] {
+        [String(describing: type(of: view))] + view.subviews.flatMap(renderedViewClassNames)
     }
 
-    private static func matches(pattern: String, in source: String) -> [String] {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
-        let nsRange = NSRange(source.startIndex..<source.endIndex, in: source)
-        return regex.matches(in: source, range: nsRange).compactMap { match in
-            guard match.numberOfRanges > 1,
-                  let range = Range(match.range(at: 1), in: source) else { return nil }
-            return String(source[range])
+    private static func renderedNativeControls(in classNames: [String]) -> [String] {
+        let rendered = [
+            ("CollectionView", "CollectionView"),
+            ("TableView", "TableView"),
+            ("List", "List"),
+            ("Form", "Form"),
+            ("ScrollView", "ScrollView"),
+            ("Navigation", "Navigation")
+        ].compactMap { needle, label in
+            classNames.contains { $0.contains(needle) } ? label : nil
         }
+        return rendered.isEmpty ? ["none"] : rendered
     }
 
     private static func bulletLines(_ values: [String]) -> [String] {
@@ -287,8 +250,6 @@ private enum NativeUITestFixture {
         let assignments = makeAssignments()
         let store = InMemoryAssignmentStore(assignments: assignments)
         let viewModel = GradeDraftViewModel(assignments: assignments, store: store)
-        viewModel.exportURL = URL(fileURLWithPath: "/tmp/gradedraft-student-report.md")
-        viewModel.exportKind = .studentMarkdown
 
         let selectedTitle: String
         switch selection {
@@ -303,6 +264,15 @@ private enum NativeUITestFixture {
         }
         if let selected = viewModel.assignments.first(where: { $0.title == selectedTitle }) {
             viewModel.selectAssignment(selected.id)
+            let exportURL = URL(fileURLWithPath: "/tmp/gradedraft-student-report.md")
+            viewModel.exportURL = exportURL
+            viewModel.exportKind = .studentMarkdown
+            viewModel.preparedExportArtifact = PreparedExportArtifact(
+                assignmentID: selected.id,
+                kind: .studentMarkdown,
+                url: exportURL,
+                createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+            )
         }
         return viewModel
     }

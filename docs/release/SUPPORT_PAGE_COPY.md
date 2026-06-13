@@ -34,6 +34,6 @@ Student work is not sent to us for marking. Student work stays on your device un
 
 ## Contact
 
-- Email: replace@example.com
-- Phone/contact method: replace before release
-- Support URL: https://markforme.app/support
+Release status: blocked until a real support URL and contact channel are configured.
+
+Do not submit this support page to App Store review until it contains working contact details controlled by the release owner. The app must not claim production support is available before those details are live.

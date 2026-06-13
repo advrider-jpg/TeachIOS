@@ -3,18 +3,9 @@ hostedController: UIHostingController
 hostedViewLoaded: true
 hostedViewSize: 390x844
 expectedContainer: Form
-sourceContainerPresent: true
-sections:
-- Teacher-Provided Context Required
-- Template
+renderedNativeContainerPresent: true
 nativeControls:
-- Form
-- Section
-- NavigationLink
-- ContentUnavailableView
-- fileImporter
-- confirmationDialog
-- TextEditor
-- LabeledContent
-forbiddenScreenTokens:
-- none
+- CollectionView
+- List
+- ScrollView
+- Navigation

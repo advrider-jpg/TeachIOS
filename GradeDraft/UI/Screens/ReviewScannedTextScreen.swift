@@ -7,14 +7,15 @@ struct ReviewScannedTextScreen: View {
     @State private var selectedLineID: UUID?
     @State private var selectedEvidenceCriterionID: UUID?
     @State private var showingReviewConfirm = false
+    @State private var pendingOCRCorrections: [UUID: OCRLineCorrection] = [:]
 
     var body: some View {
         Group {
-            let assignment = viewModel.assignment(for: assignmentID) ?? viewModel.assignment
-            if let document = assignment.ocrDocument, !document.pages.isEmpty {
-                let pages = document.pages.sorted { $0.pageIndex < $1.pageIndex }
-                let page = selectedPage(from: pages)
-                List {
+            if let assignment = viewModel.assignment(for: assignmentID) {
+                if let document = assignment.ocrDocument, !document.pages.isEmpty {
+                    let pages = document.pages.sorted { $0.pageIndex < $1.pageIndex }
+                    let page = selectedPage(from: pages)
+                    List {
                     Section {
                         ScannedTextPaperHeader(
                             assignmentTitle: assignment.title,
@@ -85,7 +86,14 @@ struct ReviewScannedTextScreen: View {
                             }
                             .disabled(nextUnreviewedLineTarget == nil)
                             Button {
+                                savePendingOCRCorrections(pageID: page.id)
+                            } label: {
+                                Label("Save Page Corrections", systemImage: "tray.and.arrow.down")
+                            }
+                            .disabled(pendingCorrectionCount(pageID: page.id) == 0)
+                            Button {
                                 viewModel.selectAssignment(assignmentID)
+                                savePendingOCRCorrections(pageID: page.id)
                                 viewModel.markOCRPageReviewed(pageID: page.id)
                             } label: {
                                 Label("Mark Page Reviewed", systemImage: "checkmark.rectangle")
@@ -95,14 +103,18 @@ struct ReviewScannedTextScreen: View {
                                 TextLineEditorCard(
                                     pageID: page.id,
                                     line: line,
+                                    stagedText: pendingOCRCorrections[line.id]?.correctedText,
                                     isSelected: selectedLineID == line.id,
                                     onSelect: {
                                         selectedPageID = page.id
                                         selectedLineID = line.id
                                     },
-                                    onTextChange: { text in
+                                    onTextChanged: { text in
+                                        stageOCRCorrection(pageID: page.id, line: line, correctedText: text)
+                                    },
+                                    onTextCommit: { text in
                                         viewModel.selectAssignment(assignmentID)
-                                        viewModel.updateOCRLine(pageID: page.id, lineID: line.id, correctedText: text)
+                                        savePendingOCRCorrections(lineID: line.id, fallback: OCRLineCorrection(pageID: page.id, lineID: line.id, correctedText: text))
                                     },
                                     onConfirm: {
                                         selectedPageID = page.id
@@ -159,31 +171,40 @@ struct ReviewScannedTextScreen: View {
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                     }
+                    }
+                    .gradeDraftNativeGroupedList()
+                    .scrollContentBackground(.hidden)
+                    .background(ScannedTextPaperStyle.background.ignoresSafeArea())
+                } else {
+                    ScannedTextUnavailablePaper()
                 }
-                .gradeDraftNativeGroupedList()
-                .scrollContentBackground(.hidden)
-                .background(ScannedTextPaperStyle.background.ignoresSafeArea())
             } else {
-                ScannedTextUnavailablePaper()
+                MissingAssignmentRouteView(assignmentID: assignmentID, actionName: "Scanned text review")
             }
         }
         .navigationTitle(GradeDraftWorkflowLanguage.reviewScannedTextScreenTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .onAppear {
-            viewModel.selectAssignment(assignmentID)
-            if selectedPageID == nil {
-                selectedPageID = viewModel.assignment.ocrDocument?.pages.sorted { $0.pageIndex < $1.pageIndex }.first?.id
+            if let assignment = viewModel.assignment(for: assignmentID) {
+                viewModel.selectAssignment(assignmentID)
+                if selectedPageID == nil {
+                    selectedPageID = assignment.ocrDocument?.pages.sorted { $0.pageIndex < $1.pageIndex }.first?.id
+                }
             }
         }
         .confirmationDialog(GradeDraftWorkflowLanguage.reviewScannedTextScreenTitle, isPresented: $showingReviewConfirm, titleVisibility: .visible) {
             Button("Mark Reviewed") {
                 viewModel.selectAssignment(assignmentID)
+                savePendingOCRCorrections()
                 viewModel.markOCRReviewed()
             }
             Button("Keep Reviewing", role: .cancel) {}
         } message: {
             Text("Only continue if the text shown here accurately reflects the student work you want MarkForMe to use. The app will draft feedback from this reviewed text, not from the original image.")
+        }
+        .onDisappear {
+            savePendingOCRCorrections()
         }
     }
 
@@ -201,6 +222,42 @@ struct ReviewScannedTextScreen: View {
 
     private var nextUnreviewedLineTarget: (pageID: UUID, lineID: UUID)? {
         viewModel.nextUnreviewedLine(after: selectedLineID)
+    }
+
+    private func stageOCRCorrection(pageID: UUID, line: OCRLine, correctedText: String) {
+        if correctedText == line.reviewedText {
+            pendingOCRCorrections[line.id] = nil
+        } else {
+            pendingOCRCorrections[line.id] = OCRLineCorrection(
+                pageID: pageID,
+                lineID: line.id,
+                correctedText: correctedText
+            )
+        }
+    }
+
+    private func pendingCorrectionCount(pageID: UUID) -> Int {
+        pendingOCRCorrections.values.filter { $0.pageID == pageID }.count
+    }
+
+    private func savePendingOCRCorrections(pageID: UUID? = nil, lineID: UUID? = nil, fallback: OCRLineCorrection? = nil) {
+        var corrections = pendingOCRCorrections.values.filter { correction in
+            (pageID == nil || correction.pageID == pageID) &&
+            (lineID == nil || correction.lineID == lineID)
+        }
+        if corrections.isEmpty, let fallback {
+            corrections = [fallback]
+        }
+        guard !corrections.isEmpty else { return }
+        guard viewModel.assignment(for: assignmentID) != nil else { return }
+        viewModel.selectAssignment(assignmentID)
+        let saved = viewModel.updateOCRLines(corrections.sorted { lhs, rhs in
+            lhs.lineID.uuidString < rhs.lineID.uuidString
+        })
+        guard saved else { return }
+        for correction in corrections {
+            pendingOCRCorrections[correction.lineID] = nil
+        }
     }
 
     private func workPreviewFooter(for page: OCRPage?, assignment: AssignmentRecord) -> String {

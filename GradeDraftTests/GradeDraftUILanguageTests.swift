@@ -80,6 +80,47 @@ final class GradeDraftUITabAndLanguageTests: XCTestCase {
         XCTAssertFalse(screenSource.contains("GradeResultView("), "Active v6 screens should render native final-review rows instead of routing to legacy GradeResultView.")
     }
 
+    func testSharedActionButtonsAllowDynamicTypeWrapping() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let buttonsSource = try String(
+            contentsOf: repoRoot.appendingPathComponent("GradeDraft/UI/DesignSystem/Buttons.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(buttonsSource.contains("@Environment(\\.dynamicTypeSize)"))
+        XCTAssertTrue(buttonsSource.contains("ActionButtonLabel("))
+        XCTAssertTrue(buttonsSource.contains("isAccessibilitySize ? nil : 3"))
+        XCTAssertTrue(buttonsSource.contains(".fixedSize(horizontal: false, vertical: true)"))
+        XCTAssertFalse(buttonsSource.contains("Label(title, systemImage: systemImage ?? \"arrow.right\")\n                .lineLimit(2)"))
+        XCTAssertFalse(buttonsSource.contains("Label(title, systemImage: systemImage ?? \"arrow.right.circle\")\n                .lineLimit(2)"))
+    }
+
+    func testExportAndOCRAccessibilityLabelsCarryAudienceAndReviewState() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let exportSource = try String(
+            contentsOf: repoRoot.appendingPathComponent("GradeDraft/UI/Screens/ExportsRestoreScreen.swift"),
+            encoding: .utf8
+        )
+        let ocrSource = try String(
+            contentsOf: repoRoot.appendingPathComponent("GradeDraft/UI/DesignSystem/OCRComponents.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(exportSource.contains("LabeledContent(\"Audience\", value: artifact.audienceStatus.fullAccessibilityLabel)"))
+        XCTAssertTrue(exportSource.contains(".accessibilityLabel(\"Export audience\")"))
+        XCTAssertTrue(exportSource.contains(".accessibilityLabel(\"Review share warning for \\(artifact.displayName)\")"))
+        XCTAssertTrue(exportSource.contains(".accessibilityLabel(\"Copy text from \\(artifact.displayName)\")"))
+        XCTAssertTrue(exportSource.contains("Requires clipboard warning confirmation."))
+        XCTAssertTrue(ocrSource.contains(".accessibilityLabel(\"Scanned text line review status\")"))
+        XCTAssertTrue(ocrSource.contains("var accessibilityReviewValue: String"))
+        XCTAssertTrue(ocrSource.contains("Confidence \\(confidence) percent"))
+        XCTAssertTrue(ocrSource.contains("Text: \\(text)."))
+    }
+
     func testVisibleTeacherFacingStringsDoNotUseImplementationLanguage() throws {
         let forbiddenTerms = [
             "stale draft",

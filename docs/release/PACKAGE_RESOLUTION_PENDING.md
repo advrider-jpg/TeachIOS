@@ -1,6 +1,6 @@
 # Package Resolution Pending
 
-`Package.resolved` was not generated in this Linux implementation environment because Xcode is unavailable. Before release or TestFlight, run:
+`Package.resolved` was not generated in this non-Xcode implementation environment because Xcode is unavailable. Before release or TestFlight, run:
 
 ```bash
 xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft

@@ -36,9 +36,8 @@ Camera scan, PDF import, share/export sheets, Face ID/Touch ID/passcode export c
 
 Bundled Australian Curriculum references are offline reference aids. MarkForMe does not claim ACARA endorsement, certification, compliance, or school-system reporting approval. Teachers choose any curriculum references before they are included in a marking task.
 
-## Review contact placeholders
+## Review contact status
 
-- Support URL: https://markforme.app/support
-- Privacy URL: https://markforme.app/privacy
-- Review contact name: replace before submission
-- Review contact phone/email: replace before submission
+Support and privacy URLs are not configured. App Store submission is blocked until real, working URLs and contact details are available.
+- Review contact name: NOT CONFIGURED - blocks App Store submission.
+- Review contact phone/email: NOT CONFIGURED - blocks App Store submission.

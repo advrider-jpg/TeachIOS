@@ -134,7 +134,8 @@ struct TextLineHighlightOverlay: View {
                     )
                     .frame(width: visibleRect.width, height: visibleRect.height)
                     .position(x: visibleRect.midX, y: visibleRect.midY)
-                    .accessibilityLabel("Page \(page.pageIndex + 1), text line. Status: \(line.v6ReviewLabel).")
+                    .accessibilityLabel("Page \(page.pageIndex + 1), scanned text line")
+                    .accessibilityValue(line.accessibilityReviewValue)
             }
         }
         .allowsHitTesting(false)
@@ -157,13 +158,18 @@ struct TextLineHighlightOverlay: View {
 struct TextLineEditorCard: View {
     var pageID: UUID
     var line: OCRLine
+    var stagedText: String?
     var isSelected: Bool
     var onSelect: () -> Void
-    var onTextChange: (String) -> Void
+    var onTextChanged: (String) -> Void
+    var onTextCommit: (String) -> Void
     var onConfirm: () -> Void
     var onReject: () -> Void
     var onAddEvidence: () -> Void
     var evidenceEnabled: Bool
+
+    @State private var draftText = ""
+    @FocusState private var isEditing: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -174,6 +180,9 @@ struct TextLineEditorCard: View {
                     .foregroundStyle(line.needsReview ? .orange : .secondary)
                 Spacer()
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Scanned text line review status")
+            .accessibilityValue(line.accessibilityReviewValue)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Text as read")
                     .font(.caption.weight(.semibold))
@@ -187,13 +196,40 @@ struct TextLineEditorCard: View {
                 Text("Corrected text")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                TextField("Corrected text", text: Binding(get: { line.reviewedText }, set: onTextChange), axis: .vertical)
+                TextField(
+                    "Corrected text",
+                    text: Binding(
+                        get: { draftText },
+                        set: { newValue in
+                            draftText = newValue
+                            onTextChanged(newValue)
+                        }
+                    ),
+                    axis: .vertical
+                )
                     .textFieldStyle(.roundedBorder)
+                    .focused($isEditing)
+                    .onSubmit(commitDraft)
+                if hasUnsavedDraft {
+                    Text("Unsaved correction")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.orange)
+                }
             }
             HStack(spacing: 8) {
-                SecondaryActionButton(title: "Confirm Line", systemImage: "checkmark.circle", action: onConfirm)
-                SecondaryActionButton(title: "Reject Line", systemImage: "xmark.circle", action: onReject)
-                SecondaryActionButton(title: "Add as Evidence", systemImage: "quote.bubble", action: onAddEvidence, disabled: !evidenceEnabled)
+                SecondaryActionButton(title: "Save Correction", systemImage: "square.and.arrow.down", action: commitDraft, disabled: !hasUnsavedDraft)
+                SecondaryActionButton(title: "Confirm Line", systemImage: "checkmark.circle") {
+                    commitDraft()
+                    onConfirm()
+                }
+                SecondaryActionButton(title: "Reject Line", systemImage: "xmark.circle") {
+                    commitDraft()
+                    onReject()
+                }
+                SecondaryActionButton(title: "Add as Evidence", systemImage: "quote.bubble", action: {
+                    commitDraft()
+                    onAddEvidence()
+                }, disabled: !evidenceEnabled)
             }
             .font(.caption)
         }
@@ -205,6 +241,29 @@ struct TextLineEditorCard: View {
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
+        .onAppear(perform: syncDraftFromLine)
+        .onChange(of: line.id) { _, _ in syncDraftFromLine() }
+        .onChange(of: stagedText) { _, newValue in
+            guard !isEditing else { return }
+            draftText = newValue ?? line.reviewedText
+        }
+        .onChange(of: line.reviewedText) { _, newValue in
+            guard !isEditing else { return }
+            draftText = stagedText ?? newValue
+        }
+    }
+
+    private var hasUnsavedDraft: Bool {
+        draftText != line.reviewedText
+    }
+
+    private func syncDraftFromLine() {
+        draftText = stagedText ?? line.reviewedText
+    }
+
+    private func commitDraft() {
+        guard hasUnsavedDraft else { return }
+        onTextCommit(draftText)
     }
 }
 
@@ -218,5 +277,16 @@ extension OCRLine {
 
     var v6ReviewLabel: String {
         v6ReviewStatus.rawValue
+    }
+
+    var accessibilityReviewValue: String {
+        let confidence = Int(linearClampedConfidence * 100)
+        let text = reviewedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let textSummary = text.isEmpty ? "No recognized text." : "Text: \(text)."
+        return "\(v6ReviewLabel). Confidence \(confidence) percent. \(textSummary)"
+    }
+
+    private var linearClampedConfidence: Double {
+        min(max(Double(confidence), 0), 1)
     }
 }

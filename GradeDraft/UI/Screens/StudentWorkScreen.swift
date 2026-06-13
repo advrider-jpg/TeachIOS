@@ -70,9 +70,34 @@ struct StudentWorkScreen: View {
     @State private var showingDeleteConfirm = false
     @State private var pastedStudentText = ""
 
-    private var assignment: AssignmentRecord { viewModel.assignment(for: assignmentID) ?? viewModel.assignment }
+    private var assignment: AssignmentRecord? { viewModel.assignment(for: assignmentID) }
 
     var body: some View {
+        Group {
+            if let assignment {
+                studentWorkForm(assignment: assignment)
+            } else {
+                MissingAssignmentRouteView(assignmentID: assignmentID, actionName: "Student work editing")
+            }
+        }
+        .navigationTitle("Student Work")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
+        .onAppear {
+            if assignment != nil {
+                viewModel.selectAssignment(assignmentID)
+                refreshPastedTextDraft()
+            }
+        }
+        .onChange(of: assignmentID) { _, newValue in
+            if viewModel.assignment(for: newValue) != nil {
+                viewModel.selectAssignment(newValue)
+                refreshPastedTextDraft()
+            }
+        }
+    }
+
+    private func studentWorkForm(assignment: AssignmentRecord) -> some View {
         Form {
             AssignmentStationeryHeader(
                 eyebrow: "Input",
@@ -210,17 +235,6 @@ struct StudentWorkScreen: View {
             }
         }
         .stationeryScreen(theme: AssignmentWorkflowStationery.theme)
-        .navigationTitle("Student Work")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
-        .onAppear {
-            viewModel.selectAssignment(assignmentID)
-            refreshPastedTextDraft()
-        }
-        .onChange(of: assignmentID) { _, newValue in
-            viewModel.selectAssignment(newValue)
-            refreshPastedTextDraft()
-        }
         .sheet(isPresented: $showingScanner) {
             DocumentScannerView { images in
                 Task { await viewModel.applyScannedImages(images) }
@@ -277,7 +291,10 @@ struct StudentWorkScreen: View {
     }
 
     private func refreshPastedTextDraft() {
-        let current = assignment
+        guard let current = assignment else {
+            pastedStudentText = ""
+            return
+        }
         if current.sourceInputs.isEmpty || current.sourceInputs.allSatisfy({ $0.sourceType == .pastedText }) {
             pastedStudentText = current.reviewedStudentText
         } else {

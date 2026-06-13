@@ -58,13 +58,14 @@ struct StationeryMetric: View {
 
 struct WorkflowTimeline: View {
     struct Step: Identifiable, Equatable {
-        var id: String { "\(index)-\(title)" }
+        var id: String
         var index: Int
         var title: String
         var detail: String
         var status: GradeDraftUIStatus
 
-        init(index: Int, title: String, detail: String, status: GradeDraftUIStatus) {
+        init(id: String? = nil, index: Int, title: String, detail: String, status: GradeDraftUIStatus) {
+            self.id = id ?? title
             self.index = index
             self.title = title
             self.detail = detail
@@ -82,7 +83,7 @@ struct WorkflowTimeline: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(steps.enumerated()), id: \.offset) { offset, step in
+            ForEach(Array(steps.enumerated()), id: \.element.id) { offset, step in
                 HStack(alignment: .top, spacing: 12) {
                     VStack(spacing: 0) {
                         timelineBubble(step)

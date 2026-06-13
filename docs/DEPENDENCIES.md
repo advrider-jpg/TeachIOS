@@ -2,7 +2,7 @@
 
 This document records MarkForMe's Swift Package Manager dependency set, target linkage, license posture, and privacy relevance for the local-first release candidate.
 
-`Package.resolved` is still pending Xcode generation in this Linux environment. Run `xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft` on macOS/Xcode, commit the generated resolution file, and update exact resolved revisions before TestFlight.
+`Package.resolved` is still pending Xcode generation in this non-Xcode implementation environment. Run `xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft` on macOS/Xcode, commit the generated resolution file, and update exact resolved revisions before TestFlight.
 
 ## Runtime libraries linked to the app target
 

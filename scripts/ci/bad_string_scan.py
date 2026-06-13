@@ -20,8 +20,12 @@ PATTERNS = [
 ALLOWLIST: set[tuple[str, int]] = set()
 CURRICULUM_RESOURCE_ALLOWLIST = {
     "GradeDraft/Resources/JSON/curriculum_catalog_acara_v9.json",
+    "GradeDraft/Resources/JSON/curriculum_catalog_acara_v9_index.json",
     "GradeDraft/Resources/JSON/curriculum_catalog_acara_v9_manifest.json",
     "GradeDraft/Resources/JSON/curriculum_catalog_acara_v9_summary.json",
+}
+CURRICULUM_RESOURCE_PREFIXES = {
+    "GradeDraft/Resources/JSON/CurriculumShards/",
 }
 
 
@@ -32,7 +36,7 @@ def main() -> int:
             if not path.is_file() or path.suffix not in {".swift", ".json", ".plist", ".xcprivacy"}:
                 continue
             rel = path.relative_to(ROOT).as_posix()
-            if rel in CURRICULUM_RESOURCE_ALLOWLIST:
+            if rel in CURRICULUM_RESOURCE_ALLOWLIST or any(rel.startswith(prefix) for prefix in CURRICULUM_RESOURCE_PREFIXES):
                 # Generated official curriculum text legitimately contains words
                 # such as "mock", "todo" in Spanish, and numeric phrases that
                 # collide with unresolved-implementation terms. The generator

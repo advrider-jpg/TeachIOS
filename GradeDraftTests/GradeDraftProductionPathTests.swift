@@ -132,7 +132,7 @@ final class GradeDraftProductionPathTests: XCTestCase {
             assignments: [assignment],
             store: InMemoryAssignmentStore(assignments: [assignment])
         )
-        let preview = MarkdownRubricParser.preview("""
+        let preview = viewModel.previewMarkdownRubric("""
         | Criterion | Max | Level | Points |
         |---|---:|---|---:|
         | Claim | 4 | Strong | 4 |

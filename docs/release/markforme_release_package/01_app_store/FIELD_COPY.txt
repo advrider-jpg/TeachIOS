@@ -36,10 +36,10 @@ KEYWORDS
 teacher,marking,rubric,feedback,assessment,student,school,classwork,PDF,homework
 
 SUPPORT URL
-https://markforme.app/support
+NOT CONFIGURED - blocks App Store submission
 
 PRIVACY POLICY URL
-https://markforme.app/privacy
+NOT CONFIGURED - blocks App Store submission
 
 MARKETING URL
-https://markforme.app
+NOT CONFIGURED - omit unless real site is live

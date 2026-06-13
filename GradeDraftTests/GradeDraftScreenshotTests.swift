@@ -205,8 +205,6 @@ final class GradeDraftScreenshotTests: XCTestCase {
         let assignments = makeAssignments()
         let store = InMemoryAssignmentStore(assignments: assignments)
         let viewModel = GradeDraftViewModel(assignments: assignments, store: store)
-        viewModel.exportURL = URL(fileURLWithPath: "/tmp/gradedraft-student-report.md")
-        viewModel.exportKind = .studentMarkdown
         viewModel.latestRosterPreview = RosterImportService.preview(
             csvText: "Name,Student ID\nAlex Thompson,A001\nBailey Chen,B002\nCameron Smith,C003",
             defaultClassName: "6A"
@@ -225,6 +223,15 @@ final class GradeDraftScreenshotTests: XCTestCase {
         }
         if let selected = viewModel.assignments.first(where: { $0.title == selectedTitle }) {
             viewModel.selectAssignment(selected.id)
+            let exportURL = URL(fileURLWithPath: "/tmp/gradedraft-student-report.md")
+            viewModel.exportURL = exportURL
+            viewModel.exportKind = .studentMarkdown
+            viewModel.preparedExportArtifact = PreparedExportArtifact(
+                assignmentID: selected.id,
+                kind: .studentMarkdown,
+                url: exportURL,
+                createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+            )
         }
         return viewModel
     }

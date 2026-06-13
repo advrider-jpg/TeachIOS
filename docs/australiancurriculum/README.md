@@ -54,10 +54,12 @@ The second formulation overclaims both pedagogically and jurisdictionally.
 
 The app now includes a bundled offline Australian Curriculum Version 9.0 reference catalog generated into:
 
-- `GradeDraft/Resources/JSON/curriculum_catalog_acara_v9.json`
+- `GradeDraft/Resources/JSON/curriculum_catalog_acara_v9.json` (compact metadata shell; item detail is not bundled here)
+- `GradeDraft/Resources/JSON/curriculum_catalog_acara_v9_index.json`
 - `GradeDraft/Resources/JSON/curriculum_catalog_acara_v9_manifest.json`
 - `GradeDraft/Resources/JSON/curriculum_catalog_acara_v9_summary.json`
+- `GradeDraft/Resources/JSON/CurriculumShards/*.json`
 
-The developer-side generator is `scripts/curriculum/build_acara_curriculum_catalog.py`. Its preferred maintenance path is MRAC JSON-LD source refresh. In this Linux environment, direct MRAC download was unavailable, so the committed catalog was generated from the repository's official local Australian Curriculum workbook fallback and the manifest records that source mode. Before public release, rerun the generator with MRAC JSON-LD refresh on a network-enabled developer machine and commit the resulting resources if they differ.
+The developer-side generator is `scripts/curriculum/build_acara_curriculum_catalog.py`. Its preferred maintenance path is MRAC JSON-LD source refresh. In the implementation environment, direct MRAC download was unavailable, so the committed catalog was generated from the repository's official local Australian Curriculum workbook fallback and the manifest records that source mode. The generator emits a compact runtime catalog shell, a prebuilt search index, and bounded source-key item shards. Before public release, rerun the generator with MRAC JSON-LD refresh on a network-enabled developer machine and commit the resulting resources if they differ.
 
 Official catalog entries are read-only in the app. Teachers map and unmap references explicitly. Only teacher-selected mapped references enter grading packets, exports, and audit provenance. The app does not claim ACARA endorsement, certification, official compliance, or jurisdiction reporting approval.

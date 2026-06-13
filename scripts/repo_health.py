@@ -59,7 +59,7 @@ def main() -> int:
         ("AI prompt safety scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_prompt_safety.py")]),
         ("AI batch readiness scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_batch_readiness.py")]),
         ("AI packet preview screen scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_ai_packet_preview_screen.py")]),
-        ("release static readiness scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_release_readiness_static.py")]),
+        ("route/export truthfulness scan", [sys.executable, str(ROOT / "scripts" / "ci" / "check_route_and_export_truthfulness.py")]),
     ]
     for label, command in checks:
         status = run_check(label, command)

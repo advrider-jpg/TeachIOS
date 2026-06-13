@@ -43,15 +43,14 @@ jobs:
         id: simulator
         run: python3 scripts/ci/select_ios_simulator.py
 
-      - name: Cache Swift package dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/Library/Caches/org.swift.swiftpm
-            ~/Library/Developer/Xcode/DerivedData/SourcePackages
-          key: spm-${{ runner.os }}-xcode26-${{ hashFiles('GradeDraft.xcodeproj/project.pbxproj', '**/Package.resolved') }}
-          restore-keys: |
-            spm-${{ runner.os }}-xcode26-
+      - name: Reset SwiftPM workspace state
+        run: |
+          set -euo pipefail
+          rm -rf "$HOME/Library/Developer/Xcode/DerivedData/SourcePackages"
+          rm -rf "$HOME/Library/Caches/org.swift.swiftpm"
+          rm -rf "$HOME/.swiftpm/cache"
+          rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
+          mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
 
       - name: Resolve Swift package dependencies
         run: |
@@ -60,6 +59,7 @@ jobs:
           xcodebuild -resolvePackageDependencies \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/GradeDraftSourcePackages" \
             | tee xcode-logs/spm-resolve.log
 
       - name: Capture every core app page
@@ -74,6 +74,7 @@ jobs:
             -scheme "$SCHEME" \
             -destination "${{ steps.simulator.outputs.destination }}" \
             -derivedDataPath "$DERIVED_DATA" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/GradeDraftSourcePackages" \
             -resultBundlePath "$RESULT_BUNDLE" \
             -only-testing:GradeDraftTests/GradeDraftScreenshotTests \
             ARCHS=arm64 \

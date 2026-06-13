@@ -24,7 +24,9 @@ OCR uses Apple Vision locally. scanned text is not trusted as final text until t
 
 ## Storage
 
-The scaffold stores assignment state in local JSON under Application Support. Scanned/imported images are also written under Application Support and referenced by local relative path. These local files may contain student data.
+The primary app persistence path is local GRDB/SQLite under Application Support, with normalized rows for assignments, rosters, sources, OCR, rubrics, reviews, evidence, exports, and audit events. JSON payloads remain as compatibility/export/backup records, not the primary runtime truth. Scanned/imported images and copied PDFs are written under Application Support and referenced by local relative path. These local files may contain student data.
+
+Failed image/PDF imports must roll back newly copied source files if OCR or assignment persistence fails after the file write. App Shortcut pasted-work handoff stores raw student text only in a protected transient local payload file with deletion on consume/expiry; UserDefaults stores only route metadata and a payload token.
 
 ## Export warning
 

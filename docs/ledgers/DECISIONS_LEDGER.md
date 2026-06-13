@@ -77,3 +77,9 @@ Rationale: A teacher must not see a restored, imported, or deleted state unless 
 Decision: Roster persistence is named as a full snapshot replacement. Ordinary assignment saves preserve roster rows for kept assignments; explicit delete and restore paths prune or replace roster rows intentionally.
 
 Rationale: The previous generic roster-save name made partial-save misuse easy. Gradebook rows must not be silently wiped because a future call site passes only one assignment’s roster entries.
+
+## D015 — App-driving UI smoke is PR-required
+
+Decision: `GradeDraftUITests/GradeDraftCoreLaneUITests` runs through the `ui-smoke` job as an ordinary PR-required CI gate, separate from deterministic unit tests and screenshot smoke coverage.
+
+Rationale: The core workflow must be app-driven in CI before merge. A UI test that only runs by label or manual dispatch is useful evidence, but it does not close the product-trust gap for ordinary implementation PRs.
