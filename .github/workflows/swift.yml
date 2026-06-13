@@ -226,7 +226,9 @@ jobs:
           tail -n +2 GradeDraft.xcodeproj/project.pbxproj > "$RUNNER_TEMP/project.openstep.plist"
           /usr/bin/plutil -lint "$RUNNER_TEMP/project.openstep.plist" || true
           /usr/bin/plutil -convert json -o "$RUNNER_TEMP/project.pbxproj.json" "$RUNNER_TEMP/project.openstep.plist" || true
-          test -s "$RUNNER_TEMP/project.pbxproj.json" && python3 -m json.tool "$RUNNER_TEMP/project.pbxproj.json" >/dev/null || true
+          if [ -s "$RUNNER_TEMP/project.pbxproj.json" ]; then
+            python3 -m json.tool "$RUNNER_TEMP/project.pbxproj.json" >/dev/null || true
+          fi
 
       - name: Resolve Swift package dependencies
         run: |
