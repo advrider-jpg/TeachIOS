@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class GradeDraftCoreLaneUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false

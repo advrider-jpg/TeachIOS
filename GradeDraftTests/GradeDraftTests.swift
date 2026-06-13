@@ -107,7 +107,7 @@ private struct StudentPersistedFields: Equatable {
     }
 }
 
-private func assertRosterEntriesPersistedFieldsEqual(
+func assertRosterEntriesPersistedFieldsEqual(
     _ actual: [AssignmentRosterEntry],
     _ expected: [AssignmentRosterEntry],
     file: StaticString = #filePath,
@@ -116,7 +116,7 @@ private func assertRosterEntriesPersistedFieldsEqual(
     XCTAssertEqual(actual.map(RosterEntryPersistedFields.init), expected.map(RosterEntryPersistedFields.init), file: file, line: line)
 }
 
-private func assertStudentsPersistedFieldsEqual(
+func assertStudentsPersistedFieldsEqual(
     _ actual: [StudentRecord],
     _ expected: [StudentRecord],
     file: StaticString = #filePath,
@@ -226,6 +226,7 @@ final class ImmediateRewriteGradingService: GradingServicing, CapabilityChecking
     }
 }
 
+@MainActor
 final class GradeDraftTests: XCTestCase {
     func sampleInput(rubric: String = "Claim: 0-4 points") -> GradingInput {
         let parsed = RubricParser.parse(rubric)

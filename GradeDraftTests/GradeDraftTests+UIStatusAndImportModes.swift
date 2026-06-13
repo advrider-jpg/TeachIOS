@@ -42,6 +42,7 @@ extension GradeDraftTests {
         }
     }
 
+    @MainActor
     func testManualEditResetsToAutomatic() {
         var assignment = AssignmentRecord(title: "Test")
         assignment.rubricImportMode = .structuredConfirmed

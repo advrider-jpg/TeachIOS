@@ -424,7 +424,7 @@ extension GradeDraftTests {
                 criterion: "Claim",
                 rating: "Proficient",
                 proposedPoints: 3,
-                maxScore: 4,
+                maxPoints: 4,
                 evidence: ["Student text."],
                 evidenceSourceRefs: [],
                 explanation: "The claim is clear.",

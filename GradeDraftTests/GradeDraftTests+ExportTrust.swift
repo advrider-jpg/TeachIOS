@@ -125,6 +125,7 @@ extension GradeDraftTests {
         XCTAssertTrue(audit.contains(assignment.gradingPacketFingerprint), "Teacher review should include packet fingerprint")
     }
 
+    @MainActor
     func testTeacherArchiveFailsVisiblyWhenReferencedSourceFileIsMissing() {
         var assignment = AssignmentRecord(title: "Missing source")
         assignment.sourceInputs = [

@@ -1289,7 +1289,7 @@ extension GradeDraftTests {
         let store = InMemoryAssignmentStore(assignments: [assignment])
         store.appSupportDirectory = root
         let ocr = ImportTransactionOCRService(result: .failure(ImportTransactionTestError.injectedOCRFailure))
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store, ocrService: ocr)
+        let viewModel = GradeDraftViewModel(assignments: [assignment], ocrService: ocr, store: store)
 
         await viewModel.applyPhotoImages([makeImportTransactionImage()])
 
@@ -1316,7 +1316,7 @@ extension GradeDraftTests {
             ])
         ])
         let ocr = ImportTransactionOCRService(result: .success(document))
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store, ocrService: ocr)
+        let viewModel = GradeDraftViewModel(assignments: [assignment], ocrService: ocr, store: store)
 
         await viewModel.applyPhotoImages([makeImportTransactionImage()])
 
@@ -1345,7 +1345,7 @@ extension GradeDraftTests {
             ])
         ])
         let ocr = ImportTransactionOCRService(result: .success(document))
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store, ocrService: ocr)
+        let viewModel = GradeDraftViewModel(assignments: [assignment], ocrService: ocr, store: store)
 
         await viewModel.applyPDFFile(pdfURL)
 
