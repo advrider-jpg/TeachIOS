@@ -199,6 +199,13 @@ jobs:
           rm -rf "$RUNNER_TEMP/GradeDraftSourcePackages"
           mkdir -p "$RUNNER_TEMP/GradeDraftSourcePackages"
 
+      - name: Diagnose Xcode project package metadata
+        run: |
+          set -euo pipefail
+          /usr/bin/plutil -lint GradeDraft.xcodeproj/project.pbxproj
+          /usr/bin/plutil -convert json -o "$RUNNER_TEMP/project.pbxproj.json" GradeDraft.xcodeproj/project.pbxproj
+          find GradeDraft.xcodeproj -name Package.resolved -print -exec wc -c {} \; -exec sed -n '1,40p' {} \; || true
+
       - name: Resolve Swift package dependencies
         run: |
           set -euo pipefail
