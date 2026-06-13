@@ -205,6 +205,7 @@ jobs:
             echo ""
             echo "Xcode project listing:"
           } | tee xcode-logs/xcode-project-diagnostics.log
+          python3 scripts/ci/probe_xcode_project_variants.py 2>&1 | tee xcode-logs/xcode-project-probes.log || true
           set +e
           xcodebuild -list -project "$PROJECT" 2>&1 | tee xcode-logs/xcode-list.log
           list_status=${PIPESTATUS[0]}
