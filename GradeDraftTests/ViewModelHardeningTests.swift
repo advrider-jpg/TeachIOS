@@ -541,9 +541,9 @@ final class ViewModelHardeningTests: XCTestCase {
         XCTAssertNil(viewModel.selectedAssignmentID)
         XCTAssertEqual(saved?.rubricText, "Original rubric: 0-4 points")
         XCTAssertEqual(saved?.reviewedStudentText, "Original reviewed text")
-        XCTAssertEqual(saved?.selectedInstructionTemplateIDs, [])
+        XCTAssertEqual(saved?.selectedInstructionTemplateIDs, GradingConstraintTemplates.defaultSelectedIDs)
         XCTAssertEqual(saved?.curriculumMappings, [])
-        XCTAssertNil(saved?.curriculumReference)
+        XCTAssertEqual(saved?.curriculumReference, "")
         XCTAssertEqual(saved?.exportRecords.count, 0)
         XCTAssertTrue(viewModel.errorMessage?.contains("no saved assignment is selected") == true)
     }

@@ -6,3 +6,6 @@ expectedContainer: List
 renderedNativeContainerPresent: true
 nativeControls:
 - CollectionView
+- List
+- ScrollView
+- Navigation

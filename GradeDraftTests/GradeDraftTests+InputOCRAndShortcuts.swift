@@ -38,7 +38,7 @@ extension GradeDraftTests {
         assignment.ocrDocument = OCRDocument(
             pages: [OCRPage(
                 pageIndex: 0,
-                lines: [OCRLine(text: "Extracted text", confidence: 0.95, boundingBox: .zero)]
+                lines: [OCRLine(text: "Extracted text", confidence: 0.95, boundingBox: .zero, teacherConfirmed: true)]
             )]
         )
 
@@ -91,7 +91,7 @@ extension GradeDraftTests {
         )
         let store = InMemoryAssignmentStore(assignments: [assignment])
         let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        let preview = MarkdownRubricParser.preview("| Criterion | Max | Level | Points |\n|---|---|---|---|\n| Claim | 4 | Good | 4 |")
+        let preview = vm.previewMarkdownRubric("| Criterion | Max | Level | Points |\n|---|---|---|---|\n| Claim | 4 | Good | 4 |")
         vm.confirmMarkdownRubricImport(preview, useStructuredImport: true)
         XCTAssertEqual(vm.assignment.rubricImportMode, .structuredConfirmed)
         XCTAssertNotNil(vm.assignment.confirmedParsedRubric)
@@ -106,7 +106,7 @@ extension GradeDraftTests {
         let assignment = AssignmentRecord(title: "Test")
         let store = InMemoryAssignmentStore(assignments: [assignment])
         let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        let preview = MarkdownRubricParser.preview("Some rubric text without table")
+        let preview = vm.previewMarkdownRubric("Some rubric text without table")
         vm.confirmMarkdownRubricImport(preview, useStructuredImport: false)
         XCTAssertEqual(vm.assignment.rubricImportMode, .rawTextOnly)
         XCTAssertNil(vm.assignment.confirmedParsedRubric)
@@ -117,7 +117,7 @@ extension GradeDraftTests {
         let assignment = AssignmentRecord(title: "Test")
         let store = InMemoryAssignmentStore(assignments: [assignment])
         let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        let preview = MarkdownRubricParser.preview("| Criterion | Max | Level | Points |\n|---|---|---|---|\n| Claim | 4 | Good | 4 |")
+        let preview = vm.previewMarkdownRubric("| Criterion | Max | Level | Points |\n|---|---|---|---|\n| Claim | 4 | Good | 4 |")
         vm.confirmMarkdownRubricImport(preview, useStructuredImport: false)
         XCTAssertTrue(vm.assignment.parsedRubric.criteria.isEmpty, "Raw-text mode must produce empty parsed criteria")
     }

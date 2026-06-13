@@ -6,3 +6,6 @@ expectedContainer: Form
 renderedNativeContainerPresent: true
 nativeControls:
 - CollectionView
+- List
+- ScrollView
+- Navigation

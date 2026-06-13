@@ -41,6 +41,17 @@ enum ExportFixtureFactory {
         )
         assignment.ocrReviewStatus = .reviewed
         assignment.reviewedStudentText = "REVIEWED_STUDENT_TEXT_SENTINEL The student wrote a claim with evidence."
+        assignment.evidenceReferences = [
+            EvidenceReference(
+                sourceInputID: assignment.sourceInputs[0].id,
+                ocrLineID: assignment.ocrDocument?.pages.first?.lines.first?.id,
+                pageIndex: 0,
+                quote: "The student wrote a claim with evidence.",
+                boundingBox: NormalizedRect(x: 0.1, y: 0.2, width: 0.3, height: 0.4),
+                sourceKind: "ocrLine",
+                teacherConfirmed: true
+            )
+        ]
         assignment.latestDraft = GradeDraftResult(
             packetFingerprint: assignment.gradingPacketFingerprint,
             status: .generated,
@@ -64,19 +75,8 @@ enum ExportFixtureFactory {
             complianceFlags: [complianceFlag],
             rawModelResponse: rawModelResponse
         )
-        assignment.evidenceReferences = [
-            EvidenceReference(
-                sourceInputID: assignment.sourceInputs[0].id,
-                ocrLineID: assignment.ocrDocument?.pages.first?.lines.first?.id,
-                pageIndex: 0,
-                quote: "The student wrote a claim with evidence.",
-                boundingBox: NormalizedRect(x: 0.1, y: 0.2, width: 0.3, height: 0.4),
-                sourceKind: "ocrLine",
-                teacherConfirmed: true
-            )
-        ]
         assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
+            packetFingerprint: assignment.gradingSourceFingerprint,
             status: .approved,
             criteria: [FinalCriterionScore(
                 criterionID: "claim",
