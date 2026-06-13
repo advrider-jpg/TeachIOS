@@ -6,7 +6,7 @@ This ledger records source-level validation expectations for the all-features co
 
 GitHub PR #44 first reported these failures on commit `5d0b93c`: `static-policy` failed because `repo_health.py` included release-readiness blockers, and `core-page-screenshots` failed during `xcodebuild -resolvePackageDependencies` because the Xcode project contained dangling references for the split model files.
 
-Follow-up local validation passed in this Windows checkout after adding the missing model file references, strengthening Xcode project membership checks, and splitting release readiness from ordinary PR static health:
+Follow-up local validation passed in this Windows checkout after adding the missing model file references, normalizing hand-authored project object IDs to Xcode-style uppercase hex, strengthening Xcode project membership checks, and splitting release readiness from ordinary PR static health:
 
 ```bash
 git diff --check

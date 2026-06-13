@@ -44,6 +44,7 @@ def swift_files() -> list[pathlib.Path]:
 def main() -> int:
     project_text = PROJECT_FILE.read_text(encoding="utf-8")
     object_ids = set(re.findall(r"^\s*([A-Za-z0-9]{24})(?:\s*/\*.*?\*/)?\s*=", project_text, flags=re.MULTILINE))
+    invalid_object_ids = sorted(object_id for object_id in object_ids if not re.fullmatch(r"[A-F0-9]{24}", object_id))
     dangling: list[str] = []
 
     for key in REFERENCE_KEYS:
@@ -63,7 +64,11 @@ def main() -> int:
         for path in swift_files()
         if path.name not in project_text
     ]
-    if dangling or missing:
+    if invalid_object_ids or dangling or missing:
+        if invalid_object_ids:
+            print("GradeDraft.xcodeproj/project.pbxproj contains non-Xcode object IDs:")
+            for object_id in invalid_object_ids:
+                print(f"- {object_id}")
         if dangling:
             print("GradeDraft.xcodeproj/project.pbxproj contains dangling object references:")
             for item in sorted(set(dangling)):

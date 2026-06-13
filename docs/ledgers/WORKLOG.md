@@ -3,7 +3,7 @@
 ## 2026-06-13 — PR CI repair and release-gate split
 
 - Repaired `GradeDraft.xcodeproj/project.pbxproj` by adding the missing file references for the split model files that GitHub Xcode rejected while resolving packages.
-- Strengthened `scripts/ci/check_xcode_project_membership.py` so it fails on dangling project object references, not only Swift filenames missing from the project.
+- Strengthened `scripts/ci/check_xcode_project_membership.py` so it fails on non-Xcode object IDs and dangling project object references, not only Swift filenames missing from the project.
 - Split ordinary PR/static health from explicit release readiness: `repo_health.py` now aggregates implementation/static guardrails, while `check_release_readiness_static.py` remains a fail-closed manual/scheduled release gate for `Package.resolved`, support/contact, and manual QA evidence.
 - Validation: local non-Xcode guardrails pass after the repair; release readiness still fails correctly on unresolved release evidence blockers.
 
