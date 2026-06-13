@@ -196,9 +196,54 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p xcode-logs
+          {
+            echo "Project files:"
+            find GradeDraft.xcodeproj -maxdepth 5 -type f -print -exec sh -c 'file "$1"; wc -c "$1"; xxd -g 1 -l 64 "$1" || true' sh {} \;
+            echo ""
+            echo "Package.resolved files:"
+            find . -name Package.resolved -print -exec sh -c 'wc -c "$1"; sed -n "1,80p" "$1"' sh {} \; || true
+            echo ""
+            echo "Xcode project listing:"
+          } | tee xcode-logs/xcode-project-diagnostics.log
+          set +e
+          xcodebuild -list -project "$PROJECT" 2>&1 | tee xcode-logs/xcode-list.log
+          list_status=${PIPESTATUS[0]}
+          xcodebuild -list -json -project "$PROJECT" 2>&1 | tee xcode-logs/xcode-list-json.log
+          list_json_status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo "xcodebuild -list exit: $list_status"
+            echo "xcodebuild -list -json exit: $list_json_status"
+            echo ""
+            echo "Manifest validation:"
+            python3 - <<'PY'
+          import json
+          import plistlib
+          from pathlib import Path
+
+          failures = []
+          for path in sorted(Path("GradeDraft").rglob("*.json")):
+              try:
+                  json.loads(path.read_text(encoding="utf-8"))
+              except Exception as exc:
+                  failures.append(f"{path}: JSON {type(exc).__name__}: {exc}")
+          for path in sorted(Path("GradeDraft").rglob("*.xcprivacy")):
+              try:
+                  plistlib.loads(path.read_bytes())
+              except Exception as exc:
+                  failures.append(f"{path}: plist {type(exc).__name__}: {exc}")
+          if failures:
+              print("\n".join(failures))
+              raise SystemExit(1)
+          print("JSON and privacy manifest validation passed.")
+          PY
+          } | tee -a xcode-logs/xcode-project-diagnostics.log
+          RESOLVE_RESULT_BUNDLE="$RUNNER_TEMP/GradeDraftPackageResolve.xcresult"
+          rm -rf "$RESOLVE_RESULT_BUNDLE"
           xcodebuild -resolvePackageDependencies \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
+            -resultBundlePath "$RESOLVE_RESULT_BUNDLE" \
             -clonedSourcePackagesDirPath "$RUNNER_TEMP/GradeDraftSourcePackages" \
             | tee xcode-logs/spm-resolve.log
 
@@ -230,6 +275,7 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
           path: |
+            ${{ runner.temp }}/GradeDraftPackageResolve.xcresult
             ${{ runner.temp }}/GradeDraftUnitTests.xcresult
             xcode-logs/*.log
 
