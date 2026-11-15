@@ -99,8 +99,12 @@ struct SettingsAboutLocalPrivacyScreen: View {
             LabeledContent("Assignments", value: "\(appModel.assignmentSummaries.count)")
             LabeledContent("Submissions", value: "\(appModel.submissionSummaries.count)")
         } else {
-            Label("Saved work is not open.", systemImage: "exclamationmark.octagon")
-                .foregroundStyle(.red)
+            Label {
+                Text("Saved work is not open.")
+            } icon: {
+                Image(systemName: "exclamationmark.octagon")
+                    .foregroundStyle(.red)
+            }
                 .accessibilityIdentifier("settings.storageStatus")
             if let error = appModel.startupError {
                 Text(error.localizedDescription)

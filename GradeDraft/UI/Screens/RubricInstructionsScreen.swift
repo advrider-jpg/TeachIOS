@@ -154,8 +154,12 @@ struct RubricInstructionsScreen: View {
     private func checklistSection(_ setup: AssignmentSetup, proxy: ScrollViewProxy) -> some View {
         Section {
             if !setup.assignment.hasGradingStandard {
-                Label(ReadinessIssue.missingGradingStandard.message, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+                Label {
+                    Text(ReadinessIssue.missingGradingStandard.message)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
             }
             ForEach(checklistItems(setup)) { item in
                 Button {
@@ -250,8 +254,12 @@ struct RubricInstructionsScreen: View {
                 criterionRow(criterion)
             }
             ForEach(preview.issues) { issue in
-                Label(issue.message, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+                Label {
+                    Text(issue.message)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
             }
             Button {
                 Task { await model.confirmRubricPreview(structured: true) }
@@ -516,9 +524,13 @@ struct RubricInstructionsScreen: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         if template.sensitiveContextRequired {
-                            Label("Select only when teacher-provided context exists. MarkForMe must not infer it.", systemImage: "exclamationmark.triangle")
+                            Label {
+                                Text("Select only when teacher-provided context exists. MarkForMe must not infer it.")
+                            } icon: {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .foregroundStyle(.orange)
+                            }
                                 .font(.footnote)
-                                .foregroundStyle(.orange)
                         }
                     }
                 }
@@ -650,9 +662,13 @@ struct RubricInstructionsScreen: View {
                     .foregroundStyle(.secondary)
             }
             if !mapping.teacherConfirmed {
-                Label("Suggested by on-device AI — not used until you confirm it", systemImage: "sparkles")
+                Label {
+                    Text("Suggested by on-device AI — not used until you confirm it")
+                } icon: {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.orange)
+                }
                     .font(.footnote)
-                    .foregroundStyle(.orange)
                 HStack {
                     Button("Confirm") {
                         Task { await model.confirmMapping(id: mapping.id) }

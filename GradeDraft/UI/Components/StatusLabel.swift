@@ -114,8 +114,12 @@ struct StatusLabel: View {
     }
 
     var body: some View {
-        Label(status.rawValue, systemImage: status.systemImage)
-            .foregroundStyle(status.color)
+        // Colour on the icon only: system green and orange are too light for text on a light background.
+        Label {
+            Text(status.rawValue)
+        } icon: {
+            Image(systemName: status.systemImage).foregroundStyle(status.color)
+        }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(subject)
             .accessibilityValue(status.fullAccessibilityLabel)

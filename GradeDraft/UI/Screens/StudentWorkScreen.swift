@@ -106,8 +106,12 @@ struct StudentWorkScreen: View {
         }
         if let failure = session.workFailure {
             Section {
-                Label(failure.title, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.red)
+                Label {
+                    Text(failure.title)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                }
                 Text(failure.message)
                 Button("Dismiss") { session.dismissWorkFailure() }
                     .accessibilityIdentifier("studentWork.dismissFailure")

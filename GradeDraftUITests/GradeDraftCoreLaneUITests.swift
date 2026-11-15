@@ -34,7 +34,12 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
             approvedStudent.waitForExistence(timeout: 10),
             "The student whose final grade is approved and current must be listed as ready to export."
         )
-        XCTAssertTrue(element("exportsTab.createBackup", in: app).exists, "The Exports tab must offer backup.")
+        XCTAssertTrue(scrolledTo("exportsTab.createBackup", in: app).exists, "The Exports tab must offer backup.")
+        var backSwipes = 0
+        while !approvedStudent.exists, backSwipes < 6 {
+            app.swipeDown()
+            backSwipes += 1
+        }
 
         approvedStudent.tap()
         let studentReport = app.buttons["exports.studentMarkdown"]
@@ -129,6 +134,17 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
     /// Any element carrying the identifier (rows and links report as different element types).
     private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// Lists create rows only when they come on screen, so swipe up until the element exists (at most 6 swipes).
+    private func scrolledTo(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
+        let target = element(identifier, in: app)
+        var swipes = 0
+        while !target.exists, swipes < 6 {
+            app.swipeUp()
+            swipes += 1
+        }
+        return target
     }
 
     /// The adaptable tab view shows a bottom tab bar on compact widths and a sidebar on wide ones.

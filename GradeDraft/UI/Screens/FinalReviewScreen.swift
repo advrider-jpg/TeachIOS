@@ -103,8 +103,12 @@ struct FinalReviewScreen: View {
                 StatusLabel(approvalStatus(review), subject: "Approval status")
                 LabeledContent("Student-facing export", value: readiness?.canExportStudentReport == true ? "Ready" : "Blocked")
                 if readiness?.finalReviewIsStale == true {
-                    Label(ReadinessIssue.finalReviewStale.message, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
+                    Label {
+                        Text(ReadinessIssue.finalReviewStale.message)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
                 }
                 Text(session.reviewAutosave.holdsLocalEdits ? "Saving changes…" : "Changes are saved automatically.")
                     .foregroundStyle(.secondary)
@@ -130,8 +134,12 @@ struct FinalReviewScreen: View {
         }
         if let failure = session.workFailure {
             Section {
-                Label(failure.title, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.red)
+                Label {
+                    Text(failure.title)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                }
                 Text(failure.message)
                 Button("Dismiss") { session.dismissWorkFailure() }
                     .accessibilityIdentifier("finalReview.dismissFailure")

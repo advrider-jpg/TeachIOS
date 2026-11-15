@@ -270,8 +270,12 @@ struct AssignmentOverviewScreen: View {
     @ViewBuilder
     private func stepRows(_ step: GradeWizardStep, progress: GradeWizardProgress, setup: AssignmentSetup) -> some View {
         if let issue = progress.issue(for: step) {
-            Label(issue.message, systemImage: "exclamationmark.triangle")
-                .foregroundStyle(.orange)
+            Label {
+                Text(issue.message)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            }
         }
         switch step {
         case .setup:
@@ -293,8 +297,12 @@ struct AssignmentOverviewScreen: View {
             LabeledContent("Scanned text to review", value: "\(progress.count(.ocrReviewNeeded))")
         case .aiDraft:
             if case .unavailable(let detail) = model.localAIStatus {
-                Label(ReadinessIssue.localAIUnavailable(detail).message, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+                Label {
+                    Text(ReadinessIssue.localAIUnavailable(detail).message)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
             } else {
                 LabeledContent("On-device AI", value: "Ready")
             }

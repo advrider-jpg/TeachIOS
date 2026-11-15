@@ -84,11 +84,17 @@ struct HomeScreen: View {
         Group {
             switch appModel.services.grading.localAIStatus {
             case .available:
-                Label("Foundation Models is available on this device for local draft assistance.", systemImage: "checkmark.circle")
-                    .foregroundStyle(.green)
+                Label {
+                    Text("Foundation Models is available on this device for local draft assistance.")
+                } icon: {
+                    Image(systemName: "checkmark.circle").foregroundStyle(.green)
+                }
             case .unavailable(let detail):
-                Label(ReadinessIssue.localAIUnavailable(detail).message, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+                Label {
+                    Text(ReadinessIssue.localAIUnavailable(detail).message)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
+                }
                 Text("Manual final review remains available. Student work is not sent to cloud AI as a fallback.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)

@@ -105,8 +105,12 @@ struct ClassDetailRosterScreen: View {
                 Section("Last Roster Import") {
                     LabeledContent("Students added", value: "\(result.imported)")
                     ForEach(result.warnings, id: \.self) { warning in
-                        Label(warning, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
+                        Label {
+                            Text(warning)
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                        }
                     }
                 }
             }
@@ -294,8 +298,12 @@ private struct RosterPreviewSheet: View {
                     if !preview.fileResult.warnings.isEmpty {
                         Section("Warnings") {
                             ForEach(preview.fileResult.warnings, id: \.self) { warning in
-                                Label(warning, systemImage: "exclamationmark.triangle")
-                                    .foregroundStyle(.orange)
+                                Label {
+                                    Text(warning)
+                                } icon: {
+                                    Image(systemName: "exclamationmark.triangle")
+                                        .foregroundStyle(.orange)
+                                }
                             }
                         }
                     }

@@ -68,8 +68,12 @@ struct AIDraftScreen: View {
                     .accessibilityValue(statusName(check.status))
                 }
                 if !report.promptInjectionRisks.isEmpty {
-                    Label("Review these fields before drafting: \(report.promptInjectionRisks.joined(separator: ", ")).", systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
+                    Label {
+                        Text("Review these fields before drafting: \(report.promptInjectionRisks.joined(separator: ", ")).")
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
                 }
                 LabeledContent("Personal details", value: report.piiRedactionSummary)
                 LabeledContent("Packet size", value: report.tokenEstimateSummary)
@@ -170,8 +174,12 @@ struct AIDraftScreen: View {
     private var failureSection: some View {
         if let failure = session.workFailure {
             Section {
-                Label(failure.title, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.red)
+                Label {
+                    Text(failure.title)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                }
                 Text(failure.message)
                 Button("Dismiss") { session.dismissWorkFailure() }
                     .accessibilityIdentifier("aiDraft.dismissFailure")
@@ -227,8 +235,12 @@ struct AIDraftScreen: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(draft.uncertaintyFlags, id: \.self) { flag in
-                    Label(flag, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
+                    Label {
+                        Text(flag)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
                 }
                 NavigationLink(value: Route.finalReview(session.id)) {
                     Label("Open Final Review", systemImage: "checklist")
@@ -253,18 +265,30 @@ struct AIDraftScreen: View {
                         LabeledContent("Confidence", value: criterion.confidence)
                     }
                     if criterion.teacherReviewRequired {
-                        Label("Teacher review required for this criterion.", systemImage: "person.crop.circle.badge.exclamationmark")
-                            .foregroundStyle(.orange)
+                        Label {
+                            Text("Teacher review required for this criterion.")
+                        } icon: {
+                            Image(systemName: "person.crop.circle.badge.exclamationmark")
+                                .foregroundStyle(.orange)
+                        }
                     }
                     ForEach(criterion.uncertaintyFlags, id: \.self) { flag in
-                        Label(flag, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
+                        Label {
+                            Text(flag)
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                        }
                     }
                     Text(criterion.explanation.isWhitespaceOnly ? "No explanation provided." : criterion.explanation)
                         .textSelection(.enabled)
                     if criterion.evidenceQuotes.isEmpty {
-                        Label("No evidence cited — teacher review required.", systemImage: "quote.bubble")
-                            .foregroundStyle(.orange)
+                        Label {
+                            Text("No evidence cited — teacher review required.")
+                        } icon: {
+                            Image(systemName: "quote.bubble")
+                                .foregroundStyle(.orange)
+                        }
                     } else {
                         ForEach(criterion.evidenceQuotes, id: \.self) { quote in
                             Label("\u{201C}\(quote)\u{201D}", systemImage: "quote.opening")

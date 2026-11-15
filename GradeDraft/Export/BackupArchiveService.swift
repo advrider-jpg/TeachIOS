@@ -92,12 +92,17 @@ enum BackupArchiveService {
 
         try prepareDestination(destination, fileManager: fileManager)
         do {
+            // The teacher's password is turned into the archive key with PBKDF2; the salt travels in the
+            // archive's unencrypted prologue so restore can derive the same key.
+            let salt = try BackupKeyDerivation.randomSalt()
+            let key = try BackupKeyDerivation.key(password: password, salt: salt)
             let context = ArchiveEncryptionContext(
-                profile: .hkdf_sha256_aesctr_hmac__scrypt__none,
+                profile: .hkdf_sha256_aesctr_hmac__symmetric__none,
                 compressionAlgorithm: .lzfse,
                 compressionBlockSize: 1_048_576
             )
-            try step("setting the password") { try context.setPassword(password) }
+            context.authData = salt
+            try step("setting the encryption key") { try context.setSymmetricKey(key) }
             guard let fileStream = ArchiveByteStream.fileStream(
                 path: FilePath(destination.path),
                 mode: .writeOnly,
@@ -193,8 +198,11 @@ enum BackupArchiveService {
             throw BackupArchiveError.unreadable("the file could not be opened.")
         }
         defer { try? fileStream.close() }
-        guard let context = ArchiveEncryptionContext(from: fileStream) else { throw BackupArchiveError.notABackup }
-        try context.setPassword(password)
+        guard let context = ArchiveEncryptionContext(from: fileStream),
+              let salt = context.authData, salt.count == BackupKeyDerivation.saltLength else {
+            throw BackupArchiveError.notABackup
+        }
+        try context.setSymmetricKey(try BackupKeyDerivation.key(password: password, salt: salt))
         guard let decryptionStream = ArchiveByteStream.decryptionStream(readingFrom: fileStream, encryptionContext: context) else {
             throw BackupArchiveError.wrongPassword
         }
