@@ -21,7 +21,7 @@ The source tree contains the local-first MarkForMe implementation, static guardr
 
 ## Non-release evidence currently available
 
-Static Python guardrails can run in this Windows checkout and are recorded in `docs/ledgers/VALIDATION_LEDGER.md`. They are useful source checks, but they are not a substitute for Xcode, simulator, device, signing, App Store Connect, or manual QA evidence.
+Static Python guardrails can run in this Windows checkout. They are useful source checks, but they are not a substitute for Xcode, simulator, device, signing, App Store Connect, or manual QA evidence.
 
 ## Rule
 
