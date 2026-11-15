@@ -6,7 +6,7 @@ import Testing
 /// Runs the real on-device model. These tests run only on a device where Apple's on-device model is available;
 /// elsewhere they are reported as skipped, not passed.
 struct OnDeviceModelTests {
-    @Test(.enabled(if: SystemLanguageModel.default.isAvailable))
+    @Test(.enabled(if: OnDeviceModel.isUsable))
     func onDeviceModelDraftsEvaluationFixtures() async throws {
         let cases = try TestFixtures.evaluationCases()
         try #require(!cases.isEmpty)
@@ -25,7 +25,7 @@ struct OnDeviceModelTests {
         }
     }
 
-    @Test(.enabled(if: SystemLanguageModel.default.isAvailable), arguments: ["rubric_essay", "rubric_lab", "rubric_short_answer"])
+    @Test(.enabled(if: OnDeviceModel.isUsable), arguments: ["rubric_essay", "rubric_lab", "rubric_short_answer"])
     func onDeviceRubricSuggestionFixtures(fixture: String) async throws {
         let text = try TestFixtures.text(named: fixture, extension: "txt")
         let expected = try JSONDecoder().decode(
@@ -67,5 +67,17 @@ private enum TestFixtures {
         return try urls.flatMap { url in
             try JSONDecoder().decode([AIEvaluationCase].self, from: Data(contentsOf: url))
         }
+    }
+}
+
+/// These tests measure the real on-device model, so they run only on an Apple Intelligence device.
+/// The simulator can report the model as available but cannot load its assets.
+private enum OnDeviceModel {
+    static var isUsable: Bool {
+        #if targetEnvironment(simulator)
+        return false
+        #else
+        return SystemLanguageModel.default.isAvailable
+        #endif
     }
 }

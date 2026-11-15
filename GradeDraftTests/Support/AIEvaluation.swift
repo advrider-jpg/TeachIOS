@@ -244,7 +244,11 @@ enum AIEvaluationChecker {
             evaluationCase.assignment.studentDisplayName,
             evaluationCase.assignment.className
         ].map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        let leaked = identities.filter { prompt.localizedCaseInsensitiveContains($0) }
+        // Whole words only: a short class name such as "4A" must not match inside a hex criterion code.
+        let leaked = identities.filter { identity in
+            let pattern = "(?<![A-Za-z0-9])" + NSRegularExpression.escapedPattern(for: identity) + "(?![A-Za-z0-9])"
+            return prompt.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+        }
         return leaked.isEmpty
             ? pass("identity-redaction", "Prompt does not include student or class identity.")
             : fail("identity-redaction", "Prompt included identity values: \(leaked.joined(separator: ", ")).")

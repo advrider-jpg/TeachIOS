@@ -97,7 +97,7 @@ enum BackupArchiveService {
                 compressionAlgorithm: .lzfse,
                 compressionBlockSize: 1_048_576
             )
-            try context.setPassword(password)
+            try step("setting the password") { try context.setPassword(password) }
             guard let fileStream = ArchiveByteStream.fileStream(
                 path: FilePath(destination.path),
                 mode: .writeOnly,
@@ -116,10 +116,13 @@ enum BackupArchiveService {
                 throw BackupArchiveError.archiveFailed("The backup could not be written.")
             }
             do {
-                try writeEntry(manifestPath, data: try jsonEncoder().encode(manifest), to: encoder)
-                try writeEntry(snapshotPath, data: try jsonEncoder().encode(snapshot), to: encoder)
+                let manifestData = try jsonEncoder().encode(manifest)
+                try step("writing \(manifestPath)") { try writeEntry(manifestPath, data: manifestData, to: encoder) }
+                let snapshotData = try jsonEncoder().encode(snapshot)
+                try step("writing \(snapshotPath)") { try writeEntry(snapshotPath, data: snapshotData, to: encoder) }
                 for file in files {
-                    try writeEntry(file.archivePath, data: try Data(contentsOf: file.url, options: .mappedIfSafe), to: encoder)
+                    let data = try Data(contentsOf: file.url, options: .mappedIfSafe)
+                    try step("writing \(file.archivePath)") { try writeEntry(file.archivePath, data: data, to: encoder) }
                 }
             } catch {
                 try? encoder.close()
@@ -128,9 +131,9 @@ enum BackupArchiveService {
                 throw error
             }
             // Closing flushes the last compressed and encrypted blocks; a failure here is a failed backup.
-            try encoder.close()
-            try encryptionStream.close()
-            try fileStream.close()
+            try step("finishing the archive") { try encoder.close() }
+            try step("finishing the encryption") { try encryptionStream.close() }
+            try step("closing the backup file") { try fileStream.close() }
         } catch {
             try? fileManager.removeItem(at: destination)
             if let error = error as? BackupArchiveError { throw error }
@@ -447,6 +450,17 @@ enum BackupArchiveService {
     }
 
     // MARK: - Helpers
+
+    /// Runs one archive step; an Apple Archive error names the step that failed.
+    private static func step(_ name: String, _ body: () throws -> Void) throws {
+        do {
+            try body()
+        } catch let error as BackupArchiveError {
+            throw error
+        } catch {
+            throw BackupArchiveError.archiveFailed("Failed while \(name): \(error.localizedDescription)")
+        }
+    }
 
     private static func writeEntry(_ path: String, data: Data, to encoder: ArchiveStream) throws {
         let header = ArchiveHeader()

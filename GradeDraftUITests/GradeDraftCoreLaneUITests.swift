@@ -53,13 +53,13 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
         // Home -> the student whose scanned text needs review.
         let row = element("home.needsReview.\(scannedSubmissionID)", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 10), "The scanned submission must be listed under Needs your review.")
-        try app.performAccessibilityAudit()
+        try audit(app)
         row.tap()
 
         // Student work.
         let scannedText = element("studentWork.scannedText", in: app)
         XCTAssertTrue(scannedText.waitForExistence(timeout: 10))
-        try app.performAccessibilityAudit()
+        try audit(app)
         scannedText.tap()
 
         // Scanned text review: "Confirm all" must leave the low-confidence line (index 1) unresolved.
@@ -75,7 +75,7 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
         confirmLowConfidence.tap()
         reveal(markReviewed, in: app)
         waitUntil("Mark Scanned Text Reviewed becomes available once every line is resolved") { markReviewed.isEnabled }
-        try app.performAccessibilityAudit()
+        try audit(app)
         markReviewed.tap()
         tapDialogButton(identifier: "scannedText.markReviewedConfirm", label: "Mark Reviewed", in: app)
         waitUntil("The scanned text is marked reviewed") { !markReviewed.isEnabled }
@@ -87,19 +87,19 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
         finalReviewLink.tap()
         let startManual = app.buttons["finalReview.startManual"]
         XCTAssertTrue(startManual.waitForExistence(timeout: 10))
-        try app.performAccessibilityAudit()
+        try audit(app)
         waitUntil("Start Manual Final Review is enabled") { startManual.isEnabled }
         startManual.tap()
 
         // Not approved yet: the student-facing exports are blocked.
         let exportsLink = element("finalReview.exports", in: app)
         reveal(exportsLink, in: app)
-        try app.performAccessibilityAudit()
+        try audit(app)
         exportsLink.tap()
         let studentMarkdown = app.buttons["exports.studentMarkdown"]
         XCTAssertTrue(studentMarkdown.waitForExistence(timeout: 10))
         XCTAssertFalse(studentMarkdown.isEnabled, "Student reports must be blocked before the final grade is approved.")
-        try app.performAccessibilityAudit()
+        try audit(app)
         goBack(in: app)
 
         // Accept all three rubric criteria, then approve.
@@ -111,7 +111,7 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
         let approve = app.buttons["finalReview.approve"]
         reveal(approve, in: app)
         waitUntil("Approve Final Grade is enabled once every criterion is accepted") { approve.isEnabled }
-        try app.performAccessibilityAudit()
+        try audit(app)
         approve.tap()
         tapDialogButton(identifier: "finalReview.approveConfirm", label: "Approve Final Grade", in: app)
 
@@ -121,7 +121,7 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
         exportsAfterApproval.tap()
         XCTAssertTrue(studentMarkdown.waitForExistence(timeout: 10))
         waitUntil("The student report is allowed after approval") { studentMarkdown.isEnabled }
-        try app.performAccessibilityAudit()
+        try audit(app)
     }
 
     // MARK: - Helpers
@@ -131,10 +131,26 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
+    /// The adaptable tab view shows a bottom tab bar on compact widths and a sidebar on wide ones.
     private func tapTab(_ name: String, in app: XCUIApplication) {
-        let tab = app.tabBars.buttons[name]
-        XCTAssertTrue(tab.waitForExistence(timeout: 5), "Could not find the \(name) tab.")
+        let candidates = [app.tabBars.buttons[name], app.buttons[name], app.cells[name]]
+        _ = candidates[0].waitForExistence(timeout: 5)
+        guard let tab = candidates.first(where: { $0.exists }) else {
+            XCTFail("Could not find the \(name) tab.")
+            return
+        }
         tab.tap()
+    }
+
+    /// Runs Apple's accessibility audit; each issue fails the test with the issue and its element named.
+    private func audit(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) throws {
+        try app.performAccessibilityAudit { issue in
+            XCTFail(
+                "\(issue.compactDescription) — \(issue.detailedDescription) — element: \(issue.element?.debugDescription ?? "none")",
+                file: file, line: line
+            )
+            return true
+        }
     }
 
     private func goBack(in app: XCUIApplication) {

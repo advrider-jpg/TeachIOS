@@ -77,8 +77,9 @@ extension GradeDraftTests {
             setup: setup, student: Student(displayName: "-Jane", localIdentifier: "=ID1"), finalPoints: 4,
             privateNotes: "Private instructor comment."
         )
+        let currentPacket = try graph.packetFingerprint(setup: setup)
         graph.draft = GradeDraftResult(
-            packetFingerprint: "draft-packet",
+            packetFingerprint: currentPacket,
             studentResponseSummary: "Draft summary",
             criteria: [CriterionScore(
                 criterionID: setup.parsedRubric.criteria[0].id, rating: "Proficient", proposedPoints: 3,
