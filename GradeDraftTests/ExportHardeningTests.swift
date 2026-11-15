@@ -265,7 +265,7 @@ final class SubmissionExportSessionTests: XCTestCase {
         await harness.session.prepareExport(.teacherAuditMarkdown)
         XCTAssertNil(harness.session.preparedExport)
         XCTAssertEqual(harness.session.alert?.message, "Denied")
-        let graph = try await requireAsync(harness.database.submission(id: harness.session.id))
+        let graph = try await requireAsync(await harness.database.submission(id: harness.session.id))
         XCTAssertTrue(graph.exports.isEmpty)
     }
 
@@ -274,7 +274,7 @@ final class SubmissionExportSessionTests: XCTestCase {
         defer { harness.stop() }
         await harness.session.prepareExport(.studentPDF)
         let url = try XCTUnwrap(harness.session.preparedExport?.url)
-        let graph = try await requireAsync(harness.database.submission(id: harness.session.id))
+        let graph = try await requireAsync(await harness.database.submission(id: harness.session.id))
         let record = try XCTUnwrap(graph.exports.last)
         XCTAssertEqual(record.contentSHA256, ContentDigest.sha256Hex(try Data(contentsOf: url)))
     }
@@ -283,7 +283,7 @@ final class SubmissionExportSessionTests: XCTestCase {
         let harness = try await SessionHarness.make(try ExportFixtureFactory.sensitiveApprovedAssignment())
         defer { harness.stop() }
         await harness.session.prepareExport(.studentMarkdown)
-        let graph = try await requireAsync(harness.database.submission(id: harness.session.id))
+        let graph = try await requireAsync(await harness.database.submission(id: harness.session.id))
         let record = try XCTUnwrap(graph.exports.last)
         XCTAssertFalse(record.includesPrivateTeacherNotes)
         XCTAssertFalse(record.includesOriginalSources)
@@ -293,7 +293,7 @@ final class SubmissionExportSessionTests: XCTestCase {
         let harness = try await SessionHarness.make(try ExportFixtureFactory.sensitiveApprovedAssignment())
         defer { harness.stop() }
         await harness.session.prepareExport(.teacherAuditMarkdown)
-        let graph = try await requireAsync(harness.database.submission(id: harness.session.id))
+        let graph = try await requireAsync(await harness.database.submission(id: harness.session.id))
         let record = try XCTUnwrap(graph.exports.last)
         XCTAssertTrue(record.includesPrivateTeacherNotes)
     }
@@ -302,7 +302,7 @@ final class SubmissionExportSessionTests: XCTestCase {
         let harness = try await SessionHarness.make(try ExportFixtureFactory.sensitiveApprovedAssignment())
         defer { harness.stop() }
         await harness.session.prepareExport(.teacherAuditMarkdown)
-        let graph = try await requireAsync(harness.database.submission(id: harness.session.id))
+        let graph = try await requireAsync(await harness.database.submission(id: harness.session.id))
         let event = try XCTUnwrap(graph.audit.last { $0.eventType == .exportPrepared })
         XCTAssertFalse(event.detail.contains(ExportFixtureFactory.privateTeacherNote))
         XCTAssertFalse(event.detail.contains(FileManager.default.temporaryDirectory.path))
