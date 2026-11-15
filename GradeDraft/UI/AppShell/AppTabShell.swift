@@ -15,7 +15,7 @@ struct RootView: View {
             }
         }
         .onAppIntentExecution(OpenSubmissionIntent.self) { intent in
-            appModel.open(intent.target.id, destination: intent.destination)
+            appModel.open(intent.target.id, destination: intent.destination ?? .overview)
         }
     }
 }

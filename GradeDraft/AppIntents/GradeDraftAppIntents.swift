@@ -120,12 +120,13 @@ struct OpenSubmissionIntent: OpenIntent, TargetContentProvidingIntent {
     @Parameter(title: "Assignment")
     var target: SubmissionEntity
 
-    @Parameter(title: "Screen", default: .overview)
-    var destination: SubmissionDestination
+    /// Optional: an open intent may require only its target. Nil opens the student's overview.
+    @Parameter(title: "Screen")
+    var destination: SubmissionDestination?
 
     init() {}
 
-    init(target: SubmissionEntity, destination: SubmissionDestination) {
+    init(target: SubmissionEntity, destination: SubmissionDestination?) {
         self.target = target
         self.destination = destination
     }

@@ -9,13 +9,10 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
     private let assignmentID = "6F1A0C2E-0000-4000-8000-000000000002"
     private let scannedSubmissionID = "6F1A0C2E-0000-4000-8000-000000000012"
 
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
-
     // MARK: - Smoke flow
 
     func testCoreNavigationAndExportGateSurfacesRealWorkflowState() throws {
+        continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments += ["--ui-smoke-test"]
         app.launch()
@@ -48,6 +45,7 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
     // MARK: - Core lane with accessibility audit (T17)
 
     func testCoreLaneAccessibilityAudit() throws {
+        continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments += ["--ui-core-lane-test"]
         app.launch()
