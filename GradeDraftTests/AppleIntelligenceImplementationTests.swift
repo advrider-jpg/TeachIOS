@@ -75,8 +75,7 @@ final class AppleIntelligenceImplementationTests: XCTestCase {
             reviewedTextWithSourceRefs: "[p1-l1-abcdef12] Student A argues that the evidence supports the claim for class 6A."
         )
         input.assignmentTitle = "Student A short answer"
-        let legacyPrompt = PromptBuilder.gradingInstructionsText(input: input) + "
-" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
+        let legacyPrompt = PromptBuilder.gradingInstructionsText(input: input) + "\n" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
         let typedPrompt = PromptBuilder.fullPacketPromptText(input: input, mode: .full)
 
         XCTAssertFalse(legacyPrompt.contains("Student A"))
