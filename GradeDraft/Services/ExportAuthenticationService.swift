@@ -1,7 +1,5 @@
 import Foundation
-#if canImport(LocalAuthentication)
 import LocalAuthentication
-#endif
 
 @MainActor
 protocol ExportAuthenticationServicing {
@@ -16,7 +14,6 @@ struct ExportAuthenticationResult: Equatable {
 
 struct LocalExportAuthenticationService: ExportAuthenticationServicing {
     func authenticateForSensitiveExport(reason: String) async -> ExportAuthenticationResult {
-        #if canImport(LocalAuthentication)
         let context = LAContext()
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
@@ -37,12 +34,5 @@ struct LocalExportAuthenticationService: ExportAuthenticationServicing {
                 message: "Export canceled because device authentication was not completed."
             )
         }
-        #else
-        return ExportAuthenticationResult(
-            allowed: true,
-            authenticationPerformed: false,
-            message: "Device authentication is unavailable on this platform."
-        )
-        #endif
     }
 }

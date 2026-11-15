@@ -1,4 +1,5 @@
 import Foundation
+@testable import GradeDraft
 
 struct AIEvaluationCase: Codable, Equatable, Identifiable {
     var id: String

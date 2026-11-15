@@ -319,7 +319,6 @@ enum ExportConfirmationKind: String, Identifiable, CaseIterable {
 enum ExportConfirmationStep: Equatable {
     case warning
     case preview
-    case finalConfirm
 }
 
 
@@ -396,8 +395,6 @@ struct ExportConfirmationSheet: View {
             return warningDefinitions.first?.finalButton ?? kind.confirmTitle
         case .preview:
             return warningDefinitions.first(where: { $0.finalButton != nil })?.finalButton ?? kind.confirmTitle
-        case .finalConfirm:
-            return warningDefinitions.first(where: { $0.finalButton != nil })?.finalButton ?? kind.confirmTitle
         }
     }
 
@@ -435,8 +432,6 @@ struct ExportConfirmationSheet: View {
                         warningStep
                     case .preview:
                         previewStep
-                    case .finalConfirm:
-                        finalConfirmStep
                     }
                 }
                 .padding(GradeDraftLayout.screenPadding)
@@ -509,13 +504,6 @@ struct ExportConfirmationSheet: View {
                     .font(.subheadline.weight(.semibold))
             }
             .toggleStyle(.switch)
-            PrimaryActionButton(title: primaryButtonTitle, systemImage: "square.and.arrow.up", action: onConfirm, disabled: !canConfirm)
-        }
-    }
-
-    private var finalConfirmStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            ForEach(warningDefinitions) { warning in warningCard(warning) }
             PrimaryActionButton(title: primaryButtonTitle, systemImage: "square.and.arrow.up", action: onConfirm, disabled: !canConfirm)
         }
     }

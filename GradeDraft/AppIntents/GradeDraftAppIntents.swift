@@ -1,6 +1,5 @@
 import Foundation
 
-#if canImport(AppIntents)
 import AppIntents
 
 enum GradeDraftIntentDestination: String, AppEnum {
@@ -434,4 +433,3 @@ struct GradeDraftShortcutsProvider: AppShortcutsProvider {
         )
     }
 }
-#endif

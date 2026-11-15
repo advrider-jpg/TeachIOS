@@ -291,12 +291,6 @@ enum AIReadinessAnalyzer {
                 status: .ready
             ),
             AIReadinessCheck(
-                id: "local-tools",
-                title: "Local tool policy",
-                detail: LocalAIToolPolicy.gradingSession.policySummary,
-                status: .ready
-            ),
-            AIReadinessCheck(
                 id: "stale-state",
                 title: "Draft and review freshness",
                 detail: staleStateSummary(for: assignment),

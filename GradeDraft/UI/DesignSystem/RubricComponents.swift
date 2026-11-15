@@ -246,32 +246,6 @@ struct RubricCriterionRow: View {
 }
 
 
-struct CriterionSummaryRow: View {
-    var criterion: FinalCriterionScore
-
-    var body: some View {
-        HStack(spacing: 12) {
-            RubricIconBubble(criterion.teacherApproved ? .approved : .reviewFinalGrade)
-                .frame(width: 34, height: 34)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(criterion.criterion)
-                    .font(.system(.headline, design: .serif).weight(.semibold))
-                    .lineLimit(2)
-                Text(criterion.rating.nilIfBlank ?? "No rating selected")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            Text("\(GradeTotals.formatted(criterion.finalPoints)) / \(GradeTotals.formatted(criterion.maxPoints))")
-                .font(.subheadline.monospacedDigit().weight(.semibold))
-                .lineLimit(1)
-        }
-        .padding(12)
-        .background(Color.white.opacity(0.36), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-}
-
 // MARK: - iPhone-first rubric layout helpers
 
 /// Renders inline Markdown (bold, italic, links, inline code) in teacher-authored

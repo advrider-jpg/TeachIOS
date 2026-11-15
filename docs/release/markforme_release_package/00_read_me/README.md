@@ -44,6 +44,6 @@ The name **MarkForMe** still needs App Store Connect availability, domain availa
 
 The support and privacy URLs are not configured. Do not submit this package until the release owner supplies working URLs and contact details.
 
-See `05_review_and_testflight/RELEASE_STATUS.md` and `05_review_and_testflight/RELEASE_BLOCKERS.md` for the current blocked release state, required evidence, owners, and exit criteria.
+See `docs/release/RELEASE_STATUS.md` and `docs/release/RELEASE_BLOCKERS.md` for the current blocked release state, required evidence, owners, and exit criteria.
 
 The package does not include a signed archive, Xcode screenshots, App Store Connect data entry, legal advice, trade mark clearance or final privacy-law sign-off.

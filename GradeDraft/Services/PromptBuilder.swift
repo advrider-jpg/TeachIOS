@@ -1,90 +1,14 @@
 import Foundation
 
-#if canImport(FoundationModels)
 import FoundationModels
-#endif
 
 enum PromptPacketMode: String, Codable, Equatable, Sendable {
     case full
     case compact
 }
 
-enum PromptTemplateRenderer {
-    static func render(_ template: String, replacements: [String: String]) -> String {
-        var output = ""
-        var index = template.startIndex
-        while let range = template[index...].range(of: #"\{\{[A-Za-z0-9_]+\}\}"#, options: .regularExpression) {
-            output += template[index..<range.lowerBound]
-            let token = String(template[range])
-            output += replacements[token] ?? token
-            index = range.upperBound
-        }
-        output += template[index...]
-        return output
-    }
-}
-
 enum PromptBuilder {
     static let missingEvidenceMarker = "No supporting evidence found."
-
-    // MARK: - Packet-based prompt (existing production path, used by planned-content packet)
-
-    static func gradingPrompt(input: GradingInput) -> String {
-        let modelInput = GradingPacketBuilder.modelVisibleInput(from: input)
-        let packet = modelInput.plannedContentGradingPacket ?? GradingPacketBuilder.packet(from: modelInput)
-        return gradingPrompt(packet: packet, fallbackInput: input)
-    }
-
-    static func gradingPrompt(packet: GradingPacket, fallbackInput: GradingInput? = nil) -> String {
-        let modelPacket = GradingPacketBuilder.modelVisiblePacket(from: packet)
-        let assignment = modelPacket.assignment
-        let evidence = modelPacket.studentEvidence
-        let reviewedText = preferredReviewedText(
-            reviewedWithRefs: evidence.reviewedTextWithSourceRefs,
-            reviewedText: evidence.reviewedText
-        )
-        let ocrQualityText: String
-        if let fallbackInput {
-            ocrQualityText = fallbackInput.ocrQualitySummary.requiresTeacherOCRReview
-                ? "Scanned text quality warning: \(fallbackInput.ocrQualitySummary.displaySummary) Treat unclear or garbled text as an uncertainty flag."
-                : fallbackInput.ocrQualitySummary.displaySummary
-        } else {
-            ocrQualityText = evidence.ocrQualitySummary
-        }
-
-        let teacherInstructions = modelPacket.teacherInstructions
-            .map(\.text)
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .joined(separator: "\n\n")
-
-        let replacements: [String: String] = [
-            "{{assignmentTitle}}": assignment.title,
-            "{{promptOrNone}}": notSupplied(assignment.prompt),
-            "{{studentDisplayNameOrNotSpecified}}": redactedIdentityLabel,
-            "{{classNameOrNotSpecified}}": redactedIdentityLabel,
-            "{{subjectOrNotSpecified}}": notSpecified(assignment.subject),
-            "{{gradeLevelOrNotSpecified}}": notSpecified(assignment.gradeLevel),
-            "{{assignmentTypeDisplayName}}": assignment.assignmentType.displayName,
-            "{{assessmentPurpose}}": assignment.assessmentPurpose.rawValue,
-            "{{sourceInputCount}}": "\(evidence.sourceInputCount)",
-            "{{ocrReviewStatus}}": evidence.ocrReviewStatus.displayName,
-            "{{ocrQualitySummary}}": ocrQualityText,
-            "{{packetVersion}}": modelPacket.packetVersion,
-            "{{curriculumReferenceSection}}": optionalTripleQuotedSection(title: "Curriculum reference", body: modelPacket.curriculumReference?.rawText ?? ""),
-            "{{structuredRubricCriteria}}": structuredCriteriaText(from: modelPacket.rubric.criteria),
-            "{{rubricText}}": notSupplied(modelPacket.rubric.rawText),
-            "{{customInstructionsSection}}": optionalTripleQuotedSection(title: "Custom teacher instructions", body: teacherInstructions),
-            "{{formativeFocusSection}}": optionalTripleQuotedSection(title: "Formative focus", body: modelPacket.formativeFocus?.rawText ?? ""),
-            "{{answerKeySection}}": optionalTripleQuotedSection(title: "Answer key", body: modelPacket.answerKey?.rawText ?? ""),
-            "{{exemplarSection}}": optionalTripleQuotedSection(title: "Exemplar response", body: modelPacket.exemplar?.rawText ?? ""),
-            "{{reviewedStudentText}}": reviewedText
-        ]
-
-        return PromptTemplateRenderer.render(
-            GradeDraftCopyCatalog.SourceOfTruth.canonicalPromptTemplate,
-            replacements: replacements
-        )
-    }
 
     // MARK: - Foundation Models typed generation (instructions + prompt text)
 
@@ -353,47 +277,9 @@ enum PromptBuilder {
             : input.reviewedTextWithSourceRefs
     }
 
-    private static func structuredCriteriaText(from criteria: [GradingPacketRubricCriterion]) -> String {
-        guard !criteria.isEmpty else {
-            return "No structured point-bearing criteria were detected. Use the raw rubric text and mark teacherReviewRequired true for every criterion."
-        }
-        return criteria.map { criterion in
-            let group = criterion.groupTitle.map { "; group: \($0)" } ?? ""
-            return "- criterionId: \(criterion.id); title: \(criterion.title); maxPoints: \(GradeTotals.formatted(criterion.maxPoints)); descriptor: \(criterion.descriptor)\(group)"
-        }.joined(separator: "\n")
-    }
-
-    private static func preferredReviewedText(reviewedWithRefs: String, reviewedText: String) -> String {
-        let withRefs = reviewedWithRefs.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !withRefs.isEmpty { return reviewedWithRefs }
-        return reviewedText
-    }
-
-    private static func optionalTripleQuotedSection(title: String, body: String) -> String {
-        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
-        return """
-        \(title):
-        \"\"\"
-        \(trimmed)
-        \"\"\"
-
-        """
-    }
-
-    private static func notSupplied(_ text: String) -> String {
-        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Not supplied." : text
-    }
-
-    private static func notSpecified(_ text: String) -> String {
-        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Not specified" : text
-    }
-
     private static let redactedIdentityLabel = "Not sent to the local model by default."
 }
 
-#if canImport(FoundationModels)
-@available(iOS 26.0, *)
 extension PromptBuilder {
     static func gradingInstructions(input: GradingInput) -> Instructions {
         Instructions(gradingInstructionsText(input: input))
@@ -415,7 +301,6 @@ extension PromptBuilder {
         Prompt { feedbackRewritePromptText(input: input) }
     }
 }
-#endif
 
 private extension String {
     func promptNonEmptyOr(_ fallback: String) -> String {

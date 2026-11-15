@@ -1,8 +1,6 @@
 import Foundation
 
-#if canImport(FoundationModels)
 import FoundationModels
-#endif
 
 enum FoundationModelErrorMapper {
     static func isContextWindowError(_ error: Error) -> Bool {

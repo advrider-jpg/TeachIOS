@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Fail if obvious network code enters the local-only GradeDraft app."""
+"""Fail if obvious network code enters the local-only GradeDraft app.
+
+This script is the single owner of the "no network, on-device AI only" rule.
+"""
 from __future__ import annotations
 
 import pathlib
@@ -50,6 +53,15 @@ CURRICULUM_PROVENANCE_PREFIXES = {
 PBX_REPO_PATTERN = re.compile(r"^\s*repositoryURL\s*=")
 APPLE_PLIST_DTD_PATTERN = re.compile(r"https?://www\.apple\.com/DTDs/PropertyList-1\.0\.dtd")
 
+# Swift-only: AI must use Apple's on-device SystemLanguageModel and nothing else.
+AI_MESSAGE = "On-device AI only: {rel}:{lineno} uses a non-system language model."
+AI_PATTERNS = [
+    re.compile(r"PrivateCloudComputeLanguageModel"),
+    re.compile(r"LanguageModelSession\s*\(\s*model\s*:"),
+    re.compile(r":\s*(?:[\w.]+\s*,\s*)*(?:any\s+|some\s+)?LanguageModel\b"),
+    re.compile(r"import\s+(OpenAI|Anthropic|GoogleGenerativeAI|MLXLLM)"),
+]
+
 failures: list[str] = []
 for path in ROOT.rglob("*"):
     if any(part in IGNORE_DIRS for part in path.parts):
@@ -79,6 +91,13 @@ for path in ROOT.rglob("*"):
             # ordinary curriculum vocabulary that collides with product-blocked
             # analytics/network terms. Runtime Swift code remains scanned below.
             continue
+        if path.suffix == ".swift":
+            for pattern in AI_PATTERNS:
+                if not pattern.search(line):
+                    continue
+                if pattern is AI_PATTERNS[1] and "SystemLanguageModel" in line:
+                    continue
+                failures.append(AI_MESSAGE.format(rel=rel, lineno=lineno))
         for pattern in PATTERNS:
             if pattern.search(line):
                 failures.append(f"{rel}:{lineno}: matched {pattern.pattern!r}: {line.strip()}")

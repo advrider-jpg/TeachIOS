@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Which task to run
+        type: choice
+        options: [test, resolve-packages, release-check]
+        default: test
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  XCODE_APP: /Applications/Xcode_27.1.app
+  DESTINATION: platform=iOS Simulator,name=iPhone Duo,OS=27.1
+  RESOLVED: GradeDraft.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.diff.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Detect docs-only change
+        id: diff
+        run: |
+          docs_only=false
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if names=$(git diff --name-only "${{ github.event.pull_request.base.sha }}...${{ github.sha }}") && [ -n "$names" ]; then
+              docs_only=true
+              while IFS= read -r path; do
+                case "$path" in
+                  GradeDraft/*|GradeDraftTests/*|GradeDraftUITests/*|scripts/*|.github/*) docs_only=false ;;
+                esac
+                case "$path" in
+                  *.md) ;;
+                  *) docs_only=false ;;
+                esac
+              done <<< "$names"
+            fi
+          fi
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+
+  static:
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true' && github.event.inputs.task != 'resolve-packages'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 scripts/no_network_scan.py
+      - run: python3 scripts/ci/check_curriculum_catalog.py
+      - run: python3 scripts/curriculum/build_acara_curriculum_catalog.py --check
+      - name: SwiftLint
+        run: docker run --rm -v "$PWD:/work" -w /work ghcr.io/realm/swiftlint:0.65.1 swiftlint lint --strict
+
+  build-and-test:
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true' && (github.event_name == 'pull_request' || github.event.inputs.task == 'test')
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo xcode-select -s "$XCODE_APP"
+      - uses: actions/cache@v6
+        with:
+          path: SourcePackages
+          key: spm-${{ hashFiles('**/Package.resolved') }}
+      - name: Check for committed Package.resolved
+        run: |
+          if [ -f "$RESOLVED" ]; then
+            echo "RESOLVE_FLAG=-disableAutomaticPackageResolution" >> "$GITHUB_ENV"
+            echo "HAD_RESOLVED=true" >> "$GITHUB_ENV"
+          else
+            echo "HAD_RESOLVED=false" >> "$GITHUB_ENV"
+          fi
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          mkdir -p results
+          xcodebuild build-for-testing -project GradeDraft.xcodeproj -scheme GradeDraft $RESOLVE_FLAG -clonedSourcePackagesDirPath SourcePackages -derivedDataPath DerivedData -destination "$DESTINATION" 2>&1 | tee results/build.log
+      - name: Unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building -project GradeDraft.xcodeproj -scheme GradeDraft $RESOLVE_FLAG -clonedSourcePackagesDirPath SourcePackages -derivedDataPath DerivedData -destination "$DESTINATION" -only-testing:GradeDraftTests -resultBundlePath results/unit.xcresult 2>&1 | tee results/unit.log
+      - name: UI tests
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building -project GradeDraft.xcodeproj -scheme GradeDraft $RESOLVE_FLAG -clonedSourcePackagesDirPath SourcePackages -derivedDataPath DerivedData -destination "$DESTINATION" -only-testing:GradeDraftUITests -resultBundlePath results/ui.xcresult 2>&1 | tee results/ui.log
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: results
+          path: results/
+          if-no-files-found: warn
+      - name: Upload generated Package.resolved
+        if: always() && env.HAD_RESOLVED == 'false'
+        uses: actions/upload-artifact@v7
+        with:
+          name: Package.resolved
+          path: GradeDraft.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+          if-no-files-found: warn
+
+  resolve-packages:
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'resolve-packages'
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo xcode-select -s "$XCODE_APP"
+      - run: xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft -clonedSourcePackagesDirPath SourcePackages
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Package.resolved
+          path: GradeDraft.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+          if-no-files-found: error
+
+  release-check:
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'release-check'
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo xcode-select -s "$XCODE_APP"
+      - run: python3 scripts/ci/check_release_readiness_static.py
+      - run: xcodebuild archive -project GradeDraft.xcodeproj -scheme GradeDraft -configuration Release -destination 'generic/platform=iOS' -archivePath build/MarkForMe.xcarchive CODE_SIGNING_ALLOWED=NO

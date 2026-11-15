@@ -1,28 +1,5 @@
 import SwiftUI
 
-struct StationeryScreen<Content: View>: View {
-    var theme: StationeryTheme
-    private let content: Content
-
-    init(theme: StationeryTheme = .gradeDraft, @ViewBuilder content: () -> Content) {
-        self.theme = theme
-        self.content = content()
-    }
-
-    var body: some View {
-        ZStack {
-            theme.deskBackground.ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: GradeDraftLayout.sectionSpacing) {
-                    content
-                }
-                .padding(GradeDraftLayout.stationeryScreenPadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
-}
-
 struct StationeryPageHeader: View {
     var eyebrow: String?
     var title: String
@@ -346,28 +323,6 @@ struct HandwrittenAnnotation: View {
         .padding(.vertical, 7)
         .background((status?.color ?? theme.accent).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .combine)
-    }
-}
-
-struct DeskEdgeDecoration: View {
-    var theme: StationeryTheme
-
-    init(theme: StationeryTheme = .gradeDraft) {
-        self.theme = theme
-    }
-
-    var body: some View {
-        Rectangle()
-            .fill(
-                LinearGradient(
-                    colors: [theme.deskBackground, theme.paperTint.opacity(0.65), theme.deskBackground],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .frame(height: 10)
-            .overlay(Rectangle().fill(Color(.separator)).frame(height: 0.5), alignment: .top)
-            .accessibilityHidden(true)
     }
 }
 

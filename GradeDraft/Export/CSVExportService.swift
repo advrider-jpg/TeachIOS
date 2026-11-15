@@ -76,12 +76,6 @@ enum CSVExportService {
         CSVWriter.string(rows: buildStudentRows(from: assignments))
     }
 
-    static func writeCSV(from assignments: [AssignmentRecord], to destination: URL) throws -> URL {
-        try exportedCSV(from: assignments).write(to: destination, atomically: true, encoding: .utf8)
-        ExportFileHardening.applyBestEffortProtection(to: destination)
-        return destination
-    }
-
     private static func exportFinalStatus(for assignment: AssignmentRecord) -> String {
         guard let review = assignment.finalReview else {
             return "pending_final_review"

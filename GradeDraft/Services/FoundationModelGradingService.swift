@@ -1,8 +1,6 @@
 import Foundation
 
-#if canImport(FoundationModels)
 import FoundationModels
-#endif
 
 final class FoundationModelGradingService: GradingServicing, CapabilityChecking, Sendable {
     private let budgeter: GradingPromptBudgeting
@@ -12,22 +10,14 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
     }
 
     var localAIStatus: LocalAIStatus {
-        #if canImport(FoundationModels)
-        if #available(iOS 26.0, *) {
-            switch SystemLanguageModel.default.availability {
-            case .available:
-                return .available
-            case .unavailable(let reason):
-                return .unavailable(Self.message(for: reason))
-            @unknown default:
-                return .unavailable("The on-device language model is unavailable for an unknown reason.")
-            }
-        } else {
-            return .unavailable("Foundation Models requires a newer operating system.")
+        switch SystemLanguageModel.default.availability {
+        case .available:
+            return .available
+        case .unavailable(let reason):
+            return .unavailable(Self.message(for: reason))
+        @unknown default:
+            return .unavailable("The on-device language model is unavailable for an unknown reason.")
         }
-        #else
-        return .unavailable("This build was compiled without the Foundation Models framework.")
-        #endif
     }
 
     func draftGrade(input: GradingInput, progress: AIGenerationProgressHandler? = nil) async throws -> GradeDraftResult {
@@ -41,61 +31,53 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
         try LocalOnlyGradingValidator.validate(input)
         try Task.checkCancellation()
 
-        #if canImport(FoundationModels)
-        if #available(iOS 26.0, *) {
-            await progress?(
-                AIGenerationProgress(
-                    stage: .checkingAvailability,
-                    detail: "Checking Apple Foundation Models availability on this device.",
-                    canCancel: true
-                )
+        await progress?(
+            AIGenerationProgress(
+                stage: .checkingAvailability,
+                detail: "Checking Apple Foundation Models availability on this device.",
+                canCancel: true
             )
-            try Task.checkCancellation()
-            guard localAIStatus == .available else {
-                if case .unavailable(let message) = localAIStatus {
-                    throw GradeDraftError.localModelUnavailable(message)
-                }
-                throw GradeDraftError.localModelUnavailable("The on-device language model is unavailable.")
+        )
+        try Task.checkCancellation()
+        guard localAIStatus == .available else {
+            if case .unavailable(let message) = localAIStatus {
+                throw GradeDraftError.localModelUnavailable(message)
             }
-
-            await progress?(
-                AIGenerationProgress(
-                    stage: .planningPacket,
-                    detail: "Planning the local prompt budget without truncating reviewed student text.",
-                    canCancel: true
-                )
-            )
-            try Task.checkCancellation()
-            let plan = try await budgeter.plan(input: input)
-            try Task.checkCancellation()
-            do {
-                return try await generateDraft(input: input, plan: plan, progress: progress)
-            } catch {
-                if FoundationModelErrorMapper.isContextWindowError(error),
-                   let recoveryPlan = try? GradingPromptBudgeter.recoveryPlan(
-                    input: input,
-                    contextSizeTokens: plan.report.contextSizeTokens ?? PromptBudgetPolicy.defaultContextSizeTokens,
-                    afterRuntimeContextFailureOf: plan.mode
-                   ),
-                   recoveryPlan.mode != plan.mode {
-                    await progress?(
-                        AIGenerationProgress(
-                            stage: .planningPacket,
-                            detail: "The runtime rejected the planned packet for context size. Retrying with \(recoveryPlan.mode.displayName) without truncating reviewed text.",
-                            canCancel: true
-                        )
-                    )
-                    try Task.checkCancellation()
-                    return try await generateDraft(input: input, plan: recoveryPlan, progress: progress)
-                }
-                throw FoundationModelErrorMapper.map(error)
-            }
-        } else {
-            throw GradeDraftError.localModelUnavailable("Foundation Models requires a newer operating system.")
+            throw GradeDraftError.localModelUnavailable("The on-device language model is unavailable.")
         }
-        #else
-        throw GradeDraftError.localModelUnavailable("This build was compiled without the Foundation Models framework.")
-        #endif
+
+        await progress?(
+            AIGenerationProgress(
+                stage: .planningPacket,
+                detail: "Planning the local prompt budget without truncating reviewed student text.",
+                canCancel: true
+            )
+        )
+        try Task.checkCancellation()
+        let plan = try await budgeter.plan(input: input)
+        try Task.checkCancellation()
+        do {
+            return try await generateDraft(input: input, plan: plan, progress: progress)
+        } catch {
+            if FoundationModelErrorMapper.isContextWindowError(error),
+               let recoveryPlan = try? GradingPromptBudgeter.recoveryPlan(
+                input: input,
+                contextSizeTokens: plan.report.contextSizeTokens ?? PromptBudgetPolicy.defaultContextSizeTokens,
+                afterRuntimeContextFailureOf: plan.mode
+               ),
+               recoveryPlan.mode != plan.mode {
+                await progress?(
+                    AIGenerationProgress(
+                        stage: .planningPacket,
+                        detail: "The runtime rejected the planned packet for context size. Retrying with \(recoveryPlan.mode.displayName) without truncating reviewed text.",
+                        canCancel: true
+                    )
+                )
+                try Task.checkCancellation()
+                return try await generateDraft(input: input, plan: recoveryPlan, progress: progress)
+            }
+            throw FoundationModelErrorMapper.map(error)
+        }
     }
 
     func rewriteFeedback(input: FeedbackRewriteInput, progress: AIGenerationProgressHandler? = nil) async throws -> FeedbackRewriteResult {
@@ -107,41 +89,30 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
             )
         )
         try Task.checkCancellation()
-        #if canImport(FoundationModels)
-        if #available(iOS 26.0, *) {
-            guard localAIStatus == .available else {
-                if case .unavailable(let message) = localAIStatus {
-                    throw GradeDraftError.localModelUnavailable(message)
-                }
-                throw GradeDraftError.localModelUnavailable("The on-device language model is unavailable.")
+        guard localAIStatus == .available else {
+            if case .unavailable(let message) = localAIStatus {
+                throw GradeDraftError.localModelUnavailable(message)
             }
-            let session = LanguageModelSession(instructions: PromptBuilder.gradingInstructions(input: Self.feedbackRewriteSafetyInput))
-            let stream = session.streamResponse(
-                to: PromptBuilder.feedbackRewritePrompt(input: input),
-                generating: FoundationModelGradeProposalSchema.FeedbackRewriteDraft.self,
-                includeSchemaInPrompt: false
-            )
-            let response = try await stream.collect()
-            try Task.checkCancellation()
-            return try FeedbackRewriteValidator.validate(response.content.asFeedbackRewriteResult(), input: input)
+            throw GradeDraftError.localModelUnavailable("The on-device language model is unavailable.")
         }
-        throw GradeDraftError.localModelUnavailable("Foundation Models requires a newer operating system.")
-        #else
-        throw GradeDraftError.localModelUnavailable("This build was compiled without the Foundation Models framework.")
-        #endif
+        let session = LanguageModelSession(instructions: PromptBuilder.gradingInstructions(input: Self.feedbackRewriteSafetyInput))
+        let stream = session.streamResponse(
+            to: PromptBuilder.feedbackRewritePrompt(input: input),
+            generating: FoundationModelGradeProposalSchema.FeedbackRewriteDraft.self,
+            includeSchemaInPrompt: false
+        )
+        let response = try await stream.collect()
+        try Task.checkCancellation()
+        return try FeedbackRewriteValidator.validate(response.content.asFeedbackRewriteResult(), input: input)
     }
 
     func prewarmIfAvailable() {
-        #if canImport(FoundationModels)
-        if #available(iOS 26.0, *), localAIStatus == .available {
+        if localAIStatus == .available {
             let session = LanguageModelSession(instructions: PromptBuilder.gradingInstructions(input: Self.prewarmInput))
             session.prewarm()
         }
-        #endif
     }
 
-    #if canImport(FoundationModels)
-    @available(iOS 26.0, *)
     private func generateDraft(
         input: GradingInput,
         plan: PromptBudgetPlan,
@@ -157,7 +128,6 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
         }
     }
 
-    @available(iOS 26.0, *)
     private func generateFullPacketDraft(
         input: GradingInput,
         plan: PromptBudgetPlan,
@@ -196,7 +166,6 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
         return try GradeDraftValidator.normalizeAndValidate(draft, input: input)
     }
 
-    @available(iOS 26.0, *)
     private func generatePerCriterionDraft(
         input: GradingInput,
         plan: PromptBudgetPlan,
@@ -270,7 +239,6 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
         return try GradeDraftValidator.normalizeAndValidate(draft, input: input)
     }
 
-    @available(iOS 26.0, *)
     private func maybeGenerateSummaryFeedback(
         input: GradingInput,
         criteria: [CriterionScore],
@@ -305,7 +273,6 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
         )
     }
 
-    @available(iOS 26.0, *)
     private static func message(for reason: SystemLanguageModel.Availability.UnavailableReason) -> String {
         switch reason {
         case .appleIntelligenceNotEnabled:
@@ -318,7 +285,6 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
             return "The on-device language model is unavailable for an unknown reason."
         }
     }
-    #endif
 
     private struct SummaryFeedbackResult {
         var studentResponseSummary: String
@@ -393,45 +359,4 @@ final class FoundationModelGradingService: GradingServicing, CapabilityChecking,
         packetFingerprint: "feedback-rewrite",
         hasGradingStandard: true
     )
-}
-
-// Retained for debug, compatibility, and test use. Production Foundation Models
-// drafting uses typed guided generation (FoundationModelGradeProposalSchema).
-enum JSONExtractor {
-    static func extractFirstJSONObject(from text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let start = trimmed.firstIndex(of: "{") else {
-            return trimmed
-        }
-
-        var depth = 0
-        var isInsideString = false
-        var isEscaped = false
-        var index = start
-
-        while index < trimmed.endIndex {
-            let character = trimmed[index]
-
-            if isEscaped {
-                isEscaped = false
-            } else if character == "\\" {
-                isEscaped = true
-            } else if character == "\"" {
-                isInsideString.toggle()
-            } else if !isInsideString {
-                if character == "{" {
-                    depth += 1
-                } else if character == "}" {
-                    depth -= 1
-                    if depth == 0 {
-                        return String(trimmed[start...index])
-                    }
-                }
-            }
-
-            index = trimmed.index(after: index)
-        }
-
-        return trimmed
-    }
 }

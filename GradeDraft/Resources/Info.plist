@@ -24,8 +24,6 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>MarkForMe uses the camera so you can scan student work.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>MarkForMe needs photo access only when you choose a photo of student work to import.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>

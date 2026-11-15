@@ -291,7 +291,8 @@ extension GradeDraftTests {
 
     func testPromptBuilderContainsSafetyRules() {
         let input = sampleInput()
-        let prompt = PromptBuilder.gradingPrompt(input: input)
+        let prompt = PromptBuilder.gradingInstructionsText(input: input) + "
+" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
 
         XCTAssertTrue(prompt.contains("teacher"), "Prompt must reference teacher review role")
         XCTAssertTrue(prompt.contains("No supporting evidence found."), "Prompt must specify evidence marker")
@@ -309,7 +310,8 @@ extension GradeDraftTests {
         input.assignmentTitle = "My Assignment Title"
         input.prompt = "What is the role of evidence in a historical argument?"
 
-        let result = PromptBuilder.gradingPrompt(input: input)
+        let result = PromptBuilder.gradingInstructionsText(input: input) + "
+" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
         XCTAssertTrue(result.contains("What is the role of evidence"),
                       "PromptBuilder should use the prompt field when supplied")
         // Title appears under "Title:", prompt under "Prompt:"
@@ -320,7 +322,8 @@ extension GradeDraftTests {
     func testPromptBuilderShowsNotSuppliedWhenPromptEmpty() {
         var input = sampleInput()
         input.prompt = ""
-        let result = PromptBuilder.gradingPrompt(input: input)
+        let result = PromptBuilder.gradingInstructionsText(input: input) + "
+" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
         XCTAssertTrue(result.contains("Not supplied."),
                       "PromptBuilder should show 'Not supplied.' when prompt is empty")
     }

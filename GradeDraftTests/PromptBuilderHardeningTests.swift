@@ -7,7 +7,8 @@ final class PromptBuilderHardeningTests: XCTestCase {
     func testPromptIncludesAnswerKeyWhenProvided() {
         var input = sampleInput()
         input.answerKeyText = "Expected answer: photosynthesis converts CO2."
-        let prompt = PromptBuilder.gradingPrompt(input: input)
+        let prompt = PromptBuilder.gradingInstructionsText(input: input) + "
+" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
         XCTAssertTrue(prompt.contains("photosynthesis converts CO2"))
         XCTAssertTrue(prompt.contains("Answer key"))
     }
@@ -15,7 +16,8 @@ final class PromptBuilderHardeningTests: XCTestCase {
     func testPromptIncludesExemplarWhenProvided() {
         var input = sampleInput()
         input.exemplarText = "Exemplar: The student should mention both reactants."
-        let prompt = PromptBuilder.gradingPrompt(input: input)
+        let prompt = PromptBuilder.gradingInstructionsText(input: input) + "
+" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
         XCTAssertTrue(prompt.contains("Exemplar"))
         XCTAssertTrue(prompt.contains("both reactants"))
     }
@@ -23,13 +25,15 @@ final class PromptBuilderHardeningTests: XCTestCase {
     func testPromptIncludesCustomInstructions() {
         var input = sampleInput()
         input.customInstructions = "Be lenient with spelling errors."
-        let prompt = PromptBuilder.gradingPrompt(input: input)
+        let prompt = PromptBuilder.gradingInstructionsText(input: input) + "
+" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
         XCTAssertTrue(prompt.contains("lenient with spelling"))
     }
 
     func testPromptIncludesStructuredCriteriaWhenParsed() {
         let input = sampleInput(rubric: "Claim: 0-4 points\nEvidence: 0-2 points")
-        let prompt = PromptBuilder.gradingPrompt(input: input)
+        let prompt = PromptBuilder.gradingInstructionsText(input: input) + "
+" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
         XCTAssertTrue(prompt.contains("Claim"))
         XCTAssertTrue(prompt.contains("Evidence"))
         XCTAssertTrue(prompt.contains("maxPoints"))
@@ -37,14 +41,16 @@ final class PromptBuilderHardeningTests: XCTestCase {
 
     func testPromptShowsFallbackWhenNoCriteria() {
         let input = sampleInput(rubric: "This rubric has no points.")
-        let prompt = PromptBuilder.gradingPrompt(input: input)
+        let prompt = PromptBuilder.gradingInstructionsText(input: input) + "
+" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
         XCTAssertTrue(prompt.contains("No structured point-bearing criteria"))
     }
 
     func testPromptIncludesCurriculumReference() {
         var input = sampleInput()
         input.curriculumReference = "ACELA1234 — Year 7 English literacy standard"
-        let prompt = PromptBuilder.gradingPrompt(input: input)
+        let prompt = PromptBuilder.gradingInstructionsText(input: input) + "
+" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
         XCTAssertTrue(prompt.contains("ACELA1234"))
     }
 
@@ -56,8 +62,9 @@ final class PromptBuilderHardeningTests: XCTestCase {
             unconfirmedLineCount: 3,
             averageConfidence: 0.6
         )
-        let prompt = PromptBuilder.gradingPrompt(input: input)
-        XCTAssertTrue(prompt.contains("Scanned text quality warning"))
+        let prompt = PromptBuilder.gradingInstructionsText(input: input) + "
+" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
+        XCTAssertTrue(prompt.contains("OCR warning:"))
     }
 
     private func sampleInput(rubric: String = "Claim: 0-4 points") -> GradingInput {

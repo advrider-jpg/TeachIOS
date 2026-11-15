@@ -18,13 +18,12 @@ Student reports are available only after the teacher approves a current final re
 
 ## Development
 
-Open `GradeDraft.xcodeproj` in Xcode 26 or later. The minimum deployment target is iOS 17.0; on-device drafting needs a compatible physical device with Apple Intelligence enabled.
+Open `GradeDraft.xcodeproj` in Xcode 27.1 or later. The minimum deployment target is iOS 27.0; on-device drafting needs a compatible physical device with Apple Intelligence enabled.
 
 | Purpose | Command |
 |---|---|
-| Repository health | `python3 scripts/repo_health.py` |
 | No-network guardrail | `python3 scripts/no_network_scan.py` |
-| Export hardening guardrail | `python3 scripts/export_hardening_scan.py` |
+| Curriculum catalogue checks | `python3 scripts/ci/check_curriculum_catalog.py` and `python3 scripts/curriculum/build_acara_curriculum_catalog.py --check` |
 | Resolve Swift packages | `xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft` |
 | Lint | `swiftlint lint --config .swiftlint.yml` |
 | Unit tests | `xcodebuild test -project GradeDraft.xcodeproj -scheme GradeDraft -destination 'platform=iPhone Simulator,name=<iPhone simulator>'` |

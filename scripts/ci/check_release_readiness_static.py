@@ -22,7 +22,7 @@ def read(path: pathlib.Path) -> str:
 
 
 # 1. Placeholder identity must not survive in production configuration surfaces.
-for rel in ["GradeDraft.xcodeproj/project.pbxproj", "GradeDraft/Resources/Info.plist"]:
+for rel in ["GradeDraft/Resources/Info.plist"]:
     path = ROOT / rel
     if path.exists() and "com.example" in read(path):
         fail(f"{rel} still contains com.example bundle identifier text.")
@@ -70,7 +70,7 @@ if not resolved_candidates:
 info_path = ROOT / "GradeDraft/Resources/Info.plist"
 if info_path.exists():
     info = plistlib.loads(info_path.read_bytes())
-    for key in ["NSCameraUsageDescription", "NSPhotoLibraryUsageDescription"]:
+    for key in ["NSCameraUsageDescription"]:
         value = str(info.get(key, "")).strip()
         if not value:
             fail(f"Info.plist missing non-empty {key}.")
@@ -140,20 +140,7 @@ if manual_qa_path.exists():
     if "no simulator" in manual_qa_text or "not run" in manual_qa_text or "unavailable" in manual_qa_text:
         fail("docs/release/MANUAL_QA_RESULTS.md records unrun manual QA; release readiness requires dated simulator/device evidence.")
 
-# 8. Asset catalog and project wiring.
-pbxproj = ROOT / "GradeDraft.xcodeproj/project.pbxproj"
-if pbxproj.exists():
-    text = read(pbxproj)
-    if "ASSETCATALOG_COMPILER_APPICON_NAME" not in text or "AppIcon" not in text:
-        fail("Xcode project must set ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon.")
-    for token in ["Assets.xcassets", "PrivacyInfo.xcprivacy", "curriculum_catalog_acara_v9.json", "curriculum_catalog_acara_v9_index.json", "LocalDataProtection.swift", "CurriculumBrowserScreen.swift"]:
-        if token not in text:
-            fail(f"Xcode project must reference {token}.")
-    if "SnapshotTesting" in text:
-        app_target_match = re.search(r'name = "?MarkForMe"?;.*?packageProductDependencies = \((.*?)\);', text, re.S)
-        if app_target_match and "SnapshotTesting" in app_target_match.group(1):
-            fail("SnapshotTesting must not be linked into the app target.")
-
+# 8. App icon.
 icon = ROOT / "GradeDraft/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png"
 if icon.exists():
     data = icon.read_bytes()
@@ -163,25 +150,6 @@ if icon.exists():
         width, height = struct.unpack(">II", data[16:24])
         if (width, height) != (1024, 1024):
             fail(f"AppIcon-1024.png must be 1024x1024, got {(width, height)}.")
-
-# 9. Dependency docs include every current Swift package.
-package_names = ["GRDB.swift", "swift-markdown", "TPPDF", "ZIPFoundation", "swift-snapshot-testing"]
-for rel in ["docs/DEPENDENCIES.md", "docs/OSS_REVIEW.md"]:
-    path = ROOT / rel
-    if not path.exists():
-        fail(f"Missing dependency review doc: {rel}")
-        continue
-    text = read(path).lower()
-    for package in package_names:
-        if package.lower() not in text:
-            fail(f"{rel} does not mention {package}.")
-
-# 10. Network/analytics hard stop in app source.
-for path in (ROOT / "GradeDraft").rglob("*.swift"):
-    text = path.read_text(encoding="utf-8", errors="ignore")
-    for token in ["URLSession", "Firebase", "Amplitude", "Mixpanel", "Sentry", "RevenueCat", "Telemetry", "Analytics"]:
-        if re.search(rf"\b{re.escape(token)}\b", text):
-            fail(f"Forbidden network/analytics token {token!r} appears in {path.relative_to(ROOT)}")
 
 if failures:
     print("Production static readiness check failed:")

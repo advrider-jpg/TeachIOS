@@ -4,6 +4,7 @@ import SwiftUI
 struct GradeDraftApp: App {
     var body: some Scene {
         WindowGroup {
+            #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("--ui-core-lane-test") {
                 ContentView(viewModel: GradeDraftViewModel(
                     assignments: Self.uiCoreLaneAssignments(),
@@ -17,9 +18,13 @@ struct GradeDraftApp: App {
             } else {
                 ContentView()
             }
+            #else
+            ContentView()
+            #endif
         }
     }
 
+    #if DEBUG
     private static func uiSmokeAssignments() -> [AssignmentRecord] {
         [
             AssignmentRecord(
@@ -78,4 +83,5 @@ struct GradeDraftApp: App {
         assignment.appendAuditEvent(.finalReviewStarted, detail: "UI test fixture starts with an in-progress teacher review so the app-driving test can approve and export.")
         return [assignment]
     }
+    #endif
 }

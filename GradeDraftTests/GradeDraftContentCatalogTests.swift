@@ -95,7 +95,6 @@ final class GradeDraftContentCatalogTests: XCTestCase {
             XCTAssertEqual(resource.blocksStudentFacingExportByDefault, swift.blocksStudentFacingExportByDefault)
         }
 
-        XCTAssertEqual(catalog.canonicalPromptTemplate, GradeDraftCopyCatalog.SourceOfTruth.canonicalPromptTemplate)
         XCTAssertEqual(catalog.nonNegotiableRules, GradeDraftCopyCatalog.SourceOfTruth.nonNegotiableRules)
         XCTAssertEqual(catalog.safeUILabels, GradeDraftCopyCatalog.Labels.safe)
         XCTAssertEqual(catalog.prohibitedUILabels, GradeDraftCopyCatalog.Labels.prohibited)
@@ -231,45 +230,6 @@ final class GradeDraftContentCatalogTests: XCTestCase {
         }
     }
 
-    func testPromptUsesCanonicalTemplateOptionalSectionsAndSafeNonRecursiveRendering() {
-        var assignment = AssignmentRecord(title: "Prompt", rubricText: "Criterion: 0-1 point", reviewedStudentText: "Student text")
-        assignment.customInstructions = "Use concise comments."
-        assignment.answerKeyText = "Expected element."
-        assignment.exemplarText = "Exemplar response."
-        assignment.formativeFocusText = "Focus on next steps."
-        assignment.curriculumReference = "Local reference."
-
-        let prompt = PromptBuilder.gradingPrompt(input: assignment.gradingInput)
-        XCTAssertTrue(prompt.contains("Use concise comments."))
-        XCTAssertTrue(prompt.contains("Expected element."))
-        XCTAssertTrue(prompt.contains("Exemplar response."))
-        XCTAssertTrue(prompt.contains("Focus on next steps."))
-        XCTAssertTrue(prompt.contains("Local reference."))
-        XCTAssertTrue(prompt.contains("No supporting evidence found."))
-        XCTAssertTrue(prompt.contains("source reference tags"))
-        XCTAssertFalse(prompt.contains("Additional local app constraints"))
-        XCTAssertFalse(prompt.contains("{{answerKeySection}}"))
-
-        var noOptionalFields = assignment
-        noOptionalFields.customInstructions = ""
-        noOptionalFields.answerKeyText = ""
-        noOptionalFields.exemplarText = ""
-        noOptionalFields.formativeFocusText = ""
-        noOptionalFields.curriculumReference = ""
-        let promptWithoutOptionalFields = PromptBuilder.gradingPrompt(input: noOptionalFields.gradingInput)
-        XCTAssertFalse(promptWithoutOptionalFields.contains("Custom teacher instructions:"))
-        XCTAssertFalse(promptWithoutOptionalFields.contains("Answer key:"))
-        XCTAssertFalse(promptWithoutOptionalFields.contains("Exemplar response:"))
-        XCTAssertFalse(promptWithoutOptionalFields.contains("Formative focus:"))
-        XCTAssertFalse(promptWithoutOptionalFields.contains("Curriculum reference:"))
-
-        var tokenInjection = assignment
-        tokenInjection.reviewedStudentText = "The student literally wrote {{answerKeySection}} in the answer."
-        tokenInjection.answerKeyText = "Do not replace this into the student text."
-        let tokenPrompt = PromptBuilder.gradingPrompt(input: tokenInjection.gradingInput)
-        XCTAssertTrue(tokenPrompt.contains("The student literally wrote {{answerKeySection}} in the answer."))
-    }
-
     func testReportsKeepStudentTeacherSeparationAndTeacherContext() {
         var assignment = AssignmentRecord(title: "Report", rubricText: "Criterion: 0-1 point", reviewedStudentText: "Student answer")
         assignment.customInstructions = "Teacher-only instruction."
@@ -342,7 +302,6 @@ final class GradeDraftContentCatalogTests: XCTestCase {
         }
         visibleCopy += ReportTemplateCatalog.studentReportTemplates
         visibleCopy += ReportTemplateCatalog.teacherAuditReportTemplates
-        visibleCopy.append(GradeDraftCopyCatalog.SourceOfTruth.canonicalPromptTemplate)
 
         try GradeDraftContentValidator.assertNoProhibitedLabels(in: visibleCopy)
         try assertNoProhibitedLabelsInSwiftUISource()
@@ -406,7 +365,6 @@ private struct ResourceCatalog: Decodable {
     var exemplarTemplates: [ResourceExemplarTemplate]
     var formativeFocusTemplates: [ResourceFormativeFocusTemplate]
     var exportWarnings: [ResourceExportWarning]
-    var canonicalPromptTemplate: String
     var nonNegotiableRules: [String]
     var safeUILabels: [String]
     var prohibitedUILabels: [String]

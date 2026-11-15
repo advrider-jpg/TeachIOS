@@ -1,9 +1,7 @@
 import Foundation
 
-#if canImport(FoundationModels)
 import FoundationModels
 
-@available(iOS 26.0, *)
 enum FoundationModelGradeProposalSchema {
     @Generable
     struct GradeDraftProposal: Sendable {
@@ -106,7 +104,6 @@ enum FoundationModelGradeProposalSchema {
     }
 }
 
-@available(iOS 26.0, *)
 extension FoundationModelGradeProposalSchema.CriterionDraft {
     func asCriterionScore() -> CriterionScore {
         let trimmedID = criterionId.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -127,7 +124,6 @@ extension FoundationModelGradeProposalSchema.CriterionDraft {
     }
 }
 
-@available(iOS 26.0, *)
 extension FoundationModelGradeProposalSchema.GradeDraftProposal {
     func asGradeDraftResult(input: GradingInput, audit: LocalModelDraftAudit) -> GradeDraftResult {
         let scores = criteria.map { $0.asCriterionScore() }
@@ -148,7 +144,6 @@ extension FoundationModelGradeProposalSchema.GradeDraftProposal {
     }
 }
 
-@available(iOS 26.0, *)
 extension FoundationModelGradeProposalSchema.FeedbackRewriteDraft {
     func asFeedbackRewriteResult() -> FeedbackRewriteResult {
         FeedbackRewriteResult(
@@ -157,5 +152,3 @@ extension FoundationModelGradeProposalSchema.FeedbackRewriteDraft {
         )
     }
 }
-
-#endif

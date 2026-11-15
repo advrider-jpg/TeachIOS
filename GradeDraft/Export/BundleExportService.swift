@@ -81,10 +81,6 @@ struct BundleExportService {
         return root.appendingPathComponent(filename, isDirectory: false)
     }
 
-    static func writeBundle(assignment: AssignmentRecord, sourceFiles: [URL], to destination: URL) throws -> URL {
-        try writeTeacherAuditArchive(assignment: assignment, sourceFiles: sourceFiles, to: destination)
-    }
-
     static func writeTeacherAuditArchive(assignment: AssignmentRecord, sourceFiles: [URL], to destination: URL) throws -> URL {
         try prepareDestination(destination)
         let existingSourceFiles = try validatedSourceFiles(sourceFiles)
