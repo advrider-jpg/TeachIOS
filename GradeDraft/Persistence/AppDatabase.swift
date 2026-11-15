@@ -459,9 +459,12 @@ final class AppDatabase: Sendable {
             guard let previous = try Self.fetchSetups(db, scope: .assignment(assignmentID)).first else {
                 throw AppDatabaseError.notFound(assignmentID)
             }
-            let graphs = try Self.fetchGraphs(db, scope: .assignment(assignmentID))
             let previousEncoding = try previous.canonicalEncoding()
             let newEncoding = try setup.canonicalEncoding()
+            // Only graded submissions can turn stale, and only when the grading inputs changed.
+            let graphs = previousEncoding == newEncoding
+                ? []
+                : try Self.fetchGraphs(db, scope: .gradedInAssignment(assignmentID))
             let now = Date()
             var events: [AuditEvent] = []
             for graph in graphs {

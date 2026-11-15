@@ -15,6 +15,7 @@ final class AutosaveScheduler {
     @ObservationIgnored private let delay: Duration
     @ObservationIgnored private let save: @MainActor () async -> Void
     @ObservationIgnored private var timer: Task<Void, Never>?
+    @ObservationIgnored private var inFlight: Task<Void, Never>?
 
     /// `save` writes the owning model's current local value and handles its own failure.
     init(delay: Duration = AutosaveScheduler.defaultDelay, save: @escaping @MainActor () async -> Void) {
@@ -44,13 +45,19 @@ final class AutosaveScheduler {
     }
 
     /// Saves now if anything is pending.
+    /// Saves run one at a time, in order: a flush waits for any save already running, then saves the
+    /// latest local value if edits are still pending.
     func flushNow() async {
         timer?.cancel()
         timer = nil
+        while let running = inFlight { await running.value }
         guard hasPendingChanges else { return }
         hasPendingChanges = false
         isSaving = true
-        await save()
+        let task = Task { @MainActor [save] in await save() }
+        inFlight = task
+        await task.value
+        inFlight = nil
         isSaving = false
     }
 

@@ -39,7 +39,10 @@ enum ImportError: LocalizedError, Equatable {
 actor SourceImportService {
     /// Typed-page test (plan 3.7): enough text and enough of the page covered by that text.
     private static let typedPageMinimumCharacters = 200
-    private static let typedPageMinimumCoverage: CGFloat = 0.5
+    /// Separates a page with real body text from one with only a printed header or name line. Typed
+    /// body text on a normal page covers roughly 25-45% of the page area; text-layer lines still need the
+    /// teacher's line-by-line confirmation, so a copier's text layer cannot skip review.
+    private static let typedPageMinimumCoverage: CGFloat = 0.2
     private static let pdfRenderScale: CGFloat = 2
     private static let heicQuality: CGFloat = 0.8
 

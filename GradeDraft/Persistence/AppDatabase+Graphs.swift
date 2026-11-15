@@ -7,6 +7,8 @@ import GRDB
 enum SubmissionScope: Sendable {
     case all
     case assignment(UUID)
+    /// Submissions of the assignment that have a draft or a final review.
+    case gradedInAssignment(UUID)
     case submission(UUID)
 
     /// A condition on the `submission` table.
@@ -14,6 +16,11 @@ enum SubmissionScope: Sendable {
         switch self {
         case .all: return "1"
         case .assignment: return "submission.assignmentID = ?"
+        case .gradedInAssignment:
+            return """
+                submission.assignmentID = ? AND (EXISTS (SELECT 1 FROM draft WHERE draft.submissionID = submission.id)
+                OR EXISTS (SELECT 1 FROM finalReview WHERE finalReview.submissionID = submission.id))
+                """
         case .submission: return "submission.id = ?"
         }
     }
@@ -21,7 +28,7 @@ enum SubmissionScope: Sendable {
     var arguments: StatementArguments {
         switch self {
         case .all: return StatementArguments()
-        case .assignment(let id), .submission(let id): return [id]
+        case .assignment(let id), .gradedInAssignment(let id), .submission(let id): return [id]
         }
     }
 }

@@ -151,7 +151,9 @@ struct AssignmentReadiness: Equatable, Sendable {
             draftIssues.append(.aiReadinessNotChecked)
         }
 
-        var draftReviewStartIssues = gradingInputIssues
+        // A finishing draft replaces the final review, so no final review starts while one is running.
+        let finalReviewStartIssues = gradingInputIssues + (draftRunning ? [.draftRunning] : [])
+        var draftReviewStartIssues = finalReviewStartIssues
         if submission.draft == nil {
             draftReviewStartIssues.append(.noCurrentDraft)
         } else if draftIsStale {
@@ -182,7 +184,7 @@ struct AssignmentReadiness: Equatable, Sendable {
         self.setupIssues = setupIssues
         self.scannedTextIssues = scannedTextIssues
         self.draftIssues = draftIssues
-        self.finalReviewStartIssues = gradingInputIssues
+        self.finalReviewStartIssues = finalReviewStartIssues
         self.draftReviewStartIssues = draftReviewStartIssues
         self.approvalIssues = approvalIssues
         self.studentReportIssues = studentReportIssues

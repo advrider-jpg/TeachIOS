@@ -38,7 +38,7 @@ enum CSVExportService {
     /// approved and current; the model's suggestion is only ever shown in `ai_draft_suggestion`.
     static func gradebookCSV(setup: AssignmentSetup, submissions: [SubmissionGraph]) -> String {
         let rubric = setup.parsedRubric.criteria
-        let maxScore = rubric.isEmpty ? "" : GradeTotals.formatted(rubric.reduce(0) { $0 + $1.maxPoints })
+        let rubricMaxScore = rubric.isEmpty ? "" : GradeTotals.formatted(rubric.reduce(0) { $0 + $1.maxPoints })
 
         var rows: [[String]] = [header]
         for submission in submissions {
@@ -50,11 +50,26 @@ enum CSVExportService {
                 SpreadsheetSafety.sanitizedCell(submission.student.localIdentifier),
                 status(of: submission, setup: setup),
                 total,
-                maxScore,
-                submission.draft.map { GradeTotals.formatted($0.totalScore) } ?? ""
+                maxScore(of: submission, setup: setup) ?? rubricMaxScore,
+                currentDraftTotal(of: submission, setup: setup)
             ])
         }
         return "\u{FEFF}" + CSVWriter.string(rows: rows, rowSeparator: "\r\n") + "\r\n"
+    }
+
+    /// The final review's own maximum (rubric maxima, or the criterion maxima when there is no
+    /// structured rubric); nil when there is no final review.
+    private static func maxScore(of submission: SubmissionGraph, setup: AssignmentSetup) -> String? {
+        guard let review = submission.finalReview, !review.criteria.isEmpty else { return nil }
+        let maxima = review.criteria.compactMap { AssignmentReadiness.maximumPoints(for: $0, setup: setup) }
+        guard maxima.count == review.criteria.count else { return nil }
+        return GradeTotals.formatted(maxima.reduce(0, +))
+    }
+
+    /// The AI draft total only while the draft still matches the grading inputs.
+    private static func currentDraftTotal(of submission: SubmissionGraph, setup: AssignmentSetup) -> String {
+        guard let draft = submission.draft, (try? submission.draftIsStale(setup: setup)) == false else { return "" }
+        return GradeTotals.formatted(draft.totalScore)
     }
 
     private static func status(of submission: SubmissionGraph, setup: AssignmentSetup) -> String {

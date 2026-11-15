@@ -6,9 +6,9 @@ struct ExportTests {
     // T5
     @Test func gradebookTotalBlankUntilApprovedCurrentReview() throws {
         let setup = Fixture.setup()
-        let draftOnly = Fixture.submission(name: "Ada Lovelace", localID: "A1", setup: setup, state: .draftOnly)
-        let approved = Fixture.submission(name: "Grace Hopper", localID: "G2", setup: setup, state: .approvedCurrent)
-        let staleApproved = Fixture.submission(name: "Alan Turing", localID: "T3", setup: setup, state: .approvedStale)
+        let draftOnly = try Fixture.submission(name: "Ada Lovelace", localID: "A1", setup: setup, state: .draftOnly)
+        let approved = try Fixture.submission(name: "Grace Hopper", localID: "G2", setup: setup, state: .approvedCurrent)
+        let staleApproved = try Fixture.submission(name: "Alan Turing", localID: "T3", setup: setup, state: .approvedStale)
 
         let csv = CSVExportService.gradebookCSV(setup: setup, submissions: [draftOnly, approved, staleApproved])
 
@@ -27,17 +27,17 @@ struct ExportTests {
         #expect(rows[3] == ["Alan Turing", "T3", "stale_review", "", "20", "17"])
 
         // A name or id that starts with a tab or carriage return (or a formula character) is neutralised.
-        let hostile = Fixture.submission(name: "\t=cmd", localID: "\rid", setup: setup, state: .draftOnly)
+        let hostile = try Fixture.submission(name: "\t=cmd", localID: "\rid", setup: setup, state: .draftOnly)
         let hostileCSV = CSVExportService.gradebookCSV(setup: setup, submissions: [hostile])
         #expect(hostileCSV.contains("\"'\t=cmd\""))
         #expect(hostileCSV.contains("\"'\rid\""))
     }
 
     // T13
-    @Test func reportEscapesMarkdownInStudentText() {
+    @Test func reportEscapesMarkdownInStudentText() throws {
         let setup = Fixture.setup()
         let studentText = "# of apples = 12\n- 3 = 5"
-        let submission = Fixture.submission(name: "Ada Lovelace", localID: "A1", setup: setup, state: .draftOnly, pastedText: studentText)
+        let submission = try Fixture.submission(name: "Ada Lovelace", localID: "A1", setup: setup, state: .draftOnly, pastedText: studentText)
 
         let markdown = MarkdownRenderer.render(
             ReportBuilder.teacherRecord(setup: setup, submission: submission, generatedAt: Date(timeIntervalSince1970: 0))
@@ -81,7 +81,7 @@ private enum Fixture {
             curriculumReference: "",
             assignmentType: .essay,
             rubricText: "Ideas: 10 points\nClarity: 10 points",
-            rubricImportMode: .teacherConfirmed,
+            rubricImportMode: .structuredConfirmed,
             confirmedRubric: rubric,
             customInstructions: "",
             constraintTemplateIDs: [],
@@ -100,7 +100,7 @@ private enum Fixture {
         setup: AssignmentSetup,
         state: State,
         pastedText: String = "Fractions are parts of a whole."
-    ) -> SubmissionGraph {
+    ) throws -> SubmissionGraph {
         let studentID = UUID()
         let submissionID = UUID()
         var graph = SubmissionGraph(
@@ -135,7 +135,7 @@ private enum Fixture {
         graph.draft = GradeDraftResult(
             id: UUID(),
             generatedAt: date,
-            packetFingerprint: graph.packetFingerprint(setup: setup),
+            packetFingerprint: try graph.packetFingerprint(setup: setup),
             status: .generated,
             studentResponseSummary: "",
             criteria: [
@@ -152,7 +152,7 @@ private enum Fixture {
         guard state != .draftOnly else { return graph }
 
         // Final review: the teacher also gives 10 + 7.
-        let fingerprint = state == .approvedCurrent ? graph.packetFingerprint(setup: setup) : "fingerprint-from-before-an-edit"
+        let fingerprint = state == .approvedCurrent ? try graph.packetFingerprint(setup: setup) : "fingerprint-from-before-an-edit"
         graph.finalReview = FinalGradeReview(
             id: UUID(),
             createdAt: date,

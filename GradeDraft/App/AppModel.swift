@@ -110,19 +110,40 @@ final class AppModel {
     // MARK: - Lists
 
     /// Keeps the list data current for as long as the calling task runs (the shell's `.task`).
+    /// Only the tables the lists show (names, setup that decides staleness, work and grading status,
+    /// exports); evidence, audit and criterion rows don't change any list. Changes are coalesced so a
+    /// burst of autosaves or line confirmations reloads the lists once, after the burst.
     func observeLists() async {
         guard let database else { return }
+        let listTables = [
+            "classGroup", "student", "enrollment", "assignment", "appliedTemplate", "curriculumMapping",
+            "submission", "ocrDocument", "ocrLine", "draft", "finalReview", "exportRecord"
+        ]
         let observation = ValueObservation
-            .tracking(region: DatabaseRegion.fullDatabase, fetch: { _ in true })
+            .tracking(regions: listTables.map { Table($0) }, fetch: { _ in true })
             .values(in: database.writer)
+        var pendingRefresh: Task<Void, Never>?
+        var isFirstValue = true
         do {
             for try await _ in observation {
-                await refreshLists(database)
+                if isFirstValue {
+                    isFirstValue = false
+                    await refreshLists(database)
+                    continue
+                }
+                pendingRefresh?.cancel()
+                pendingRefresh = Task { [weak self] in
+                    do { try await Task.sleep(for: Self.listRefreshDelay) } catch { return }
+                    await self?.refreshLists(database)
+                }
             }
         } catch {
             alert = AlertMessage(title: "Saved work could not be read", error: error)
         }
+        pendingRefresh?.cancel()
     }
+
+    private static let listRefreshDelay: Duration = .milliseconds(750)
 
     private func refreshLists(_ database: AppDatabase) async {
         do {

@@ -447,6 +447,10 @@ final class SubmissionSession {
             let input = try GradingPacketBuilder.gradingInput(setup: setup, graph: graph, className: className, mappedItems: mappedItems)
             let draft = try await grading.draftGrade(input: input, progress: progress)
             try Task.checkCancellation()
+            // Saving the draft replaces the final review; never replace one the teacher changed meanwhile.
+            guard try await database.submission(id: submissionID)?.finalReview == graph.finalReview else {
+                throw FinalReviewChangedDuringDraftError()
+            }
             try await database.replaceDraft(draft, submissionID: submissionID)
             try await database.appendAudit(AuditEvent(
                 assignmentID: assignmentID, submissionID: submissionID, eventType: .draftGenerated,
@@ -968,4 +972,11 @@ private struct ActionContext {
     let database: AppDatabase
     let graph: SubmissionGraph
     let setup: AssignmentSetup
+}
+
+/// The teacher changed the final review while a draft was running, so the draft was not saved over it.
+struct FinalReviewChangedDuringDraftError: LocalizedError {
+    var errorDescription: String? {
+        "The final review changed while the draft was running, so the new draft was not saved. Your final review is unchanged."
+    }
 }
