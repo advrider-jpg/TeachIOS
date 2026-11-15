@@ -107,7 +107,8 @@ extension GradeDraftTests {
         graph.submission.pastedText = nil
         let line = OCRLine(text: "Student text", confidence: 0.95, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true)
         graph.ocr = OCRDocument(pages: [OCRPage(pageIndex: 0, lines: [line])], reviewStatus: .reviewed)
-        graph.finalReview?.packetFingerprint = try graph.packetFingerprint(setup: setup)
+        let currentFingerprint = try graph.packetFingerprint(setup: setup)
+        graph.finalReview?.packetFingerprint = currentFingerprint
 
         let record = MarkdownRenderer.render(ReportBuilder.teacherRecord(setup: setup, submission: graph, generatedAt: Date()))
 
