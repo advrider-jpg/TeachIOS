@@ -1,143 +1,43 @@
-# MarkForMe v3
+# MarkForMe
 
-MarkForMe is a local-first iOS/iPadOS repository for a teacher-controlled grading assistant for text-based student work.
+MarkForMe is a local-first iPhone and iPad app that helps teachers mark text-based student work. The teacher supplies a rubric, scans or imports the work, checks the scanned text, and gets a suggested rubric score and feedback drafted on the device. The teacher edits and approves every criterion before a grade is final. MarkForMe is not an autonomous grader.
 
-The core lane is:
+Nothing leaves the device: no backend, no cloud OCR or grading, no analytics, no account login and no network entitlement. Student work, rubrics, draft grades and final grades are never uploaded.
 
-```text
-scan/import/paste/PDF student work -> local OCR where needed -> explicit teacher scanned text review -> local rubric draft or manual review -> criterion-level teacher final review -> local export/archive/backup
-```
+## Teacher use
 
-The repo is deliberately scoped to text evidence workflows. Handwriting, posters, physical models, diagrams, symbolic math, LMS sync, cloud backup, accounts, subscriptions, and autonomous visual-artifact grading remain out of scope unless they are backed by teacher-confirmed evidence workflows and local-only implementation.
+1. Create a class and assignment, and add students by hand or from a roster CSV.
+2. Apply or import a rubric (including Markdown rubrics), answer key, exemplar, custom instructions and Australian Curriculum references from the bundled offline catalog.
+3. Scan, import a PDF or photo, or paste the student's work.
+4. Review the scanned text beside the page image. Edit, confirm or reject each line; low-confidence lines need an explicit decision before the text counts as reviewed.
+5. Draft with on-device AI where Apple Intelligence is available, or go straight to manual final review. If the on-device model is unavailable, MarkForMe says so and does not draft.
+6. Edit each criterion's score, feedback and evidence, then approve the final grade.
+7. Export a student PDF or Markdown report, a teacher record, a gradebook CSV, a ZIP archive or a full local backup, and restore a backup with a preview.
 
-## Source-implemented feature set
+Student reports are available only after the teacher approves a current final review, and they leave out private teacher notes, model output, audit events and OCR internals. Teacher records, archives and backups are sensitive and teacher-only. Exported files are not encrypted once they leave the app.
 
-This patch level implements the complete v3 feature set in source code, tests, documentation, and project-file references:
+## Development
 
-1. Student-facing and teacher-audit PDF export.
-2. Teacher record ZIP archive, assignment gradebook archive, and full local backup archive.
-3. PDF import as student work, including original PDF source ref, rendered page refs, digital-text extraction, and OCR fallback path.
-4. Side-by-side scanned text review with page preview, thumbnails, line list, status, confidence, bounding-box overlay, and navigation.
-5. Per-line OCR correction, confirmation, rejection, and evidence linking.
-6. Bounding-box evidence traceability in teacher UI/report/archive while excluding internal coordinates from student reports.
-7. Markdown rubric import/parser with headings, lists, tables, point ranges, levels, warnings, and teacher-confirmed preview.
-8. Normalized GRDB schema and repository path for assignments, rosters, sources, OCR, rubrics, curriculum mappings, grading packets, reviews, evidence, exports, audit events, and backup/restore events, with JSON payloads retained only as compatibility backup.
-9. Offline curriculum catalog and mapping from local Australian Curriculum source materials, including provenance and non-endorsement warning.
-10. Class roster and multi-student workflow with class/student records, CSV roster preview, duplicate/rejected-row handling, assignment roster statuses, and gradebook CSV.
-11. Backup/restore UI path with warning, restore preview, conflict handling, source-file restoration, and restore audit trail.
+Open `GradeDraft.xcodeproj` in Xcode 26 or later. The minimum deployment target is iOS 17.0; on-device drafting needs a compatible physical device with Apple Intelligence enabled.
 
-## Product promise
+| Purpose | Command |
+|---|---|
+| Repository health | `python3 scripts/repo_health.py` |
+| No-network guardrail | `python3 scripts/no_network_scan.py` |
+| Export hardening guardrail | `python3 scripts/export_hardening_scan.py` |
+| Resolve Swift packages | `xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft` |
+| Lint | `swiftlint lint --config .swiftlint.yml` |
+| Unit tests | `xcodebuild test -project GradeDraft.xcodeproj -scheme GradeDraft -destination 'platform=iPhone Simulator,name=<iPhone simulator>'` |
 
-MarkForMe is not an autonomous grader. It is a teacher-controlled assistant:
+The Python guardrails run anywhere; Xcode, simulator, Vision, PDFKit and Foundation Models behavior must be checked on macOS. CI jobs and local reproduction are described in [CI.md](docs/CI.md).
 
-1. The teacher supplies or confirms the rubric, answer key, exemplar, and custom grading instructions.
-2. The app extracts text locally with Apple Vision and PDFKit where needed.
-3. The teacher reviews and confirms OCR text before grading.
-4. The app proposes rubric scores and feedback using Apple’s on-device language model when available.
-5. The teacher edits or approves each criterion before treating the grade as final.
-6. The app preserves source input, scanned text, reviewed text, model proposal, final review, exports, archive records, curriculum mappings, and audit events as separate local records.
+MarkForMe is not release-ready. TestFlight and App Store submission are blocked until package resolution is committed, Xcode validation and manual device QA are recorded, and real support and privacy URLs exist. See [RELEASE_BLOCKERS.md](docs/release/RELEASE_BLOCKERS.md).
 
-MarkForMe does **not** upload student work, rubrics, prompts, draft grades, or final grades to a server.
+## Documentation
 
-
-## Export hardening posture
-
-MarkForMe's export layer is intentionally separated by audience and sensitivity:
-
-- Student-facing Markdown/PDF reports are final-only. They are blocked until a teacher-approved final review exists and the final review is not stale, and the student report builder does not render draft-only grade content.
-- Student-facing reports exclude private teacher notes, teacher rationale, raw model responses, audit events, source file paths, OCR internals, evidence source references, and bounding-box coordinates.
-- CSV gradebook exports quote every cell, escape embedded quotes, preserve commas/newlines as valid CSV content, and neutralize formula-like text values before writing.
-- Teacher records, teacher archive ZIPs, and full local backups are teacher-only sensitive records. Archives include `archive_inventory.json` so teachers and restore tooling can see what categories of data were included.
-- Generated export filenames avoid assignment titles, student names, class names, and prompts by default. Filenames use the MarkForMe prefix, export kind, timestamp, short identifier, and extension.
-- Export files receive best-effort platform file-protection and exclude-from-backup attributes where supported. This does not make files encrypted after they leave the app.
-
-## Apple framework posture
-
-- OCR: Vision / VisionKit.
-- PDF import/export: PDFKit and UIKit local rendering.
-- Local grading draft: Foundation Models typed guided generation, when available on supported devices.
-- Long grading packets may be drafted criterion-by-criterion or blocked with an explicit local-too-large message; MarkForMe does not silently truncate reviewed student text.
-- Storage: local-first GRDB database with normalized tables.
-- Export: teacher-controlled local Markdown, PDF, CSV, ZIP/archive, and backup files.
-- Minimum deployment target in this scaffold: iOS 17.0.
-- Foundation Models code is guarded with `canImport(FoundationModels)` and iOS availability checks.
-
-If Foundation Models is unavailable, MarkForMe shows a local-unavailable state and refuses to generate an AI grade. It does not fall back to a cloud model. Manual final review remains available.
-
-## Local-only constraints
-
-This repo intentionally contains:
-
-- No backend.
-- No `URLSession` use.
-- No cloud OCR.
-- No cloud grading.
-- No analytics SDK.
-- No remote rubric processing.
-- No account login.
-- No network entitlement request.
-
-Run the guardrails before committing:
-
-```bash
-python3 scripts/no_network_scan.py
-python3 scripts/export_hardening_scan.py
-python3 scripts/repo_health.py
-```
-
-## Open in Xcode
-
-1. Open `GradeDraft.xcodeproj` in Xcode 26 or later for Foundation Models development.
-2. Select an iOS simulator or physical device.
-3. For actual local AI grading, use a compatible physical device with Apple Intelligence enabled and the on-device model ready.
-4. Build and run.
-
-This package was source-checked in a non-Xcode environment. Runtime validation still requires Xcode, GitHub Actions, or a Codex iOS build plugin with Apple SDK access.
-
-## First user flow
-
-1. Create or select a class and assignment.
-2. Add students manually or import a roster CSV with preview.
-3. Apply/import a rubric, answer key, exemplar, custom instructions, and curriculum references.
-4. Scan, import PDF/photo, or paste student work.
-5. Review OCR side by side, edit/confirm/reject lines, and link evidence.
-6. Draft with local AI when available or start manual final review.
-7. Edit final criterion scores, feedback, evidence, rationale, and approval flags.
-8. Approve the teacher-final grade.
-9. Export student PDF/Markdown, teacher PDF/Markdown, CSV, ZIP archive, or full local backup.
-10. Restore a backup with preview and conflict handling when needed.
-
-## Repository layout
-
-```text
-GradeDraft/
-  GradeDraft.xcodeproj/
-  GradeDraft/
-    GradeDraftApp.swift
-    ContentView.swift
-    GradeDraftViewModel.swift
-    Models/
-    Services/
-    Export/
-    Persistence/
-    Rubrics/
-    Views/
-    Resources/
-  GradeDraftTests/
-  docs/
-  scripts/
-```
-
-## Validation notes
-
-Static checks are available through `scripts/repo_health.py` and `scripts/no_network_scan.py`. Xcode build, iOS simulator smoke tests, Vision/PDFKit runtime behavior, and Foundation Models runtime behavior must be validated on macOS with the relevant Apple SDK and device/simulator support.
-
-## Current Release Status
-
-The source implementation is not release-validated as of this checkout. Release readiness remains blocked until Xcode package resolution produces a committed `Package.resolved`, Xcode/SwiftLint/unit/simulator validation passes on macOS, manual simulator/device QA is dated and recorded, and real support/privacy contact URLs are configured. The static release readiness script must fail while those blockers remain.
-
-## Production-readiness patch notes — 2026-05-31
-
-This source tree now includes release configuration scaffolding, an app icon asset catalog, Face ID usage copy, local-data backup-exclusion hardening, a static production-readiness guardrail, and a generated bundled Australian Curriculum Version 9.0 reference catalog. The app runtime remains local-first: curriculum resources are bundled, official entries are read-only, teachers map references explicitly, and no runtime curriculum download path is added.
-
-Before TestFlight or App Store submission, complete the remaining Apple-tooling gates documented in `docs/release/PRODUCTION_READINESS_CHECKLIST.md`: Xcode package resolution, `Package.resolved` commit, simulator/unit validation, unsigned Release build, signed archive/export validation, live support/privacy URLs, and physical-device OCR/LocalAuthentication/Foundation Models smoke tests.
+- [AGENTS.md](AGENTS.md) and [PROJECT_RULES.md](PROJECT_RULES.md): operating and product rules.
+- [CORE_RULES.md](docs/ledgers/CORE_RULES.md): foundational product invariants.
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [DATA_MODEL_V3.md](docs/DATA_MODEL_V3.md): structure and saved data.
+- [OFFLINE_CAPABILITY.md](docs/OFFLINE_CAPABILITY.md): local-only posture.
+- [TEST_PLAN.md](docs/TEST_PLAN.md) and [CI.md](docs/CI.md): verification.
+- [Release documents](docs/release/): blockers, status, QA plan and App Store material.
