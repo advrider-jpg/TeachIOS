@@ -48,7 +48,7 @@ actor CurriculumCatalogService {
     ) async throws -> [CurriculumItem] {
         let match = Self.matchExpression(for: text)
         var conditions: [String] = []
-        var arguments: [any DatabaseValueConvertible] = []
+        var arguments: [(any DatabaseValueConvertible)?] = []
         for (column, value) in [("learningArea", learningArea), ("subject", subject), ("yearLevel", yearLevel)] {
             if let value, !value.isEmpty {
                 conditions.append("item.\(column) = ?")

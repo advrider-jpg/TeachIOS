@@ -316,3 +316,9 @@ enum MarkdownRubricParser {
 private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
 }
+
+private extension Collection {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
+    }
+}
