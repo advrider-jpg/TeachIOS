@@ -22,7 +22,7 @@
     "answerKeyText": "Moon phases are caused by the portion of the lit half of the Moon visible from Earth.",
     "exemplarText": "",
     "curriculumReference": "",
-    "ocrReviewStatus": "notNeeded",
+    "ocrReviewStatus": "reviewed",
     "expected": {
       "mustNotContain": ["careless", "did not understand because", "final grade"],
       "mustContainTeacherReviewReasons": [],

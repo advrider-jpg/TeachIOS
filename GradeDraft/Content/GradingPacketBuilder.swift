@@ -5,8 +5,12 @@ import Foundation
 enum GradingPacketBuilder {
     /// The one place a submission becomes model input. Graded text is only the submission's teacher-reviewed
     /// text (`SubmissionGraph.reviewedText`), never raw scanned text or source images. `className` is the
-    /// submission's class name, used only to redact it from model-visible text.
-    static func gradingInput(setup: AssignmentSetup, graph: SubmissionGraph, className: String) throws -> GradingInput {
+    /// submission's class name, used only to redact it from model-visible text. `mappedItems` are the catalog
+    /// items behind the setup's teacher-confirmed curriculum mappings (never unconfirmed AI suggestions); they
+    /// join the teacher's own curriculum reference text in the packet's curriculum section.
+    static func gradingInput(
+        setup: AssignmentSetup, graph: SubmissionGraph, className: String, mappedItems: [CurriculumItem]
+    ) throws -> GradingInput {
         let assignment = setup.assignment
         let templateIDs = assignment.constraintTemplateIDs
         let reviewedText = graph.reviewedText
@@ -20,6 +24,10 @@ enum GradingPacketBuilder {
         let hasGradingStandard = !assignment.rubricText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || !answerKeyText.isEmpty
             || !exemplarText.isEmpty
+        let curriculumReference = [
+            assignment.curriculumReference.trimmingCharacters(in: .whitespacesAndNewlines),
+            CurriculumCatalogService.selectedReferenceSummary(items: mappedItems)
+        ].filter { !$0.isEmpty }.joined(separator: "\n\n")
         return GradingInput(
             assignmentID: assignment.id,
             assignmentTitle: assignment.title,
@@ -39,7 +47,7 @@ enum GradingPacketBuilder {
             answerKeyText: answerKeyText,
             exemplarText: exemplarText,
             assessmentPurpose: assignment.assessmentPurpose,
-            curriculumReference: assignment.curriculumReference,
+            curriculumReference: curriculumReference,
             reviewedStudentText: reviewedText,
             reviewedTextWithSourceRefs: sourceReferencedText(ocr: graph.ocr, reviewedText: reviewedText),
             ocrQualitySummary: graph.ocr?.qualitySummary ?? OCRQualitySummary(),
@@ -176,7 +184,7 @@ enum GradingPacketBuilder {
 }
 
 enum AIReadinessAnalyzer {
-    /// `input` comes from `GradingPacketBuilder.gradingInput(setup:graph:className:)`; the staleness flags from
+    /// `input` comes from `GradingPacketBuilder.gradingInput(setup:graph:className:mappedItems:)`; the staleness flags from
     /// `SubmissionGraph.draftIsStale(setup:)` and `finalReviewIsStale(setup:)`.
     static func report(
         input: GradingInput,

@@ -1,89 +1,71 @@
 import XCTest
-import ZIPFoundation
 @testable import GradeDraft
 
 extension GradeDraftTests {
-    func testCannotApproveFinalReviewWithUnapprovedCriteria() {
-        let criterion = FinalCriterionScore(
-            criterionID: "claim",
-            criterion: "Claim",
-            rating: "Developing",
-            proposedPoints: 3,
-            finalPoints: 3,
-            maxPoints: 4,
-            evidence: ["Evidence"],
-            explanation: "Partially met.",
-            teacherApproved: false
-        )
-        let assignment = AssignmentRecord(
-            title: "Essay",
-            subject: "ELA",
-            gradeLevel: "7",
-            studentDisplayName: "Kai",
-            assignmentType: .essay,
-            reviewedStudentText: "Student response",
-            latestDraft: nil,
-            finalReview: FinalGradeReview(
-                packetFingerprint: "packet-1",
-                status: .inProgress,
-                criteria: [criterion],
-                totalScore: 0,
-                maxScore: 0,
-                studentFeedback: "Good.",
-                privateTeacherNotes: "Hidden",
-                teacherEdited: true
-            )
-        )
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        XCTAssertFalse(viewModel.canApproveFinalReview)
-        viewModel.approveFinalReview()
-        XCTAssertEqual(viewModel.errorMessage, "Approve all final-review criteria before finalizing.")
-        XCTAssertEqual(viewModel.assignment.finalReview?.status, .inProgress)
+    /// The first rubric criterion's ID (rubric criteria are read from the saved assignment).
+    fileprivate func firstCriterionID(_ app: AppModel, _ seeded: SeededSubmission) async throws -> String {
+        let saved = try await app.requireDatabase().assignmentSetup(id: seeded.assignmentID)
+        let setup = try XCTUnwrap(saved)
+        return try XCTUnwrap(setup.parsedRubric.criteria.first).id
     }
 
-    @MainActor
-    func testCannotApproveStaleFinalReview() {
-        let staleCriterion = FinalCriterionScore(
-            criterionID: "claim",
-            criterion: "Claim",
-            rating: "Proficient",
-            proposedPoints: 3,
-            finalPoints: 4,
-            maxPoints: 4,
-            evidence: ["Evidence"],
-            explanation: "Met.",
-            teacherApproved: true
+    /// Saves a final review for the submission. A nil fingerprint means the current grading inputs.
+    @discardableResult
+    fileprivate func saveReview(
+        _ app: AppModel,
+        _ seeded: SeededSubmission,
+        status: FinalReviewStatus = .inProgress,
+        fingerprint: String? = nil,
+        criteria: [FinalCriterionScore],
+        feedback: String = ""
+    ) async throws -> FinalGradeReview {
+        let current = try await TestApp.fingerprint(app, seeded)
+        let review = FinalGradeReview(
+            packetFingerprint: fingerprint ?? current,
+            status: status,
+            criteria: criteria,
+            studentFeedback: feedback,
+            privateTeacherNotes: "",
+            teacherEdited: true
         )
-        let assignment = AssignmentRecord(
-            title: "Essay",
-            subject: "ELA",
-            gradeLevel: "7",
-            studentDisplayName: "Kai",
-            assignmentType: .essay,
-            rubricText: "Claim: 0-4 points",
-            reviewedStudentText: "Student response",
-            finalReview: FinalGradeReview(
-                packetFingerprint: "legacy-packet",
-                status: .inProgress,
-                criteria: [staleCriterion],
-                totalScore: 4,
-                maxScore: 4,
-                studentFeedback: "Good.",
-                privateTeacherNotes: "",
-                teacherEdited: true
-            )
+        try await app.requireDatabase().saveFinalReview(review, submissionID: seeded.submissionID)
+        return review
+    }
+
+    func testCannotApproveFinalReviewWithUnapprovedCriteria() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student response")
+        let criterion = FinalCriterionScore(
+            criterionID: try await firstCriterionID(app, seeded), rating: "Developing", proposedPoints: 3, finalPoints: 3,
+            explanation: "Partially met.", teacherApproved: false
         )
+        try await saveReview(app, seeded, criteria: [criterion], feedback: "Good.")
+        let session = try await openSession(app, seeded.submissionID)
 
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+        XCTAssertEqual(session.readiness?.canApproveFinalReview, false)
+        await session.approveFinalReview()
 
-        XCTAssertFalse(viewModel.canApproveFinalReview)
-        viewModel.approveFinalReview()
-        XCTAssertEqual(viewModel.errorMessage, "Recheck final review because student work, rubric, or evidence changed.")
-        XCTAssertEqual(viewModel.assignment.finalReview?.status, .inProgress)
+        XCTAssertEqual(session.alert?.message, "Approve all final-review criteria before finalizing.")
+        let saved = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertEqual(saved?.finalReview?.status, .inProgress)
+    }
+
+    func testCannotApproveStaleFinalReview() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student response")
+        let criterion = FinalCriterionScore(
+            criterionID: try await firstCriterionID(app, seeded), rating: "Proficient", proposedPoints: 3, finalPoints: 4,
+            explanation: "Met.", teacherApproved: true
+        )
+        try await saveReview(app, seeded, fingerprint: "legacy-packet", criteria: [criterion], feedback: "Good.")
+        let session = try await openSession(app, seeded.submissionID)
+
+        XCTAssertEqual(session.readiness?.canApproveFinalReview, false)
+        await session.approveFinalReview()
+
+        XCTAssertEqual(session.alert?.message, ReadinessIssue.finalReviewStale.message)
+        let saved = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertEqual(saved?.finalReview?.status, .inProgress)
     }
 
     func testBuiltInTemplateInstructionsIncludeEvidenceSafeguards() {
@@ -96,444 +78,261 @@ extension GradeDraftTests {
         }
     }
 
-    func testManualFinalReviewCanStartWithoutAIDraft() {
-        let assignment = AssignmentRecord(
-            title: "Short answer",
-            rubricText: "Claim: 0-2 points\nEvidence: 0-2 points",
-            reviewedStudentText: "Student wrote something."
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(
-            assignments: [assignment],
-            gradingService: UnavailableLocalGradingService(),
-            store: store
-        )
+    func testManualFinalReviewCanStartWithoutAIDraft() async throws {
+        let app = try TestApp.make(grading: UnavailableLocalGradingService())
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points\nEvidence: 0-2 points", studentWork: "Student wrote something.")
+        let session = try await openSession(app, seeded.submissionID)
 
-        XCTAssertNil(viewModel.assignment.latestDraft, "No AI draft should exist")
-        XCTAssertTrue(viewModel.canStartManualFinalReview, "Manual review should be available")
-        viewModel.startManualFinalReview()
-        XCTAssertNotNil(viewModel.assignment.finalReview, "Final review should be created")
-        XCTAssertEqual(viewModel.assignment.finalReview?.status, .inProgress)
+        XCTAssertNil(session.graph?.draft, "No AI draft should exist")
+        XCTAssertEqual(session.readiness?.canStartFinalReview, true, "Manual review should be available")
+        await session.startManualFinalReview()
+
+        XCTAssertEqual(session.review?.status, .inProgress, "Final review should be created")
+        let saved = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertNotNil(saved?.finalReview)
     }
 
-    func testShortcutManualFinalReviewFailsOpenWhenAssignmentIsNotReady() {
-        let assignment = AssignmentRecord(
-            title: "Short answer",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: ""
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+    func testManualFinalReviewBlockedWithoutReviewedText() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: nil)
+        let session = try await openSession(app, seeded.submissionID)
 
-        viewModel.handleLaunchRequest(AppLaunchRequest(
-            destination: .finalReview,
-            assignmentID: assignment.id,
-            action: .startManualFinalReview
-        ))
+        XCTAssertEqual(session.readiness?.canStartFinalReview, false, "Manual review blocked without reviewed text")
+        await session.startManualFinalReview()
 
-        XCTAssertNil(viewModel.assignment.finalReview)
-        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertNil(session.review)
+        XCTAssertNotNil(session.alert)
+        let saved = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertNil(saved?.finalReview)
     }
 
-    @MainActor
-    func testManualFinalReviewBlockedWithoutReviewedText() {
-        let assignment = AssignmentRecord(
-            title: "Short answer",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: ""
+    func testManualFinalReviewBlockedByScannedTextNeedingReview() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: nil)
+        let line = OCRLine(text: "Student text from OCR", confidence: 0.95, boundingBox: .zero, origin: .visionOCR)
+        _ = try await app.requireDatabase().replaceInput(
+            submissionID: seeded.submissionID, kind: .scanned, pastedText: nil, sources: [],
+            ocr: OCRDocument(pages: [OCRPage(pageIndex: 0, lines: [line])], reviewStatus: .needsReview)
         )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+        let session = try await openSession(app, seeded.submissionID)
 
-        XCTAssertFalse(viewModel.canStartManualFinalReview, "Manual review blocked without reviewed text")
+        XCTAssertEqual(session.readiness?.canStartFinalReview, false, "Manual review blocked when scanned text needs review")
     }
 
-    @MainActor
-    func testManualFinalReviewBlockedByOCRNeedsReview() {
-        let assignment = AssignmentRecord(
-            title: "Scanned work",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student text from OCR",
-            ocrReviewStatus: .needsReview
+    func testManualFinalReviewBlockedByBlockedScannedText() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: nil)
+        let line = OCRLine(text: "Text", confidence: 0.95, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true)
+        _ = try await app.requireDatabase().replaceInput(
+            submissionID: seeded.submissionID, kind: .scanned, pastedText: nil, sources: [],
+            ocr: OCRDocument(pages: [OCRPage(pageIndex: 0, lines: [line])], reviewStatus: .blocked)
         )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+        let session = try await openSession(app, seeded.submissionID)
 
-        XCTAssertFalse(viewModel.canStartManualFinalReview, "Manual review blocked when OCR needs review")
+        XCTAssertEqual(session.readiness?.canStartFinalReview, false, "Manual review blocked when scanned text is blocked")
     }
 
-    @MainActor
-    func testManualFinalReviewBlockedByOCRBlocked() {
-        let assignment = AssignmentRecord(
-            title: "Blocked OCR",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Text",
-            ocrReviewStatus: .blocked
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+    func testManualFinalReviewBlockedWithoutGradingStandard() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "", studentWork: "Student text")
+        let session = try await openSession(app, seeded.submissionID)
 
-        XCTAssertFalse(viewModel.canStartManualFinalReview, "Manual review blocked when OCR is blocked")
+        XCTAssertEqual(session.readiness?.canStartFinalReview, false, "Manual review blocked without any grading standard")
     }
 
-    @MainActor
-    func testManualFinalReviewBlockedWithoutGradingStandard() {
-        let assignment = AssignmentRecord(
-            title: "No rubric",
-            rubricText: "",
-            answerKeyText: "",
-            exemplarText: "",
-            reviewedStudentText: "Student text"
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        XCTAssertFalse(viewModel.canStartManualFinalReview, "Manual review blocked without any grading standard")
-    }
-
-    @MainActor
-    func testFeedbackRewriteSavesTeacherEditedFinalReviewWithoutApproving() async {
-        let draft = GradeDraftResult(
-            packetFingerprint: "test-packet",
-            studentResponseSummary: "Summary",
-            criteria: [
-                CriterionScore(
-                    criterion: "Claim",
-                    rating: "Draft",
-                    proposedPoints: 1,
-                    maxPoints: 2,
-                    evidence: ["Student text"],
-                    explanation: "Draft explanation.",
-                    teacherReviewRequired: false
-                )
-            ],
-            totalScore: 1,
-            maxScore: 2,
-            studentFeedback: "Original feedback.",
-            teacherNotes: "Private note.",
-            uncertaintyFlags: []
-        )
-        var assignment = AssignmentRecord(
-            title: "Rewrite",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student text"
-        )
-        assignment.latestDraft = GradeDraftResult(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: draft.status,
-            studentResponseSummary: draft.studentResponseSummary,
-            criteria: draft.criteria,
-            totalScore: draft.totalScore,
-            maxScore: draft.maxScore,
-            studentFeedback: draft.studentFeedback,
-            teacherNotes: draft.teacherNotes,
-            uncertaintyFlags: draft.uncertaintyFlags
-        )
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .inProgress,
-            criteria: assignment.latestDraft?.criteria.map(FinalCriterionScore.init(from:)) ?? [],
-            totalScore: 1,
-            maxScore: 2,
-            studentFeedback: "Original feedback.",
-            privateTeacherNotes: "Private note.",
-            teacherEdited: true
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(
-            assignments: [assignment],
-            gradingService: ImmediateRewriteGradingService(),
-            store: store
-        )
-
-        await viewModel.rewriteFinalReviewFeedback(mode: .strengthsNextStep)
-
-        XCTAssertEqual(viewModel.assignment.finalReview?.studentFeedback, "The response states a clear claim and can improve by adding one more supporting detail.")
-        XCTAssertEqual(viewModel.assignment.finalReview?.status, .inProgress)
-        XCTAssertTrue(viewModel.assignment.finalReview?.teacherEdited == true)
-        XCTAssertEqual(viewModel.assignment.auditEvents.last?.eventType, .feedbackRewritten)
-    }
-
-    @MainActor
-    func testManualFinalReviewWithAnswerKeyOnlyCreatesTeacherReviewCriterion() {
-        let assignment = AssignmentRecord(
-            title: "Short answer",
-            rubricText: "",
-            answerKeyText: "Expected: two specific examples.",
-            reviewedStudentText: "Student answer here."
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(
-            assignments: [assignment],
-            gradingService: UnavailableLocalGradingService(),
-            store: store
-        )
-
-        viewModel.startManualFinalReview()
-
-        let review = viewModel.assignment.finalReview
-        XCTAssertNotNil(review)
-        XCTAssertEqual(review?.criteria.count, 1, "One teacher-review criterion expected when no parsed rubric")
-        XCTAssertEqual(review?.criteria[0].criterion, "Teacher-entered grading standard")
-        XCTAssertFalse(review?.criteria[0].teacherApproved ?? true)
-    }
-
-    @MainActor
-    func testManualFinalReviewCannotBeApprovedUntilAllCriteriaApproved() {
-        var assignment = AssignmentRecord(
-            title: "Essay",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student text."
-        )
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .inProgress,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim",
-                rating: "",
-                proposedPoints: 0,
-                finalPoints: 2,
-                maxPoints: 2,
-                evidence: [],
-                explanation: "",
-                teacherApproved: false
-            )],
-            totalScore: 2,
-            maxScore: 2,
-            studentFeedback: "",
-            privateTeacherNotes: "",
-            teacherEdited: true
-        )
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        XCTAssertFalse(viewModel.canApproveFinalReview, "Cannot approve while criterion is unapproved")
-    }
-
-    @MainActor
-    func testAddCriterionToFinalReview() {
-        var assignment = AssignmentRecord(
-            title: "Essay",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student text."
-        )
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .inProgress,
-            criteria: [],
-            totalScore: 0,
-            maxScore: 0,
-            studentFeedback: "",
-            privateTeacherNotes: "",
-            teacherEdited: false
-        )
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        viewModel.addCriterionToFinalReview()
-        XCTAssertEqual(viewModel.assignment.finalReview?.criteria.count, 1, "One criterion should be added")
-        XCTAssertFalse(viewModel.assignment.finalReview?.criteria[0].teacherApproved ?? true, "New criterion should not be pre-approved")
-    }
-
-    @MainActor
-    func testDeleteCriterionFromFinalReview() {
+    func testFeedbackRewriteSavesTeacherEditedFinalReviewWithoutApproving() async throws {
+        let app = try TestApp.make(grading: ImmediateRewriteGradingService())
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Student text")
         let criterion = FinalCriterionScore(
-            criterion: "Claim",
-            rating: "",
-            proposedPoints: 0,
-            finalPoints: 2,
-            maxPoints: 2,
-            evidence: [],
-            explanation: "",
-            teacherApproved: true
+            criterionID: try await firstCriterionID(app, seeded), rating: "Draft", proposedPoints: 1, finalPoints: 1,
+            explanation: "Draft explanation."
         )
-        var assignment = AssignmentRecord(
-            title: "Essay",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student text."
-        )
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .inProgress,
-            criteria: [criterion],
-            totalScore: 2,
-            maxScore: 2,
-            studentFeedback: "",
-            privateTeacherNotes: "",
-            teacherEdited: false
-        )
+        try await saveReview(app, seeded, criteria: [criterion], feedback: "Original feedback.")
+        let session = try await openSession(app, seeded.submissionID)
 
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+        await session.rewriteFeedback(mode: .strengthsNextStep)
+        await app.backgroundWork.waitUntilFinished(submissionID: seeded.submissionID)
 
-        viewModel.deleteCriterionFromFinalReview(id: criterion.id)
-        XCTAssertEqual(viewModel.assignment.finalReview?.criteria.count, 0, "Criterion should be deleted")
-        XCTAssertEqual(viewModel.assignment.finalReview?.totalScore, 0, "Total should recalculate to 0")
+        XCTAssertNil(session.workFailure)
+        let graphSaved = try await app.requireDatabase().submission(id: seeded.submissionID)
+        let graph = try XCTUnwrap(graphSaved)
+        XCTAssertEqual(graph.finalReview?.studentFeedback, ImmediateRewriteGradingService.rewrittenFeedback)
+        XCTAssertEqual(graph.finalReview?.status, .inProgress)
+        XCTAssertTrue(graph.finalReview?.teacherEdited == true)
+        XCTAssertEqual(graph.audit.last?.eventType, .feedbackRewritten)
     }
 
-    @MainActor
-    func testApprovalBlockedAfterAddingUnapprovedCriterion() {
-        let approvedCriterion = FinalCriterionScore(
-            criterion: "Claim",
-            rating: "",
-            proposedPoints: 0,
-            finalPoints: 2,
-            maxPoints: 2,
-            evidence: [],
-            explanation: "",
-            teacherApproved: true
-        )
-        var assignment = AssignmentRecord(
-            title: "Essay",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student text."
-        )
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .inProgress,
-            criteria: [approvedCriterion],
-            totalScore: 2,
-            maxScore: 2,
-            studentFeedback: "",
-            privateTeacherNotes: "",
-            teacherEdited: true
-        )
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        XCTAssertTrue(viewModel.canApproveFinalReview, "Should be approvable before adding unapproved criterion")
-        viewModel.addCriterionToFinalReview()
-        XCTAssertFalse(viewModel.canApproveFinalReview, "Should be blocked after adding unapproved criterion")
-    }
-
-    @MainActor
-    func testFinalReviewEvidenceEditRemainsApprovable() {
-        var assignment = AssignmentRecord(
-            title: "Essay",
-            rubricText: "Claim: 0-4 points",
-            reviewedStudentText: "Student text."
-        )
-        assignment.latestDraft = GradeDraftResult(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            studentResponseSummary: "The student makes a claim.",
-            criteria: [CriterionScore(
-                criterionID: "claim",
-                criterion: "Claim",
-                rating: "Proficient",
-                proposedPoints: 3,
-                maxPoints: 4,
-                evidence: ["Student text."],
-                evidenceSourceRefs: [],
-                explanation: "The claim is clear.",
-                teacherReviewRequired: false
-            )],
-            totalScore: 3,
-            maxScore: 4,
-            studentFeedback: "Good work.",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-        viewModel.startFinalReviewFromLatestDraft()
-
-        guard let criterionID = viewModel.assignment.finalReview?.criteria.first?.id else {
-            XCTFail("Expected final review criterion")
-            return
+    func testManualFinalReviewWithAnswerKeyOnlyCreatesTeacherReviewCriterion() async throws {
+        let app = try TestApp.make(grading: UnavailableLocalGradingService())
+        let seeded = try await TestApp.seed(app, rubric: "", studentWork: "Student answer here.") { assignment in
+            assignment.answerKeyText = "Expected: two specific examples."
         }
-        viewModel.addManualEvidenceToFinalReview(criterionID: criterionID, quote: "Teacher-observed evidence")
+        let session = try await openSession(app, seeded.submissionID)
 
-        XCTAssertFalse(
-            viewModel.assignment.finalReviewIsStale,
-            "Teacher evidence edits during final review must not stale-lock the source fingerprint."
-        )
-        XCTAssertFalse(viewModel.canApproveFinalReview, "Evidence edits require the teacher to re-approve the edited criterion.")
-        viewModel.acceptFinalReviewCriterion(id: criterionID)
-        XCTAssertTrue(viewModel.canApproveFinalReview)
+        await session.startManualFinalReview()
+
+        let review = try XCTUnwrap(session.review)
+        XCTAssertEqual(review.criteria.count, 1, "One teacher-review criterion expected when no parsed rubric")
+        XCTAssertEqual(review.criteria[0].title, "Teacher-entered grading standard")
+        XCTAssertFalse(review.criteria[0].teacherApproved)
     }
 
-    func testCSVStatusForNoFinalReview() {
-        let assignment = AssignmentRecord(title: "No review", rubricText: "Claim: 0-4 points", reviewedStudentText: "text")
-        let rows = CSVExportService.buildStudentRows(from: [assignment])
-        let dataRow = rows[1]
-        XCTAssertEqual(dataRow[10], "pending_final_review", "Status should be pending_final_review when no final review")
+    func testManualFinalReviewCannotBeApprovedUntilAllCriteriaApproved() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Student text.")
+        let criterion = FinalCriterionScore(
+            criterionID: try await firstCriterionID(app, seeded), rating: "", proposedPoints: 0, finalPoints: 2,
+            explanation: "", teacherApproved: false
+        )
+        try await saveReview(app, seeded, criteria: [criterion])
+        let session = try await openSession(app, seeded.submissionID)
+
+        XCTAssertEqual(session.readiness?.canApproveFinalReview, false, "Cannot approve while criterion is unapproved")
     }
 
-    func testCSVStatusForApprovedFinalReview() {
-        var assignment = AssignmentRecord(title: "Approved")
-        assignment.rubricText = "Claim: 0-4 points"
-        assignment.reviewedStudentText = "text"
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .approved,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim", rating: "", proposedPoints: 0, finalPoints: 3,
-                maxPoints: 4, evidence: [], explanation: "", teacherApproved: true
-            )],
-            totalScore: 3, maxScore: 4, studentFeedback: "", privateTeacherNotes: "", teacherEdited: true
-        )
-        let rows = CSVExportService.buildStudentRows(from: [assignment])
-        XCTAssertEqual(rows[1][10], "approved", "Status should be approved")
+    func testAddCriterionToFinalReview() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Student text.")
+        try await saveReview(app, seeded, criteria: [])
+        let session = try await openSession(app, seeded.submissionID)
+
+        session.addCriterion()
+
+        XCTAssertEqual(session.review?.criteria.count, 1, "One criterion should be added")
+        XCTAssertEqual(session.review?.criteria[0].teacherApproved, false, "New criterion should not be pre-approved")
     }
 
-    func testCSVStatusForStaleReview() {
-        var assignment = AssignmentRecord(title: "Stale")
-        assignment.rubricText = "Claim: 0-4 points"
-        assignment.reviewedStudentText = "text"
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: "old-fingerprint",
-            status: .approved,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim", rating: "", proposedPoints: 0, finalPoints: 3,
-                maxPoints: 4, evidence: [], explanation: "", teacherApproved: true
-            )],
-            totalScore: 3, maxScore: 4, studentFeedback: "", privateTeacherNotes: "", teacherEdited: true
+    func testDeleteCriterionFromFinalReview() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Student text.")
+        let criterion = FinalCriterionScore(
+            criterionID: try await firstCriterionID(app, seeded), rating: "", proposedPoints: 0, finalPoints: 2,
+            explanation: "", teacherApproved: true
         )
-        let rows = CSVExportService.buildStudentRows(from: [assignment])
-        XCTAssertEqual(rows[1][10], "stale_review", "Status should be stale_review when fingerprint mismatch")
+        try await saveReview(app, seeded, criteria: [criterion])
+        let session = try await openSession(app, seeded.submissionID)
+
+        session.deleteCriterion(criterion.id)
+
+        XCTAssertEqual(session.review?.criteria.count, 0, "Criterion should be deleted")
+        XCTAssertEqual(session.review?.totalScore, 0, "Total should recalculate to 0")
     }
 
-    // MARK: - Source file cleanup test
+    func testApprovalBlockedAfterAddingUnapprovedCriterion() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Student text.")
+        let approved = FinalCriterionScore(
+            criterionID: try await firstCriterionID(app, seeded), rating: "", proposedPoints: 0, finalPoints: 2,
+            explanation: "", teacherApproved: true
+        )
+        try await saveReview(app, seeded, criteria: [approved])
+        let session = try await openSession(app, seeded.submissionID)
 
-    @MainActor
-    func testLocalAIUnavailableDoesNotDisableManualFinalReview() {
-        let assignment = AssignmentRecord(
-            title: "Manual review",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student text."
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(
-            assignments: [assignment],
-            gradingService: UnavailableLocalGradingService(),
-            store: store
-        )
-        XCTAssertTrue(viewModel.canStartManualFinalReview, "Manual review should be available when local AI is unavailable")
+        XCTAssertEqual(session.readiness?.canApproveFinalReview, true, "Should be approvable before adding unapproved criterion")
+        session.addCriterion()
+        XCTAssertEqual(session.readiness?.canApproveFinalReview, false, "Should be blocked after adding unapproved criterion")
     }
 
-    // MARK: - scanned text review tests
+    func testFinalReviewEvidenceEditRemainsApprovable() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student text.")
+        let database = try app.requireDatabase()
+        try await database.replaceDraft(
+            GradeDraftResult(
+                packetFingerprint: try await TestApp.fingerprint(app, seeded),
+                studentResponseSummary: "The student makes a claim.",
+                criteria: [CriterionScore(
+                    criterionID: try await firstCriterionID(app, seeded), rating: "Proficient", proposedPoints: 3,
+                    evidenceQuotes: ["Student text."], explanation: "The claim is clear.", teacherReviewRequired: false
+                )],
+                studentFeedback: "Good work.",
+                teacherNotes: "",
+                uncertaintyFlags: []
+            ),
+            submissionID: seeded.submissionID
+        )
+        let session = try await openSession(app, seeded.submissionID)
+        await session.startFinalReviewFromDraft()
+        let criterionID = try XCTUnwrap(session.review?.criteria.first?.id)
 
-    @MainActor
-    func testTeacherAuditReportIncludesEvidenceTraceability() {
-        let lineID = UUID()
-        var assignment = AssignmentRecord(title: "Audit", reviewedStudentText: "Evidence")
-        assignment.evidenceReferences = [EvidenceReference(
-            sourceInputID: UUID(),
-            ocrLineID: lineID,
+        await session.addManualEvidence(quote: "Teacher-observed evidence", to: criterionID)
+
+        XCTAssertEqual(session.readiness?.finalReviewIsStale, false,
+                       "Teacher evidence edits during final review must not stale-lock the source fingerprint.")
+        XCTAssertEqual(session.readiness?.canApproveFinalReview, false, "Evidence edits require the teacher to re-approve the edited criterion.")
+        session.acceptCriterion(criterionID)
+        XCTAssertEqual(session.readiness?.canApproveFinalReview, true)
+    }
+
+    // MARK: - Gradebook status
+
+    private func gradebookStatus(final status: FinalReviewStatus?, fingerprint: String?) throws -> String {
+        let setup = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "Status", rubricText: "Claim: 0-4 points"))
+        var graph = SubmissionGraph(
+            submission: Submission(assignmentID: setup.id, studentID: UUID(), inputKind: .pasted, pastedText: "text"),
+            student: Student(displayName: "Kai")
+        )
+        if let status {
+            graph.finalReview = FinalGradeReview(
+                packetFingerprint: try fingerprint ?? graph.packetFingerprint(setup: setup),
+                status: status,
+                criteria: [FinalCriterionScore(
+                    criterionID: setup.parsedRubric.criteria[0].id, rating: "", proposedPoints: 0, finalPoints: 3,
+                    explanation: "", teacherApproved: true
+                )],
+                studentFeedback: "",
+                privateTeacherNotes: "",
+                teacherEdited: true
+            )
+        }
+        let rows = try CSVParser.parseRows(CSVExportService.gradebookCSV(setup: setup, submissions: [graph]).replacingOccurrences(of: "\u{FEFF}", with: ""))
+        return rows[1][2]
+    }
+
+    func testGradebookStatusForNoFinalReview() throws {
+        XCTAssertEqual(try gradebookStatus(final: nil, fingerprint: nil), "pending_final_review",
+                       "Status should be pending_final_review when no final review")
+    }
+
+    func testGradebookStatusForApprovedFinalReview() throws {
+        XCTAssertEqual(try gradebookStatus(final: .approved, fingerprint: nil), "approved", "Status should be approved")
+    }
+
+    func testGradebookStatusForStaleReview() throws {
+        XCTAssertEqual(try gradebookStatus(final: .approved, fingerprint: "old-fingerprint"), "stale_review",
+                       "Status should be stale_review when fingerprint mismatch")
+    }
+
+    // MARK: - Manual review with AI unavailable, and the teacher record's evidence
+
+    func testLocalAIUnavailableDoesNotDisableManualFinalReview() async throws {
+        let app = try TestApp.make(grading: UnavailableLocalGradingService())
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Student text.")
+        let session = try await openSession(app, seeded.submissionID)
+
+        XCTAssertEqual(session.readiness?.canStartFinalReview, true, "Manual review should be available when local AI is unavailable")
+    }
+
+    func testTeacherRecordIncludesEvidenceTraceability() throws {
+        let setup = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "Audit", rubricText: "Claim: 0-4 points"))
+        var graph = SubmissionGraph(
+            submission: Submission(assignmentID: setup.id, studentID: UUID(), inputKind: .pasted, pastedText: "Evidence"),
+            student: Student(displayName: "Kai")
+        )
+        graph.evidence = [EvidenceReference(
+            submissionID: graph.submission.id,
+            ocrLineID: UUID(),
             pageIndex: 0,
             quote: "Evidence",
-            startOffset: nil,
-            endOffset: nil,
             boundingBox: NormalizedRect(x: 0.1, y: 0.2, width: 0.3, height: 0.4),
-            sourceKind: "ocrLine",
+            sourceKind: .ocrLine,
             teacherConfirmed: true
         )]
-        let audit = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment)
-        XCTAssertTrue(audit.contains("Evidence"))
-        XCTAssertTrue(audit.contains("bbox"))
+
+        let record = MarkdownRenderer.render(ReportBuilder.teacherRecord(setup: setup, submission: graph, generatedAt: Date()))
+
+        XCTAssertTrue(record.contains("Evidence"))
+        XCTAssertTrue(record.contains("\"Evidence\" (page 1)"))
+        XCTAssertTrue(record.contains("bbox: x:0.1000 y:0.2000 w:0.3000 h:0.4000"))
     }
 }

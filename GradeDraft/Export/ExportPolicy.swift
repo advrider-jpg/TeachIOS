@@ -37,7 +37,7 @@ struct ExportContentPolicy: Equatable, Identifiable {
         if includesPrivateTeacherNotes { lines.append("Includes private teacher notes.") }
         if includesAuditEvents { lines.append("Includes audit events.") }
         if includesInternalMetadata { lines.append("Includes internal metadata or fingerprints.") }
-        if kind == .csvGradebook || kind == .assignmentGradebookArchive { lines.append("Spreadsheet formula-like text is neutralized before export.") }
+        if kind == .csvGradebook { lines.append("Spreadsheet formula-like text is neutralized before export.") }
         return lines
     }
 }
@@ -213,54 +213,6 @@ extension ExportKind {
                 includesAuditEvents: true,
                 includesInternalMetadata: true
             )
-        case .backupJSON:
-            return ExportContentPolicy(
-                kind: self,
-                warningTitle: "Legacy backup record",
-                warningBody: "This legacy backup classification represents complete sensitive local records if used. Prefer the full backup archive flow.",
-                primaryButtonTitle: "Create Backup",
-                secondaryButtonTitle: "Cancel",
-                isStudentFacing: false,
-                isTeacherOnly: true,
-                requiresApprovedFinalReview: false,
-                requiresShareWarning: true,
-                requiresLocalAuthenticationWhenAvailable: true,
-                includesStudentNames: true,
-                includesAssignmentWork: true,
-                includesReviewedText: true,
-                includesOCRText: true,
-                includesSourceFiles: false,
-                includesFinalGrades: true,
-                includesDraftGrades: true,
-                includesStudentFeedback: true,
-                includesPrivateTeacherNotes: true,
-                includesAuditEvents: true,
-                includesInternalMetadata: true
-            )
-        case .assignmentGradebookArchive:
-            return ExportContentPolicy(
-                kind: self,
-                warningTitle: "Gradebook archive ZIP",
-                warningBody: "This ZIP contains teacher-only gradebook records including assignment data, reports, OCR documents, evidence references, and original files when available. Treat it as sensitive student data.",
-                primaryButtonTitle: "Create Gradebook Archive",
-                secondaryButtonTitle: "Cancel",
-                isStudentFacing: false,
-                isTeacherOnly: true,
-                requiresApprovedFinalReview: false,
-                requiresShareWarning: true,
-                requiresLocalAuthenticationWhenAvailable: true,
-                includesStudentNames: true,
-                includesAssignmentWork: true,
-                includesReviewedText: true,
-                includesOCRText: true,
-                includesSourceFiles: true,
-                includesFinalGrades: true,
-                includesDraftGrades: true,
-                includesStudentFeedback: true,
-                includesPrivateTeacherNotes: true,
-                includesAuditEvents: true,
-                includesInternalMetadata: true
-            )
         }
     }
 }
@@ -319,9 +271,9 @@ extension ExportRiskSummary {
         switch exportKind {
         case .studentMarkdown, .studentPDF:
             return false
-        case .csvGradebook, .assignmentGradebookArchive:
+        case .csvGradebook:
             return items.contains { ExportPolicy.gradebookContainsDraftState(setup: $0.setup, submission: $0.submission) }
-        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .backupJSON, .fullBackupArchive:
+        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .fullBackupArchive:
             return items.contains { ExportPolicy.containsDraftGradingContent(setup: $0.setup, submission: $0.submission) }
         }
     }
@@ -330,7 +282,7 @@ extension ExportRiskSummary {
         switch exportKind {
         case .studentMarkdown, .studentPDF, .csvGradebook:
             return false
-        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .backupJSON, .fullBackupArchive, .assignmentGradebookArchive:
+        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .fullBackupArchive:
             return true
         }
     }
@@ -341,7 +293,7 @@ extension ExportRiskSummary {
         sourceAvailability: ((setup: AssignmentSetup, submission: SubmissionGraph)) -> Bool
     ) -> Bool {
         switch exportKind {
-        case .zipArchive, .fullBackupArchive, .assignmentGradebookArchive:
+        case .zipArchive, .fullBackupArchive:
             return items.contains(where: sourceAvailability)
         default:
             return false

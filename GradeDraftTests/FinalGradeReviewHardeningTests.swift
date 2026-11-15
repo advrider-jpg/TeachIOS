@@ -4,53 +4,44 @@ import XCTest
 // MARK: - FinalGradeReview / FinalCriterionScore edge cases
 
 final class FinalGradeReviewHardeningTests: XCTestCase {
-    func testAllCriteriaApprovedWhenEmpty() {
-        let review = FinalGradeReview(
-            criteria: [],
-            totalScore: 0, maxScore: 0,
-            studentFeedback: "", privateTeacherNotes: "", teacherEdited: false
+    private func review(_ criteria: [FinalCriterionScore], teacherEdited: Bool) -> FinalGradeReview {
+        FinalGradeReview(
+            packetFingerprint: "fp",
+            criteria: criteria,
+            studentFeedback: "", privateTeacherNotes: "", teacherEdited: teacherEdited
         )
-        XCTAssertFalse(review.allCriteriaApproved, "Empty criteria should not be 'all approved'")
+    }
+
+    private func criterion(_ id: String, approved: Bool) -> FinalCriterionScore {
+        FinalCriterionScore(criterionID: id, rating: "", proposedPoints: 0, finalPoints: 1, explanation: "", teacherApproved: approved)
+    }
+
+    func testAllCriteriaApprovedWhenEmpty() {
+        XCTAssertFalse(review([], teacherEdited: false).allCriteriaApproved, "Empty criteria should not be 'all approved'")
     }
 
     func testAllCriteriaApprovedWhenAllApproved() {
-        let review = FinalGradeReview(
-            criteria: [
-                FinalCriterionScore(criterion: "A", rating: "", proposedPoints: 0, finalPoints: 1, maxPoints: 1, evidence: [], explanation: "", teacherApproved: true),
-                FinalCriterionScore(criterion: "B", rating: "", proposedPoints: 0, finalPoints: 1, maxPoints: 1, evidence: [], explanation: "", teacherApproved: true)
-            ],
-            totalScore: 2, maxScore: 2,
-            studentFeedback: "", privateTeacherNotes: "", teacherEdited: true
-        )
-        XCTAssertTrue(review.allCriteriaApproved)
+        XCTAssertTrue(review([criterion("A", approved: true), criterion("B", approved: true)], teacherEdited: true).allCriteriaApproved)
     }
 
     func testAllCriteriaApprovedFalseWhenOneUnapproved() {
-        let review = FinalGradeReview(
-            criteria: [
-                FinalCriterionScore(criterion: "A", rating: "", proposedPoints: 0, finalPoints: 1, maxPoints: 1, evidence: [], explanation: "", teacherApproved: true),
-                FinalCriterionScore(criterion: "B", rating: "", proposedPoints: 0, finalPoints: 1, maxPoints: 1, evidence: [], explanation: "", teacherApproved: false)
-            ],
-            totalScore: 2, maxScore: 2,
-            studentFeedback: "", privateTeacherNotes: "", teacherEdited: true
-        )
-        XCTAssertFalse(review.allCriteriaApproved)
+        XCTAssertFalse(review([criterion("A", approved: true), criterion("B", approved: false)], teacherEdited: true).allCriteriaApproved)
     }
 
     func testFinalCriterionScoreInitFromDraft() {
         let draft = CriterionScore(
             criterionID: "c-1",
-            criterion: "Claim",
             rating: "Good",
             proposedPoints: 3,
-            maxPoints: 4,
-            evidence: ["evidence"],
+            evidenceQuotes: ["evidence"],
             explanation: "explanation",
-            teacherReviewRequired: true
+            teacherReviewRequired: true,
+            title: "Claim",
+            maxPoints: 4
         )
         let final = FinalCriterionScore(from: draft)
         XCTAssertEqual(final.criterionID, "c-1")
-        XCTAssertEqual(final.criterion, "Claim")
+        XCTAssertEqual(final.title, "Claim")
         XCTAssertEqual(final.proposedPoints, 3)
         XCTAssertEqual(final.finalPoints, 3, "finalPoints should default to proposedPoints")
         XCTAssertEqual(final.maxPoints, 4)
@@ -60,11 +51,10 @@ final class FinalGradeReviewHardeningTests: XCTestCase {
 
     func testFinalCriterionScoreInitFromDraftNoReviewRequired() {
         let draft = CriterionScore(
-            criterion: "Claim",
+            criterionID: "c-1",
             rating: "Good",
             proposedPoints: 3,
-            maxPoints: 4,
-            evidence: ["evidence"],
+            evidenceQuotes: ["evidence"],
             explanation: "explanation",
             teacherReviewRequired: false
         )

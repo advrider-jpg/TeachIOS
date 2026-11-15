@@ -1,5 +1,4 @@
 import XCTest
-import ZIPFoundation
 @testable import GradeDraft
 
 extension GradeDraftTests {
@@ -18,96 +17,68 @@ extension GradeDraftTests {
         }
     }
 
-    // MARK: - Manual final review tests
+    // MARK: - AI draft screen and drafting
 
-    @MainActor
-    func testAIReadinessLaunchRequestPreparesPreviewWithoutDrafting() {
-        let assignment = AssignmentRecord(
-            title: "Short answer",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student wrote a claim.",
-            ocrReviewStatus: .notNeeded
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+    func testPreparingTheAIDraftScreenBuildsPreviewWithoutDrafting() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Student wrote a claim.")
+        let session = try await openSession(app, seeded.submissionID)
 
-        viewModel.handleLaunchRequest(AppLaunchRequest(
-            destination: .aiReadiness,
-            assignmentID: assignment.id,
-            action: .preparePacketPreview
-        ))
+        await session.prepareAIDraft()
 
-        XCTAssertEqual(viewModel.aiReadinessReport?.assignmentID, assignment.id)
-        XCTAssertEqual(viewModel.aiPacketPreview?.assignmentID, assignment.id)
-        XCTAssertNil(viewModel.assignment.latestDraft)
-        XCTAssertNil(viewModel.assignment.finalReview)
+        XCTAssertEqual(session.aiReadiness?.assignmentID, seeded.assignmentID)
+        XCTAssertEqual(session.packetPreview?.assignmentID, seeded.assignmentID)
+        let graph = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertNil(graph?.draft)
+        XCTAssertNil(graph?.finalReview)
     }
 
-    @MainActor
     func testCancellingLocalDraftDoesNotSaveDraft() async throws {
-        let assignment = AssignmentRecord(
-            title: "Cancelable draft",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student text"
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(
-            assignments: [assignment],
-            gradingService: SlowCancellableGradingService(),
-            store: store
-        )
+        let app = try TestApp.make(grading: SlowCancellableGradingService())
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Student text")
+        let session = try await openSession(app, seeded.submissionID)
+        await session.prepareAIDraft()
 
-        viewModel.confirmAndDraftGrade()
-        try await Task.sleep(nanoseconds: 50_000_000)
-        XCTAssertTrue(viewModel.canCancelDraftGeneration)
-        XCTAssertEqual(viewModel.aiGenerationProgress.stage, .requestingModel)
+        session.startDraft()
+        try await waitForCondition { session.generationProgress.stage == .requestingModel }
+        XCTAssertEqual(session.runningWork, .draft)
+        XCTAssertTrue(session.generationProgress.canCancel)
 
-        viewModel.cancelDraftGeneration()
-        try await Task.sleep(nanoseconds: 100_000_000)
+        session.cancelDraft()
+        await app.backgroundWork.waitUntilFinished(submissionID: seeded.submissionID)
 
-        XCTAssertEqual(viewModel.aiGenerationProgress.stage, .cancelled)
-        XCTAssertNil(viewModel.assignment.latestDraft)
-        XCTAssertFalse(viewModel.isWorking)
-        XCTAssertEqual(viewModel.statusMessage, "Local draft cancelled. No draft was saved.")
+        let graph = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertNil(graph?.draft)
+        XCTAssertNil(session.runningWork)
+        XCTAssertNil(session.workFailure, "A cancelled draft is not a failure")
     }
 
-    @MainActor
-    func testCompletedLocalDraftProgressRequiresSavedDraft() async throws {
-        let assignment = AssignmentRecord(
-            title: "Fast draft",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student text"
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(
-            assignments: [assignment],
-            gradingService: ImmediateProgressGradingService(),
-            store: store
-        )
+    /// Changed expectation: the session no longer sets a "completed" progress stage or a status message; a
+    /// finished draft is shown by the saved draft itself (and its audit event), which is what this checks.
+    func testCompletedLocalDraftIsSavedAndRecorded() async throws {
+        let app = try TestApp.make(grading: ImmediateProgressGradingService())
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Student text")
+        let session = try await openSession(app, seeded.submissionID)
+        await session.prepareAIDraft()
 
-        viewModel.confirmAndDraftGrade()
-        try await Task.sleep(nanoseconds: 100_000_000)
+        session.startDraft()
+        await app.backgroundWork.waitUntilFinished(submissionID: seeded.submissionID)
 
-        XCTAssertEqual(viewModel.aiGenerationProgress.stage, .completed)
-        XCTAssertNotNil(viewModel.assignment.latestDraft)
-        XCTAssertFalse(viewModel.isWorking)
-        XCTAssertEqual(viewModel.assignment.auditEvents.last?.eventType, .draftGenerated)
+        let graphSaved = try await app.requireDatabase().submission(id: seeded.submissionID)
+        let graph = try XCTUnwrap(graphSaved)
+        XCTAssertNotNil(graph.draft)
+        let fingerprint = try await TestApp.fingerprint(app, seeded)
+        XCTAssertEqual(graph.draft?.packetFingerprint, fingerprint)
+        XCTAssertNil(session.runningWork)
+        XCTAssertNil(session.workFailure)
+        XCTAssertEqual(graph.audit.last?.eventType, .draftGenerated)
     }
 
-    @MainActor
-    func testLocalAIUnavailableDisablesDraftButton() {
-        let assignment = AssignmentRecord(
-            title: "Short answer",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student text."
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(
-            assignments: [assignment],
-            gradingService: UnavailableLocalGradingService(),
-            store: store
-        )
-        XCTAssertFalse(viewModel.canDraftGrade, "AI draft button should be disabled when local AI unavailable")
-    }
+    func testLocalAIUnavailableDisablesDraftButton() async throws {
+        let app = try TestApp.make(grading: UnavailableLocalGradingService())
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Student text.")
+        let session = try await openSession(app, seeded.submissionID)
 
+        XCTAssertEqual(session.readiness?.canDraft, false, "AI draft button should be disabled when local AI unavailable")
+    }
 }

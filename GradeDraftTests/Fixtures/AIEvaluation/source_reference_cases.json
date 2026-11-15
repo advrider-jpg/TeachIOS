@@ -23,7 +23,7 @@
     "answerKeyText": "",
     "exemplarText": "",
     "curriculumReference": "",
-    "ocrReviewStatus": "notNeeded",
+    "ocrReviewStatus": "reviewed",
     "expected": {
       "mustNotContain": ["source unknown", "final grade"],
       "mustContainTeacherReviewReasons": ["sourceReferenceRequired"],

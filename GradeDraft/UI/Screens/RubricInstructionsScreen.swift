@@ -495,6 +495,19 @@ struct RubricInstructionsScreen: View {
                 }
             }
             .id(RubricPart.constraints)
+            Button {
+                Task { await model.applyRecommendedConstraints() }
+            } label: {
+                Label("Apply Recommended", systemImage: "checklist.checked")
+            }
+            .accessibilityIdentifier("rubric.constraintsApplyRecommended")
+            Button {
+                Task { await model.clearConstraints() }
+            } label: {
+                Label("Clear", systemImage: "xmark.circle")
+            }
+            .disabled(setup.assignment.constraintTemplateIDs.isEmpty)
+            .accessibilityIdentifier("rubric.constraintsClear")
             ForEach(GradingConstraintTemplates.builtIn) { template in
                 Toggle(isOn: constraintBinding(template, selected: setup.assignment.constraintTemplateIDs)) {
                     VStack(alignment: .leading, spacing: 4) {

@@ -35,38 +35,61 @@ final class CurriculumCatalogProductionTests: XCTestCase {
         })
     }
 
+    /// A reference the teacher maps to the assignment must reach the grading packet; nothing else does.
     @MainActor
     func testOnlyTeacherMappedCurriculumReferencesEnterGradingPacket() async throws {
-        let item = try XCTUnwrap(try await CurriculumCatalogService().search("evidence", limit: 1).first)
-        var assignment = AssignmentRecord(
-            title: "Curriculum Packet",
-            rubricText: "Evidence: 0-4 points",
-            reviewedStudentText: "The student uses evidence.",
-            ocrReviewStatus: .reviewed
+        let found = try await CurriculumCatalogService().search("evidence", limit: 1)
+        let item = try XCTUnwrap(found.first)
+        var fixture = try ExportFixtureFactory.baseAssignment(title: "Curriculum Packet")
+        fixture.setup.assignment.curriculumReference = ""
+        let database = try AppDatabase.inMemory()
+        _ = try await database.restore(fixture.snapshot, resolutions: [:])
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CurriculumPacket-\(UUID().uuidString)", isDirectory: true)
+        let app = AppModel(
+            openStorage: { AppModel.Storage(database: database, root: root) },
+            services: PreviewFixtures.previewServices()
         )
-        assignment.curriculumReference = ""
-        assignment.curriculumMappings = []
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: InMemoryAssignmentStore(assignments: [assignment]))
+        let model = AssignmentSetupModel(assignmentID: fixture.setup.id, app: app)
+        let observing = Task { await model.observe() }
+        defer { observing.cancel() }
+        try await waitUntil { model.hasLoaded }
 
-        XCTAssertNil(viewModel.assignment.gradingPacket.curriculumReference)
-        viewModel.mapCurriculumItemToCurrentAssignment(item)
+        func packetReference() async throws -> GradingPacketCurriculumReference? {
+            let storedSetup = try await database.assignmentSetup(id: fixture.setup.id)
+            let storedGraph = try await database.submission(id: fixture.submission.id)
+            let confirmedIDs = try XCTUnwrap(storedSetup).curriculumMappings.filter(\.teacherConfirmed).map(\.curriculumItemID)
+            let input = try GradingPacketBuilder.gradingInput(
+                setup: try XCTUnwrap(storedSetup), graph: try XCTUnwrap(storedGraph), className: fixture.className,
+                mappedItems: try await CurriculumCatalogService().items(ids: confirmedIDs)
+            )
+            return GradingPacketBuilder.packet(from: input).curriculumReference
+        }
 
-        let packetReference = viewModel.assignment.gradingPacket.curriculumReference
-        XCTAssertNotNil(packetReference)
-        XCTAssertTrue(packetReference?.rawText.contains(item.code) == true)
-        XCTAssertTrue(packetReference?.mappings.contains(where: { $0.contains(item.id) }) == true)
+        let before = try await packetReference()
+        XCTAssertNil(before)
+        await model.addMapping(itemID: item.id)
+
+        let after = try await packetReference()
+        XCTAssertNotNil(after)
+        XCTAssertTrue(after?.rawText.contains(item.code) == true)
     }
 
     func testPromptRulesForbidInventedCurriculumAlignment() {
-        let input = AssignmentRecord(
-            title: "Prompt Rules",
-            rubricText: "Evidence: 0-4 points",
-            reviewedStudentText: "The student uses evidence.",
-            ocrReviewStatus: .reviewed
-        ).gradingInput
-        let instructions = PromptBuilder.gradingInstructionsText(input: input)
+        let instructions = PromptBuilder.gradingInstructionsText()
         XCTAssertTrue(instructions.localizedCaseInsensitiveContains("Do not invent"))
         XCTAssertTrue(instructions.localizedCaseInsensitiveContains("standard codes"))
         XCTAssertTrue(instructions.localizedCaseInsensitiveContains("jurisdiction compliance"))
+    }
+}
+
+private struct HarnessTimeout: Error {}
+
+@MainActor
+private func waitUntil(timeout: Duration = .seconds(5), _ condition: @MainActor () -> Bool) async throws {
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: timeout)
+    while !condition() {
+        guard clock.now < deadline else { throw HarnessTimeout() }
+        try await Task.sleep(for: .milliseconds(20))
     }
 }

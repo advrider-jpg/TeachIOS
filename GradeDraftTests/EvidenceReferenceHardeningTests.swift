@@ -6,10 +6,11 @@ import XCTest
 final class EvidenceReferenceHardeningTests: XCTestCase {
     func testDisplaySourceWithOCRLineID() {
         let ref = EvidenceReference(
+            submissionID: UUID(),
             ocrLineID: UUID(),
             pageIndex: 2,
             quote: "quote",
-            sourceKind: "ocrLine",
+            sourceKind: .ocrLine,
             teacherConfirmed: true
         )
         XCTAssertTrue(ref.displaySource.contains("page 3"))
@@ -18,9 +19,10 @@ final class EvidenceReferenceHardeningTests: XCTestCase {
 
     func testDisplaySourceWithoutOCRLineID() {
         let ref = EvidenceReference(
+            submissionID: UUID(),
             pageIndex: 0,
             quote: "quote",
-            sourceKind: "text",
+            sourceKind: .manualTeacherEntry,
             teacherConfirmed: true
         )
         XCTAssertTrue(ref.displaySource.contains("page 1"))
@@ -29,8 +31,9 @@ final class EvidenceReferenceHardeningTests: XCTestCase {
 
     func testDisplaySourceWithoutPageIndex() {
         let ref = EvidenceReference(
+            submissionID: UUID(),
             quote: "quote",
-            sourceKind: "text",
+            sourceKind: .manualTeacherEntry,
             teacherConfirmed: true
         )
         XCTAssertTrue(ref.displaySource.contains("reviewed text"))

@@ -23,8 +23,6 @@ extension ExportKind {
         case .csvGradebook: return "GradebookCSV"
         case .zipArchive: return "TeacherArchive"
         case .fullBackupArchive: return "FullBackup"
-        case .backupJSON: return "BackupJSON"
-        case .assignmentGradebookArchive: return "GradebookArchive"
         }
     }
 }

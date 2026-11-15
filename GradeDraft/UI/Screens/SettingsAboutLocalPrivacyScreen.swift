@@ -2,7 +2,16 @@ import SwiftUI
 
 struct SettingsAboutLocalPrivacyScreen: View {
     @Environment(AppModel.self) private var appModel
-    @State private var backupStatus: DeviceBackupPolicyStatus = .unknown("Backup exclusion has not been checked yet.")
+    @State private var showingBackupToggleWarning = false
+
+    /// The device-backup setting as the saved-work files report it.
+    private var backupStatus: DeviceBackupPolicyStatus {
+        switch appModel.deviceBackupIncluded {
+        case .some(true): return .included
+        case .some(false): return .excluded
+        case .none: return .unknown("The platform did not report a consistent exclusion value for the saved work.")
+        }
+    }
 
     var body: some View {
         Form {
@@ -21,11 +30,28 @@ struct SettingsAboutLocalPrivacyScreen: View {
 
             Section {
                 storageRows
-                StatusLabel(backupPolicyUIStatus, subject: "Device backup status")
-                    .accessibilityIdentifier("settings.backupStatus")
+                LabeledContent("Device Backup Setting") {
+                    StatusLabel(backupPolicyUIStatus, subject: "Device backup status")
+                        .accessibilityIdentifier("settings.backupStatus")
+                }
                 Text(backupStatus.summary)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("settings.backupSummary")
+                Button {
+                    if backupStatus.isExcluded {
+                        showingBackupToggleWarning = true
+                    } else {
+                        Task { await appModel.setDeviceBackupIncluded(false) }
+                    }
+                } label: {
+                    Label(
+                        backupStatus.isExcluded ? "Review Backup Inclusion" : "Keep Local Only",
+                        systemImage: backupStatus.isExcluded ? "externaldrive.badge.icloud" : "lock.shield"
+                    )
+                }
+                .disabled(appModel.database == nil)
+                .accessibilityIdentifier("settings.backupToggle")
             } header: {
                 Text("Local Storage")
             } footer: {
@@ -48,7 +74,19 @@ struct SettingsAboutLocalPrivacyScreen: View {
         .navigationTitle("Privacy & Storage")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: appModel.storageRoot) {
-            backupStatus = readBackupStatus()
+            appModel.refreshDeviceBackupStatus()
+        }
+        .confirmationDialog(backupToggleWarningTitle, isPresented: $showingBackupToggleWarning, titleVisibility: .visible) {
+            Button(backupTogglePrimaryButton) {
+                Task { await appModel.setDeviceBackupIncluded(true) }
+            }
+            .accessibilityIdentifier("settings.backupEnable")
+            Button(backupToggleSecondaryButton, role: .cancel) {
+                Task { await appModel.setDeviceBackupIncluded(false) }
+            }
+            .accessibilityIdentifier("settings.backupKeepLocal")
+        } message: {
+            Text(backupToggleWarningBody)
         }
     }
 
@@ -76,18 +114,20 @@ struct SettingsAboutLocalPrivacyScreen: View {
         backupStatus.isExcluded ? .teacherOnly : .needsAttention
     }
 
-    private func readBackupStatus() -> DeviceBackupPolicyStatus {
-        guard let root = appModel.storageRoot else {
-            return .unknown("Saved work is not open.")
-        }
-        do {
-            guard let excluded = try LocalDataProtection.isExcludedFromBackup(root) else {
-                return .unknown("The platform did not report an exclusion value for the local storage directory.")
-            }
-            return excluded ? .excluded : .included
-        } catch {
-            return .unknown(error.localizedDescription)
-        }
+    private var backupToggleWarningTitle: String {
+        ExportWarningCatalog.warning(id: "backup-toggle-warning")?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Include student records in device backup?"
+    }
+
+    private var backupToggleWarningBody: String {
+        ExportWarningCatalog.warning(id: "backup-toggle-warning")?.body.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Confirm this is permitted before changing device backup handling."
+    }
+
+    private var backupTogglePrimaryButton: String {
+        ExportWarningCatalog.warning(id: "backup-toggle-warning")?.primaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Enable Backup"
+    }
+
+    private var backupToggleSecondaryButton: String {
+        ExportWarningCatalog.warning(id: "backup-toggle-warning")?.secondaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Keep Local Only"
     }
 }
 

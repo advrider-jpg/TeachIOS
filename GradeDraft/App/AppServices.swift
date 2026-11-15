@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import UIKit
 
 /// A failure or result a model shows in its own alert. There is no app-wide error slot.
 struct AlertMessage: Identifiable, Equatable, Sendable {
@@ -98,5 +99,24 @@ enum SourceFileCleanup {
 
     static func failureMessage(_ failed: [String]) -> String {
         "The change was saved, but \(failed.count) old file(s) could not be deleted from this device: \(failed.joined(separator: ", "))"
+    }
+}
+
+extension ExportKind {
+    /// Text exports the teacher can copy to the clipboard; PDFs and archives cannot be.
+    var canCopyAsText: Bool {
+        self == .studentMarkdown || self == .teacherAuditMarkdown || self == .csvGradebook
+    }
+}
+
+/// Copies a prepared text export to the clipboard. The screen has already shown the clipboard warning.
+enum ExportClipboard {
+    @MainActor
+    static func copyText(of export: PreparedExport) throws {
+        guard export.kind.canCopyAsText else {
+            throw GradeDraftError.exportFailed("Clipboard copy is available only for text-based exports.")
+        }
+        let text = try String(contentsOf: export.url, encoding: .utf8)
+        UIPasteboard.general.string = text
     }
 }

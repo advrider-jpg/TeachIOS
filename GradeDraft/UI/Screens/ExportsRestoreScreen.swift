@@ -34,7 +34,7 @@ struct SubmissionExportsScreen: View {
             set: { if !$0 { session.finishSharing() } }
         )) {
             if let export = session.preparedExport {
-                PreparedExportSheet(export: export)
+                PreparedExportSheet(export: export, onCopyText: { session.copyPreparedExportText() })
             }
         }
     }
@@ -97,12 +97,13 @@ struct ExportsTabScreen: View {
     @State private var restoreURL: URL?
     @State private var restorePassword = ""
 
-    private static let backupType = UTType(filenameExtension: BackupArchiveService.backupFileExtension) ?? .data
+    private static let backupType = UTType(exportedAs: "com.markforme.backup")
 
     var body: some View {
         @Bindable var backup = appModel.backupRestore
         List {
             readySection
+            recentExportsSection
             gradebookSection
             backupSection(backup)
             restoreSection(backup)
@@ -145,6 +146,34 @@ struct ExportsTabScreen: View {
             }
         } header: {
             Text("Ready to Export")
+        }
+    }
+
+    private var recentExportsSection: some View {
+        Section {
+            if appModel.listsLoaded && appModel.recentExports.isEmpty {
+                ContentUnavailableView(
+                    "No exports yet",
+                    systemImage: "square.and.arrow.up",
+                    description: Text("Create an export before opening the share sheet.")
+                )
+            }
+            ForEach(Array(appModel.recentExports.enumerated()), id: \.element.id) { index, record in
+                LabeledContent {
+                    StatusLabel(record.kind.contentPolicy.isStudentFacing ? .studentFacing : .teacherOnly, subject: "Audience")
+                } label: {
+                    Text(record.kind.displayName)
+                    let detail = [record.assignmentTitle, record.studentName].compactMap { $0 }.joined(separator: " · ")
+                    if !detail.isEmpty {
+                        Text(detail)
+                    }
+                    Text(record.createdAt.formatted(date: .abbreviated, time: .shortened))
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("exportsTab.recent.\(index)")
+            }
+        } header: {
+            Text("Recent Exports")
         }
     }
 
@@ -320,7 +349,7 @@ private struct GradebookExportRow: View {
             set: { if !$0 { model.finishSharing() } }
         )) {
             if let export = model.preparedExport {
-                PreparedExportSheet(export: export)
+                PreparedExportSheet(export: export, onCopyText: { model.copyPreparedExportText() })
             }
         }
     }
@@ -332,11 +361,15 @@ private struct GradebookExportRow: View {
 /// "I reviewed this export" confirmation, then Share. Closing the sheet deletes the prepared file.
 private struct PreparedExportSheet: View {
     var export: PreparedExport
+    /// Copies the export's text to the clipboard after the teacher confirms the clipboard warning; nil when
+    /// the owner offers no copy (the full backup).
+    var onCopyText: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var previewURL: URL?
     @State private var hasPreviewed = false
     @State private var reviewed = false
+    @State private var showingClipboardWarning = false
 
     private var policy: ExportContentPolicy { export.kind.contentPolicy }
 
@@ -379,6 +412,14 @@ private struct PreparedExportSheet: View {
                                 Label("Share", systemImage: "square.and.arrow.up")
                             }
                             .accessibilityIdentifier("exportSheet.share")
+                            if export.kind.canCopyAsText, onCopyText != nil {
+                                Button {
+                                    showingClipboardWarning = true
+                                } label: {
+                                    Label("Copy Text", systemImage: "doc.on.clipboard")
+                                }
+                                .accessibilityIdentifier("exportSheet.copyText")
+                            }
                         }
                     } footer: {
                         Text("Sharing sends this file to another app. MarkForMe cannot recall it afterwards. The file is deleted from this device when you tap Done.")
@@ -394,12 +435,37 @@ private struct PreparedExportSheet: View {
                 }
             }
             .quickLookPreview($previewURL)
+            .confirmationDialog(clipboardWarningTitle, isPresented: $showingClipboardWarning, titleVisibility: .visible) {
+                Button(clipboardWarningPrimaryButton) { onCopyText?() }
+                    .accessibilityIdentifier("exportSheet.copyConfirm")
+                Button(clipboardWarningSecondaryButton, role: .cancel) {}
+            } message: {
+                Text(clipboardWarningBody)
+            }
             .onAppear {
                 guard canPreview, !hasPreviewed else { return }
                 hasPreviewed = true
                 previewURL = export.url
             }
         }
+    }
+}
+
+extension PreparedExportSheet {
+    fileprivate var clipboardWarningTitle: String {
+        ExportWarningCatalog.warning(id: "clipboard-warning")?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Copy student information?"
+    }
+
+    fileprivate var clipboardWarningBody: String {
+        ExportWarningCatalog.warning(id: "clipboard-warning")?.body.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Confirm before copying this export."
+    }
+
+    fileprivate var clipboardWarningPrimaryButton: String {
+        ExportWarningCatalog.warning(id: "clipboard-warning")?.primaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Copy"
+    }
+
+    fileprivate var clipboardWarningSecondaryButton: String {
+        ExportWarningCatalog.warning(id: "clipboard-warning")?.secondaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Cancel"
     }
 }
 

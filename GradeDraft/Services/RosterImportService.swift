@@ -78,6 +78,7 @@ enum RosterImportService {
         var importRows: [RosterImportRow] = []
         var skipped: [String] = []
         var seenIdentifiers: Set<String> = []
+        var seenNames: [String: Int] = [:]
 
         for (rawIndex, columns) in hasHeader ? Array(numbered.dropFirst()) : numbered {
             let rowNumber = rawIndex + 1
@@ -97,6 +98,7 @@ enum RosterImportService {
                 continue
             }
 
+            seenNames[displayName.lowercased(), default: 0] += 1
             let identifier = value(.localIdentifier)
             if !identifier.isEmpty, !seenIdentifiers.insert(identifier.lowercased()).inserted {
                 skipped.append("Row \(rowNumber): \(displayName) repeats the identifier \(identifier).")
@@ -107,10 +109,16 @@ enum RosterImportService {
                                               className: value(.className), notes: value(.notes)))
         }
 
+        var warnings: [String] = []
+        if seenNames.values.contains(where: { $0 > 1 }) {
+            warnings.append("Duplicate display names detected; use localIdentifier values to distinguish students.")
+        }
+
         return (importRows, RosterImportResult(ignoredBlankColumns: ignoredBlankColumns,
                                                unrecognisedColumns: unrecognised,
                                                skippedRows: skipped,
-                                               hasHeaderRow: hasHeader))
+                                               hasHeaderRow: hasHeader,
+                                               warnings: warnings))
     }
 
     private static func clean(_ value: String) -> String {

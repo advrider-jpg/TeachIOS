@@ -24,7 +24,15 @@ final class AppModel {
     private(set) var classGroups: [ClassGroup] = []
     private(set) var assignmentSummaries: [AssignmentSummary] = []
     private(set) var submissionSummaries: [SubmissionSummary] = []
+    /// Enrolled students per class, from the enrolments.
+    private(set) var studentCounts: [UUID: Int] = [:]
+    /// The most recent exports, newest first, for the Exports tab.
+    private(set) var recentExports: [ExportRecordSummary] = []
     private(set) var listsLoaded = false
+
+    /// Whether the saved work is included in device backup, read from the files' own flags. nil = unknown
+    /// (not read yet, unreadable, or the files disagree).
+    private(set) var deviceBackupIncluded: Bool?
 
     var selectedTab: AppTab = .home
     var paths: [AppTab: [Route]] = [:]
@@ -75,6 +83,7 @@ final class AppModel {
             storageRoot = storage.root
             importer = services.makeImporter(storage.root)
             startupError = nil
+            refreshDeviceBackupStatus()
         } catch let error as AppDatabaseError {
             startupError = error
         } catch {
@@ -120,17 +129,58 @@ final class AppModel {
             async let classes = database.classGroups()
             async let assignments = database.assignmentSummaries(inClass: nil)
             async let submissions = database.submissionSummaries(assignmentID: nil)
+            async let enrollments = database.enrollments(inClass: nil)
+            async let exports = database.recentExports(limit: Self.recentExportLimit)
             classGroups = try await classes
             assignmentSummaries = try await assignments
             submissionSummaries = try await submissions
+            let enrolled = try await enrollments
+            studentCounts = enrolled.reduce(into: [:]) { counts, enrollment in
+                counts[enrollment.classGroupID, default: 0] += 1
+            }
+            recentExports = try await exports
             listsLoaded = true
         } catch {
             alert = AlertMessage(title: "Saved work could not be read", error: error)
         }
     }
 
+    private static let recentExportLimit = 6
+
     func className(for classGroupID: UUID) -> String {
         classGroups.first { $0.id == classGroupID }?.name ?? ""
+    }
+
+    // MARK: - Device backup
+
+    /// Re-reads the device-backup setting from the files.
+    func refreshDeviceBackupStatus() {
+        guard let storageRoot else {
+            deviceBackupIncluded = nil
+            return
+        }
+        deviceBackupIncluded = LocalDataProtection.deviceBackupIncluded(storageRoot: storageRoot)
+    }
+
+    /// Includes the saved work in device backup, or keeps it local only, by setting the files' flags. The
+    /// status then comes from the files again, so a change that did not take effect shows as it is.
+    func setDeviceBackupIncluded(_ included: Bool) async {
+        do {
+            let root = try requireStorageRoot()
+            try await Task.detached {
+                try LocalDataProtection.setDeviceBackupIncluded(included, storageRoot: root)
+            }.value
+            refreshDeviceBackupStatus()
+            alert = AlertMessage(
+                title: "Device Backup Setting",
+                message: included
+                    ? "Local student records may now be included in device backup according to device settings."
+                    : "Local student records remain excluded from device backup where supported."
+            )
+        } catch {
+            refreshDeviceBackupStatus()
+            alert = AlertMessage(title: "Device backup setting not changed", error: error)
+        }
     }
 
     // MARK: - Classes and assignments

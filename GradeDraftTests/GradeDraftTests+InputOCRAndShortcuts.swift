@@ -1,220 +1,213 @@
 import XCTest
-import ZIPFoundation
 @testable import GradeDraft
 
 extension GradeDraftTests {
+    /// A submission with scanned text made of the given lines (not yet marked reviewed).
+    fileprivate func seedScanned(
+        _ app: AppModel,
+        lines: [OCRLine],
+        rubric: String = "Claim: 0-2 points"
+    ) async throws -> SeededSubmission {
+        let seeded = try await TestApp.seed(app, rubric: rubric, studentWork: nil)
+        _ = try await app.requireDatabase().replaceInput(
+            submissionID: seeded.submissionID, kind: .scanned, pastedText: nil, sources: [],
+            ocr: OCRDocument(pages: [OCRPage(pageIndex: 0, lines: lines)])
+        )
+        return seeded
+    }
+
     func testOCRQualitySummaryFlagsLowConfidenceAndUnconfirmedText() {
         let lines = [
-            OCRLine(text: "Strong line", confidence: 0.95, boundingBox: .zero, teacherConfirmed: true),
-            OCRLine(text: "Weak line", confidence: 0.42, boundingBox: .zero, teacherConfirmed: false)
+            OCRLine(text: "Strong line", confidence: 0.95, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true),
+            OCRLine(text: "Weak line", confidence: 0.42, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: false)
         ]
         let summary = OCRQualitySummary(lines: lines)
         XCTAssertEqual(summary.lineCount, 2)
         XCTAssertEqual(summary.lowConfidenceLineCount, 1)
-        XCTAssertEqual(summary.unconfirmedLineCount, 1)
+        XCTAssertEqual(summary.unresolvedLineCount, 1)
         XCTAssertTrue(summary.requiresTeacherOCRReview)
     }
 
-    func testScannedInputSetsOCRStatusNeedsReview() {
-        // Creating an assignment with needsReview status simulates a scan
-        let assignment = AssignmentRecord(
-            title: "Scan test",
-            reviewedStudentText: "Scanned text",
-            ocrReviewStatus: .needsReview
+    func testScannedInputRequiresScannedTextReviewBeforeGrading() async throws {
+        let app = try TestApp.make()
+        let line = OCRLine(text: "Scanned text", confidence: 0.5, boundingBox: .zero, origin: .visionOCR)
+        let seeded = try await seedScanned(app, lines: [line])
+        let session = try await openSession(app, seeded.submissionID)
+
+        XCTAssertEqual(session.graph?.ocr?.reviewStatus, .needsReview)
+        XCTAssertTrue(session.graph?.ocr?.reviewStatus.blocksGrading == true, "Scanned text that needs review blocks grading")
+        XCTAssertFalse(session.readiness?.scannedTextIssues.isEmpty ?? true)
+        let summary = try await app.requireDatabase().submissionSummaries(assignmentID: seeded.assignmentID).first
+        XCTAssertEqual(summary?.rosterStatus, .ocrReviewNeeded)
+    }
+
+    func testMarkingScannedTextReviewedSetsStatusReviewed() async throws {
+        let app = try TestApp.make()
+        let line = OCRLine(text: "Extracted text", confidence: 0.95, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true)
+        let seeded = try await seedScanned(app, lines: [line])
+        let session = try await openSession(app, seeded.submissionID)
+
+        XCTAssertEqual(session.readiness?.canStartFinalReview, false, "Cannot start manual review before scanned text is reviewed")
+        await session.markScannedTextReviewed()
+        try await waitForSession(session, app)
+
+        XCTAssertEqual(session.graph?.ocr?.reviewStatus, .reviewed, "After marking reviewed, status should be reviewed")
+        XCTAssertEqual(session.readiness?.canStartFinalReview, true, "Manual review should be available after scanned text is reviewed")
+    }
+
+    func testDraftBlockedBeforeScannedTextReview() async throws {
+        let app = try TestApp.make()
+        let line = OCRLine(text: "Text", confidence: 0.95, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true)
+        let seeded = try await seedScanned(app, lines: [line])
+        let session = try await openSession(app, seeded.submissionID)
+
+        XCTAssertEqual(session.readiness?.canDraft, false, "Draft should be blocked before scanned text review")
+    }
+
+    // MARK: - Rubric import modes
+
+    func testConfirmStructuredImportSetsMode() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Old rubric", studentWork: "Student text")
+        let database = try app.requireDatabase()
+        let fingerprint = try await TestApp.fingerprint(app, seeded)
+        try await database.replaceDraft(
+            GradeDraftResult(
+                packetFingerprint: fingerprint, studentResponseSummary: "Summary", criteria: [],
+                studentFeedback: "Draft", teacherNotes: "Note", uncertaintyFlags: []
+            ),
+            submissionID: seeded.submissionID
         )
-        XCTAssertTrue(assignment.requiresOCRReviewBeforeGrading, "Scan should require scanned text review")
-        XCTAssertTrue(assignment.ocrReviewStatus.blocksGrading, "OCR needsReview blocks grading")
-    }
-
-    @MainActor
-    func testMarkingOCRReviewedSetsStatusReviewed() {
-        var assignment = AssignmentRecord(
-            title: "scanned text review test",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Extracted text",
-            ocrReviewStatus: .needsReview
+        try await database.saveFinalReview(
+            FinalGradeReview(
+                packetFingerprint: fingerprint, status: .approved, criteria: [],
+                studentFeedback: "Final", privateTeacherNotes: "Note", teacherEdited: true
+            ),
+            submissionID: seeded.submissionID
         )
-        // Simulate an OCR document being present
-        assignment.ocrDocument = OCRDocument(
-            pages: [OCRPage(
-                pageIndex: 0,
-                lines: [OCRLine(text: "Extracted text", confidence: 0.95, boundingBox: .zero, teacherConfirmed: true)]
-            )]
+        let model = try await openSetupModel(app, seeded.assignmentID)
+
+        model.previewRubric(text: "| Criterion | Max | Level | Points |\n|---|---|---|---|\n| Claim | 4 | Good | 4 |")
+        await model.confirmRubricPreview(structured: true)
+
+        let setupSaved = try await database.assignmentSetup(id: seeded.assignmentID)
+        let setup = try XCTUnwrap(setupSaved)
+        let graphSaved = try await database.submission(id: seeded.submissionID)
+        let graph = try XCTUnwrap(graphSaved)
+        XCTAssertEqual(setup.assignment.rubricImportMode, .structuredConfirmed)
+        XCTAssertNotNil(setup.assignment.confirmedRubric)
+        XCTAssertNotNil(graph.draft)
+        XCTAssertNotNil(graph.finalReview)
+        XCTAssertTrue(try graph.draftIsStale(setup: setup))
+        XCTAssertTrue(try graph.finalReviewIsStale(setup: setup))
+    }
+
+    func testConfirmRawTextImportSetsRawMode() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "", studentWork: "Student text")
+        let model = try await openSetupModel(app, seeded.assignmentID)
+
+        model.previewRubric(text: "Some rubric text without table")
+        await model.confirmRubricPreview(structured: false)
+
+        XCTAssertEqual(model.setup?.assignment.rubricImportMode, .rawTextOnly)
+        XCTAssertNil(model.setup?.assignment.confirmedRubric)
+    }
+
+    func testRawTextImportDoesNotUseParsedCriteria() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "", studentWork: "Student text")
+        let model = try await openSetupModel(app, seeded.assignmentID)
+
+        model.previewRubric(text: "| Criterion | Max | Level | Points |\n|---|---|---|---|\n| Claim | 4 | Good | 4 |")
+        await model.confirmRubricPreview(structured: false)
+
+        XCTAssertEqual(model.setup?.parsedRubric.criteria.isEmpty, true, "Raw-text mode must produce empty parsed criteria")
+    }
+
+    // MARK: - Scanned text review
+
+    /// Changed expectation: rejecting the last unresolved line no longer marks the scanned text reviewed by
+    /// itself; once no line needs action, the teacher's explicit "mark reviewed" succeeds and sets the date.
+    func testRejectingTheLastUnresolvedLineAllowsMarkingReviewed() async throws {
+        let app = try TestApp.make()
+        let low = OCRLine(text: "hello", confidence: 0.3, boundingBox: .zero, origin: .visionOCR)
+        let seeded = try await seedScanned(app, lines: [low])
+        let session = try await openSession(app, seeded.submissionID)
+
+        await session.rejectLine(low.id)
+        try await waitForSession(session, app)
+        await session.markScannedTextReviewed()
+
+        let graph = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertEqual(graph?.ocr?.reviewStatus, .reviewed)
+        XCTAssertNotNil(graph?.ocr?.reviewedAt, "Document reviewedAt must be set")
+        XCTAssertNil(session.alert)
+    }
+
+    func testEditOCRLineAfterReviewResetsToNeedsReview() async throws {
+        let app = try TestApp.make()
+        let line = OCRLine(text: "hello", confidence: 0.9, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true)
+        let seeded = try await seedScanned(app, lines: [line])
+        let session = try await openSession(app, seeded.submissionID)
+        await session.markScannedTextReviewed()
+        let reviewed = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertEqual(reviewed?.ocr?.reviewStatus, .reviewed)
+        XCTAssertNotNil(reviewed?.ocr?.reviewedAt)
+
+        await session.correctLine(line.id, text: "world")
+
+        let graph = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertEqual(graph?.ocr?.reviewStatus, .needsReview, "Editing line must reset document to needsReview")
+        XCTAssertNil(graph?.ocr?.reviewedAt, "Document reviewedAt must be cleared after edit")
+    }
+
+    func testMarkReviewedIsRefusedWhileLowConfidenceLinesAreUnresolved() async throws {
+        let app = try TestApp.make()
+        let line = OCRLine(
+            text: "maybe", confidence: OCRQualitySummary.lowConfidenceThreshold - 0.01, boundingBox: .zero, origin: .visionOCR
         )
+        let seeded = try await seedScanned(app, lines: [line], rubric: "")
+        let session = try await openSession(app, seeded.submissionID)
 
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+        await session.markScannedTextReviewed()
 
-        XCTAssertFalse(viewModel.canStartManualFinalReview, "Cannot start manual review before scanned text is reviewed")
-        viewModel.markOCRReviewed()
-        XCTAssertEqual(viewModel.assignment.ocrReviewStatus, .reviewed, "After marking reviewed, status should be reviewed")
-        XCTAssertTrue(viewModel.canStartManualFinalReview, "Manual review should be available after scanned text is reviewed")
+        let graph = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertEqual(graph?.ocr?.reviewStatus, .needsReview)
+        XCTAssertEqual(graph?.ocr?.allLines.first?.teacherConfirmed, false)
+        XCTAssertTrue(session.alert?.message.contains("Confirm, correct or reject") == true)
     }
 
-    @MainActor
-    func testDraftBlockedBeforeOCRReview() {
-        let assignment = AssignmentRecord(
-            title: "OCR blocked",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Text",
-            ocrReviewStatus: .needsReview
+    /// Changed expectation: "Confirm all" confirms the confident Vision lines and leaves low-confidence lines
+    /// for the teacher (the old page-level "mark page reviewed" confirmed nothing at all while any line was low).
+    func testConfirmAllDoesNotBulkConfirmLowConfidenceLines() async throws {
+        let app = try TestApp.make()
+        let lowConfidence = OCRLine(
+            text: "maybe", confidence: OCRQualitySummary.lowConfidenceThreshold - 0.01, boundingBox: .zero, origin: .visionOCR
         )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+        let highConfidence = OCRLine(text: "clear", confidence: 0.99, boundingBox: .zero, origin: .visionOCR)
+        let seeded = try await seedScanned(app, lines: [lowConfidence, highConfidence])
+        let session = try await openSession(app, seeded.submissionID)
 
-        XCTAssertFalse(viewModel.canDraftGrade, "Draft should be blocked before scanned text review")
+        await session.confirmAllConfidentLines()
+
+        let graph = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertEqual(graph?.ocr?.reviewStatus, .needsReview)
+        let lines = graph?.ocr?.allLines ?? []
+        XCTAssertEqual(lines.first { $0.id == lowConfidence.id }?.teacherConfirmed, false)
+        XCTAssertEqual(lines.first { $0.id == highConfidence.id }?.teacherConfirmed, true)
     }
 
-    // MARK: - Advanced feature completion regression tests
+    // MARK: - Source path safety
 
-    func testConfirmStructuredImportSetsMode() {
-        var assignment = AssignmentRecord(title: "Test", rubricText: "Old rubric")
-        assignment.latestDraft = GradeDraftResult(
-            packetFingerprint: "old-packet",
-            studentResponseSummary: "Summary",
-            criteria: [],
-            totalScore: 0,
-            maxScore: 0,
-            studentFeedback: "Draft",
-            teacherNotes: "Note",
-            uncertaintyFlags: []
-        )
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: "old-packet",
-            status: .approved,
-            criteria: [],
-            totalScore: 0,
-            maxScore: 0,
-            studentFeedback: "Final",
-            privateTeacherNotes: "Note",
-            teacherEdited: true
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        let preview = vm.previewMarkdownRubric("| Criterion | Max | Level | Points |\n|---|---|---|---|\n| Claim | 4 | Good | 4 |")
-        vm.confirmMarkdownRubricImport(preview, useStructuredImport: true)
-        XCTAssertEqual(vm.assignment.rubricImportMode, .structuredConfirmed)
-        XCTAssertNotNil(vm.assignment.confirmedParsedRubric)
-        XCTAssertNotNil(vm.assignment.latestDraft)
-        XCTAssertNotNil(vm.assignment.finalReview)
-        XCTAssertTrue(vm.assignment.latestDraftIsStale)
-        XCTAssertTrue(vm.assignment.finalReviewIsStale)
-    }
-
-    @MainActor
-    func testConfirmRawTextImportSetsRawMode() {
-        let assignment = AssignmentRecord(title: "Test")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        let preview = vm.previewMarkdownRubric("Some rubric text without table")
-        vm.confirmMarkdownRubricImport(preview, useStructuredImport: false)
-        XCTAssertEqual(vm.assignment.rubricImportMode, .rawTextOnly)
-        XCTAssertNil(vm.assignment.confirmedParsedRubric)
-    }
-
-    @MainActor
-    func testRawTextImportDoesNotUseParsedCriteria() {
-        let assignment = AssignmentRecord(title: "Test")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        let preview = vm.previewMarkdownRubric("| Criterion | Max | Level | Points |\n|---|---|---|---|\n| Claim | 4 | Good | 4 |")
-        vm.confirmMarkdownRubricImport(preview, useStructuredImport: false)
-        XCTAssertTrue(vm.assignment.parsedRubric.criteria.isEmpty, "Raw-text mode must produce empty parsed criteria")
-    }
-
-    @MainActor
-    func testRejectLastOCRLineSetsDocumentAndAssignmentReviewed() {
-        let line = OCRLine(text: "hello", confidence: 0.9, boundingBox: .zero, teacherConfirmed: false)
-        let page = OCRPage(pageIndex: 0, lines: [line])
-        var doc = OCRDocument(pages: [page])
-        var assignment = AssignmentRecord(title: "OCR Test", ocrReviewStatus: .needsReview)
-        assignment.ocrDocument = doc
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        vm.rejectOCRLine(pageID: page.id, lineID: line.id)
-
-        XCTAssertEqual(vm.assignment.ocrReviewStatus, .reviewed, "Assignment scanned text status must be reviewed after last line resolved")
-        XCTAssertEqual(vm.assignment.ocrDocument?.reviewStatus, .reviewed, "Document reviewStatus must match assignment")
-        XCTAssertNotNil(vm.assignment.ocrDocument?.reviewedAt, "Document reviewedAt must be set")
-        XCTAssertNotNil(vm.assignment.ocrReviewedAt, "Assignment ocrReviewedAt must be set")
-    }
-
-    @MainActor
-    func testMarkOCRReviewedBlocksUnresolvedLowConfidenceLines() {
-        let line = OCRLine(text: "maybe", confidence: OCRQualitySummary.lowConfidenceThreshold - 0.01, boundingBox: .zero, teacherConfirmed: false)
-        let page = OCRPage(pageIndex: 0, lines: [line])
-        var assignment = AssignmentRecord(title: "Low confidence", ocrReviewStatus: .needsReview)
-        assignment.ocrDocument = OCRDocument(pages: [page])
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        vm.markOCRReviewed()
-
-        XCTAssertEqual(vm.assignment.ocrReviewStatus, .needsReview)
-        XCTAssertEqual(vm.assignment.ocrDocument?.reviewStatus, .needsReview)
-        XCTAssertFalse(vm.assignment.ocrDocument?.pages.first?.lines.first?.teacherConfirmed ?? true)
-        XCTAssertTrue(vm.errorMessage?.contains("Confirm, correct, or reject every scanned text line") == true)
-    }
-
-    @MainActor
-    func testMarkOCRPageReviewedDoesNotBulkConfirmLowConfidenceLines() {
-        let lowConfidence = OCRLine(text: "maybe", confidence: OCRQualitySummary.lowConfidenceThreshold - 0.01, boundingBox: .zero, teacherConfirmed: false)
-        let highConfidence = OCRLine(text: "clear", confidence: 0.99, boundingBox: .zero, teacherConfirmed: false)
-        let page = OCRPage(pageIndex: 0, lines: [lowConfidence, highConfidence])
-        var assignment = AssignmentRecord(title: "Page review", ocrReviewStatus: .needsReview)
-        assignment.ocrDocument = OCRDocument(pages: [page])
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        vm.markOCRPageReviewed(pageID: page.id)
-
-        XCTAssertEqual(vm.assignment.ocrReviewStatus, .needsReview)
-        XCTAssertFalse(vm.assignment.ocrDocument?.pages.first?.lines[0].teacherConfirmed ?? true)
-        XCTAssertFalse(vm.assignment.ocrDocument?.pages.first?.lines[1].teacherConfirmed ?? true)
-        XCTAssertTrue(vm.errorMessage?.contains("low-confidence OCR line") == true)
-    }
-
-    @MainActor
-    func testEditOCRLineAfterReviewResetsToNeedsReview() {
-        let line = OCRLine(text: "hello", confidence: 0.9, boundingBox: .zero, teacherConfirmed: true)
-        let page = OCRPage(pageIndex: 0, lines: [line])
-        var doc = OCRDocument(pages: [page])
-        doc.reviewStatus = .reviewed
-        doc.reviewedAt = Date()
-        var assignment = AssignmentRecord(title: "OCR Edit", ocrReviewStatus: .reviewed)
-        assignment.ocrDocument = doc
-        assignment.ocrReviewedAt = Date()
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        vm.updateOCRLine(pageID: page.id, lineID: line.id, correctedText: "world")
-
-        XCTAssertEqual(vm.assignment.ocrReviewStatus, .needsReview, "Editing line must reset assignment to needsReview")
-        XCTAssertEqual(vm.assignment.ocrDocument?.reviewStatus, .needsReview, "Editing line must reset document to needsReview")
-        XCTAssertNil(vm.assignment.ocrDocument?.reviewedAt, "Document reviewedAt must be cleared after edit")
-        XCTAssertNil(vm.assignment.ocrReviewedAt, "Assignment ocrReviewedAt must be cleared after edit")
-    }
-
-    @MainActor
     func testSanitizedLocalSourcePathAcceptsValidPath() {
         XCTAssertEqual(SourcePathSafety.sanitizedLocalSourcePath("Sources/abc123/page.png"), "Sources/abc123/page.png")
     }
 
-    @MainActor
-    func testSourceImageRejectsUnsafeRelativePath() {
-        let assignment = AssignmentRecord(title: "Image Safety")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        let source = SourceInputRef(
-            sourceType: .photo,
-            localRelativePath: "Sources/assignment/../secret.png",
-            fileName: "secret.png"
-        )
-
-        XCTAssertNil(vm.sourceImage(for: source))
+    func testUnsafeRelativeSourcePathDoesNotResolveToAFile() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SourcePathSafety-\(UUID().uuidString)")
+        XCTAssertNil(SourcePathSafety.resolvedLocalSourceURL("Sources/assignment/../secret.png", applicationSupportDirectory: root))
+        XCTAssertNotNil(SourcePathSafety.resolvedLocalSourceURL("Sources/assignment/page.png", applicationSupportDirectory: root))
     }
 
     func testSanitizedLocalSourcePathRejectsAbsolutePath() {
@@ -240,5 +233,4 @@ extension GradeDraftTests {
     func testSanitizedLocalSourcePathRejectsNonSourcesPrefix() {
         XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("Documents/file.png"))
     }
-
 }

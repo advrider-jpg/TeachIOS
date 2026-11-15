@@ -72,7 +72,9 @@ struct ClassesScreen: View {
     private func detail(for group: ClassGroup) -> String {
         let count = appModel.assignmentSummaries.filter { $0.assignment.classGroupID == group.id }.count
         let assignments = count == 1 ? "1 assignment" : "\(count) assignments"
-        return [group.subject, assignments, group.isArchived ? "Archived" : ""]
+        let studentCount = appModel.studentCounts[group.id] ?? 0
+        let students = studentCount == 1 ? "1 student" : "\(studentCount) students"
+        return [group.subject, students, assignments, group.isArchived ? "Archived" : ""]
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
     }

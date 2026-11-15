@@ -27,6 +27,9 @@ final class AssignmentSetupModel {
     private(set) var preparedExport: PreparedExport?
     /// File name of the last curriculum/reference file saved as this assignment's curriculum reference.
     private(set) var lastCurriculumImportFileName: String?
+    /// Whether any submission of this assignment has scanned text. Read from the store when the assignment
+    /// loads or changes, and again by Apply Recommended.
+    private(set) var anySubmissionHasScannedText = false
 
     @ObservationIgnored let app: AppModel
     @ObservationIgnored private(set) lazy var autosave = AutosaveScheduler { [weak self] in
@@ -81,8 +84,17 @@ final class AssignmentSetupModel {
                 storedSetup = value
                 if !autosave.holdsLocalEdits { setup = value }
                 if mappingsChanged { await loadMappedItems(value) }
+                await refreshScannedTextFlag(database)
             }
         } catch is CancellationError {
+        } catch {
+            alert = AlertMessage(title: "Assignment could not be read", error: error)
+        }
+    }
+
+    private func refreshScannedTextFlag(_ database: AppDatabase) async {
+        do {
+            anySubmissionHasScannedText = try await database.assignmentHasScannedText(assignmentID: assignmentID)
         } catch {
             alert = AlertMessage(title: "Assignment could not be read", error: error)
         }
@@ -129,6 +141,41 @@ final class AssignmentSetupModel {
             } else {
                 setup.assignment.constraintTemplateIDs.append(templateID)
             }
+        }
+    }
+
+    /// Selects the recommended AI grading constraints for this assignment, replacing the current selection.
+    /// Sensitive templates (EAL/D-sensitive, adjustment context) are never selected here; only the teacher
+    /// selects them.
+    func applyRecommendedConstraints() async {
+        guard let current = await currentSetup() else { return }
+        do {
+            let database = try app.requireDatabase()
+            await refreshScannedTextFlag(database)
+        } catch {
+            alert = AlertMessage(title: "Recommended constraints not applied", error: error)
+            return
+        }
+        var updated = current
+        updated.assignment.constraintTemplateIDs = GradingConstraintTemplates.recommendedIDs(
+            for: current.assignment, ocrPresent: anySubmissionHasScannedText
+        )
+        await saveNow(updated, action: "Recommended constraints not applied", auditDetail: "Recommended AI constraint templates applied.")
+        if alert == nil {
+            alert = AlertMessage(
+                title: "AI Grading Constraints",
+                message: "Recommended AI constraint templates applied. Sensitive templates were not selected automatically."
+            )
+        }
+    }
+
+    /// Deselects every AI grading constraint.
+    func clearConstraints() async {
+        guard var updated = await currentSetup() else { return }
+        updated.assignment.constraintTemplateIDs = []
+        await saveNow(updated, action: "Constraints not cleared", auditDetail: "AI constraint templates cleared.")
+        if alert == nil {
+            alert = AlertMessage(title: "AI Grading Constraints", message: "AI constraint templates cleared.")
         }
     }
 
@@ -422,6 +469,32 @@ final class AssignmentSetupModel {
         } catch {
             if let writtenURL { ExportFileStore.remove(writtenURL) }
             alert = AlertMessage(title: "Export not created", error: error)
+        }
+    }
+
+    /// Copies the prepared export's text to the clipboard (text exports only). The screen asks the teacher
+    /// to confirm the clipboard warning first. The copy is recorded as an assignment-level audit event.
+    func copyPreparedExportText() {
+        guard let export = preparedExport else {
+            alert = AlertMessage(title: "Copy not done", message: "Create an export before copying text.")
+            return
+        }
+        do {
+            try ExportClipboard.copyText(of: export)
+        } catch {
+            alert = AlertMessage(title: "Copy not done", error: error)
+            return
+        }
+        Task {
+            do {
+                try await app.requireDatabase().appendAudit(AuditEvent(
+                    assignmentID: assignmentID, submissionID: nil, eventType: .exportPrepared,
+                    detail: "Copied \(export.kind.displayName) text to clipboard after the clipboard warning."
+                ))
+                alert = AlertMessage(title: "Copied", message: "Export text copied to the clipboard. Share only through approved channels.")
+            } catch {
+                alert = AlertMessage(title: "Copied, but not recorded", error: error)
+            }
         }
     }
 

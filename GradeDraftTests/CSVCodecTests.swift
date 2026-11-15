@@ -22,12 +22,10 @@ final class CSVWriterTests: XCTestCase {
     }
 
     func testRoundTripsRepresentativeGradebookRowsThroughParser() throws {
-        let assignment = ExportFixtureFactory.sensitiveApprovedAssignment(title: "Essay, \"Final\"\nLine", student: "Alice, A")
-        let csv = CSVExportService.exportedCSV(from: [assignment])
-        let rows = try CSVParser.parseRows(csv)
+        let fixture = try ExportFixtureFactory.sensitiveApprovedAssignment(student: "Alice, \"AJ\"\nLine")
+        let rows = try gradebookRows([fixture])
         XCTAssertEqual(rows.count, 2)
-        XCTAssertEqual(rows[1][1], "Essay, \"Final\"\nLine")
-        XCTAssertEqual(rows[1][5], "Alice, A")
+        XCTAssertEqual(rows[1][0], "Alice, \"AJ\"\nLine")
     }
 
     func testEmptyRowsProduceEmptyString() {
@@ -68,122 +66,125 @@ final class SpreadsheetSafetyFormulaInjectionTests: XCTestCase {
 }
 
 final class CSVExportServicePrivacyTests: XCTestCase {
-    func testExportedCSVQuotesAllCells() throws {
-        let csv = CSVExportService.exportedCSV(from: [ExportFixtureFactory.sensitiveApprovedAssignment()])
-        for line in csv.components(separatedBy: "\n") where !line.isEmpty {
+    func testGradebookCSVQuotesAllCells() throws {
+        let csv = try makeCSV()
+        XCTAssertTrue(csv.hasPrefix("\u{FEFF}"))
+        for line in csv.dropFirst().components(separatedBy: "\r\n") where !line.isEmpty {
             XCTAssertTrue(line.hasPrefix("\""))
             XCTAssertTrue(line.hasSuffix("\""))
         }
     }
 
-    func testExportedCSVParsesToExpectedColumnCountForEveryRow() throws {
-        let rows = try CSVParser.parseRows(CSVExportService.exportedCSV(from: [ExportFixtureFactory.sensitiveApprovedAssignment()]))
+    func testGradebookCSVParsesToExpectedColumnCountForEveryRow() throws {
+        let rows = try gradebookRows([ExportFixtureFactory.sensitiveApprovedAssignment()])
         let count = try XCTUnwrap(rows.first?.count)
-        XCTAssertEqual(count, 16)
+        XCTAssertEqual(count, 6)
         XCTAssertTrue(rows.allSatisfy { $0.count == count })
     }
 
-    func testExportedCSVEscapesCommaQuoteAndNewlineInAssignmentTitle() throws {
-        let title = "Essay, \"Unit 1\"\nFinal"
-        let rows = try CSVParser.parseRows(CSVExportService.exportedCSV(from: [ExportFixtureFactory.sensitiveApprovedAssignment(title: title)]))
-        XCTAssertEqual(rows[1][1], title)
+    func testGradebookCSVEscapesCommaQuoteAndNewlineInStudentName() throws {
+        let name = "Essay, \"Unit 1\"\nFinal"
+        let rows = try gradebookRows([ExportFixtureFactory.sensitiveApprovedAssignment(student: name)])
+        XCTAssertEqual(rows[1][0], name)
     }
 
-    func testExportedCSVNeutralizesFormulaInTitleSubjectClassAndStudentFields() throws {
-        var assignment = ExportFixtureFactory.sensitiveApprovedAssignment(title: "=Title")
-        assignment.subject = "+Subject"
-        assignment.className = " @Class"
-        assignment.studentDisplayName = "-Student Name"
-        let rows = try CSVParser.parseRows(CSVExportService.exportedCSV(from: [assignment]))
-        XCTAssertEqual(rows[1][1], "'=Title")
-        XCTAssertEqual(rows[1][2], "'+Subject")
-        XCTAssertEqual(rows[1][4], "' @Class")
-        XCTAssertEqual(rows[1][5], "'-Student Name")
+    func testGradebookCSVNeutralizesFormulaInStudentFields() throws {
+        var fixture = try ExportFixtureFactory.sensitiveApprovedAssignment()
+        fixture.submission.student.displayName = "-Student Name"
+        fixture.submission.student.localIdentifier = " @Class"
+        let rows = try gradebookRows([fixture])
+        XCTAssertEqual(rows[1][0], "'-Student Name")
+        XCTAssertEqual(rows[1][1], "' @Class")
     }
 
-    func testExportedCSVDoesNotContainPrivateTeacherNotes() {
-        XCTAssertFalse(csv().contains(ExportFixtureFactory.privateTeacherNote))
+    func testGradebookCSVDoesNotContainPrivateTeacherNotes() throws {
+        XCTAssertFalse(try makeCSV().contains(ExportFixtureFactory.privateTeacherNote))
     }
 
-    func testExportedCSVDoesNotContainReviewedStudentText() {
-        XCTAssertFalse(csv().contains("REVIEWED_STUDENT_TEXT_SENTINEL"))
+    func testGradebookCSVDoesNotContainReviewedStudentText() throws {
+        XCTAssertFalse(try makeCSV().contains(ExportFixtureFactory.reviewedTextSentinel))
     }
 
-    func testExportedCSVDoesNotContainRawOCRText() {
-        XCTAssertFalse(csv().contains("RAW_OCR_TEXT_SENTINEL"))
+    func testGradebookCSVDoesNotContainRawOCRText() throws {
+        XCTAssertFalse(try makeCSV().contains(ExportFixtureFactory.rawOCRTextSentinel))
     }
 
-    func testExportedCSVDoesNotContainRawModelResponse() {
-        XCTAssertFalse(csv().contains(ExportFixtureFactory.rawModelResponse))
+    func testGradebookCSVDoesNotContainSourceRelativePath() throws {
+        let fixture = try ExportFixtureFactory.sensitiveApprovedAssignment()
+        let csv = CSVExportService.gradebookCSV(setup: fixture.setup, submissions: [fixture.submission])
+        XCTAssertFalse(csv.contains(try XCTUnwrap(fixture.sourceRelativePath)))
+        XCTAssertFalse(csv.contains(ExportFixtureFactory.sourceFileName))
     }
 
-    func testExportedCSVDoesNotContainSourceRelativePath() {
-        XCTAssertFalse(csv().contains(ExportFixtureFactory.sourcePath))
+    func testGradebookCSVDoesNotContainTeacherRationale() throws {
+        XCTAssertFalse(try makeCSV().contains(ExportFixtureFactory.teacherRationale))
     }
 
-    func testExportedCSVDoesNotContainTeacherRationale() {
-        XCTAssertFalse(csv().contains(ExportFixtureFactory.teacherRationale))
+    func testGradebookCSVDoesNotContainAuditEvents() throws {
+        XCTAssertFalse(try makeCSV().contains(ExportFixtureFactory.auditEvent))
     }
 
-    func testExportedCSVDoesNotContainAuditEvents() {
-        XCTAssertFalse(csv().contains(ExportFixtureFactory.auditEvent))
+    func testGradebookCSVContainsOnlyExpectedHeaderNames() throws {
+        let rows = try gradebookRows([ExportFixtureFactory.sensitiveApprovedAssignment()])
+        XCTAssertEqual(rows.first, ["student", "local_id", "status", "total_score", "max_score", "ai_draft_suggestion"])
     }
 
-    func testExportedCSVContainsOnlyExpectedHeaderNames() throws {
-        let rows = try CSVParser.parseRows(csv())
-        XCTAssertEqual(rows.first, [
-            "assignment_id", "title", "subject", "grade_level", "class_name", "student", "assignment_type", "assessment_purpose", "total_score", "max_score", "final_status", "ocr_status", "draft_status", "final_review_stale", "draft_stale", "updated_at"
-        ])
-    }
-
-    private func csv() -> String {
-        CSVExportService.exportedCSV(from: [ExportFixtureFactory.sensitiveApprovedAssignment()])
+    private func makeCSV() throws -> String {
+        let fixture = try ExportFixtureFactory.sensitiveApprovedAssignment()
+        return CSVExportService.gradebookCSV(setup: fixture.setup, submissions: [fixture.submission])
     }
 }
 
 final class RosterCSVHardeningTests: XCTestCase {
     func testRosterImportAcceptsQuotedCommaInDisplayName() {
-        let preview = RosterImportService.preview(csvText: "displayName,localIdentifier\n\"Smith, Alice\",A1")
-        XCTAssertEqual(preview.students.first?.displayName, "Smith, Alice")
+        let parsed = RosterImportService.parse(text: "displayName,localIdentifier\n\"Smith, Alice\",A1")
+        XCTAssertEqual(parsed.rows.first?.displayName, "Smith, Alice")
     }
 
     func testRosterImportAcceptsEscapedQuotesInDisplayName() {
-        let preview = RosterImportService.preview(csvText: "displayName,localIdentifier\n\"Alice \"\"AJ\"\" Smith\",A1")
-        XCTAssertEqual(preview.students.first?.displayName, "Alice \"AJ\" Smith")
+        let parsed = RosterImportService.parse(text: "displayName,localIdentifier\n\"Alice \"\"AJ\"\" Smith\",A1")
+        XCTAssertEqual(parsed.rows.first?.displayName, "Alice \"AJ\" Smith")
     }
 
     func testRosterImportPreservesCommaInNotes() {
-        let preview = RosterImportService.preview(csvText: "displayName,localIdentifier,className,notes\nAlice,A1,6A,\"Needs seating, extra time\"")
-        XCTAssertEqual(preview.students.first?.notes, "Needs seating, extra time")
+        let parsed = RosterImportService.parse(text: "displayName,localIdentifier,className,notes\nAlice,A1,6A,\"Needs seating, extra time\"")
+        XCTAssertEqual(parsed.rows.first?.notes, "Needs seating, extra time")
     }
 
     func testRosterImportRejectsUnterminatedQuotedField() {
-        let preview = RosterImportService.preview(csvText: "displayName\n\"Alice")
-        XCTAssertTrue(preview.students.isEmpty)
-        XCTAssertFalse(preview.rejectedRows.isEmpty)
+        let parsed = RosterImportService.parse(text: "displayName\n\"Alice")
+        XCTAssertTrue(parsed.rows.isEmpty)
+        XCTAssertFalse(parsed.result.skippedRows.isEmpty)
     }
 
     func testRosterImportHeaderlessCSVStillWorks() {
-        let preview = RosterImportService.preview(csvText: "Alice\nBob", defaultClassName: "6A")
-        XCTAssertEqual(preview.students.map(\.displayName), ["Alice", "Bob"])
-        XCTAssertFalse(preview.hasHeaderRow)
+        let parsed = RosterImportService.parse(text: "Alice\nBob")
+        XCTAssertEqual(parsed.rows.map(\.displayName), ["Alice", "Bob"])
+        XCTAssertFalse(parsed.result.hasHeaderRow)
     }
 
     func testRosterImportTrimsDisplayNameAndIdentifier() {
-        let preview = RosterImportService.preview(csvText: "displayName,localIdentifier\n Alice , A1 ")
-        XCTAssertEqual(preview.students.first?.displayName, "Alice")
-        XCTAssertEqual(preview.students.first?.localIdentifier, "A1")
+        let parsed = RosterImportService.parse(text: "displayName,localIdentifier\n Alice , A1 ")
+        XCTAssertEqual(parsed.rows.first?.displayName, "Alice")
+        XCTAssertEqual(parsed.rows.first?.localIdentifier, "A1")
     }
 
     func testRosterImportDuplicateIdentifierStillRejectsSecondRow() {
-        let preview = RosterImportService.preview(csvText: "displayName,localIdentifier\nAlice,A1\nBob,A1")
-        XCTAssertEqual(preview.students.count, 1)
-        XCTAssertTrue(preview.rejectedRows.first?.contains("Duplicate localIdentifier") == true)
+        let parsed = RosterImportService.parse(text: "displayName,localIdentifier\nAlice,A1\nBob,A1")
+        XCTAssertEqual(parsed.rows.count, 1)
+        XCTAssertTrue(parsed.result.skippedRows.first?.contains("repeats the identifier") == true)
     }
 
     func testRosterImportDuplicateNameWarningStillUsesLowercaseKey() {
-        let preview = RosterImportService.preview(csvText: "displayName,localIdentifier\nAlice,A1\nalice,A2")
-        XCTAssertEqual(preview.duplicateNames, ["alice"])
-        XCTAssertFalse(preview.warnings.isEmpty)
+        let parsed = RosterImportService.parse(text: "displayName,localIdentifier\nAlice,A1\nalice,A2")
+        XCTAssertEqual(parsed.rows.count, 2)
+        XCTAssertEqual(parsed.result.warnings, ["Duplicate display names detected; use localIdentifier values to distinguish students."])
     }
+}
+
+/// Parses a gradebook CSV. The file starts with a byte-order mark, which the parser does not read.
+private func gradebookRows(_ fixtures: [ExportFixture]) throws -> [[String]] {
+    let first = try XCTUnwrap(fixtures.first)
+    let csv = CSVExportService.gradebookCSV(setup: first.setup, submissions: fixtures.map(\.submission))
+    return try CSVParser.parseRows(String(csv.dropFirst()))
 }

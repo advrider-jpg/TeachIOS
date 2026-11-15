@@ -390,7 +390,8 @@ final class SubmissionSession {
         do {
             let fingerprint = try context.graph.packetFingerprint(setup: context.setup)
             let className = try await SubmissionSession.className(context.database, classGroupID: context.setup.assignment.classGroupID)
-            let input = try GradingPacketBuilder.gradingInput(setup: context.setup, graph: context.graph, className: className)
+            let mappedItems = try await Self.confirmedCurriculumItems(setup: context.setup, catalog: services.curriculumCatalog)
+            let input = try GradingPacketBuilder.gradingInput(setup: context.setup, graph: context.graph, className: className, mappedItems: mappedItems)
             var plan: PromptBudgetPlan?
             var budgetError: (any Error)?
             do {
@@ -429,6 +430,7 @@ final class SubmissionSession {
         }
         let database = context.database
         let grading = app.services.grading
+        let catalog = app.services.curriculumCatalog
         let submissionID = id
         let assignmentID = context.setup.id
         let classGroupID = context.setup.assignment.classGroupID
@@ -441,7 +443,8 @@ final class SubmissionSession {
             guard let graph = try await database.submission(id: submissionID) else { throw AppDatabaseError.notFound(submissionID) }
             guard let setup = try await database.assignmentSetup(id: assignmentID) else { throw AppDatabaseError.notFound(assignmentID) }
             let className = try await SubmissionSession.className(database, classGroupID: classGroupID)
-            let input = try GradingPacketBuilder.gradingInput(setup: setup, graph: graph, className: className)
+            let mappedItems = try await SubmissionSession.confirmedCurriculumItems(setup: setup, catalog: catalog)
+            let input = try GradingPacketBuilder.gradingInput(setup: setup, graph: graph, className: className, mappedItems: mappedItems)
             let draft = try await grading.draftGrade(input: input, progress: progress)
             try Task.checkCancellation()
             try await database.replaceDraft(draft, submissionID: submissionID)
@@ -522,6 +525,12 @@ final class SubmissionSession {
             ))
         }
         if !started { busyAlert("Feedback rewrite") }
+    }
+
+    /// The catalog items behind the setup's teacher-confirmed curriculum mappings; unconfirmed AI suggestions
+    /// never enter the grading packet.
+    nonisolated private static func confirmedCurriculumItems(setup: AssignmentSetup, catalog: CurriculumCatalogService) async throws -> [CurriculumItem] {
+        try await catalog.items(ids: setup.curriculumMappings.filter(\.teacherConfirmed).map(\.curriculumItemID))
     }
 
     nonisolated private static func className(_ database: AppDatabase, classGroupID: UUID) async throws -> String {
@@ -608,6 +617,16 @@ final class SubmissionSession {
             get: { [weak self] in self?.review?.criteria.first { $0.id == criterionID }?[keyPath: keyPath] ?? "" },
             set: { [weak self] value in
                 self?.editCriterion(criterionID) { $0[keyPath: keyPath] = value }
+            }
+        )
+    }
+
+    /// A binding to a teacher-added criterion's title (a criterion without a rubric title). Edits autosave.
+    func criterionTitle(_ criterionID: UUID) -> Binding<String> {
+        Binding(
+            get: { [weak self] in self?.review?.criteria.first { $0.id == criterionID }?.title ?? "" },
+            set: { [weak self] value in
+                self?.editCriterion(criterionID) { $0.title = value }
             }
         )
     }
@@ -907,6 +926,33 @@ final class SubmissionSession {
             )
         default:
             throw GradeDraftError.exportFailed("\(kind.displayName) is not a single-student export.")
+        }
+    }
+
+    /// Copies the prepared export's text to the clipboard (text exports only). The screen asks the teacher
+    /// to confirm the clipboard warning first. The copy is recorded as an audit event.
+    func copyPreparedExportText() {
+        guard let export = preparedExport, let assignmentID = graph?.submission.assignmentID else {
+            alert = AlertMessage(title: "Copy not done", message: "Create an export before copying text.")
+            return
+        }
+        do {
+            try ExportClipboard.copyText(of: export)
+        } catch {
+            alert = AlertMessage(title: "Copy not done", error: error)
+            return
+        }
+        let submissionID = id
+        Task {
+            do {
+                try await app.requireDatabase().appendAudit(AuditEvent(
+                    assignmentID: assignmentID, submissionID: submissionID, eventType: .exportPrepared,
+                    detail: "Copied \(export.kind.displayName) text to clipboard after the clipboard warning."
+                ))
+                alert = AlertMessage(title: "Copied", message: "Export text copied to the clipboard. Share only through approved channels.")
+            } catch {
+                alert = AlertMessage(title: "Copied, but not recorded", error: error)
+            }
         }
     }
 

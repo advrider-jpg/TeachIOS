@@ -1,96 +1,99 @@
 import XCTest
 @testable import GradeDraft
 
-// MARK: - GradeTotals edge cases
+// MARK: - Totals edge cases
 
 final class GradeTotalsHardeningTests: XCTestCase {
+    private func sampleInput(rubric: String) -> GradingInput {
+        GradingInput(
+            assignmentID: UUID(),
+            assignmentTitle: "Essay",
+            prompt: "",
+            subject: "ELA",
+            gradeLevel: "6",
+            className: "6A",
+            studentDisplayName: "Student A",
+            assignmentType: .essay,
+            rubricText: rubric,
+            parsedRubric: RubricParser.parse(rubric),
+            customInstructions: "",
+            answerKeyText: "",
+            exemplarText: "",
+            assessmentPurpose: .summative,
+            curriculumReference: "",
+            reviewedStudentText: "Student response",
+            reviewedTextWithSourceRefs: "Student response",
+            ocrQualitySummary: OCRQualitySummary(),
+            ocrReviewStatus: .notNeeded,
+            sourceInputCount: 1,
+            packetFingerprint: "packet-1",
+            hasGradingStandard: true
+        )
+    }
+
     func testEmptyCriteriaProducesZeroTotals() {
         let draft = GradeDraftResult(
+            packetFingerprint: "p-1",
             studentResponseSummary: "Summary",
             criteria: [],
-            totalScore: 999,
-            maxScore: 999,
             studentFeedback: "",
             teacherNotes: "",
             uncertaintyFlags: []
         )
-        let normalized = GradeTotals.applyingDeterministicTotals(to: draft)
-        XCTAssertEqual(normalized.totalScore, 0)
-        XCTAssertEqual(normalized.maxScore, 0)
-    }
-
-    func testNegativeProposedPointsClampedToZero() {
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [
-                CriterionScore(
-                    criterion: "Claim",
-                    rating: "Poor",
-                    proposedPoints: -5,
-                    maxPoints: 4,
-                    evidence: [],
-                    explanation: "",
-                    teacherReviewRequired: true
-                )
-            ],
-            totalScore: 999,
-            maxScore: 999,
-            studentFeedback: "",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
-        let normalized = GradeTotals.applyingDeterministicTotals(to: draft)
-        XCTAssertEqual(normalized.totalScore, 0, "Negative proposed points should clamp to 0")
-        XCTAssertEqual(normalized.maxScore, 4)
-    }
-
-    func testNegativeMaxPointsClampedToZeroInDraft() {
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [
-                CriterionScore(
-                    criterion: "Claim",
-                    rating: "OK",
-                    proposedPoints: 2,
-                    maxPoints: -1,
-                    evidence: [],
-                    explanation: "",
-                    teacherReviewRequired: false
-                )
-            ],
-            totalScore: 999,
-            maxScore: 999,
-            studentFeedback: "",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
-        let normalized = GradeTotals.applyingDeterministicTotals(to: draft)
-        XCTAssertEqual(normalized.maxScore, 0, "Negative maxPoints should clamp to 0")
-    }
-
-    func testFinalReviewNegativeFinalPointsClampedToZero() {
         let review = FinalGradeReview(
-            packetFingerprint: "p-1",
+            packetFingerprint: "p-1", criteria: [], studentFeedback: "", privateTeacherNotes: "", teacherEdited: false
+        )
+        XCTAssertEqual(draft.totalScore, 0)
+        XCTAssertEqual(review.totalScore, 0)
+    }
+
+    func testNegativeProposedPointsClampedToZero() throws {
+        let input = sampleInput(rubric: "Claim: 0-4 points")
+        let proposal = ProposalFixtures.proposal([
+            ProposalFixtures.criterion(id: input.parsedRubric.criteria[0].id, points: -5, evidence: [], teacherReviewRequired: true)
+        ])
+        let normalized = try GradeDraftValidator.validate(proposal, input: input, audit: nil)
+        XCTAssertEqual(normalized.totalScore, 0, "Negative proposed points should clamp to 0")
+        XCTAssertEqual(normalized.criteria[0].proposedPoints, 0)
+    }
+
+    /// The model-supplied maximum is only used when there is no point-bearing rubric. A negative maximum is
+    /// no longer clamped to 0; the validator rejects the draft (changed expectation, see the porting report).
+    func testNegativeModelMaxPointsRejected() {
+        var input = sampleInput(rubric: "")
+        input.answerKeyText = "Expected: a clear claim."
+        let proposal = ProposalFixtures.proposal([
+            ProposalFixtures.criterion(id: "model-claim", points: 2, evidence: [], title: "Claim", maxPoints: -1)
+        ])
+        XCTAssertThrowsError(try GradeDraftValidator.validate(proposal, input: input, audit: nil)) { error in
+            XCTAssertEqual(error as? GradeDraftError, .invalidModelGrade("Claim had a negative maximum score."))
+        }
+    }
+
+    /// Negative final points are no longer clamped inside the total; they block approval until corrected.
+    func testFinalReviewNegativeFinalPointsBlockApproval() throws {
+        let setup = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "Essay", rubricText: "Claim: 0-4 points"))
+        var graph = SubmissionGraph(
+            submission: Submission(assignmentID: setup.id, studentID: UUID(), inputKind: .pasted, pastedText: "Student text"),
+            student: Student(displayName: "Kai")
+        )
+        graph.finalReview = FinalGradeReview(
+            packetFingerprint: try graph.packetFingerprint(setup: setup),
             criteria: [
                 FinalCriterionScore(
-                    criterion: "Claim",
-                    rating: "",
-                    proposedPoints: 0,
-                    finalPoints: -3,
-                    maxPoints: 4,
-                    evidence: [],
-                    explanation: "",
-                    teacherApproved: true
+                    criterionID: setup.parsedRubric.criteria[0].id, rating: "", proposedPoints: 0, finalPoints: -3,
+                    explanation: "", teacherApproved: true
                 )
             ],
-            totalScore: 999,
-            maxScore: 999,
             studentFeedback: "",
             privateTeacherNotes: "",
             teacherEdited: true
         )
-        let normalized = GradeTotals.applyingDeterministicTotals(to: review)
-        XCTAssertEqual(normalized.totalScore, 0, "Negative finalPoints should clamp to 0")
+
+        let readiness = AssignmentReadiness(setup: setup, submission: graph, aiStatus: .available, aiReport: nil)
+
+        XCTAssertTrue(readiness.approvalIssues.contains(.scoreOutOfRange), "Negative finalPoints must block approval")
+        XCTAssertFalse(readiness.canApproveFinalReview)
     }
 
     func testFormattedWholeNumber() {
@@ -104,21 +107,20 @@ final class GradeTotalsHardeningTests: XCTestCase {
     }
 
     func testMultipleCriteriaAggregation() {
+        // No point-bearing rubric: each criterion carries its own title and maximum.
+        let setup = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "Essay", answerKeyText: "Key"))
         let review = FinalGradeReview(
             packetFingerprint: "p-1",
             criteria: [
-                FinalCriterionScore(criterion: "A", rating: "", proposedPoints: 0, finalPoints: 3, maxPoints: 4, evidence: [], explanation: "", teacherApproved: true),
-                FinalCriterionScore(criterion: "B", rating: "", proposedPoints: 0, finalPoints: 2, maxPoints: 4, evidence: [], explanation: "", teacherApproved: true),
-                FinalCriterionScore(criterion: "C", rating: "", proposedPoints: 0, finalPoints: 4, maxPoints: 4, evidence: [], explanation: "", teacherApproved: true)
+                FinalCriterionScore(criterionID: "a", rating: "", proposedPoints: 0, finalPoints: 3, explanation: "", teacherApproved: true, title: "A", maxPoints: 4),
+                FinalCriterionScore(criterionID: "b", rating: "", proposedPoints: 0, finalPoints: 2, explanation: "", teacherApproved: true, title: "B", maxPoints: 4),
+                FinalCriterionScore(criterionID: "c", rating: "", proposedPoints: 0, finalPoints: 4, explanation: "", teacherApproved: true, title: "C", maxPoints: 4)
             ],
-            totalScore: 0,
-            maxScore: 0,
             studentFeedback: "",
             privateTeacherNotes: "",
             teacherEdited: true
         )
-        let normalized = GradeTotals.applyingDeterministicTotals(to: review)
-        XCTAssertEqual(normalized.totalScore, 9)
-        XCTAssertEqual(normalized.maxScore, 12)
+        XCTAssertEqual(review.totalScore, 9)
+        XCTAssertEqual(review.criteria.compactMap { AssignmentReadiness.maximumPoints(for: $0, setup: setup) }.reduce(0, +), 12)
     }
 }

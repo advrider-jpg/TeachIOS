@@ -1,5 +1,4 @@
 import XCTest
-import ZIPFoundation
 @testable import GradeDraft
 
 // MARK: - LocalOnlyGradingValidator
@@ -66,53 +65,16 @@ final class LocalOnlyGradingValidatorHardeningTests: XCTestCase {
 
 // MARK: - All-features completion v3 coverage
 
-private enum V3ArchiveTestError: Error {
-    case missingEntry(String)
-}
-
-private final class V3TempAssignmentStore: AssignmentStoring {
-    private(set) var assignments: [AssignmentRecord]
-    private(set) var rosterEntries: [AssignmentRosterEntry] = []
-    private let root: URL
-
-    init(assignments: [AssignmentRecord] = [], root: URL) {
-        self.assignments = assignments
-        self.root = root
-    }
-
-    func loadAssignments() throws -> [AssignmentRecord] { assignments }
-    func saveAssignments(_ assignments: [AssignmentRecord]) throws { self.assignments = assignments }
-    func deleteAssignment(id: UUID) throws { assignments.removeAll { $0.id == id } }
-    func applicationSupportDirectory() throws -> URL {
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return root
-    }
-    func loadClassGroups() throws -> [ClassGroupRecord] { [] }
-    func saveClassGroup(_ classGroup: ClassGroupRecord) throws {}
-    func deleteClassGroup(id: UUID) throws {}
-    func loadStudents() throws -> [StudentRecord] { [] }
-    func saveStudent(_ student: StudentRecord) throws {}
-    func deleteStudent(id: UUID) throws {}
-    func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] { rosterEntries.filter { $0.assignmentID == assignmentID } }
-    func loadAssignmentRosterSnapshot() throws -> [AssignmentRosterEntry] { rosterEntries }
-    func replaceAssignmentRosterSnapshot(_ entries: [AssignmentRosterEntry]) throws { self.rosterEntries = entries }
-    func replaceLocalDataSnapshot(_ snapshot: AssignmentStoreSnapshot) throws {
-        self.assignments = snapshot.assignments
-        self.rosterEntries = snapshot.rosterEntries
-    }
-    func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws {}
-    func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws {}
-    func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws {}
-    func saveEvidenceReferences(_ references: [EvidenceReference], assignmentID: UUID) throws {}
-    func loadFullAssignmentGraph(id: UUID) throws -> AssignmentRecord? { assignments.first { $0.id == id } }
-}
-
+@MainActor
 final class AllFeaturesCompletionV3Tests: XCTestCase {
     func testMarkdownRubricParserSupportsHeadingsListsTablesLevelsDuplicatesAndPreview() {
+        // The reader takes its structure from the Markdown syntax tree, so a table needs a blank line before it
+        // (otherwise it is read as part of the list item above it).
         let markdown = """
         # Argument writing
         - [claim] Claim: 0-4 points. Excellent 4 points: precise claim. Beginning 0-1 points: missing claim.
         1. Evidence: 0-3 pts. Proficient 3 points: relevant evidence.
+
         | Criterion ID | Criterion | Max Points | Excellent | Developing |
         | --- | --- | ---: | --- | --- |
         | reasoning | Reasoning | 4 | 4 points: explains how evidence supports claim | 1-2 points: limited explanation |
@@ -129,326 +91,434 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
         XCTAssertTrue(preview.fallbackRawTextAvailable)
     }
 
-    func testCurriculumCatalogLoadsFiltersMapsPersistsAndAvoidsEndorsementClaims() throws {
-        let catalog = CurriculumCatalogService.localCatalog
-        XCTAssertFalse(catalog.items.isEmpty)
-        let englishYear7 = catalog.filtered(learningArea: "English", yearLevel: "Year 7")
+    func testCurriculumCatalogLoadsFiltersMapsPersistsAndAvoidsEndorsementClaims() async throws {
+        let catalog = CurriculumCatalogService()
+        let facets = try await catalog.facets()
+        XCTAssertFalse(facets.learningAreas.isEmpty)
+        let englishYear7 = try await catalog.search("", learningArea: "English", yearLevel: "Year 7")
         XCTAssertFalse(englishYear7.isEmpty)
         XCTAssertFalse(CurriculumCatalogService.sourceWarning.localizedCaseInsensitiveContains("endorsed by"))
         XCTAssertFalse(CurriculumCatalogService.sourceWarning.localizedCaseInsensitiveContains("certified by"))
-
-        var assignment = approvedAssignment(title: "Curriculum map")
         let item = try XCTUnwrap(englishYear7.first)
-        assignment.curriculumMappings = [CurriculumMapping(curriculumItemID: item.id, mappingKind: "assignment")]
-        assignment.curriculumReference = CurriculumCatalogService.selectedReferenceSummary(items: [item])
-        let audit = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment)
-        XCTAssertTrue(audit.contains(item.code))
-        XCTAssertTrue(audit.contains("Curriculum references"))
-        XCTAssertTrue(assignment.gradingPacketFingerprint.contains("fnv1a64-"))
-        XCTAssertTrue((PromptBuilder.gradingInstructionsText(input: assignment.gradingInput) + "\n" + PromptBuilder.fullPacketPromptText(input: assignment.gradingInput, mode: .full)).contains(item.code))
+
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student response")
+        let database = try app.requireDatabase()
+        let beforeSaved = try await database.assignmentSetup(id: seeded.assignmentID)
+        let before = try XCTUnwrap(beforeSaved)
+        let fingerprintBefore = try before.setupFingerprint
+
+        let model = try await openSetupModel(app, seeded.assignmentID)
+        model.edit { $0.assignment.curriculumReference = CurriculumCatalogService.selectedReferenceSummary(items: [item]) }
+        await model.addMapping(itemID: item.id)
+
+        let setupSaved = try await database.assignmentSetup(id: seeded.assignmentID)
+        let setup = try XCTUnwrap(setupSaved)
+        XCTAssertEqual(setup.curriculumMappings.map(\.curriculumItemID), [item.id])
+        XCTAssertEqual(try setup.setupFingerprint.count, 64, "Fingerprints are SHA-256 hex")
+        XCTAssertNotEqual(try setup.setupFingerprint, fingerprintBefore)
+
+        let graphSaved = try await database.submission(id: seeded.submissionID)
+        let graph = try XCTUnwrap(graphSaved)
+        let record = MarkdownRenderer.render(ReportBuilder.teacherRecord(setup: setup, submission: graph, generatedAt: Date()))
+        XCTAssertTrue(record.contains(item.code))
+        XCTAssertTrue(record.contains("Curriculum references"))
+        let input = try GradingPacketBuilder.gradingInput(setup: setup, graph: graph, className: "6A", mappedItems: [])
+        let prompt = PromptBuilder.gradingInstructionsText() + "\n" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
+        XCTAssertTrue(prompt.contains(item.code))
     }
 
-    func testRosterCSVPreviewDuplicateDetectionRejectedRowsAndGradebookCSV() {
+    func testRosterCSVPreviewRejectedRowsAndGradebookCSV() throws {
         let csv = """
         displayName,localIdentifier,className,notes
         Alice,A1,6A,
         Bob,A2,6A,
-        Alice,A3,6A,duplicate name allowed with warning
+        Alice,A3,6A,same name with a different identifier is allowed
         ,A4,6A,missing name
         Chris,A2,6A,duplicate identifier rejected
         """
-        let preview = RosterImportService.preview(csvText: csv, defaultClassName: "6A")
-        XCTAssertEqual(preview.students.count, 3)
-        XCTAssertTrue(preview.duplicateNames.contains("alice"))
-        XCTAssertEqual(preview.rejectedRowDetails.count, 2)
-        XCTAssertTrue(preview.hasHeaderRow)
+        let (rows, result) = RosterImportService.parse(text: csv)
+        XCTAssertEqual(rows.count, 3)
+        XCTAssertEqual(rows.map(\.localIdentifier), ["A1", "A2", "A3"])
+        XCTAssertEqual(result.skippedRows.count, 2)
+        XCTAssertTrue(result.warnings.contains("Duplicate display names detected; use localIdentifier values to distinguish students."))
+        XCTAssertTrue(result.hasHeaderRow)
 
-        var alice = approvedAssignment(title: "Essay", student: "Alice", score: 4)
-        alice.className = "6A"
-        var bob = approvedAssignment(title: "Essay", student: "Bob", score: 3)
-        bob.className = "6A"
-        let csvOutput = CSVExportService.exportedCSV(from: [alice, bob])
+        let setup = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "Essay", rubricText: "Claim: 0-4 points"))
+        let alice = try approvedGraph(setup: setup, student: "Alice", score: 4)
+        let bob = try approvedGraph(setup: setup, student: "Bob", score: 3)
+        let csvOutput = CSVExportService.gradebookCSV(setup: setup, submissions: [alice, bob])
         XCTAssertTrue(csvOutput.contains("Alice"))
         XCTAssertTrue(csvOutput.contains("Bob"))
         XCTAssertTrue(csvOutput.contains("approved"))
     }
 
-    @MainActor
-    func testOCRLineEvidenceLinkingBoundingBoxRemovalAndStudentPrivacy() throws {
-        let sourceID = UUID()
-        var assignment = approvedAssignment(title: "Evidence", student: "Student")
+    func testOCRLineEvidenceLinkingBoundingBoxRemovalAndStudentPrivacy() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: nil)
+        let database = try app.requireDatabase()
         let line = OCRLine(
             text: "The quote supports my claim.",
             confidence: 0.99,
             boundingBox: NormalizedRect(x: 0.12, y: 0.22, width: 0.45, height: 0.08),
+            origin: .visionOCR,
             teacherConfirmed: true
         )
-        let page = OCRPage(sourceInputID: sourceID, pageIndex: 1, lines: [line])
-        assignment.sourceInputs = [SourceInputRef(id: sourceID, sourceType: .pdf, pageIndex: 1, localRelativePath: "Sources/page-2.png")]
-        assignment.ocrDocument = OCRDocument(pages: [page], reviewStatus: .reviewed)
-        assignment.ocrReviewStatus = .reviewed
-        assignment.reviewedStudentText = page.lines.map(\.reviewedText).joined(separator: "\n")
-        var evidenceReview = try XCTUnwrap(assignment.finalReview)
-        evidenceReview.criteria[0].evidence = []
-        evidenceReview.criteria[0].evidenceSourceRefs = []
-        let criterionID = evidenceReview.criteria[0].id
-        assignment.finalReview = evidenceReview
+        let source = SourceInputRef(
+            submissionID: seeded.submissionID, sourceType: .pdf, pageIndex: 1,
+            localRelativePath: "Sources/\(seeded.submissionID.uuidString)/page-2.png"
+        )
+        _ = try await database.replaceInput(
+            submissionID: seeded.submissionID, kind: .scanned, pastedText: nil, sources: [source],
+            ocr: OCRDocument(pages: [OCRPage(sourceInputID: source.id, pageIndex: 1, lines: [line])], reviewStatus: .reviewed)
+        )
+        let setupSaved = try await database.assignmentSetup(id: seeded.assignmentID)
+        let setup = try XCTUnwrap(setupSaved)
+        let criterion = FinalCriterionScore(
+            criterionID: setup.parsedRubric.criteria[0].id, rating: "Proficient", proposedPoints: 3, finalPoints: 3,
+            explanation: "The response supports a claim."
+        )
+        try await database.saveFinalReview(
+            FinalGradeReview(
+                packetFingerprint: try await TestApp.fingerprint(app, seeded),
+                criteria: [criterion],
+                studentFeedback: "Teacher-approved feedback.",
+                privateTeacherNotes: "Private teacher notes.",
+                teacherEdited: true
+            ),
+            submissionID: seeded.submissionID
+        )
+        let session = try await openSession(app, seeded.submissionID)
 
-        let store = V3TempAssignmentStore(assignments: [assignment], root: FileManager.default.temporaryDirectory.appendingPathComponent("V3Evidence-\(UUID())"))
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-        viewModel.addOCRLineEvidenceToFinalReview(pageID: page.id, lineID: line.id, criterionID: criterionID)
+        await session.addLineEvidence(lineID: line.id, to: criterion.id)
 
-        XCTAssertEqual(viewModel.assignment.evidenceReferences.count, 1)
-        XCTAssertEqual(viewModel.assignment.evidenceReferences.first?.ocrLineID, line.id)
-        XCTAssertEqual(viewModel.assignment.evidenceReferences.first?.boundingBox?.stableDisplay, "x:0.1200 y:0.2200 w:0.4500 h:0.0800")
-        XCTAssertEqual(viewModel.assignment.finalReview?.criteria[0].evidence.count, 1)
-        XCTAssertEqual(viewModel.assignment.finalReview?.criteria[0].evidenceSourceRefs?.count, 1)
+        let graphSaved = try await database.submission(id: seeded.submissionID)
+        var graph = try XCTUnwrap(graphSaved)
+        let evidence = try XCTUnwrap(graph.evidence.first)
+        XCTAssertEqual(graph.evidence.count, 1)
+        XCTAssertEqual(evidence.ocrLineID, line.id)
+        XCTAssertEqual(evidence.boundingBox?.stableDisplay, "x:0.1200 y:0.2200 w:0.4500 h:0.0800")
+        XCTAssertEqual(session.review?.criteria[0].evidenceIDs, [evidence.id])
 
-        let teacherAudit = MarkdownReportBuilder.teacherAuditMarkdown(for: viewModel.assignment)
-        XCTAssertTrue(teacherAudit.contains("bbox"))
-        XCTAssertTrue(teacherAudit.contains("text line"))
-        let studentReport = MarkdownReportBuilder.studentMarkdown(for: viewModel.assignment)
+        let teacherRecord = MarkdownRenderer.render(ReportBuilder.teacherRecord(setup: setup, submission: graph, generatedAt: Date()))
+        XCTAssertTrue(teacherRecord.contains("The quote supports my claim."))
+        XCTAssertTrue(teacherRecord.contains("page 2"))
+        XCTAssertTrue(teacherRecord.contains("bbox: x:0.1200 y:0.2200 w:0.4500 h:0.0800"))
+
+        session.acceptCriterion(criterion.id)
+        await session.approveFinalReview()
+        XCTAssertNil(session.alert)
+        graph = try await load(database, seeded.submissionID)
+        let studentReport = try MarkdownRenderer.render(ReportBuilder.studentReport(setup: setup, submission: graph, generatedAt: Date()))
+        XCTAssertTrue(studentReport.contains("The quote supports my claim."))
         XCTAssertFalse(studentReport.contains("bbox"))
         XCTAssertFalse(studentReport.contains("source:"))
+        XCTAssertFalse(studentReport.contains("0.4500"))
 
-        viewModel.removeEvidenceFromFinalReview(criterionID: criterionID, evidenceIndex: 0)
-        XCTAssertTrue(viewModel.assignment.evidenceReferences.isEmpty)
-        XCTAssertTrue(viewModel.assignment.finalReview?.criteria[0].evidence.isEmpty ?? false)
-        XCTAssertTrue(viewModel.assignment.finalReview?.criteria[0].evidenceSourceRefs?.isEmpty ?? false)
+        await session.removeEvidence(evidence.id, from: criterion.id)
+        graph = try await load(database, seeded.submissionID)
+        XCTAssertTrue(graph.evidence.isEmpty)
+        XCTAssertTrue(graph.finalReview?.criteria[0].evidenceIDs.isEmpty ?? false)
     }
 
-    @MainActor
-    func testManualEvidenceAddAndClearKeepsEvidenceArraysAligned() throws {
-        var assignment = approvedAssignment(title: "Manual evidence")
-        var manualReview = try XCTUnwrap(assignment.finalReview)
-        manualReview.criteria[0].evidence = []
-        manualReview.criteria[0].evidenceSourceRefs = []
-        let criterionID = manualReview.criteria[0].id
-        assignment.finalReview = manualReview
-        let store = V3TempAssignmentStore(assignments: [assignment], root: FileManager.default.temporaryDirectory.appendingPathComponent("V3ManualEvidence-\(UUID())"))
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+    func testManualEvidenceAddAndClearKeepsEvidenceAndCriterionAligned() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "The quote supports my claim.")
+        let database = try app.requireDatabase()
+        let setupSaved = try await database.assignmentSetup(id: seeded.assignmentID)
+        let setup = try XCTUnwrap(setupSaved)
+        let criterion = FinalCriterionScore(
+            criterionID: setup.parsedRubric.criteria[0].id, rating: "", proposedPoints: 0, finalPoints: 0, explanation: ""
+        )
+        try await database.saveFinalReview(
+            FinalGradeReview(
+                packetFingerprint: try await TestApp.fingerprint(app, seeded),
+                criteria: [criterion], studentFeedback: "", privateTeacherNotes: "", teacherEdited: false
+            ),
+            submissionID: seeded.submissionID
+        )
+        let session = try await openSession(app, seeded.submissionID)
 
-        viewModel.addManualEvidenceToFinalReview(criterionID: criterionID, quote: "Teacher-entered quote")
-        XCTAssertEqual(viewModel.assignment.finalReview?.criteria[0].evidence, ["Teacher-entered quote"])
-        XCTAssertEqual(viewModel.assignment.finalReview?.criteria[0].evidenceSourceRefs?.count, 1)
-        XCTAssertEqual(viewModel.assignment.evidenceReferences.first?.sourceKind, "manualTeacherEntry")
+        await session.addManualEvidence(quote: "Teacher-entered quote", to: criterion.id)
 
-        viewModel.clearEvidenceFromFinalReview(criterionID: criterionID)
-        XCTAssertTrue(viewModel.assignment.finalReview?.criteria[0].evidence.isEmpty ?? false)
-        XCTAssertTrue(viewModel.assignment.finalReview?.criteria[0].evidenceSourceRefs?.isEmpty ?? false)
-        XCTAssertTrue(viewModel.assignment.evidenceReferences.isEmpty)
+        let graphSaved = try await database.submission(id: seeded.submissionID)
+        var graph = try XCTUnwrap(graphSaved)
+        XCTAssertEqual(graph.evidence.map(\.quote), ["Teacher-entered quote"])
+        XCTAssertEqual(graph.evidence.first?.sourceKind, .manualTeacherEntry)
+        let evidenceID = try XCTUnwrap(graph.evidence.first?.id)
+        XCTAssertEqual(session.review?.criteria[0].evidenceIDs, [evidenceID])
+
+        await session.removeEvidence(evidenceID, from: criterion.id)
+
+        graph = try await load(database, seeded.submissionID)
+        XCTAssertTrue(graph.evidence.isEmpty)
+        XCTAssertTrue(session.review?.criteria[0].evidenceIDs.isEmpty ?? false)
+        XCTAssertTrue(graph.finalReview?.criteria[0].evidenceIDs.isEmpty ?? false)
     }
 
-    func testFullBackupArchiveIncludesAllRecordTypesManifestSafePathsAndRestoresSources() throws {
-        let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent("V3BackupSource-\(UUID())")
-        let sourceFolder = tempRoot.appendingPathComponent("Sources/assignment-1", isDirectory: true)
-        try FileManager.default.createDirectory(at: sourceFolder, withIntermediateDirectories: true)
-        let sourceFile = sourceFolder.appendingPathComponent("page-1.png")
-        try Data("source bytes".utf8).write(to: sourceFile)
+    func testFullBackupIncludesAllRecordTypesManifestSafePathsAndRestoresSources() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: nil)
+        let database = try app.requireDatabase()
+        let root = try app.requireStorageRoot()
+        let sourceFile = try writeSource(root: root, submissionID: seeded.submissionID, bytes: "source bytes")
+        let line = OCRLine(text: "Evidence", confidence: 1, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true)
+        let source = SourceInputRef(
+            submissionID: seeded.submissionID, sourceType: .pdf, pageIndex: 0, localRelativePath: sourceFile.relativePath,
+            fileName: "work.pdf", mimeType: "application/pdf", sha256: ContentDigest.sha256Hex(Data("source bytes".utf8)),
+            pdfPageCount: 1, includedInTeacherArchive: true
+        )
+        _ = try await database.replaceInput(
+            submissionID: seeded.submissionID, kind: .scanned, pastedText: nil, sources: [source],
+            ocr: OCRDocument(pages: [OCRPage(sourceInputID: source.id, pageIndex: 0, lines: [line])], reviewStatus: .reviewed)
+        )
+        try await database.addEvidence(
+            EvidenceReference(
+                submissionID: seeded.submissionID, ocrLineID: line.id, pageIndex: 0, quote: "Evidence",
+                boundingBox: NormalizedRect(x: 0.1, y: 0.1, width: 0.2, height: 0.2), sourceKind: .ocrLine, teacherConfirmed: true
+            ),
+            submissionID: seeded.submissionID
+        )
+        try await database.recordExport(ExportRecord(
+            assignmentID: seeded.assignmentID, submissionID: seeded.submissionID, kind: .teacherAuditPDF,
+            contentSHA256: "fp", includesPrivateTeacherNotes: true, includesOriginalSources: true
+        ))
+        try await database.appendAudit(AuditEvent(
+            assignmentID: seeded.assignmentID, submissionID: seeded.submissionID, eventType: .exportPrepared, detail: "Prepared export."
+        ))
+        let setupSaved = try await database.assignmentSetup(id: seeded.assignmentID)
+        var setup = try XCTUnwrap(setupSaved)
+        setup.curriculumMappings = [CurriculumMapping(assignmentID: seeded.assignmentID, curriculumItemID: "acara-item-1", mappingKind: "assignment")]
+        try await database.saveSetup(setup)
 
-        var assignment = approvedAssignment(title: "Backup", student: "Alice")
-        assignment.sourceInputs = [SourceInputRef(sourceType: .pdf, pageIndex: 0, localRelativePath: "Sources/assignment-1/page-1.png", fileName: "work.pdf", mimeType: "application/pdf", contentDigest: "digest", digestAlgorithm: "fnv1a64", pdfPageCount: 1, teacherIncludedInExport: true)]
-        assignment.evidenceReferences = [EvidenceReference(sourceInputID: assignment.sourceInputs[0].id, ocrLineID: UUID(), pageIndex: 0, quote: "Evidence", boundingBox: NormalizedRect(x: 0.1, y: 0.1, width: 0.2, height: 0.2), sourceKind: "ocrLine", teacherConfirmed: true)]
-        assignment.exportRecords = [ExportRecord(exportKind: .teacherAuditPDF, contentFingerprint: "fp", includesPrivateTeacherNotes: true, includesOriginalSources: true)]
-        assignment.auditEvents = [AuditEvent(eventType: .exportPrepared, detail: "Prepared export.")]
-        assignment.curriculumMappings = [CurriculumMapping(curriculumItemID: CurriculumCatalogService.localCatalog.items[0].id, mappingKind: "assignment")]
-        assignment.ocrDocument = OCRDocument(pages: [OCRPage(sourceInputID: assignment.sourceInputs[0].id, pageIndex: 0, lines: [OCRLine(text: "Evidence", confidence: 1, boundingBox: .zero, teacherConfirmed: true)])], reviewStatus: .reviewed)
+        let snapshot = try await database.backupSnapshot()
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("V3Backup-\(UUID().uuidString).markformebackup")
+        addTeardownBlock { try? FileManager.default.removeItem(at: destination) }
+        let written = try BackupArchiveService.writeFullBackup(
+            snapshot: snapshot, storageRoot: root, password: "correct horse", appVersion: "1.0", to: destination
+        )
+        let preview = try await BackupArchiveService.prepareRestore(from: written, password: "correct horse", storageRoot: root, database: database)
 
-        let classGroup = ClassGroupRecord(name: "6A", schoolYear: "2026", term: "Term 1", subject: "English", gradeLevel: "Year 6")
-        let student = StudentRecord(displayName: "Alice", className: "6A", localIdentifier: "A1")
-        let rosterEntry = AssignmentRosterEntry(assignmentID: assignment.id, studentID: student.id, studentDisplayName: student.displayName, localIdentifier: student.localIdentifier, status: .approved, sortOrder: 0)
-        let zipURL = tempRoot.appendingPathComponent("backup.zip")
-        let written = try BundleExportService.writeFullBackup(assignments: [assignment], sourceFiles: [sourceFile], to: zipURL, classGroups: [classGroup], students: [student], rosterEntries: [rosterEntry])
-        let archive = try openArchive(written)
-        let expectedEntries = ["manifest.json", "schema_version.json", "database_export.json", "assignments.json", "class_groups.json", "students.json", "assignment_roster_entries.json", "source_inputs.json", "evidence_refs.json", "audit_events.json", "export_records.json", "curriculum_mappings.json", "ocr_documents.json", "archive_inventory.json"]
-        for path in expectedEntries { XCTAssertNotNil(archive[path], "Missing archive entry: \(path)") }
-        XCTAssertTrue(archive.contains { $0.path == "sources/Sources/assignment-1/page-1.png" })
-        XCTAssertFalse(archive.contains { $0.path.contains("..") })
+        XCTAssertEqual(preview.conflictingAssignmentIDs, [seeded.assignmentID])
+        XCTAssertEqual(preview.classCount, 1)
+        XCTAssertEqual(preview.studentCount, 1)
+        XCTAssertEqual(preview.assignmentCount, 1)
+        XCTAssertEqual(preview.sourceFileCount, 1)
+        XCTAssertEqual(preview.manifest.sourceSHA256.keys.sorted(), ["sources/\(seeded.submissionID.uuidString)/page-1.png"])
+        XCTAssertFalse(preview.manifest.sourceSHA256.keys.contains { $0.contains("..") })
+        let backedUp = try XCTUnwrap(preview.snapshot.submissions.first)
+        XCTAssertEqual(backedUp.sources.count, 1)
+        XCTAssertEqual(backedUp.evidence.count, 1)
+        XCTAssertEqual(backedUp.exports.count, 1)
+        XCTAssertTrue(backedUp.audit.contains { $0.eventType == .exportPrepared })
+        XCTAssertEqual(backedUp.ocr?.allLines.map(\.rawText), ["Evidence"])
+        XCTAssertEqual(preview.snapshot.assignments.first?.curriculumMappings.count, 1)
 
-        let manifestData = try archiveData("manifest.json", in: archive)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let manifest = try decoder.decode(BackupArchiveManifest.self, from: manifestData)
-        XCTAssertEqual(manifest.archiveKind, GradeDraftArchiveKind.fullLocalBackup.rawValue)
-        XCTAssertEqual(manifest.recordCounts["assignments"], 1)
-        XCTAssertEqual(manifest.recordCounts["students"], 1)
-        XCTAssertTrue(manifest.includesOriginalSources)
-
-        let restoreRoot = FileManager.default.temporaryDirectory.appendingPathComponent("V3BackupRestore-\(UUID())")
-        let preview = try BundleExportService.previewRestore(from: written, existingAssignments: [assignment])
-        XCTAssertEqual(preview.conflictAssignmentIDs, [assignment.id])
-        let restoredAsCopy = try BundleExportService.restoreBackupArchive(from: written, existingAssignments: [assignment], applicationSupportDirectory: restoreRoot, conflictResolution: .restoreAsCopy)
-        XCTAssertEqual(restoredAsCopy.count, 1)
-        XCTAssertNotEqual(restoredAsCopy[0].id, assignment.id)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent("Sources/assignment-1/page-1.png").path))
+        let outcome = try await BackupArchiveService.commitRestore(
+            preview, resolutions: [seeded.assignmentID: .restoreAsCopy], database: database, storageRoot: root
+        )
+        let copiedID = try XCTUnwrap(outcome.copiedAssignmentIDs[seeded.assignmentID])
+        XCTAssertNotEqual(copiedID, seeded.assignmentID)
+        let copiedSubmissionSaved = try await database.submissionSummaries(assignmentID: copiedID).first
+        let copiedSubmission = try XCTUnwrap(copiedSubmissionSaved)
+        let copiedGraphSaved = try await database.submission(id: copiedSubmission.id)
+        let copiedGraph = try XCTUnwrap(copiedGraphSaved)
+        let copiedPath = try XCTUnwrap(copiedGraph.sources.first?.localRelativePath)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(copiedPath).path))
     }
 
-    func testRestoreAsCopyRemapsConflictingAssignmentSourcePaths() throws {
-        let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent("V3BackupCopySource-\(UUID())")
-        let restoreRoot = FileManager.default.temporaryDirectory.appendingPathComponent("V3BackupCopyRestore-\(UUID())")
+    func testRestoreAsCopyRemapsConflictingAssignmentSourcePaths() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: nil)
+        let database = try app.requireDatabase()
+        let root = try app.requireStorageRoot()
+        let sourceFile = try writeSource(root: root, submissionID: seeded.submissionID, bytes: "source bytes")
+        let source = SourceInputRef(
+            submissionID: seeded.submissionID, sourceType: .pdf, pageIndex: 0, localRelativePath: sourceFile.relativePath,
+            fileName: "work.pdf", mimeType: "application/pdf", pdfPageCount: 1, includedInTeacherArchive: true
+        )
+        _ = try await database.replaceInput(
+            submissionID: seeded.submissionID, kind: .scanned, pastedText: nil, sources: [source],
+            ocr: OCRDocument(pages: [OCRPage(sourceInputID: source.id, pageIndex: 0, lines: [])])
+        )
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("V3CopyBackup-\(UUID().uuidString).markformebackup")
+        addTeardownBlock { try? FileManager.default.removeItem(at: destination) }
+        let written = try BackupArchiveService.writeFullBackup(
+            snapshot: try await database.backupSnapshot(), storageRoot: root, password: "pw", appVersion: "1.0", to: destination
+        )
+        // The file already on this device (same path) holds different bytes than the backup.
+        try Data("local-only bytes".utf8).write(to: sourceFile.url)
 
-        var assignment = approvedAssignment(title: "Backup", student: "Alice")
-        let originalRelativePath = "Sources/\(assignment.id.uuidString)/page-1.png"
-        let sourceFile = tempRoot.appendingPathComponent(originalRelativePath)
-        try FileManager.default.createDirectory(at: sourceFile.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data("source bytes".utf8).write(to: sourceFile)
-        let localConflictFile = restoreRoot.appendingPathComponent(originalRelativePath)
-        try FileManager.default.createDirectory(at: localConflictFile.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data("local-only bytes".utf8).write(to: localConflictFile)
-        assignment.sourceInputs = [
-            SourceInputRef(
-                sourceType: .pdf,
-                pageIndex: 0,
-                localRelativePath: originalRelativePath,
-                fileName: "work.pdf",
-                mimeType: "application/pdf",
-                contentDigest: "digest",
-                digestAlgorithm: "fnv1a64",
-                pdfPageCount: 1,
-                teacherIncludedInExport: true
-            )
-        ]
-
-        let zipURL = tempRoot.appendingPathComponent("backup.zip")
-        let written = try BundleExportService.writeFullBackup(assignments: [assignment], sourceFiles: [sourceFile], to: zipURL)
-
-        let restoredAsCopy = try BundleExportService.restoreBackupArchive(
-            from: written,
-            existingAssignments: [assignment],
-            applicationSupportDirectory: restoreRoot,
-            conflictResolution: .restoreAsCopy
+        let preview = try await BackupArchiveService.prepareRestore(from: written, password: "pw", storageRoot: root, database: database)
+        let outcome = try await BackupArchiveService.commitRestore(
+            preview, resolutions: [seeded.assignmentID: .restoreAsCopy], database: database, storageRoot: root
         )
 
-        let copiedAssignment = try XCTUnwrap(restoredAsCopy.first)
-        let copiedRelativePath = try XCTUnwrap(copiedAssignment.sourceInputs.first?.localRelativePath)
-        XCTAssertNotEqual(copiedAssignment.id, assignment.id)
-        XCTAssertEqual(copiedRelativePath, "Sources/\(copiedAssignment.id.uuidString)/page-1.png")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent(copiedRelativePath).path))
-        let copiedText = try XCTUnwrap(String(data: try Data(contentsOf: restoreRoot.appendingPathComponent(copiedRelativePath)), encoding: .utf8))
+        let copiedID = try XCTUnwrap(outcome.copiedAssignmentIDs[seeded.assignmentID])
+        let copiedSubmissionSaved = try await database.submissionSummaries(assignmentID: copiedID).first
+        let copiedSubmission = try XCTUnwrap(copiedSubmissionSaved)
+        let copiedGraphSaved = try await database.submission(id: copiedSubmission.id)
+        let copiedGraph = try XCTUnwrap(copiedGraphSaved)
+        let copiedRelativePath = try XCTUnwrap(copiedGraph.sources.first?.localRelativePath)
+        XCTAssertNotEqual(copiedSubmission.id, seeded.submissionID)
+        XCTAssertEqual(copiedRelativePath, "Sources/\(copiedSubmission.id.uuidString)/page-1.png")
+        let copiedText = try String(contentsOf: root.appendingPathComponent(copiedRelativePath), encoding: .utf8)
         XCTAssertEqual(copiedText, "source bytes")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: restoreRoot.appendingPathComponent(originalRelativePath).path))
-        let localConflictText = try XCTUnwrap(String(data: try Data(contentsOf: localConflictFile), encoding: .utf8))
-        XCTAssertEqual(localConflictText, "local-only bytes")
+        XCTAssertEqual(try String(contentsOf: sourceFile.url, encoding: .utf8), "local-only bytes")
     }
 
-    @MainActor
-    func testBackupRestoreUIPathDetectsConflictAndRestoresAsCopy() throws {
-        let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent("V3ViewModelRestore-\(UUID())")
-        let local = approvedAssignment(title: "Local", student: "Alice")
-        var backup = local
-        backup.title = "Backup version"
-        let zipURL = tempRoot.appendingPathComponent("backup.zip")
-        try BundleExportService.writeFullBackup(assignments: [backup], sourceFiles: [], to: zipURL)
-        let store = V3TempAssignmentStore(assignments: [local], root: tempRoot.appendingPathComponent("AppSupport"))
-        let viewModel = GradeDraftViewModel(assignments: [local], store: store)
-        viewModel.backupConflictResolution = .restoreAsCopy
+    func testBackupRestoreUIPathDetectsConflictAndRestoresAsCopy() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student text")
+        let database = try app.requireDatabase()
+        let restore = app.backupRestore
 
-        viewModel.restoreBackup(from: zipURL)
+        await restore.createFullBackup(password: "pw")
+        XCTAssertNil(restore.alert)
+        let backup = try XCTUnwrap(restore.preparedExport)
+        await restore.prepareRestore(from: backup.url, password: "pw")
 
-        XCTAssertEqual(viewModel.latestRestorePreview?.conflictAssignmentIDs, [local.id])
-        XCTAssertEqual(viewModel.assignments.count, 2)
-        XCTAssertTrue(viewModel.assignments.contains { $0.title == "Local" })
-        XCTAssertTrue(viewModel.assignments.contains { $0.title.contains("Restored copy") })
+        XCTAssertEqual(restore.preview?.conflictingAssignmentIDs, [seeded.assignmentID])
+        XCTAssertFalse(restore.canCommitRestore, "Each conflicting assignment needs the teacher's choice")
+        restore.setResolution(.restoreAsCopy, for: seeded.assignmentID)
+        XCTAssertTrue(restore.canCommitRestore)
+        await restore.commitRestore()
+
+        XCTAssertEqual(restore.alert?.message, RestoreOutcome.completeMessage)
+        let assignments = try await database.assignmentSummaries(inClass: nil)
+        XCTAssertEqual(assignments.count, 2)
+        XCTAssertEqual(Set(assignments.map(\.assignment.title)), ["Essay"])
+        XCTAssertTrue(assignments.contains { $0.id == seeded.assignmentID })
     }
 
-    func testNormalizedDatabaseLoadsFromNormalizedTablesAfterCompatibilityPayloadsAreRemoved() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("V3NormalizedDB-\(UUID())")
-        let database = try GradeDraftDatabase(applicationSupportURL: root)
-        try database.bootstrapIfNeeded()
-
-        let classGroup = ClassGroupRecord(name: "6A", schoolYear: "2026", term: "Term 1", subject: "English", gradeLevel: "Year 6")
-        let student = StudentRecord(displayName: "Alice", className: "6A", localIdentifier: "A1")
-        var assignment = approvedAssignment(title: "Normalized", student: student.displayName)
-        assignment.classGroupID = classGroup.id
-        assignment.studentID = student.id
-        assignment.sourceInputs = [SourceInputRef(sourceType: .pdf, pageIndex: 0, localRelativePath: "Sources/normalized/page.png", pdfPageCount: 1)]
-        assignment.ocrDocument = OCRDocument(pages: [OCRPage(sourceInputID: assignment.sourceInputs[0].id, pageIndex: 0, lines: [OCRLine(text: "Line", confidence: 1, boundingBox: .zero, teacherConfirmed: true)])], reviewStatus: .reviewed)
-        assignment.evidenceReferences = [EvidenceReference(sourceInputID: assignment.sourceInputs[0].id, ocrLineID: assignment.ocrDocument?.pages[0].lines[0].id, pageIndex: 0, quote: "Line", boundingBox: .zero, sourceKind: "ocrLine", teacherConfirmed: true)]
-        assignment.curriculumMappings = [CurriculumMapping(curriculumItemID: CurriculumCatalogService.localCatalog.items[0].id, mappingKind: "assignment")]
-        let rosterEntry = AssignmentRosterEntry(assignmentID: assignment.id, studentID: student.id, studentDisplayName: student.displayName, localIdentifier: student.localIdentifier, status: .approved, sortOrder: 0)
-
-        try database.saveClassGroup(classGroup)
-        try database.saveStudent(student)
-        try database.saveAssignments([assignment])
-        try database.replaceAssignmentRosterSnapshot([rosterEntry])
-        try database.removeCompatibilityPayloadsForValidation()
-
-        let loaded = try XCTUnwrap(database.loadFullAssignmentGraph(id: assignment.id))
-        XCTAssertEqual(loaded.title, "Normalized")
-        XCTAssertEqual(loaded.sourceInputs.count, 1)
-        XCTAssertEqual(loaded.ocrDocument?.pages[0].lines[0].rawText, "Line")
-        XCTAssertEqual(loaded.evidenceReferences.count, 1)
-        XCTAssertEqual(loaded.finalReview?.criteria.count, 1)
-        XCTAssertEqual(loaded.curriculumMappings.count, 1)
-        XCTAssertEqual(try database.loadAssignmentRoster(assignmentID: assignment.id).first?.status, .approved)
-        XCTAssertEqual(try database.loadClassGroups().first?.name, "6A")
-        XCTAssertEqual(try database.loadStudents().first?.displayName, "Alice")
-    }
-
-    @MainActor
-    func testStudentPDFExportBlockedBeforeApprovedFinalReviewAndTeacherExportRecordIsSensitive() throws {
-        var assignment = approvedAssignment(title: "Exports")
-        var pendingReview = try XCTUnwrap(assignment.finalReview)
-        pendingReview.status = .inProgress
-        assignment.finalReview = pendingReview
-        let store = V3TempAssignmentStore(assignments: [assignment], root: FileManager.default.temporaryDirectory.appendingPathComponent("V3ExportGate-\(UUID())"))
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        viewModel.exportStudentPDF()
-        XCTAssertNil(viewModel.exportURL)
-        XCTAssertNotNil(viewModel.errorMessage)
-
-        viewModel.exportTeacherAuditPDF()
-        XCTAssertEqual(viewModel.assignment.exportRecords.last?.exportKind, .teacherAuditPDF)
-        XCTAssertTrue(viewModel.assignment.exportRecords.last?.includesPrivateTeacherNotes ?? false)
-    }
-
-    private func approvedAssignment(title: String, student: String = "Student", score: Double = 1) -> AssignmentRecord {
-        var assignment = AssignmentRecord(
-            title: title,
-            prompt: "Prompt",
-            subject: "English",
-            gradeLevel: "Year 6",
-            curriculumReference: "",
-            className: "6A",
-            studentDisplayName: student,
-            assignmentType: .essay,
-            rubricText: "Claim: 0-4 points",
-            reviewedStudentText: "The quote supports my claim.",
-            ocrReviewStatus: .reviewed
+    func testNormalizedStoreLoadsEveryRelatedRecord() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: nil)
+        let database = try app.requireDatabase()
+        let line = OCRLine(text: "Line", confidence: 1, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true)
+        let source = SourceInputRef(
+            submissionID: seeded.submissionID, sourceType: .pdf, pageIndex: 0,
+            localRelativePath: "Sources/\(seeded.submissionID.uuidString)/page.png", pdfPageCount: 1
         )
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
+        _ = try await database.replaceInput(
+            submissionID: seeded.submissionID, kind: .scanned, pastedText: nil, sources: [source],
+            ocr: OCRDocument(pages: [OCRPage(sourceInputID: source.id, pageIndex: 0, lines: [line])], reviewStatus: .reviewed)
+        )
+        let evidence = EvidenceReference(
+            submissionID: seeded.submissionID, ocrLineID: line.id, pageIndex: 0, quote: "Line", boundingBox: .zero,
+            sourceKind: .ocrLine, teacherConfirmed: true
+        )
+        try await database.addEvidence(evidence, submissionID: seeded.submissionID)
+        let setupSaved = try await database.assignmentSetup(id: seeded.assignmentID)
+        var setup = try XCTUnwrap(setupSaved)
+        setup.curriculumMappings = [CurriculumMapping(assignmentID: seeded.assignmentID, curriculumItemID: "acara-item-1", mappingKind: "assignment")]
+        try await database.saveSetup(setup)
+        let savedSetupSaved = try await database.assignmentSetup(id: seeded.assignmentID)
+        let savedSetup = try XCTUnwrap(savedSetupSaved)
+        let currentSaved = try await database.submission(id: seeded.submissionID)
+        let current = try XCTUnwrap(currentSaved)
+        try await database.saveFinalReview(
+            FinalGradeReview(
+                packetFingerprint: try current.packetFingerprint(setup: savedSetup),
+                status: .approved,
+                criteria: [FinalCriterionScore(
+                    criterionID: savedSetup.parsedRubric.criteria[0].id, rating: "", proposedPoints: 4, finalPoints: 4,
+                    explanation: "", teacherApproved: true, evidenceIDs: [evidence.id]
+                )],
+                studentFeedback: "Good.",
+                privateTeacherNotes: "",
+                teacherEdited: true
+            ),
+            submissionID: seeded.submissionID
+        )
+
+        let loadedSaved = try await database.submission(id: seeded.submissionID)
+        let loaded = try XCTUnwrap(loadedSaved)
+        let loadedSetupSaved = try await database.assignmentSetup(id: seeded.assignmentID)
+        let loadedSetup = try XCTUnwrap(loadedSetupSaved)
+        XCTAssertEqual(loaded.sources.count, 1)
+        XCTAssertEqual(loaded.ocr?.pages[0].lines[0].rawText, "Line")
+        XCTAssertEqual(loaded.evidence.count, 1)
+        XCTAssertEqual(loaded.finalReview?.criteria.count, 1)
+        XCTAssertEqual(loaded.finalReview?.criteria[0].evidenceIDs, [evidence.id])
+        XCTAssertEqual(loadedSetup.curriculumMappings.count, 1)
+        let summarySaved = try await database.submissionSummaries(assignmentID: seeded.assignmentID).first
+        let summary = try XCTUnwrap(summarySaved)
+        XCTAssertEqual(summary.rosterStatus, .approved)
+        let classes = try await database.classGroups()
+        let students = try await database.students(inClass: seeded.classGroupID)
+        XCTAssertEqual(classes.first?.name, "6A")
+        XCTAssertEqual(students.first?.displayName, "Kai")
+    }
+
+    func testStudentPDFExportBlockedBeforeApprovedFinalReviewAndTeacherExportRecordIsSensitive() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "The quote supports my claim.")
+        let database = try app.requireDatabase()
+        let setupSaved = try await database.assignmentSetup(id: seeded.assignmentID)
+        let setup = try XCTUnwrap(setupSaved)
+        try await database.saveFinalReview(
+            FinalGradeReview(
+                packetFingerprint: try await TestApp.fingerprint(app, seeded),
+                status: .inProgress,
+                criteria: [FinalCriterionScore(
+                    criterionID: setup.parsedRubric.criteria[0].id, rating: "Proficient", proposedPoints: 1, finalPoints: 1,
+                    explanation: "The response supports a claim.", teacherApproved: true
+                )],
+                studentFeedback: "Teacher-approved feedback.",
+                privateTeacherNotes: "Private teacher notes.",
+                teacherEdited: true
+            ),
+            submissionID: seeded.submissionID
+        )
+        let session = try await openSession(app, seeded.submissionID)
+
+        await session.prepareExport(.studentPDF)
+        XCTAssertNil(session.preparedExport)
+        XCTAssertNotNil(session.alert)
+
+        session.alert = nil
+        await session.prepareExport(.teacherAuditPDF)
+        XCTAssertNil(session.alert)
+        XCTAssertEqual(session.preparedExport?.kind, .teacherAuditPDF)
+        let graphSaved = try await database.submission(id: seeded.submissionID)
+        let graph = try XCTUnwrap(graphSaved)
+        XCTAssertEqual(graph.exports.last?.kind, .teacherAuditPDF)
+        XCTAssertTrue(graph.exports.last?.includesPrivateTeacherNotes ?? false)
+    }
+
+    // MARK: - Helpers
+
+    private func load(_ database: AppDatabase, _ id: UUID) async throws -> SubmissionGraph {
+        guard let graph = try await database.submission(id: id) else { throw AppDatabaseError.notFound(id) }
+        return graph
+    }
+
+    private func writeSource(root: URL, submissionID: UUID, bytes: String) throws -> (relativePath: String, url: URL) {
+        let relativePath = "Sources/\(submissionID.uuidString)/page-1.png"
+        let url = root.appendingPathComponent(relativePath)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(bytes.utf8).write(to: url)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        return (relativePath, url)
+    }
+
+    private func approvedGraph(setup: AssignmentSetup, student: String, score: Double) throws -> SubmissionGraph {
+        var graph = SubmissionGraph(
+            submission: Submission(assignmentID: setup.id, studentID: UUID(), inputKind: .pasted, pastedText: "The quote supports my claim."),
+            student: Student(displayName: student)
+        )
+        graph.finalReview = FinalGradeReview(
+            packetFingerprint: try graph.packetFingerprint(setup: setup),
             status: .approved,
             criteria: [FinalCriterionScore(
-                criterion: "Claim",
-                rating: "Proficient",
-                proposedPoints: score,
-                finalPoints: score,
-                maxPoints: 4,
-                evidence: ["The quote supports my claim."],
-                evidenceSourceRefs: [],
-                explanation: "The response supports a claim.",
-                teacherApproved: true
+                criterionID: setup.parsedRubric.criteria[0].id, rating: "Proficient", proposedPoints: score, finalPoints: score,
+                explanation: "The response supports a claim.", teacherApproved: true
             )],
-            totalScore: score,
-            maxScore: 4,
             studentFeedback: "Teacher-approved feedback.",
             privateTeacherNotes: "Private teacher notes.",
             teacherEdited: true
         )
-        return assignment
-    }
-
-    private func openArchive(_ url: URL) throws -> Archive {
-        guard let archive = Archive(url: url, accessMode: .read) else { throw V3ArchiveTestError.missingEntry(url.lastPathComponent) }
-        return archive
-    }
-
-    private func archiveData(_ path: String, in archive: Archive) throws -> Data {
-        guard let entry = archive[path] else { throw V3ArchiveTestError.missingEntry(path) }
-        var data = Data()
-        _ = try archive.extract(entry) { chunk in data.append(chunk) }
-        return data
+        return graph
     }
 }

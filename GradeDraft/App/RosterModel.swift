@@ -149,6 +149,18 @@ final class RosterModel {
         }
     }
 
+    /// Reads a roster the teacher pasted as text (CSV or one student per line) and shows what would be
+    /// imported, the same preview and confirmation as a roster file.
+    func previewRosterText(_ text: String) {
+        guard !isMissing else { return }
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            alert = AlertMessage(title: "Roster not read", message: "Paste at least one valid student row.")
+            return
+        }
+        let parsed = RosterImportService.parse(text: text)
+        rosterPreview = RosterImportPreview(fileName: "Pasted roster", rows: parsed.rows, fileResult: parsed.result)
+    }
+
     /// Imports the previewed rows into this class.
     func confirmRosterImport() async {
         guard let preview = rosterPreview, let database = requireDatabase("Roster not imported") else { return }

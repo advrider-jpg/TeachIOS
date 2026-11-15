@@ -13,7 +13,6 @@ struct AIEvaluationCase: Codable, Equatable, Identifiable {
     var answerKeyText: String
     var exemplarText: String
     var curriculumReference: String
-    /// "notNeeded" in the fixture files means pasted work, which needs no scanned-text review.
     var ocrReviewStatus: String
     var expected: AIEvaluationExpected
 
@@ -48,7 +47,7 @@ struct AIEvaluationCase: Codable, Equatable, Identifiable {
             reviewedStudentText: reviewedStudentText,
             reviewedTextWithSourceRefs: reviewedWithRefs,
             ocrQualitySummary: expected.requiresOCRReview ? OCRQualitySummary(lowConfidenceLineCount: 1) : OCRQualitySummary(),
-            ocrReviewStatus: ocrReviewStatus == "notNeeded" ? .reviewed : OCRReviewStatus(rawValue: ocrReviewStatus) ?? .needsReview,
+            ocrReviewStatus: OCRReviewStatus(rawValue: ocrReviewStatus) ?? .needsReview,
             sourceInputCount: reviewedWithRefs == reviewedStudentText ? 0 : 1,
             packetFingerprint: "evaluation-\(id)",
             hasGradingStandard: !rubric.criteria.isEmpty || !answerKeyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

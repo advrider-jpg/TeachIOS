@@ -1,72 +1,56 @@
 import XCTest
-import ZIPFoundation
 @testable import GradeDraft
 
 extension GradeDraftTests {
-    func testDeterministicTotalsIgnoreModelTotals() throws {
+    func testDraftTotalIsSumOfCriterionPoints() {
         let draft = GradeDraftResult(
             packetFingerprint: "packet-1",
             studentResponseSummary: "Summary",
             criteria: [
                 CriterionScore(
                     criterionID: "claim",
-                    criterion: "Claim",
                     rating: "Proficient",
                     proposedPoints: 3,
-                    maxPoints: 4,
-                    evidence: ["Clear claim"],
+                    evidenceQuotes: ["Clear claim"],
                     explanation: "The response includes a claim.",
                     teacherReviewRequired: false
                 ),
                 CriterionScore(
                     criterionID: "evidence",
-                    criterion: "Evidence",
                     rating: "Developing",
                     proposedPoints: 2,
-                    maxPoints: 4,
-                    evidence: ["One example"],
+                    evidenceQuotes: ["One example"],
                     explanation: "The response has limited evidence.",
                     teacherReviewRequired: true
                 )
             ],
-            totalScore: 999,
-            maxScore: 999,
             studentFeedback: "Feedback",
             teacherNotes: "Notes",
             uncertaintyFlags: []
         )
 
-        let normalized = GradeTotals.applyingDeterministicTotals(to: draft)
-        XCTAssertEqual(normalized.totalScore, 5)
-        XCTAssertEqual(normalized.maxScore, 8)
+        XCTAssertEqual(draft.totalScore, 5)
     }
 
-    func testFinalReviewTotalsUseTeacherFinalPoints() throws {
+    func testFinalReviewTotalUsesTeacherFinalPoints() {
         let review = FinalGradeReview(
             packetFingerprint: "packet-1",
             criteria: [
                 FinalCriterionScore(
                     criterionID: "claim",
-                    criterion: "Claim",
                     rating: "Proficient",
                     proposedPoints: 3,
                     finalPoints: 4,
-                    maxPoints: 4,
-                    evidence: ["Clear claim"],
                     explanation: "Teacher found the claim complete.",
                     teacherApproved: true
                 )
             ],
-            totalScore: 999,
-            maxScore: 999,
             studentFeedback: "Feedback",
             privateTeacherNotes: "Private",
             teacherEdited: true
         )
 
-        let normalized = GradeTotals.applyingDeterministicTotals(to: review)
-        XCTAssertEqual(normalized.totalScore, 4)
-        XCTAssertEqual(normalized.maxScore, 4)
+        XCTAssertEqual(review.totalScore, 4)
     }
 
     func testValidationBlocksEmptyRubric() throws {
@@ -125,11 +109,11 @@ extension GradeDraftTests {
         XCTAssertEqual(parsed.criteria[1].maxPoints, 4)
     }
 
-    func testGRDBRoundTripPreservesRubricImportAndOCRMetadataWithoutPayloadRows() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftRubricOCRRoundTrip-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let store = try GRDBAssignmentStore(applicationSupportURL: root)
+    func testStoreRoundTripPreservesRubricImportAndOCRMetadata() async throws {
+        let database = try AppDatabase.inMemory()
+        let classGroup = ClassGroup(name: "6A")
+        try await database.save(classGroup)
+        try await database.save(Student(displayName: "Kai"), enrolledIn: classGroup.id)
         let parsedRubric = ParsedRubric(
             criteria: [
                 RubricCriterion(
@@ -144,74 +128,59 @@ extension GradeDraftTests {
             issues: [],
             groups: []
         )
-        let sourceID = UUID()
+        var assignment = Assignment(classGroupID: classGroup.id, title: "Normalized persistence", rubricText: "Rubric")
+        assignment.rubricImportMode = .structuredConfirmed
+        assignment.confirmedRubric = parsedRubric
+        try await database.createAssignment(assignment)
+        let summaries = try await database.submissionSummaries(assignmentID: assignment.id)
+        let submissionID = try XCTUnwrap(summaries.first).id
+
+        let source = SourceInputRef(
+            submissionID: submissionID,
+            sourceType: .pdf,
+            pageIndex: 0,
+            localRelativePath: "Sources/\(submissionID.uuidString)/page-1.png"
+        )
         var document = OCRDocument(
-            id: UUID(),
             engine: "PDFKit digital text + Apple Vision",
             engineVersion: "system-26",
             pages: [
-                OCRPage(id: UUID(), sourceInputID: sourceID, pageIndex: 0, imageWidth: 640, imageHeight: 480, lines: []),
+                OCRPage(sourceInputID: source.id, pageIndex: 0, pixelWidth: 640, pixelHeight: 480, lines: []),
                 OCRPage(
-                    id: UUID(),
-                    sourceInputID: sourceID,
+                    sourceInputID: source.id,
                     pageIndex: 1,
-                    imageWidth: 640,
-                    imageHeight: 480,
-                    lines: [OCRLine(text: "Reviewed line", confidence: 0.99, boundingBox: .zero, teacherConfirmed: true)]
+                    pixelWidth: 640,
+                    pixelHeight: 480,
+                    lines: [OCRLine(text: "Reviewed line", confidence: 0.99, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true)]
                 )
             ],
             reviewStatus: .reviewed
         )
         document.reviewedAt = Date(timeIntervalSince1970: 1_800_000_000)
-        var assignment = AssignmentRecord(title: "Normalized persistence", rubricText: "Rubric", ocrReviewStatus: .reviewed)
-        assignment.rubricImportMode = .structuredConfirmed
-        assignment.confirmedParsedRubric = parsedRubric
-        assignment.sourceInputs = [SourceInputRef(id: sourceID, sourceType: .pdf, pageIndex: 0, localRelativePath: "Sources/\(assignment.id.uuidString)/page-1.png")]
-        assignment.ocrDocument = document
+        _ = try await database.replaceInput(submissionID: submissionID, kind: .scanned, pastedText: nil, sources: [source], ocr: document)
 
-        try store.saveAssignments([assignment])
-        let database = try GradeDraftDatabase(applicationSupportURL: root)
-        try database.bootstrapIfNeeded()
-        try database.removeCompatibilityPayloadsForValidation()
-
-        let loaded = try store.loadAssignments().first
-        XCTAssertEqual(loaded?.rubricImportMode, .structuredConfirmed)
-        XCTAssertEqual(loaded?.confirmedParsedRubric, parsedRubric)
-        XCTAssertEqual(loaded?.ocrDocument?.engine, "PDFKit digital text + Apple Vision")
-        XCTAssertEqual(loaded?.ocrDocument?.engineVersion, "system-26")
-        XCTAssertEqual(loaded?.ocrDocument?.reviewStatus, .reviewed)
-        XCTAssertEqual(loaded?.ocrDocument?.reviewedAt, document.reviewedAt)
-        XCTAssertEqual(loaded?.ocrDocument?.pages.count, 2)
-        XCTAssertTrue(loaded?.ocrDocument?.pages.first?.lines.isEmpty == true, "Empty OCR pages must survive normalized GRDB round trip")
-        XCTAssertEqual(loaded?.ocrDocument?.pages.last?.imageWidth, 640)
-        XCTAssertEqual(loaded?.ocrDocument?.pages.last?.imageHeight, 480)
+        let loadedSetup = try await database.assignmentSetup(id: assignment.id)
+        XCTAssertEqual(loadedSetup?.assignment.rubricImportMode, .structuredConfirmed)
+        XCTAssertEqual(loadedSetup?.assignment.confirmedRubric, parsedRubric)
+        let loaded = try await database.submission(id: submissionID)
+        XCTAssertEqual(loaded?.ocr?.engine, "PDFKit digital text + Apple Vision")
+        XCTAssertEqual(loaded?.ocr?.engineVersion, "system-26")
+        XCTAssertEqual(loaded?.ocr?.reviewStatus, .reviewed)
+        XCTAssertEqual(loaded?.ocr?.reviewedAt, document.reviewedAt)
+        XCTAssertEqual(loaded?.ocr?.pages.count, 2)
+        XCTAssertTrue(loaded?.ocr?.pages.first?.lines.isEmpty == true, "Empty scanned-text pages must survive a store round trip")
+        XCTAssertEqual(loaded?.ocr?.pages.last?.pixelWidth, 640)
+        XCTAssertEqual(loaded?.ocr?.pages.last?.pixelHeight, 480)
     }
 
     func testGradeDraftValidatorClampsOutOfRangeScoresAndRequiresEvidence() throws {
         let input = sampleInput(rubric: "Evidence: 0-4 points")
         let criterionID = input.parsedRubric.criteria[0].id
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [
-                CriterionScore(
-                    criterionID: criterionID,
-                    criterion: "Evidence",
-                    rating: "Developing",
-                    proposedPoints: 12,
-                    maxPoints: 4,
-                    evidence: [],
-                    explanation: "No cited evidence.",
-                    teacherReviewRequired: false
-                )
-            ],
-            totalScore: 0,
-            maxScore: 0,
-            studentFeedback: "Feedback",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
+        let proposal = ProposalFixtures.proposal([
+            ProposalFixtures.criterion(id: criterionID, points: 12, evidence: [], confidence: "medium")
+        ])
 
-        let normalized = try GradeDraftValidator.normalizeAndValidate(draft, input: input)
+        let normalized = try GradeDraftValidator.validate(proposal, input: input, audit: nil)
         XCTAssertEqual(normalized.criteria[0].proposedPoints, 4)
         XCTAssertEqual(normalized.criteria[0].criterionID, criterionID)
         XCTAssertTrue(normalized.criteria[0].teacherReviewRequired)
@@ -223,28 +192,11 @@ extension GradeDraftTests {
     func testGradeDraftValidatorRequiresEveryStructuredCriterion() throws {
         let input = sampleInput(rubric: "Claim: 0-2 points\nEvidence: 0-4 points")
         let criterionID = input.parsedRubric.criteria[0].id
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [
-                CriterionScore(
-                    criterionID: criterionID,
-                    criterion: "Claim",
-                    rating: "Developing",
-                    proposedPoints: 1,
-                    maxPoints: 2,
-                    evidence: ["Student claim"],
-                    explanation: "Partial claim.",
-                    teacherReviewRequired: false
-                )
-            ],
-            totalScore: 0,
-            maxScore: 0,
-            studentFeedback: "Feedback",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
+        let proposal = ProposalFixtures.proposal([
+            ProposalFixtures.criterion(id: criterionID, points: 1, evidence: ["Student response"])
+        ])
 
-        XCTAssertThrowsError(try GradeDraftValidator.normalizeAndValidate(draft, input: input))
+        XCTAssertThrowsError(try GradeDraftValidator.validate(proposal, input: input, audit: nil))
     }
 
     func testBuiltInRubricTemplateIDsInSourceOrder() {
@@ -291,7 +243,7 @@ extension GradeDraftTests {
 
     func testPromptBuilderContainsSafetyRules() {
         let input = sampleInput()
-        let prompt = PromptBuilder.gradingInstructionsText(input: input) + "\n" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
+        let prompt = PromptBuilder.gradingInstructionsText() + "\n" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
 
         XCTAssertTrue(prompt.contains("teacher"), "Prompt must reference teacher review role")
         XCTAssertTrue(prompt.contains("No supporting evidence found."), "Prompt must specify evidence marker")
@@ -309,7 +261,7 @@ extension GradeDraftTests {
         input.assignmentTitle = "My Assignment Title"
         input.prompt = "What is the role of evidence in a historical argument?"
 
-        let result = PromptBuilder.gradingInstructionsText(input: input) + "\n" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
+        let result = PromptBuilder.gradingInstructionsText() + "\n" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
         XCTAssertTrue(result.contains("What is the role of evidence"),
                       "PromptBuilder should use the prompt field when supplied")
         // Title appears under "Title:", prompt under "Prompt:"
@@ -320,103 +272,75 @@ extension GradeDraftTests {
     func testPromptBuilderShowsNotSuppliedWhenPromptEmpty() {
         var input = sampleInput()
         input.prompt = ""
-        let result = PromptBuilder.gradingInstructionsText(input: input) + "\n" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
+        let result = PromptBuilder.gradingInstructionsText() + "\n" + PromptBuilder.fullPacketPromptText(input: input, mode: .full)
         XCTAssertTrue(result.contains("Not supplied."),
                       "PromptBuilder should show 'Not supplied.' when prompt is empty")
     }
 
-    func testChangingPromptChangesPacketFingerprint() {
-        var record = AssignmentRecord(
-            title: "Test",
-            rubricText: "Claim: 0-4 points",
-            reviewedStudentText: "Student work"
-        )
-        let fingerprintWithoutPrompt = record.gradingPacketFingerprint
+    func testChangingPromptChangesSetupFingerprint() throws {
+        var assignment = Assignment(classGroupID: UUID(), title: "Test", rubricText: "Claim: 0-4 points")
+        let fingerprintWithoutPrompt = try AssignmentSetup(assignment: assignment).setupFingerprint
 
-        record.prompt = "What causes photosynthesis?"
-        let fingerprintWithPrompt = record.gradingPacketFingerprint
+        assignment.prompt = "What causes photosynthesis?"
+        let fingerprintWithPrompt = try AssignmentSetup(assignment: assignment).setupFingerprint
 
         XCTAssertNotEqual(fingerprintWithoutPrompt, fingerprintWithPrompt,
                           "Adding a prompt should change the grading packet fingerprint")
     }
 
-    func testManualFinalReviewWithParsedRubricCreatesCriteria() {
-        let rubric = "Claim: 0-2 points\nEvidence: 0-4 points"
-        let assignment = AssignmentRecord(
-            title: "Essay",
-            rubricText: rubric,
-            reviewedStudentText: "Student essay text."
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(
-            assignments: [assignment],
-            gradingService: UnavailableLocalGradingService(),
-            store: store
-        )
+    func testManualFinalReviewWithParsedRubricCreatesCriteria() async throws {
+        let app = try TestApp.make(grading: UnavailableLocalGradingService())
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points\nEvidence: 0-4 points", studentWork: "Student essay text.")
+        let session = try await openSession(app, seeded.submissionID)
 
-        viewModel.startManualFinalReview()
+        await session.startManualFinalReview()
 
-        let review = viewModel.assignment.finalReview
-        XCTAssertNotNil(review)
-        XCTAssertEqual(review?.criteria.count, 2, "Two criteria expected from parsed rubric")
-        XCTAssertEqual(review?.criteria[0].criterion, "Claim")
-        XCTAssertEqual(review?.criteria[0].maxPoints, 2)
-        XCTAssertEqual(review?.criteria[1].criterion, "Evidence")
-        XCTAssertEqual(review?.criteria[1].maxPoints, 4)
-        XCTAssertTrue(review?.criteria.allSatisfy { !$0.teacherApproved } ?? false, "No criterion should be pre-approved")
-        XCTAssertTrue(review?.criteria.allSatisfy { $0.finalPoints == 0 } ?? false, "All final points should start at 0")
+        let review = try XCTUnwrap(session.review)
+        let setup = try XCTUnwrap(session.setup)
+        XCTAssertEqual(review.criteria.count, 2, "Two criteria expected from parsed rubric")
+        XCTAssertEqual(setup.parsedRubric.criterion(id: review.criteria[0].criterionID)?.title, "Claim")
+        XCTAssertEqual(AssignmentReadiness.maximumPoints(for: review.criteria[0], setup: setup), 2)
+        XCTAssertEqual(setup.parsedRubric.criterion(id: review.criteria[1].criterionID)?.title, "Evidence")
+        XCTAssertEqual(AssignmentReadiness.maximumPoints(for: review.criteria[1], setup: setup), 4)
+        XCTAssertTrue(review.criteria.allSatisfy { !$0.teacherApproved }, "No criterion should be pre-approved")
+        XCTAssertTrue(review.criteria.allSatisfy { $0.finalPoints == 0 }, "All final points should start at 0")
     }
 
-    @MainActor
-    func testTotalsRecalculateAfterCriterionDeletion() {
-        let criterionA = FinalCriterionScore(
-            criterion: "Claim",
-            rating: "",
-            proposedPoints: 0,
-            finalPoints: 2,
-            maxPoints: 2,
-            evidence: [],
-            explanation: "",
-            teacherApproved: true
+    func testTotalsRecalculateAfterCriterionDeletion() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points\nEvidence: 0-4 points", studentWork: "Student text.")
+        let savedSetup = try await app.requireDatabase().assignmentSetup(id: seeded.assignmentID)
+        let setup = try XCTUnwrap(savedSetup)
+        let fingerprint = try await TestApp.fingerprint(app, seeded)
+        let claim = FinalCriterionScore(
+            criterionID: setup.parsedRubric.criteria[0].id, rating: "", proposedPoints: 0, finalPoints: 2,
+            explanation: "", teacherApproved: true
         )
-        let criterionB = FinalCriterionScore(
-            criterion: "Evidence",
-            rating: "",
-            proposedPoints: 0,
-            finalPoints: 3,
-            maxPoints: 4,
-            evidence: [],
-            explanation: "",
-            teacherApproved: true
+        let evidence = FinalCriterionScore(
+            criterionID: setup.parsedRubric.criteria[1].id, rating: "", proposedPoints: 0, finalPoints: 3,
+            explanation: "", teacherApproved: true
         )
-        var assignment = AssignmentRecord(
-            title: "Essay",
-            rubricText: "Claim: 0-2 points\nEvidence: 0-4 points",
-            reviewedStudentText: "Student text."
+        try await app.requireDatabase().saveFinalReview(
+            FinalGradeReview(
+                packetFingerprint: fingerprint,
+                criteria: [claim, evidence],
+                studentFeedback: "",
+                privateTeacherNotes: "",
+                teacherEdited: true
+            ),
+            submissionID: seeded.submissionID
         )
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .inProgress,
-            criteria: [criterionA, criterionB],
-            totalScore: 5,
-            maxScore: 6,
-            studentFeedback: "",
-            privateTeacherNotes: "",
-            teacherEdited: true
-        )
+        let session = try await openSession(app, seeded.submissionID)
+        XCTAssertEqual(session.review?.totalScore, 5)
 
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+        session.deleteCriterion(evidence.id)
 
-        viewModel.deleteCriterionFromFinalReview(id: criterionB.id)
-
-        XCTAssertEqual(viewModel.assignment.finalReview?.totalScore, 2, "Total should be 2 after removing evidence criterion")
-        XCTAssertEqual(viewModel.assignment.finalReview?.maxScore, 2, "Max should be 2 after removing evidence criterion")
+        let review = try XCTUnwrap(session.review)
+        XCTAssertEqual(review.totalScore, 2, "Total should be 2 after removing evidence criterion")
+        XCTAssertEqual(review.criteria.compactMap { AssignmentReadiness.maximumPoints(for: $0, setup: setup) }.reduce(0, +), 2,
+                       "Maximum should be 2 after removing evidence criterion")
     }
 
-    // MARK: - Export flow tests
-
-    @MainActor
     func testMarkdownRubricParserExtractsTableCriteria() {
         let markdown = """
         | Criterion ID | Criterion | Max Points | Evidence Required | Level | Level Points | Descriptor |
@@ -430,17 +354,14 @@ extension GradeDraftTests {
     }
 
     func testRubricImportModeCodableRoundTrip() throws {
-        var assignment = AssignmentRecord(title: "Round trip")
+        var assignment = Assignment(classGroupID: UUID(), title: "Round trip")
         assignment.rubricImportMode = .structuredConfirmed
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(assignment)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let decoded = try decoder.decode(AssignmentRecord.self, from: data)
+        let decoded = try decoder.decode(Assignment.self, from: data)
         XCTAssertEqual(decoded.rubricImportMode, .structuredConfirmed)
     }
-
-    // MARK: - Change 7: Delete assignment removes roster entries
-
 }

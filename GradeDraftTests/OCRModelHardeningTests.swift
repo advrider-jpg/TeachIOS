@@ -4,59 +4,79 @@ import XCTest
 // MARK: - OCR model edge cases
 
 final class OCRModelHardeningTests: XCTestCase {
+    private func makeLine(
+        _ text: String = "text",
+        confidence: Float? = 0.95,
+        origin: OCRLineOrigin = .visionOCR,
+        corrected: String? = nil,
+        confirmed: Bool = false
+    ) -> OCRLine {
+        OCRLine(text: text, confidence: confidence, boundingBox: .zero, origin: origin, correctedText: corrected, teacherConfirmed: confirmed)
+    }
+
     func testOCRLineReviewedTextUsesCorrectedWhenPresent() {
-        let line = OCRLine(text: "raw text", confidence: 0.9, boundingBox: .zero, correctedText: "corrected text")
+        let line = makeLine("raw text", confidence: 0.9, corrected: "corrected text")
         XCTAssertEqual(line.reviewedText, "corrected text")
-        XCTAssertEqual(line.text, "corrected text")
+        XCTAssertEqual(line.rawText, "raw text")
     }
 
     func testOCRLineReviewedTextFallsBackToRaw() {
-        let line = OCRLine(text: "raw text", confidence: 0.9, boundingBox: .zero)
+        let line = makeLine("raw text", confidence: 0.9)
         XCTAssertEqual(line.reviewedText, "raw text")
     }
 
     func testOCRLineReviewedTextFallsBackWhenCorrectedIsEmpty() {
-        let line = OCRLine(text: "raw text", confidence: 0.9, boundingBox: .zero, correctedText: "  ")
+        let line = makeLine("raw text", confidence: 0.9, corrected: "  ")
         XCTAssertEqual(line.reviewedText, "raw text", "Empty corrected text should fall back to raw")
     }
 
     func testOCRLineReviewedTextFallsBackWhenCorrectedIsWhitespace() {
-        let line = OCRLine(text: "raw text", confidence: 0.9, boundingBox: .zero, correctedText: "\n\t")
+        let line = makeLine("raw text", confidence: 0.9, corrected: "\n\t")
         XCTAssertEqual(line.reviewedText, "raw text")
     }
 
     func testOCRLineNeedsReviewWhenLowConfidence() {
-        let line = OCRLine(text: "text", confidence: 0.5, boundingBox: .zero, teacherConfirmed: true)
-        XCTAssertTrue(line.needsReview, "Low confidence should require review even if confirmed")
+        let line = makeLine(confidence: 0.5, confirmed: false)
+        XCTAssertTrue(line.needsReview, "An unconfirmed low-confidence line should require review")
     }
 
-    func testOCRLineNeedsReviewWhenUnconfirmed() {
-        let line = OCRLine(text: "text", confidence: 0.95, boundingBox: .zero, teacherConfirmed: false)
-        XCTAssertTrue(line.needsReview, "Unconfirmed line should need review")
+    /// Changed expectation: a low-confidence line stays in review until the teacher acts, then it is resolved
+    /// (the old rule kept confirmed low-confidence lines in review forever, so review could never be finished).
+    func testOCRLineLowConfidenceIsResolvedOnceConfirmed() {
+        let line = makeLine(confidence: 0.5, confirmed: true)
+        XCTAssertFalse(line.needsReview)
+    }
+
+    /// Changed expectation: only low-confidence Vision lines (and every PDF text-layer line) need review;
+    /// an unconfirmed high-confidence Vision line does not.
+    func testOCRLineHighConfidenceVisionLineDoesNotNeedReviewUnconfirmed() {
+        let line = makeLine(confidence: 0.95, confirmed: false)
+        XCTAssertFalse(line.needsReview)
     }
 
     func testOCRLineDoesNotNeedReviewWhenHighConfidenceAndConfirmed() {
-        let line = OCRLine(text: "text", confidence: 0.95, boundingBox: .zero, teacherConfirmed: true)
+        let line = makeLine(confidence: 0.95, confirmed: true)
         XCTAssertFalse(line.needsReview)
     }
 
     func testOCRLineReviewStatusLabelConfirmed() {
-        let line = OCRLine(text: "text", confidence: 0.95, boundingBox: .zero, teacherConfirmed: true)
+        let line = makeLine(confidence: 0.95, confirmed: true)
         XCTAssertEqual(line.reviewStatusLabel, "On track")
     }
 
     func testOCRLineReviewStatusLabelCorrected() {
-        let line = OCRLine(text: "raw", confidence: 0.95, boundingBox: .zero, correctedText: "corrected", teacherConfirmed: true)
+        let line = makeLine("raw", confidence: 0.95, corrected: "corrected", confirmed: true)
         XCTAssertEqual(line.reviewStatusLabel, "On track")
     }
 
+    /// Uses a low-confidence line: an unconfirmed high-confidence Vision line no longer needs attention.
     func testOCRLineReviewStatusLabelUnreviewed() {
-        let line = OCRLine(text: "text", confidence: 0.95, boundingBox: .zero, teacherConfirmed: false)
+        let line = makeLine(confidence: 0.5, confirmed: false)
         XCTAssertEqual(line.reviewStatusLabel, "Needs attention")
     }
 
     func testOCRLineReviewStatusLabelBlockedFromGrading() {
-        let line = OCRLine(text: "text", confidence: 0.95, boundingBox: .zero, correctedText: "   ", teacherConfirmed: false)
+        let line = makeLine(confidence: 0.95, corrected: "   ", confirmed: false)
         XCTAssertEqual(line.reviewStatusLabel, "Fix before continuing")
     }
 
@@ -64,8 +84,8 @@ final class OCRModelHardeningTests: XCTestCase {
         let doc = OCRDocument(
             pages: [
                 OCRPage(pageIndex: 0, lines: [
-                    OCRLine(text: "raw1", confidence: 0.9, boundingBox: .zero, correctedText: "corrected1"),
-                    OCRLine(text: "raw2", confidence: 0.9, boundingBox: .zero)
+                    makeLine("raw1", confidence: 0.9, corrected: "corrected1"),
+                    makeLine("raw2", confidence: 0.9)
                 ])
             ]
         )
@@ -78,7 +98,7 @@ final class OCRModelHardeningTests: XCTestCase {
         let doc = OCRDocument(
             pages: [
                 OCRPage(pageIndex: 0, lines: [
-                    OCRLine(text: "raw1", confidence: 0.9, boundingBox: .zero, correctedText: "corrected1")
+                    makeLine("raw1", confidence: 0.9, corrected: "corrected1")
                 ])
             ]
         )
@@ -90,8 +110,8 @@ final class OCRModelHardeningTests: XCTestCase {
         let doc = OCRDocument(
             pages: [
                 OCRPage(pageIndex: 0, lines: [
-                    OCRLine(text: "line1", confidence: 0.9, boundingBox: .zero, teacherConfirmed: false),
-                    OCRLine(text: "line2", confidence: 0.5, boundingBox: .zero, teacherConfirmed: false)
+                    makeLine("line1", confidence: 0.9),
+                    makeLine("line2", confidence: 0.5)
                 ])
             ]
         )
@@ -106,8 +126,8 @@ final class OCRModelHardeningTests: XCTestCase {
         let doc = OCRDocument(
             pages: [
                 OCRPage(pageIndex: 0, lines: [
-                    OCRLine(text: "line1", confidence: 0.9, boundingBox: .zero, teacherConfirmed: false),
-                    OCRLine(text: "line2", confidence: 0.95, boundingBox: .zero, teacherConfirmed: false)
+                    makeLine("line1", confidence: 0.9),
+                    makeLine("line2", confidence: 0.95)
                 ])
             ]
         )

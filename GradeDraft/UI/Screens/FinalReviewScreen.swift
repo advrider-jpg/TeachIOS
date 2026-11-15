@@ -209,6 +209,8 @@ struct FinalReviewScreen: View {
             }
             .accessibilityIdentifier("finalReview.points.\(index)")
             if !hasRubricRow {
+                TextField("Criterion title", text: session.criterionTitle(criterion.id))
+                    .accessibilityIdentifier("finalReview.criterionTitle.\(index)")
                 Stepper(
                     value: Binding(get: { criterion.maxPoints ?? 0 }, set: { session.setMaximumPoints($0, for: criterion.id) }),
                     in: 0...1000,
@@ -269,7 +271,10 @@ struct FinalReviewScreen: View {
             }
             .accessibilityIdentifier("finalReview.deleteCriterion.\(index)")
         } header: {
-            Text(setup.displayTitle(criterionID: criterion.criterionID, ownTitle: criterion.title))
+            Text(setup.displayTitle(
+                criterionID: criterion.criterionID,
+                ownTitle: criterion.title?.isWhitespaceOnly == false ? criterion.title : nil
+            ))
         }
     }
 

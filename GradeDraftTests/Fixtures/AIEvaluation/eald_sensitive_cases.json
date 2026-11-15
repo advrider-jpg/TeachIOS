@@ -22,7 +22,7 @@
     "answerKeyText": "Habitat means the natural home or environment of an animal, plant, or organism.",
     "exemplarText": "",
     "curriculumReference": "",
-    "ocrReviewStatus": "notNeeded",
+    "ocrReviewStatus": "reviewed",
     "expected": {
       "mustNotContain": ["because the student is eal/d", "language background caused", "final grade"],
       "mustContainTeacherReviewReasons": [],

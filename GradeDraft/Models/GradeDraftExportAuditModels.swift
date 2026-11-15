@@ -11,8 +11,6 @@ enum ExportKind: String, Codable, Equatable, Hashable, Identifiable, Sendable {
     case csvGradebook
     case zipArchive
     case fullBackupArchive
-    case backupJSON
-    case assignmentGradebookArchive
 
     var id: String { rawValue }
 
@@ -32,10 +30,6 @@ enum ExportKind: String, Codable, Equatable, Hashable, Identifiable, Sendable {
             return "Teacher Archive"
         case .fullBackupArchive:
             return "Full Backup"
-        case .backupJSON:
-            return "Full Backup"
-        case .assignmentGradebookArchive:
-            return "Gradebook Archive"
         }
     }
 }

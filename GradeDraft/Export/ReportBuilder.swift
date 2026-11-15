@@ -129,7 +129,7 @@ enum ReportBuilder {
         if let draft = submission.draft {
             blocks.append(.heading(level: 2, text: "Model draft"))
             blocks.append(.bulletList([
-                "Draft status: " + (submission.draftIsStale(setup: setup) ? "Needs recheck" : "Ready for teacher review"),
+                "Draft status: " + ((try? submission.draftIsStale(setup: setup)).map { $0 ? "Needs recheck" : "Ready for teacher review" } ?? "Unknown"),
                 "Score: " + scoreText(total: draft.totalScore, max: maxScore(of: draft.criteria.map(\.criterionID), setup: setup)),
                 "Packet fingerprint: \(draft.packetFingerprint)"
             ]))
@@ -197,7 +197,10 @@ enum ReportBuilder {
             blocks.append(.heading(level: 2, text: "Evidence"))
             blocks.append(.bulletList(submission.evidence.map { reference in
                 let page = reference.pageIndex.map { "page \($0 + 1)" } ?? "reviewed text"
-                return "\"\(reference.quote)\" (\(page))"
+                var line = "\"\(reference.quote)\" (\(page))"
+                if let ocrLineID = reference.ocrLineID { line += " — text line \(ocrLineID.uuidString.prefix(8))" }
+                if let box = reference.boundingBox { line += " — bbox: \(box.stableDisplay)" }
+                return line
             }))
         }
 

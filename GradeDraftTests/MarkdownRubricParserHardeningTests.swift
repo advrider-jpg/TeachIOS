@@ -49,7 +49,8 @@ final class MarkdownRubricParserHardeningTests: XCTestCase {
         XCTAssertEqual(ids, parsed.criteria.sorted { $0.sortOrder < $1.sortOrder }.map(\.id))
     }
 
-    func testFallbackToSimpleParserWhenMarkdownFails() {
+    /// One criterion per line with no Markdown structure is read from the paragraph's lines (there is no separate plain-text parser).
+    func testPlainLinesWithoutMarkdownStructureAreParsed() {
         let rubric = "Claim: 0-2 points\nEvidence: 0-3 points"
         let parsed = MarkdownRubricParser.parse(rubric)
         XCTAssertGreaterThanOrEqual(parsed.criteria.count, 2)

@@ -5,6 +5,9 @@ struct ClassDetailRosterScreen: View {
     let model: RosterModel
     @State private var showingAddStudent = false
     @State private var showingRosterImporter = false
+    @State private var showingPasteRoster = false
+    /// The pasted roster waiting for its paste sheet to finish closing before the preview sheet opens.
+    @State private var pastedRoster: String?
     @State private var pendingRemoval: Student?
 
     private var rosterTypes: [UTType] {
@@ -69,6 +72,12 @@ struct ClassDetailRosterScreen: View {
                     Label("Import Roster File", systemImage: "doc.badge.plus")
                 }
                 .accessibilityIdentifier("classDetail.importRoster")
+                Button {
+                    showingPasteRoster = true
+                } label: {
+                    Label("Paste Roster", systemImage: "doc.on.clipboard")
+                }
+                .accessibilityIdentifier("classDetail.pasteRoster")
 
                 if model.students.isEmpty {
                     ContentUnavailableView(
@@ -107,6 +116,17 @@ struct ClassDetailRosterScreen: View {
         .alertMessage($model.alert)
         .sheet(isPresented: $showingAddStudent) {
             AddStudentSheet(model: model)
+        }
+        .sheet(isPresented: $showingPasteRoster, onDismiss: {
+            if let text = pastedRoster {
+                pastedRoster = nil
+                model.previewRosterText(text)
+            }
+        }) {
+            PasteRosterSheet { text in
+                pastedRoster = text
+                showingPasteRoster = false
+            }
         }
         .sheet(isPresented: Binding(
             get: { model.rosterPreview != nil },
@@ -196,6 +216,40 @@ private struct AddStudentSheet: View {
             await model.enrol(displayName: trimmedName, localIdentifier: trimmedID)
             isSaving = false
             if model.alert == nil { dismiss() }
+        }
+    }
+}
+
+private struct PasteRosterSheet: View {
+    var onPreview: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextEditor(text: $text)
+                        .frame(minHeight: 220)
+                        .accessibilityLabel("Pasted roster")
+                        .accessibilityIdentifier("classDetail.pasteSheet.text")
+                } footer: {
+                    Text("Paste a roster as CSV or one student per line. Nothing is added until you review the preview and confirm.")
+                }
+            }
+            .navigationTitle("Paste Roster")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel) { dismiss() }
+                        .accessibilityIdentifier("classDetail.pasteSheet.cancel")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Preview") { onPreview(text) }
+                        .disabled(text.isWhitespaceOnly)
+                        .accessibilityIdentifier("classDetail.pasteSheet.preview")
+                }
+            }
         }
     }
 }

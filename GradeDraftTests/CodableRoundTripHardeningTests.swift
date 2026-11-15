@@ -4,41 +4,25 @@ import XCTest
 // MARK: - JSON Codable round-trip hardening
 
 final class CodableRoundTripHardeningTests: XCTestCase {
-    func testAssignmentRecordFullRoundTrip() throws {
-        var original = AssignmentRecord(
-            title: "Round trip test",
-            rubricText: "Claim: 0-4 points",
-            reviewedStudentText: "Student text"
-        )
-        original.prompt = "What is photosynthesis?"
-        original.ocrReviewStatus = .reviewed
-        original.sourceInputs = [SourceInputRef(sourceType: .scan, contentDigest: "digest")]
-        original.appendAuditEvent(.assignmentCreated, detail: "Created.")
-        original.finalReview = FinalGradeReview(
-            packetFingerprint: original.gradingPacketFingerprint,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim", rating: "", proposedPoints: 0, finalPoints: 3,
-                maxPoints: 4, evidence: [], explanation: "", teacherApproved: true
-            )],
-            totalScore: 3, maxScore: 4, studentFeedback: "Good.",
-            privateTeacherNotes: "Private", teacherEdited: true
-        )
+    /// A backup carries every record of an assignment and its submissions through JSON. Every part must
+    /// come back equal.
+    func testBackupSnapshotFullRoundTrip() throws {
+        var fixture = try ExportFixtureFactory.sensitiveApprovedAssignment(title: "Round trip test")
+        fixture.setup.assignment.prompt = "What is photosynthesis?"
 
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(original)
+        let original = fixture.snapshot
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(BackupSnapshot.self, from: data)
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let decoded = try decoder.decode(AssignmentRecord.self, from: data)
-
-        XCTAssertEqual(decoded.id, original.id)
-        XCTAssertEqual(decoded.title, original.title)
-        XCTAssertEqual(decoded.prompt, "What is photosynthesis?")
-        XCTAssertEqual(decoded.ocrReviewStatus, .reviewed)
-        XCTAssertEqual(decoded.sourceInputs.count, 1)
-        XCTAssertEqual(decoded.auditEvents.count, 1)
-        XCTAssertEqual(decoded.finalReview?.criteria.count, 1)
+        XCTAssertEqual(decoded, original)
+        let setup = try XCTUnwrap(decoded.assignments.first)
+        XCTAssertEqual(setup.assignment.title, "Round trip test")
+        XCTAssertEqual(setup.assignment.prompt, "What is photosynthesis?")
+        let graph = try XCTUnwrap(decoded.submissions.first)
+        XCTAssertEqual(graph.ocr?.reviewStatus, .reviewed)
+        XCTAssertEqual(graph.sources.count, 1)
+        XCTAssertEqual(graph.audit.count, 1)
+        XCTAssertEqual(graph.finalReview?.criteria.count, 1)
     }
 
     func testGradeDraftResultRoundTrip() throws {
@@ -47,32 +31,27 @@ final class CodableRoundTripHardeningTests: XCTestCase {
             studentResponseSummary: "Summary",
             criteria: [CriterionScore(
                 criterionID: "c-1",
-                criterion: "Claim",
                 rating: "Good",
                 proposedPoints: 3,
-                maxPoints: 4,
-                evidence: ["Quote"],
+                evidenceQuotes: ["Quote"],
                 explanation: "Met.",
                 teacherReviewRequired: true,
-                confidence: "high"
+                confidence: "high",
+                title: "Claim",
+                maxPoints: 4
             )],
-            totalScore: 3,
-            maxScore: 4,
             studentFeedback: "Good",
             teacherNotes: "Notes",
             uncertaintyFlags: ["flag1"],
-            complianceFlags: ["compliance1"],
-            rawModelResponse: "raw response"
+            complianceFlags: ["compliance1"]
         )
 
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(original)
-        let decoder = JSONDecoder()
-        let decoded = try decoder.decode(GradeDraftResult.self, from: data)
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(GradeDraftResult.self, from: data)
 
+        XCTAssertEqual(decoded, original)
         XCTAssertEqual(decoded.packetFingerprint, "fp-1")
         XCTAssertEqual(decoded.criteria.count, 1)
         XCTAssertEqual(decoded.criteria[0].confidence, "high")
-        XCTAssertEqual(decoded.rawModelResponse, "raw response")
     }
 }

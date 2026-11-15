@@ -73,6 +73,7 @@ final class AppDatabase: Sendable {
     static func openOnDisk(fileManager: FileManager = .default) throws -> AppDatabase {
         do {
             let folder = try storageDirectory(fileManager: fileManager)
+            let isFirstOpen = !fileManager.fileExists(atPath: folder.path)
             try LocalDataProtection.prepareSensitiveDirectory(folder, fileManager: fileManager)
             let databaseURL = folder.appendingPathComponent(databaseFileName)
             let database = try AppDatabase(writer: DatabasePool(path: databaseURL.path))
@@ -81,6 +82,10 @@ final class AppDatabase: Sendable {
                 if fileManager.fileExists(atPath: fileURL.path) {
                     try LocalDataProtection.protectDatabaseFile(fileURL, fileManager: fileManager)
                 }
+            }
+            // The device-backup setting starts as Keep Local Only. Later opens leave the teacher's choice alone.
+            if isFirstOpen {
+                try LocalDataProtection.setDeviceBackupIncluded(false, storageRoot: folder, fileManager: fileManager)
             }
             return database
         } catch {
@@ -224,6 +229,38 @@ final class AppDatabase: Sendable {
                 sql: "SELECT * FROM enrollment WHERE classGroupID = ? ORDER BY sortOrder",
                 arguments: [classGroupID]
             )
+        }
+    }
+
+    /// The most recent exports, newest first: the export record with its assignment title and the student's
+    /// display name. A full backup has neither; a class-level export has no student. One query.
+    func recentExports(limit: Int) async throws -> [ExportRecordSummary] {
+        try await read { db in
+            try Self.fetch(
+                ExportRecordSummary.self, db, table: ExportRecord.databaseTableName,
+                sql: """
+                SELECT exportRecord.id AS id, exportRecord.kind AS kind, exportRecord.createdAt AS createdAt,
+                       assignment.title AS assignmentTitle, student.displayName AS studentName
+                FROM exportRecord
+                LEFT JOIN assignment ON assignment.id = exportRecord.assignmentID
+                LEFT JOIN submission ON submission.id = exportRecord.submissionID
+                LEFT JOIN student ON student.id = submission.studentID
+                ORDER BY exportRecord.createdAt DESC
+                LIMIT ?
+                """,
+                arguments: [limit]
+            )
+        }
+    }
+
+    /// Whether any submission of the assignment has scanned text (input kind scanned).
+    func assignmentHasScannedText(assignmentID: UUID) async throws -> Bool {
+        try await read { db in
+            try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM submission WHERE assignmentID = ? AND inputKind = ?)",
+                arguments: [assignmentID, SubmissionInputKind.scanned.rawValue]
+            ) ?? false
         }
     }
 
@@ -523,6 +560,19 @@ final class AppDatabase: Sendable {
                 throw AppDatabaseError.notFound(line.id)
             }
             try OCRLineRow(line, pageID: existing.pageID, lineOrder: existing.lineOrder).update(db)
+            // Changing a line's text, confirmation or rejection after the scanned text was marked reviewed puts
+            // the document back to "needs review"; the teacher marks it reviewed again.
+            if existing.correctedText != line.correctedText
+                || existing.teacherConfirmed != line.teacherConfirmed
+                || existing.isRejected != line.isRejected {
+                try db.execute(
+                    sql: """
+                    UPDATE ocrDocument SET reviewStatus = ?, reviewedAt = NULL
+                    WHERE reviewStatus = ? AND id = (SELECT documentID FROM ocrPage WHERE id = ?)
+                    """,
+                    arguments: [OCRReviewStatus.needsReview.rawValue, OCRReviewStatus.reviewed.rawValue, existing.pageID]
+                )
+            }
         }
     }
 
@@ -786,6 +836,15 @@ struct SubmissionTitle: Sendable {
     let assignmentID: UUID
     let studentName: String
     let className: String
+}
+
+/// One row of the Exports tab's recent exports.
+struct ExportRecordSummary: Identifiable, Equatable, Sendable, Decodable, FetchableRecord {
+    var id: UUID
+    var kind: ExportKind
+    var createdAt: Date
+    var assignmentTitle: String?
+    var studentName: String?
 }
 
 private struct SubmissionCountRow: Decodable, FetchableRecord {

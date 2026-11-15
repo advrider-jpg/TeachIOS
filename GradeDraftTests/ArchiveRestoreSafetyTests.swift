@@ -2,108 +2,13 @@ import XCTest
 import ZIPFoundation
 @testable import GradeDraft
 
-private final class ArchiveTestAssignmentStore: AssignmentStoring {
-    private(set) var assignments: [AssignmentRecord]
-    private(set) var rosterEntries: [AssignmentRosterEntry] = []
-    var replaceSnapshotError: Error?
-    private let root: URL
-
-    init(assignments: [AssignmentRecord] = [], root: URL) {
-        self.assignments = assignments
-        self.root = root
-    }
-
-    func loadAssignments() throws -> [AssignmentRecord] { assignments }
-    func saveAssignments(_ assignments: [AssignmentRecord]) throws { self.assignments = assignments }
-    func deleteAssignment(id: UUID) throws { assignments.removeAll { $0.id == id } }
-    func applicationSupportDirectory() throws -> URL {
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return root
-    }
-    func loadClassGroups() throws -> [ClassGroupRecord] { [] }
-    func saveClassGroup(_ classGroup: ClassGroupRecord) throws {}
-    func deleteClassGroup(id: UUID) throws {}
-    func loadStudents() throws -> [StudentRecord] { [] }
-    func saveStudent(_ student: StudentRecord) throws {}
-    func deleteStudent(id: UUID) throws {}
-    func loadAssignmentRoster(assignmentID: UUID) throws -> [AssignmentRosterEntry] { rosterEntries.filter { $0.assignmentID == assignmentID } }
-    func loadAssignmentRosterSnapshot() throws -> [AssignmentRosterEntry] { rosterEntries }
-    func replaceAssignmentRosterSnapshot(_ entries: [AssignmentRosterEntry]) throws { self.rosterEntries = entries }
-    func replaceLocalDataSnapshot(_ snapshot: AssignmentStoreSnapshot) throws {
-        if let replaceSnapshotError { throw replaceSnapshotError }
-        self.assignments = snapshot.assignments
-        self.rosterEntries = snapshot.rosterEntries
-    }
-    func saveSourceInputs(_ sourceInputs: [SourceInputRef], assignmentID: UUID) throws {}
-    func saveOCRDocument(_ document: OCRDocument, assignmentID: UUID) throws {}
-    func saveFinalReview(_ review: FinalGradeReview, assignmentID: UUID) throws {}
-    func saveEvidenceReferences(_ references: [EvidenceReference], assignmentID: UUID) throws {}
-    func loadFullAssignmentGraph(id: UUID) throws -> AssignmentRecord? { assignments.first { $0.id == id } }
-}
-
-final class ArchiveInventoryHardeningTests: XCTestCase {
-    func testTeacherAuditArchiveContainsInventoryJSON() throws {
-        let archive = try teacherArchive()
-        XCTAssertNotNil(archive["archive_inventory.json"])
-    }
-
-    func testGradebookArchiveContainsInventoryJSON() throws {
-        let assignment = ExportFixtureFactory.sensitiveApprovedAssignment()
-        let destination = ExportFixtureFactory.temporaryDirectory("GradebookArchive").appendingPathComponent("gradebook.zip")
-        let written = try BundleExportService.writeAssignmentArchive(assignments: [assignment], sourceFiles: [], to: destination)
-        XCTAssertNotNil(try openArchive(written)["archive_inventory.json"])
-    }
-
-    func testFullBackupArchiveContainsInventoryJSON() throws {
-        let assignment = ExportFixtureFactory.sensitiveApprovedAssignment()
-        let destination = ExportFixtureFactory.temporaryDirectory("FullBackupArchive").appendingPathComponent("backup.zip")
-        let written = try BundleExportService.writeFullBackup(assignments: [assignment], sourceFiles: [], to: destination)
-        XCTAssertNotNil(try openArchive(written)["archive_inventory.json"])
-    }
-
-    func testArchiveInventoryContainsOnlyEntriesActuallyPresent() throws {
-        let archive = try teacherArchive()
-        let paths = Set(archive.map(\.path))
-        for item in try inventory(in: archive) {
-            XCTAssertTrue(paths.contains(item.path), "Missing archived entry listed in inventory: \(item.path)")
-        }
-    }
-
-    func testTeacherArchiveInventoryMarksTeacherAuditAsPrivateNotesIncluded() throws {
-        let archive = try teacherArchive()
-        let item = try XCTUnwrap(inventory(in: archive).first { $0.path == "teacher_audit_report.md" })
-        XCTAssertTrue(item.includesPrivateTeacherNotes)
-        XCTAssertTrue(item.includesInternalMetadata)
-    }
-
-    func testTeacherArchiveInventoryMarksStudentReportAsNoPrivateNotes() throws {
-        let archive = try teacherArchive()
-        let item = try XCTUnwrap(inventory(in: archive).first { $0.path == "student_report.md" })
-        XCTAssertFalse(item.includesPrivateTeacherNotes)
-        XCTAssertFalse(item.includesOriginalSources)
-    }
-
-    func testFullBackupInventoryMarksDatabaseExportAsInternalMetadata() throws {
-        let assignment = ExportFixtureFactory.sensitiveApprovedAssignment()
-        let destination = ExportFixtureFactory.temporaryDirectory("FullBackupInventory").appendingPathComponent("backup.zip")
-        let written = try BundleExportService.writeFullBackup(assignments: [assignment], sourceFiles: [], to: destination)
-        let archive = try openArchive(written)
-        let item = try XCTUnwrap(inventory(in: archive).first { $0.path == "database_export.json" })
-        XCTAssertTrue(item.includesPrivateTeacherNotes)
-        XCTAssertTrue(item.includesInternalMetadata)
-    }
-
+/// The Teacher Record ZIP: one snapshot, the rendered reports and the original files.
+final class TeacherRecordArchiveSafetyTests: XCTestCase {
     func testSourceFilesWithSameLastPathDoNotCollideInArchive() throws {
         let root = ExportFixtureFactory.temporaryDirectory("SourceCollision")
         let first = try writeFile(root.appendingPathComponent("a/page.png"), contents: "first")
         let second = try writeFile(root.appendingPathComponent("b/page.png"), contents: "second")
-        let destination = root.appendingPathComponent("archive.zip")
-        let written = try BundleExportService.writeTeacherAuditArchive(
-            assignment: ExportFixtureFactory.sensitiveApprovedAssignment(),
-            sourceFiles: [first, second],
-            to: destination
-        )
-        let paths = try inventory(in: openArchive(written)).filter { $0.category == "sourceFile" }.map(\.path)
+        let paths = try sourceEntryPaths(sourceFiles: [first, second], root: root)
         XCTAssertEqual(paths.count, 2)
         XCTAssertEqual(Set(paths).count, 2)
     }
@@ -111,252 +16,84 @@ final class ArchiveInventoryHardeningTests: XCTestCase {
     func testSourceFileArchivePathsDoNotContainDotDot() throws {
         let root = ExportFixtureFactory.temporaryDirectory("SourcePathDotDot")
         let source = try writeFile(root.appendingPathComponent("..unsafe.png"), contents: "source")
-        let written = try BundleExportService.writeTeacherAuditArchive(
-            assignment: ExportFixtureFactory.sensitiveApprovedAssignment(),
-            sourceFiles: [source],
-            to: root.appendingPathComponent("archive.zip")
-        )
-        let paths = try inventory(in: openArchive(written)).filter { $0.category == "sourceFile" }.map(\.path)
+        let paths = try sourceEntryPaths(sourceFiles: [source], root: root)
+        XCTAssertEqual(paths.count, 1)
         XCTAssertFalse(paths.contains { $0.contains("..") })
     }
 
     func testSourceFileArchivePathsDoNotContainBackslash() throws {
         let root = ExportFixtureFactory.temporaryDirectory("SourcePathBackslash")
         let source = try writeFile(root.appendingPathComponent("folder\\name.png"), contents: "source")
-        let written = try BundleExportService.writeTeacherAuditArchive(
-            assignment: ExportFixtureFactory.sensitiveApprovedAssignment(),
-            sourceFiles: [source],
-            to: root.appendingPathComponent("archive.zip")
-        )
-        let paths = try inventory(in: openArchive(written)).filter { $0.category == "sourceFile" }.map(\.path)
+        let paths = try sourceEntryPaths(sourceFiles: [source], root: root)
+        XCTAssertEqual(paths.count, 1)
         XCTAssertFalse(paths.contains { $0.contains("\\") })
     }
 
-    func testArchiveManifestSourceFileCountMatchesInventorySourceFiles() throws {
-        let root = ExportFixtureFactory.temporaryDirectory("ManifestSourceCount")
-        let source = try writeFile(root.appendingPathComponent("source.txt"), contents: "source")
-        let written = try BundleExportService.writeTeacherAuditArchive(
-            assignment: ExportFixtureFactory.sensitiveApprovedAssignment(),
-            sourceFiles: [source],
+    func testArchiveRejectsSymlinkSourceFile() throws {
+        let root = ExportFixtureFactory.temporaryDirectory("ArchiveSymlinkReject")
+        let target = try writeFile(root.appendingPathComponent("target.txt"), contents: "target")
+        let link = root.appendingPathComponent("link.txt")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        XCTAssertThrowsError(try writeTeacherRecordArchive(sourceFiles: [link], root: root))
+    }
+
+    func testTeacherArchiveFailsWhenRequestedSourceFileIsMissing() throws {
+        let root = ExportFixtureFactory.temporaryDirectory("ArchiveMissingSource")
+        let missingSource = root.appendingPathComponent("Sources/missing.png")
+
+        XCTAssertThrowsError(try writeTeacherRecordArchive(sourceFiles: [missingSource], root: root)) { error in
+            XCTAssertTrue(error.localizedDescription.contains("missing"))
+        }
+    }
+
+    private func writeTeacherRecordArchive(sourceFiles: [URL], root: URL) throws -> URL {
+        let fixture = try ExportFixtureFactory.sensitiveApprovedAssignment()
+        let report = ReportBuilder.teacherRecord(setup: fixture.setup, submission: fixture.submission, generatedAt: Date(timeIntervalSince1970: 0))
+        return try BackupArchiveService.writeTeacherRecordArchive(
+            snapshot: fixture.snapshot,
+            reportFiles: [(name: "TeacherRecord.md", data: Data(MarkdownRenderer.render(report).utf8))],
+            sourceFiles: sourceFiles,
             to: root.appendingPathComponent("archive.zip")
         )
-        let archive = try openArchive(written)
-        let manifest = try decode(BackupArchiveManifest.self, path: "manifest.json", in: archive)
-        let sourceInventoryCount = try inventory(in: archive).filter { $0.category == "sourceFile" }.count
-        XCTAssertEqual(manifest.sourceFileCount, sourceInventoryCount)
     }
 
-    func testArchiveContentHashesIncludeSourceFilesWhenPresent() throws {
-        let root = ExportFixtureFactory.temporaryDirectory("ManifestSourceHash")
-        let source = try writeFile(root.appendingPathComponent("source.txt"), contents: "source")
-        let written = try BundleExportService.writeFullBackup(
-            assignments: [ExportFixtureFactory.sensitiveApprovedAssignment()],
-            sourceFiles: [source],
-            to: root.appendingPathComponent("backup.zip")
-        )
-        let manifest = try decode(BackupArchiveManifest.self, path: "manifest.json", in: openArchive(written))
-        XCTAssertTrue(manifest.contentHashes.keys.contains { $0.hasPrefix("source:") })
-    }
-
-    private func teacherArchive() throws -> Archive {
-        let assignment = ExportFixtureFactory.sensitiveApprovedAssignment()
-        let destination = ExportFixtureFactory.temporaryDirectory("TeacherArchive").appendingPathComponent("archive.zip")
-        return try openArchive(BundleExportService.writeTeacherAuditArchive(assignment: assignment, sourceFiles: [], to: destination))
+    private func sourceEntryPaths(sourceFiles: [URL], root: URL) throws -> [String] {
+        let archive = try Archive(url: try writeTeacherRecordArchive(sourceFiles: sourceFiles, root: root), accessMode: .read)
+        return archive.map(\.path).filter { $0.hasPrefix("sources/") }
     }
 }
 
-final class RestorePathSafetyTests: XCTestCase {
-    func testSafeRestoreDestinationIgnoresNonSourceEntry() throws {
-        let root = ExportFixtureFactory.temporaryDirectory("RestoreIgnore")
-        XCTAssertNil(try BundleExportService.safeRestoreDestination(for: "manifest.json", applicationSupportDirectory: root))
+/// Source file paths from a backup are checked before anything is written.
+final class SourcePathSafetyTests: XCTestCase {
+    func testPathOutsideSourcesFolderIsNotASourcePath() {
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("manifest.json"))
     }
 
     func testRestoreRejectsDotDotSourceEntry() {
-        XCTAssertThrowsError(try BundleExportService.safeRestoreDestination(for: "sources/Sources/../evil.txt", applicationSupportDirectory: ExportFixtureFactory.temporaryDirectory("RestoreDotDot")))
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("Sources/../evil.txt"))
     }
 
     func testRestoreRejectsAbsoluteSourceEntry() {
-        XCTAssertThrowsError(try BundleExportService.safeRestoreDestination(for: "sources//tmp/evil.txt", applicationSupportDirectory: ExportFixtureFactory.temporaryDirectory("RestoreAbsolute")))
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("/tmp/evil.txt"))
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("Sources//tmp/evil.txt"))
     }
 
     func testRestoreRejectsBackslashSourceEntry() {
-        XCTAssertThrowsError(try BundleExportService.safeRestoreDestination(for: "sources/Sources\\evil.txt", applicationSupportDirectory: ExportFixtureFactory.temporaryDirectory("RestoreBackslash")))
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("Sources\\evil.txt"))
     }
 
     func testRestoreRejectsDotComponent() {
-        XCTAssertThrowsError(try BundleExportService.safeRestoreDestination(for: "sources/Sources/./file.txt", applicationSupportDirectory: ExportFixtureFactory.temporaryDirectory("RestoreDot")))
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("Sources/./file.txt"))
     }
 
     func testRestoreRejectsEmptySourcePath() {
-        XCTAssertThrowsError(try BundleExportService.safeRestoreDestination(for: "sources/", applicationSupportDirectory: ExportFixtureFactory.temporaryDirectory("RestoreEmpty")))
+        XCTAssertNil(SourcePathSafety.sanitizedLocalSourcePath("Sources/"))
     }
 
     func testRestoreDoesNotWriteOutsideApplicationSupport() {
         let root = ExportFixtureFactory.temporaryDirectory("RestoreContainment")
-        XCTAssertThrowsError(try BundleExportService.safeRestoreDestination(for: "sources/Sources/../../outside.txt", applicationSupportDirectory: root))
-    }
-
-    func testRestoreAsCopyStillRemapsSafeSourcePaths() throws {
-        let fixture = try backupWithAppManagedSource()
-        let restored = try BundleExportService.restoreBackupArchive(
-            from: fixture.archiveURL,
-            existingAssignments: [fixture.assignment],
-            applicationSupportDirectory: fixture.restoreRoot,
-            conflictResolution: .restoreAsCopy
-        )
-        let copied = try XCTUnwrap(restored.first)
-        XCTAssertNotEqual(copied.id, fixture.assignment.id)
-        let expected = fixture.restoreRoot.appendingPathComponent("Sources/\(copied.id.uuidString)/page-1.txt")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: expected.path))
-    }
-
-    func testRestoreKeepLocalSkipsConflictingSourcePaths() throws {
-        let fixture = try backupWithAppManagedSource()
-        let local = fixture.restoreRoot.appendingPathComponent("Sources/\(fixture.assignment.id.uuidString)/page-1.txt")
-        try writeFile(local, contents: "local")
-        _ = try BundleExportService.restoreBackupArchive(
-            from: fixture.archiveURL,
-            existingAssignments: [fixture.assignment],
-            applicationSupportDirectory: fixture.restoreRoot,
-            conflictResolution: .keepLocal
-        )
-        XCTAssertEqual(String(data: try Data(contentsOf: local), encoding: .utf8), "local")
-    }
-
-    func testRestoreReplaceLocalOverwritesOnlyInsideApplicationSupport() throws {
-        let fixture = try backupWithAppManagedSource()
-        let local = fixture.restoreRoot.appendingPathComponent("Sources/\(fixture.assignment.id.uuidString)/page-1.txt")
-        try writeFile(local, contents: "local")
-        _ = try BundleExportService.restoreBackupArchive(
-            from: fixture.archiveURL,
-            existingAssignments: [fixture.assignment],
-            applicationSupportDirectory: fixture.restoreRoot,
-            conflictResolution: .replaceLocal
-        )
-        XCTAssertEqual(String(data: try Data(contentsOf: local), encoding: .utf8), "source bytes")
-    }
-
-    // MARK: - Change 4: Roster entry remap tests
-
-    @MainActor
-    func testRestoreAsCopyRemapsRosterEntryToNewAssignmentID() throws {
-        let studentID = UUID()
-        var localAssignment = ExportFixtureFactory.sensitiveApprovedAssignment()
-        localAssignment.studentID = studentID
-        localAssignment.studentDisplayName = "Alice"
-        let localStudent = StudentRecord(id: studentID, displayName: "Alice")
-        let localRosterEntry = AssignmentRosterEntry(assignmentID: localAssignment.id, studentID: studentID, studentDisplayName: "Alice")
-
-        // Build a full backup that has the same assignment ID
-        let backupRoot = ExportFixtureFactory.temporaryDirectory("RosterRemapBackup")
-        let archive = backupRoot.appendingPathComponent("backup.zip")
-        let written = try BundleExportService.writeFullBackup(
-            assignments: [localAssignment],
-            sourceFiles: [],
-            to: archive,
-            classGroups: [],
-            students: [localStudent],
-            rosterEntries: [localRosterEntry]
-        )
-
-        let root = ExportFixtureFactory.temporaryDirectory("RosterRemapRestore")
-        let store = ArchiveTestAssignmentStore(assignments: [localAssignment], root: root)
-        let vm = GradeDraftViewModel(assignments: [localAssignment], store: store)
-        vm.assignmentRosterEntries = [localRosterEntry]
-        vm.backupConflictResolution = .restoreAsCopy
-
-        vm.previewBackupRestore(from: written)
-        XCTAssertNotNil(vm.pendingRestorePreview, "Preview must be set before confirm")
-        vm.confirmPendingRestore()
-
-        // After restore there should be 2 assignments
-        XCTAssertEqual(vm.assignments.count, 2, "Restore-as-copy must produce two assignments")
-        let copiedAssignment = vm.assignments.first(where: { $0.id != localAssignment.id })
-        XCTAssertNotNil(copiedAssignment, "A copied assignment with a new ID must exist")
-
-        // The local roster entry must still reference the original
-        XCTAssertTrue(vm.assignmentRosterEntries.contains { $0.assignmentID == localAssignment.id }, "Local roster entry must remain for original")
-
-        // There must be a roster entry pointing to the copied assignment
-        if let copiedID = copiedAssignment?.id {
-            XCTAssertTrue(vm.assignmentRosterEntries.contains { $0.assignmentID == copiedID }, "A roster entry must reference the copied assignment ID")
-        }
-    }
-
-    @MainActor
-    func testRestoreKeepLocalDoesNotImportConflictingRosterEntries() throws {
-        let studentID = UUID()
-        var localAssignment = ExportFixtureFactory.sensitiveApprovedAssignment()
-        localAssignment.studentID = studentID
-        localAssignment.studentDisplayName = "Bob"
-        let localStudent = StudentRecord(id: studentID, displayName: "Bob")
-        let localRosterEntry = AssignmentRosterEntry(assignmentID: localAssignment.id, studentID: studentID, studentDisplayName: "Bob")
-
-        let backupRoot = ExportFixtureFactory.temporaryDirectory("RosterKeepLocalBackup")
-        let archive = backupRoot.appendingPathComponent("backup.zip")
-        let written = try BundleExportService.writeFullBackup(
-            assignments: [localAssignment],
-            sourceFiles: [],
-            to: archive,
-            classGroups: [],
-            students: [localStudent],
-            rosterEntries: [localRosterEntry]
-        )
-
-        let root = ExportFixtureFactory.temporaryDirectory("RosterKeepLocalRestore")
-        let store = ArchiveTestAssignmentStore(assignments: [localAssignment], root: root)
-        let vm = GradeDraftViewModel(assignments: [localAssignment], store: store)
-        vm.assignmentRosterEntries = [localRosterEntry]
-        vm.backupConflictResolution = .keepLocal
-
-        vm.previewBackupRestore(from: written)
-        vm.confirmPendingRestore()
-
-        let entries = vm.assignmentRosterEntries.filter { $0.assignmentID == localAssignment.id }
-        XCTAssertEqual(entries.count, 1, "Keep-local must not import duplicate roster entries for conflicting assignments")
-    }
-
-    @MainActor
-    func testRestoreSnapshotFailureKeepsPreviewRollsBackMemoryAndCleansSources() throws {
-        let root = ExportFixtureFactory.temporaryDirectory("RestoreSnapshotFailure")
-        var existingAssignment = ExportFixtureFactory.sensitiveApprovedAssignment()
-        existingAssignment.title = "Existing"
-        var restoredAssignment = ExportFixtureFactory.sensitiveApprovedAssignment()
-        restoredAssignment.title = "Restored"
-        let relative = "Sources/\(restoredAssignment.id.uuidString)/page-1.txt"
-        let source = try writeFile(root.appendingPathComponent(relative), contents: "restored source")
-        restoredAssignment.sourceInputs = [
-            SourceInputRef(
-                sourceType: .scan,
-                localRelativePath: relative,
-                fileName: "page-1.txt",
-                teacherIncludedInExport: true
-            )
-        ]
-        let archive = try BundleExportService.writeFullBackup(
-            assignments: [restoredAssignment],
-            sourceFiles: [source],
-            to: root.appendingPathComponent("backup.zip")
-        )
-
-        let restoreRoot = ExportFixtureFactory.temporaryDirectory("RestoreSnapshotFailureDestination")
-        let store = ArchiveTestAssignmentStore(assignments: [existingAssignment], root: restoreRoot)
-        store.replaceSnapshotError = GradeDraftError.persistenceFailed("snapshot persistence failed")
-        let vm = GradeDraftViewModel(assignments: [existingAssignment], store: store)
-        vm.backupConflictResolution = .replaceLocal
-
-        vm.previewBackupRestore(from: archive)
-        XCTAssertNotNil(vm.pendingRestorePreview)
-        vm.confirmPendingRestore()
-
-        XCTAssertEqual(vm.assignments.map(\.id), [existingAssignment.id])
-        XCTAssertEqual(store.assignments.map(\.id), [existingAssignment.id])
-        XCTAssertNotNil(vm.pendingRestorePreview, "Failed confirmed restore must keep the preview available for retry or cancellation.")
-        XCTAssertNotNil(vm.pendingRestoreFileURL, "Failed confirmed restore must keep the staged archive available for retry.")
-        XCTAssertTrue(vm.statusMessage.contains("Restore failed"))
-        XCTAssertFalse(vm.statusMessage.contains("Restored backup"))
-        let restoredSource = restoreRoot.appendingPathComponent(relative)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: restoredSource.path), "Extracted sources must be cleaned when record persistence fails.")
+        XCTAssertNil(SourcePathSafety.resolvedLocalSourceURL("Sources/../../outside.txt", applicationSupportDirectory: root))
     }
 
     func testSourcePathResolutionRejectsSymlinkEscape() throws {
@@ -370,74 +107,161 @@ final class RestorePathSafetyTests: XCTestCase {
 
         XCTAssertNil(SourcePathSafety.resolvedLocalSourceURL("Sources/link.txt", applicationSupportDirectory: root))
     }
+}
 
-    func testArchiveRejectsSymlinkSourceFile() throws {
-        let root = ExportFixtureFactory.temporaryDirectory("ArchiveSymlinkReject")
-        let target = try writeFile(root.appendingPathComponent("target.txt"), contents: "target")
-        let link = root.appendingPathComponent("link.txt")
-        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+/// A full backup of one assignment with one original file, restored over the store that made it.
+final class BackupRestoreFilesTests: XCTestCase {
+    private let password = "test-password"
 
-        XCTAssertThrowsError(
-            try BundleExportService.writeTeacherAuditArchive(
-                assignment: ExportFixtureFactory.sensitiveApprovedAssignment(),
-                sourceFiles: [link],
-                to: root.appendingPathComponent("archive.zip")
-            )
-        )
+    func testRestoreAsCopyStillRemapsSafeSourcePaths() async throws {
+        let world = try await RestoreWorld.make()
+        let preview = try await world.prepare()
+        XCTAssertEqual(preview.conflictingAssignmentIDs, [world.assignmentID])
+
+        let outcome = try await world.commit(preview, resolution: .restoreAsCopy)
+
+        let copiedID = try XCTUnwrap(outcome.copiedAssignmentIDs[world.assignmentID])
+        XCTAssertNotEqual(copiedID, world.assignmentID)
+        let snapshot = try await world.database.backupSnapshot()
+        let copiedSubmission = try XCTUnwrap(snapshot.submissions.first { $0.submission.assignmentID == copiedID })
+        let copiedPath = try XCTUnwrap(copiedSubmission.sources.first?.localRelativePath)
+        XCTAssertNotEqual(copiedPath, world.sourceRelativePath)
+        XCTAssertEqual(try String(contentsOf: world.storageRoot.appendingPathComponent(copiedPath), encoding: .utf8), "source bytes")
+        XCTAssertEqual(try String(contentsOf: world.localSourceURL, encoding: .utf8), "source bytes")
     }
 
-    func testTeacherArchiveFailsWhenRequestedSourceFileIsMissing() throws {
-        let root = ExportFixtureFactory.temporaryDirectory("ArchiveMissingSource")
-        let missingSource = root.appendingPathComponent("Sources/missing.png")
+    func testRestoreKeepLocalSkipsConflictingSourcePaths() async throws {
+        let world = try await RestoreWorld.make()
+        try writeFile(world.localSourceURL, contents: "local")
+        let preview = try await world.prepare()
 
-        XCTAssertThrowsError(
-            try BundleExportService.writeTeacherAuditArchive(
-                assignment: ExportFixtureFactory.sensitiveApprovedAssignment(),
-                sourceFiles: [missingSource],
-                to: root.appendingPathComponent("archive.zip")
+        _ = try await world.commit(preview, resolution: .keepLocal)
+
+        XCTAssertEqual(try String(contentsOf: world.localSourceURL, encoding: .utf8), "local")
+    }
+
+    func testRestoreReplaceLocalOverwritesOnlyInsideApplicationSupport() async throws {
+        let world = try await RestoreWorld.make()
+        try writeFile(world.localSourceURL, contents: "local")
+        let preview = try await world.prepare()
+
+        _ = try await world.commit(preview, resolution: .replaceLocal)
+
+        XCTAssertEqual(try String(contentsOf: world.localSourceURL, encoding: .utf8), "source bytes")
+    }
+
+    func testRestoreAsCopyAddsASecondAssignmentWithASubmissionForTheSameStudent() async throws {
+        let world = try await RestoreWorld.make()
+        let preview = try await world.prepare()
+
+        let outcome = try await world.commit(preview, resolution: .restoreAsCopy)
+
+        let copiedID = try XCTUnwrap(outcome.copiedAssignmentIDs[world.assignmentID])
+        let assignments = try await world.database.assignmentSummaries(inClass: nil)
+        XCTAssertEqual(assignments.count, 2)
+        // The local submission stays with the original assignment; the copy has its own for the same student.
+        let original = try await world.database.submissionSummaries(assignmentID: world.assignmentID)
+        let copied = try await world.database.submissionSummaries(assignmentID: copiedID)
+        XCTAssertEqual(original.map(\.studentID), [world.studentID])
+        XCTAssertEqual(copied.map(\.studentID), [world.studentID])
+    }
+
+    func testRestoreKeepLocalDoesNotImportConflictingSubmissions() async throws {
+        let world = try await RestoreWorld.make()
+        let preview = try await world.prepare()
+
+        _ = try await world.commit(preview, resolution: .keepLocal)
+
+        let assignments = try await world.database.assignmentSummaries(inClass: nil)
+        XCTAssertEqual(assignments.count, 1)
+        let submissions = try await world.database.submissionSummaries(assignmentID: world.assignmentID)
+        XCTAssertEqual(submissions.count, 1, "Keep-local must not import duplicate submissions for conflicting assignments")
+    }
+
+    func testBackupManifestListsEveryOriginalFileWithItsDigest() async throws {
+        let world = try await RestoreWorld.make()
+        let emptyStore = try AppDatabase.inMemory()
+        let preview = try await BackupArchiveService.prepareRestore(
+            from: world.archiveURL, password: password, storageRoot: world.storageRoot, database: emptyStore
+        )
+        defer { BackupArchiveService.discard(preview) }
+
+        let archivePath = "sources/" + world.sourceRelativePath.dropFirst("Sources/".count)
+        XCTAssertEqual(preview.manifest.sourceSHA256[archivePath], ContentDigest.sha256Hex(Data("source bytes".utf8)))
+        XCTAssertEqual(preview.sourceFileCount, 1)
+        XCTAssertTrue(preview.conflictingAssignmentIDs.isEmpty)
+    }
+
+    func testBackupRestoreSelectionCreatesPreviewBeforeMutation() async throws {
+        let world = try await RestoreWorld.make()
+        let otherStore = try AppDatabase.inMemory()
+        try await otherStore.save(ClassGroup(name: "Local class"))
+
+        let preview = try await BackupArchiveService.prepareRestore(
+            from: world.archiveURL, password: password, storageRoot: world.storageRoot, database: otherStore
+        )
+        defer { BackupArchiveService.discard(preview) }
+
+        XCTAssertEqual(preview.snapshot.assignments.map(\.id), [world.assignmentID])
+        let localAssignments = try await otherStore.assignmentSummaries(inClass: nil)
+        XCTAssertTrue(localAssignments.isEmpty, "Choosing a backup must not change local records")
+        let localClasses = try await otherStore.classGroups()
+        XCTAssertEqual(localClasses.map(\.name), ["Local class"])
+    }
+
+    /// A store holding one fixture assignment with its original file, and a full backup of it.
+    private struct RestoreWorld {
+        let storageRoot: URL
+        let database: AppDatabase
+        let archiveURL: URL
+        let assignmentID: UUID
+        let studentID: UUID
+        let sourceRelativePath: String
+        private let password = "test-password"
+
+        var localSourceURL: URL { storageRoot.appendingPathComponent(sourceRelativePath) }
+
+        static func make() async throws -> RestoreWorld {
+            let base = ExportFixtureFactory.temporaryDirectory("RestoreWorld")
+            let storageRoot = base.appendingPathComponent("GradeDraft", isDirectory: true)
+            let fixture = try ExportFixtureFactory.sensitiveApprovedAssignment()
+            let relative = try XCTUnwrap(fixture.sourceRelativePath)
+            try writeFile(storageRoot.appendingPathComponent(relative), contents: "source bytes")
+
+            let database = try AppDatabase.inMemory()
+            _ = try await database.restore(fixture.snapshot, resolutions: [:])
+            let archiveURL = try BackupArchiveService.writeFullBackup(
+                snapshot: try await database.backupSnapshot(),
+                storageRoot: storageRoot,
+                password: "test-password",
+                appVersion: "test",
+                to: base.appendingPathComponent("backup.markformebackup")
             )
-        ) { error in
-            XCTAssertTrue(error.localizedDescription.contains("missing"))
+            return RestoreWorld(
+                storageRoot: storageRoot,
+                database: database,
+                archiveURL: archiveURL,
+                assignmentID: fixture.setup.id,
+                studentID: fixture.submission.student.id,
+                sourceRelativePath: relative
+            )
+        }
+
+        func prepare() async throws -> RestorePreview {
+            try await BackupArchiveService.prepareRestore(
+                from: archiveURL, password: password, storageRoot: storageRoot, database: database
+            )
+        }
+
+        func commit(_ preview: RestorePreview, resolution: RestoreResolution) async throws -> RestoreOutcome {
+            try await BackupArchiveService.commitRestore(
+                preview,
+                resolutions: [assignmentID: resolution],
+                database: database,
+                storageRoot: storageRoot
+            )
         }
     }
-
-    private func backupWithAppManagedSource() throws -> (assignment: AssignmentRecord, archiveURL: URL, restoreRoot: URL) {
-        let root = ExportFixtureFactory.temporaryDirectory("RestoreBackup")
-        var assignment = ExportFixtureFactory.sensitiveApprovedAssignment()
-        let relative = "Sources/\(assignment.id.uuidString)/page-1.txt"
-        let source = try writeFile(root.appendingPathComponent(relative), contents: "source bytes")
-        assignment.sourceInputs = [SourceInputRef(sourceType: .scan, localRelativePath: relative, fileName: "page-1.txt", teacherIncludedInExport: true)]
-        let archive = root.appendingPathComponent("backup.zip")
-        let written = try BundleExportService.writeFullBackup(assignments: [assignment], sourceFiles: [source], to: archive)
-        let restoreRoot = ExportFixtureFactory.temporaryDirectory("RestoreDestination")
-        return (assignment, written, restoreRoot)
-    }
-}
-
-private func openArchive(_ url: URL) throws -> Archive {
-    guard let archive = Archive(url: url, accessMode: .read) else {
-        throw NSError(domain: "ArchiveRestoreSafetyTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not open archive: \(url.lastPathComponent)"])
-    }
-    return archive
-}
-
-private func archiveData(_ path: String, in archive: Archive) throws -> Data {
-    guard let entry = archive[path] else {
-        throw NSError(domain: "ArchiveRestoreSafetyTests", code: 2, userInfo: [NSLocalizedDescriptionKey: "Missing archive entry: \(path)"])
-    }
-    var data = Data()
-    _ = try archive.extract(entry) { chunk in data.append(chunk) }
-    return data
-}
-
-private func decode<T: Decodable>(_ type: T.Type, path: String, in archive: Archive) throws -> T {
-    let decoder = JSONDecoder()
-    decoder.dateDecodingStrategy = .iso8601
-    return try decoder.decode(type, from: archiveData(path, in: archive))
-}
-
-private func inventory(in archive: Archive) throws -> [ExportArchiveInventoryItem] {
-    try decode([ExportArchiveInventoryItem].self, path: "archive_inventory.json", in: archive)
 }
 
 @discardableResult

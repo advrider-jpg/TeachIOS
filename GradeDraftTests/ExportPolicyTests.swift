@@ -3,7 +3,7 @@ import XCTest
 
 final class ExportPolicyTests: XCTestCase {
     func testEveryExportKindHasExplicitPolicy() {
-        let kinds: [ExportKind] = [.studentMarkdown, .teacherAuditMarkdown, .studentPDF, .teacherAuditPDF, .csvGradebook, .zipArchive, .fullBackupArchive, .backupJSON, .assignmentGradebookArchive]
+        let kinds: [ExportKind] = [.studentMarkdown, .teacherAuditMarkdown, .studentPDF, .teacherAuditPDF, .csvGradebook, .zipArchive, .fullBackupArchive]
         XCTAssertEqual(kinds.map { $0.contentPolicy.kind }, kinds)
         XCTAssertTrue(kinds.allSatisfy { !$0.contentPolicy.warningTitle.isEmpty && !$0.contentPolicy.warningBody.isEmpty })
     }
@@ -65,13 +65,6 @@ final class ExportPolicyTests: XCTestCase {
         XCTAssertTrue(policy.includesInternalMetadata)
     }
 
-    func testBackupJSONPolicyIsSensitiveIfRetained() {
-        let policy = ExportKind.backupJSON.contentPolicy
-        XCTAssertTrue(policy.isTeacherOnly)
-        XCTAssertTrue(policy.includesPrivateTeacherNotes)
-        XCTAssertTrue(policy.includesInternalMetadata)
-    }
-
     func testStudentFacingPoliciesNeverIncludePrivateNotes() {
         let policies = [ExportKind.studentMarkdown.contentPolicy, ExportKind.studentPDF.contentPolicy]
         XCTAssertTrue(policies.allSatisfy { !$0.includesPrivateTeacherNotes })
@@ -98,8 +91,7 @@ final class ExportPolicyTests: XCTestCase {
             ExportKind.teacherAuditPDF.contentPolicy,
             ExportKind.csvGradebook.contentPolicy,
             ExportKind.zipArchive.contentPolicy,
-            ExportKind.fullBackupArchive.contentPolicy,
-            ExportKind.backupJSON.contentPolicy
+            ExportKind.fullBackupArchive.contentPolicy
         ]
         XCTAssertTrue(policies.allSatisfy(\.isTeacherOnly))
         XCTAssertTrue(policies.allSatisfy(\.requiresShareWarning))
@@ -128,45 +120,15 @@ final class ExportPolicyTests: XCTestCase {
         XCTAssertTrue(policy.inclusionSummaryLines.contains { $0.localizedCaseInsensitiveContains("formula") })
     }
 
-    func testExportConfirmationKindMapsToPolicies() {
-        XCTAssertEqual(ExportConfirmationKind.studentReportPDF.exportKind, .studentPDF)
-        XCTAssertEqual(ExportConfirmationKind.teacherReviewPDF.exportKind, .teacherAuditPDF)
-        XCTAssertEqual(ExportConfirmationKind.gradebookCSV.exportKind, .csvGradebook)
-        XCTAssertEqual(ExportConfirmationKind.gradebookArchive.exportKind, .assignmentGradebookArchive)
-        XCTAssertEqual(ExportConfirmationKind.teacherArchive.exportKind, .zipArchive)
-        XCTAssertEqual(ExportConfirmationKind.fullBackup.exportKind, .fullBackupArchive)
-    }
-
-    func testAssignmentGradebookArchivePolicyIsSensitiveTeacherOnly() {
-        let policy = ExportKind.assignmentGradebookArchive.contentPolicy
-        XCTAssertTrue(policy.isTeacherOnly)
-        XCTAssertFalse(policy.isStudentFacing)
-        XCTAssertTrue(policy.requiresLocalAuthenticationWhenAvailable)
-        XCTAssertTrue(policy.includesPrivateTeacherNotes)
-        XCTAssertTrue(policy.includesSourceFiles)
-        XCTAssertTrue(policy.includesAuditEvents)
-        XCTAssertTrue(policy.includesOCRText)
-        XCTAssertTrue(policy.includesInternalMetadata)
-    }
-
-    func testAssignmentGradebookArchiveDisplayName() {
-        XCTAssertEqual(ExportKind.assignmentGradebookArchive.displayName, "Gradebook Archive")
+    func testGradebookCSVDisplayName() {
         XCTAssertEqual(ExportKind.csvGradebook.displayName, "Gradebook CSV")
     }
 
-    func testAssignmentGradebookArchiveSafeFilenameToken() {
-        XCTAssertEqual(ExportKind.assignmentGradebookArchive.safeFilenameToken, "GradebookArchive")
+    func testGradebookCSVSafeFilenameToken() {
         XCTAssertEqual(ExportKind.csvGradebook.safeFilenameToken, "GradebookCSV")
     }
 
-    func testAssignmentGradebookArchiveWarningIDsIncludeZip() {
-        let ids = ExportWarningCatalog.warningIDs(for: .assignmentGradebookArchive)
-        XCTAssertTrue(ids.contains("zip-archive-warning"))
-        XCTAssertTrue(ids.contains("csv-warning"))
-    }
-
-    func testSensitivePoliciesRequireLocalAuthenticationIncludingGradebookArchive() {
-        XCTAssertTrue(ExportKind.assignmentGradebookArchive.contentPolicy.requiresLocalAuthenticationWhenAvailable)
+    func testSensitivePoliciesRequireLocalAuthenticationIncludingGradebookCSV() {
         XCTAssertTrue(ExportKind.csvGradebook.contentPolicy.requiresLocalAuthenticationWhenAvailable)
         XCTAssertTrue(ExportKind.teacherAuditMarkdown.contentPolicy.requiresLocalAuthenticationWhenAvailable)
         XCTAssertTrue(ExportKind.fullBackupArchive.contentPolicy.requiresLocalAuthenticationWhenAvailable)
@@ -174,13 +136,12 @@ final class ExportPolicyTests: XCTestCase {
         XCTAssertFalse(ExportKind.studentPDF.contentPolicy.requiresLocalAuthenticationWhenAvailable)
     }
 
-    func testExportRiskSummaryDoesNotInventDraftContentForBlankAssignment() {
-        let assignment = AssignmentRecord(title: "Blank local record")
+    func testExportRiskSummaryDoesNotInventDraftContentForBlankAssignment() throws {
+        let fixture = try ExportFixtureFactory.baseAssignment(title: "Blank local record")
 
         let summary = ExportRiskSummary.summary(
             for: .teacherAuditMarkdown,
-            currentAssignment: assignment,
-            allAssignments: [assignment]
+            items: [(setup: fixture.setup, submission: fixture.submission)]
         )
 
         XCTAssertFalse(summary.includesDraftContent)
@@ -189,56 +150,26 @@ final class ExportPolicyTests: XCTestCase {
         XCTAssertEqual(summary.affectedAssignmentCount, 1)
     }
 
-    func testExportRiskSummaryFlagsActualDraftAndUnapprovedFinalContent() {
-        var draftAssignment = AssignmentRecord(title: "Draft")
-        draftAssignment.latestDraft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [],
-            totalScore: 0,
-            maxScore: 0,
-            studentFeedback: "Draft feedback",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
-        var finalAssignment = AssignmentRecord(title: "Final in progress")
-        finalAssignment.finalReview = FinalGradeReview(
-            status: .inProgress,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim",
-                rating: "",
-                proposedPoints: 1,
-                finalPoints: 1,
-                maxPoints: 2,
-                evidence: [],
-                explanation: "",
-                teacherApproved: false
-            )],
-            totalScore: 1,
-            maxScore: 2,
-            studentFeedback: "",
-            privateTeacherNotes: "",
-            teacherEdited: true
-        )
+    func testExportRiskSummaryFlagsActualDraftAndUnapprovedFinalContent() throws {
+        let draft = try ExportFixtureFactory.draftOnlyAssignment()
+        let finalInProgress = try ExportFixtureFactory.inProgressFinalReviewAssignment()
 
-        XCTAssertTrue(ExportRiskSummary.summary(for: .teacherAuditPDF, currentAssignment: draftAssignment, allAssignments: []).includesDraftContent)
-        XCTAssertTrue(ExportRiskSummary.summary(for: .csvGradebook, currentAssignment: finalAssignment, allAssignments: [finalAssignment]).includesDraftContent)
+        XCTAssertTrue(ExportRiskSummary.summary(
+            for: .teacherAuditPDF,
+            items: [(setup: draft.setup, submission: draft.submission)]
+        ).includesDraftContent)
+        XCTAssertTrue(ExportRiskSummary.summary(
+            for: .csvGradebook,
+            items: [(setup: finalInProgress.setup, submission: finalInProgress.submission)]
+        ).includesDraftContent)
     }
 
-    func testExportRiskSummaryUsesInjectedSourceAvailability() {
-        let assignment = AssignmentRecord(title: "Archived")
+    func testExportRiskSummaryUsesInjectedSourceAvailability() throws {
+        let fixture = try ExportFixtureFactory.baseAssignment(title: "Archived")
+        let items = [(setup: fixture.setup, submission: fixture.submission)]
 
-        let noSource = ExportRiskSummary.summary(
-            for: .zipArchive,
-            currentAssignment: assignment,
-            allAssignments: [assignment],
-            sourceAvailability: { _ in false }
-        )
-        let hasSource = ExportRiskSummary.summary(
-            for: .zipArchive,
-            currentAssignment: assignment,
-            allAssignments: [assignment],
-            sourceAvailability: { _ in true }
-        )
+        let noSource = ExportRiskSummary.summary(for: .zipArchive, items: items, sourceAvailability: { _ in false })
+        let hasSource = ExportRiskSummary.summary(for: .zipArchive, items: items, sourceAvailability: { _ in true })
 
         XCTAssertFalse(noSource.includesOriginalSources)
         XCTAssertTrue(hasSource.includesOriginalSources)

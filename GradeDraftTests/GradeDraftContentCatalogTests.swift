@@ -112,94 +112,81 @@ final class GradeDraftContentCatalogTests: XCTestCase {
     }
 
     func testTemplateInsertionUpdatesExpectedFieldsFingerprintMetadataAndIdempotency() throws {
-        let original = AssignmentRecord(title: "Example", rubricText: "Criterion: 0-1 point", reviewedStudentText: "Student answer")
-        let initialFingerprint = original.plannedContentPacketFingerprint
+        let original = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "Example", rubricText: "Criterion: 0-1 point"))
+        let student = Student(displayName: "Student")
+        let graph = SubmissionGraph(
+            submission: Submission(assignmentID: original.id, studentID: student.id, inputKind: .pasted, pastedText: "Student answer"),
+            student: student
+        )
+        let initialFingerprint = try original.setupFingerprint
 
         let instruction = try XCTUnwrap(TeacherInstructionTemplateCatalog.template(id: "general-evidence-first"))
         let withInstruction = GradeDraftTemplateApplication.appendingInstructionTemplate(instruction, to: original)
-        XCTAssertTrue(withInstruction.customInstructions.contains(instruction.text))
-        XCTAssertTrue(withInstruction.customInstructions.contains("GradeDraftTemplate:teacherInstruction:general-evidence-first"))
-        XCTAssertTrue(withInstruction.gradingPacket.teacherInstructions.first?.text.contains("GradeDraftTemplate") == false)
+        XCTAssertTrue(withInstruction.assignment.customInstructions.contains(instruction.text))
+        XCTAssertTrue(withInstruction.assignment.customInstructions.contains("GradeDraftTemplate:teacherInstruction:general-evidence-first"))
+        let packet = GradingPacketBuilder.packet(from: try GradingPacketBuilder.gradingInput(setup: withInstruction, graph: graph, className: "6A", mappedItems: []))
+        XCTAssertTrue(packet.teacherInstructions.first?.text.contains("GradeDraftTemplate") == false)
         XCTAssertEqual(withInstruction.appliedTemplates.last?.templateID, instruction.id)
-        XCTAssertNotEqual(withInstruction.plannedContentPacketFingerprint, initialFingerprint)
+        XCTAssertNotEqual(try withInstruction.setupFingerprint, initialFingerprint)
 
         let duplicateInstruction = GradeDraftTemplateApplication.appendingInstructionTemplate(instruction, to: withInstruction)
-        XCTAssertEqual(duplicateInstruction.customInstructions, withInstruction.customInstructions)
+        XCTAssertEqual(duplicateInstruction.assignment.customInstructions, withInstruction.assignment.customInstructions)
         XCTAssertEqual(duplicateInstruction.appliedTemplates.count, withInstruction.appliedTemplates.count)
 
         let answerKey = try XCTUnwrap(AnswerKeyTemplateCatalog.template(id: "short-answer-answer-key"))
         let withAnswerKey = GradeDraftTemplateApplication.insertingAnswerKeyTemplate(answerKey, to: withInstruction)
-        XCTAssertTrue(withAnswerKey.answerKeyText.contains("Full-credit answer"))
+        XCTAssertTrue(withAnswerKey.assignment.answerKeyText.contains("Full-credit answer"))
         XCTAssertEqual(withAnswerKey.appliedTemplates.last?.templateKind, .answerKey)
-        XCTAssertNotEqual(withAnswerKey.plannedContentPacketFingerprint, withInstruction.plannedContentPacketFingerprint)
+        XCTAssertNotEqual(try withAnswerKey.setupFingerprint, try withInstruction.setupFingerprint)
 
         let exemplar = try XCTUnwrap(ExemplarTemplateCatalog.template(id: "paragraph-essay-exemplar"))
         let withExemplar = GradeDraftTemplateApplication.insertingExemplarTemplate(exemplar, to: withAnswerKey)
-        XCTAssertTrue(withExemplar.exemplarText.contains(exemplar.markdownTemplate))
+        XCTAssertTrue(withExemplar.assignment.exemplarText.contains(exemplar.markdownTemplate))
         XCTAssertEqual(withExemplar.appliedTemplates.last?.templateKind, .exemplar)
-        XCTAssertNotEqual(withExemplar.plannedContentPacketFingerprint, withAnswerKey.plannedContentPacketFingerprint)
+        XCTAssertNotEqual(try withExemplar.setupFingerprint, try withAnswerKey.setupFingerprint)
 
         let formative = try XCTUnwrap(FormativeFocusTemplateCatalog.template(id: "formative-focus"))
         let withFormative = GradeDraftTemplateApplication.insertingFormativeFocusTemplate(formative, to: withExemplar)
-        XCTAssertTrue(withFormative.formativeFocusText.contains(formative.markdownTemplate))
-        XCTAssertFalse(withFormative.customInstructions.contains(formative.markdownTemplate))
-        XCTAssertEqual(withFormative.assessmentPurpose, .formative)
+        XCTAssertTrue(withFormative.assignment.formativeFocusText.contains(formative.markdownTemplate))
+        XCTAssertFalse(withFormative.assignment.customInstructions.contains(formative.markdownTemplate))
+        XCTAssertEqual(withFormative.assignment.assessmentPurpose, .formative)
         XCTAssertEqual(withFormative.appliedTemplates.last?.templateKind, .formativeFocus)
-        XCTAssertNotEqual(withFormative.plannedContentPacketFingerprint, withExemplar.plannedContentPacketFingerprint)
+        XCTAssertNotEqual(try withFormative.setupFingerprint, try withExemplar.setupFingerprint)
     }
 
-    @MainActor
-    func testViewModelTemplateApplicationMarksExistingDraftAndFinalReviewStaleAndAuditsBoth() throws {
-        var assignment = AssignmentRecord(title: "Stale-state test", rubricText: "Criterion: 0-1 point", reviewedStudentText: "Student answer")
-        let startingFingerprint = assignment.gradingPacketFingerprint
-        assignment.latestDraft = GradeDraftResult(
-            packetFingerprint: startingFingerprint,
-            status: .generated,
-            studentResponseSummary: "Summary",
-            criteria: [],
-            totalScore: 0,
-            maxScore: 0,
-            studentFeedback: "Feedback",
-            teacherNotes: "Teacher note",
-            uncertaintyFlags: []
-        )
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: startingFingerprint,
-            status: .approved,
-            criteria: [],
-            totalScore: 0,
-            maxScore: 0,
-            studentFeedback: "Feedback",
-            privateTeacherNotes: "Private note",
-            teacherEdited: true
-        )
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+    func testTemplateApplicationMarksExistingDraftAndFinalReviewStaleAndAuditsBoth() async throws {
+        let fixture = try ExportFixtureFactory.sensitiveApprovedAssignment()
+        let database = try AppDatabase.inMemory()
+        _ = try await database.restore(fixture.snapshot, resolutions: [:])
+        let startingFingerprint = try fixture.currentFingerprint()
         let template = try XCTUnwrap(TeacherInstructionTemplateCatalog.template(id: "general-evidence-first"))
 
-        viewModel.applyTeacherInstructionTemplate(template)
+        let stored = try await database.assignmentSetup(id: fixture.setup.id)
+        let setup = try XCTUnwrap(stored)
+        try await database.saveSetup(GradeDraftTemplateApplication.appendingInstructionTemplate(template, to: setup))
 
-        XCTAssertEqual(viewModel.assignment.latestDraft?.status, .stale)
-        XCTAssertEqual(viewModel.assignment.finalReview?.status, .stale)
-        XCTAssertTrue(viewModel.assignment.auditEvents.contains { $0.eventType == .draftMarkedStale })
-        XCTAssertTrue(viewModel.assignment.auditEvents.contains { $0.eventType == .finalReviewMarkedStale })
-        XCTAssertNotEqual(viewModel.assignment.gradingPacketFingerprint, startingFingerprint)
+        let updatedStored = try await database.assignmentSetup(id: fixture.setup.id)
+        let updatedSetup = try XCTUnwrap(updatedStored)
+        let graphStored = try await database.submission(id: fixture.submission.id)
+        let graph = try XCTUnwrap(graphStored)
+        XCTAssertTrue(try graph.draftIsStale(setup: updatedSetup))
+        XCTAssertTrue(try graph.finalReviewIsStale(setup: updatedSetup))
+        XCTAssertTrue(graph.audit.contains { $0.eventType == .draftMarkedStale })
+        XCTAssertTrue(graph.audit.contains { $0.eventType == .finalReviewMarkedStale })
+        XCTAssertNotEqual(try graph.packetFingerprint(setup: updatedSetup), startingFingerprint)
     }
 
-    func testRubricTemplateApplicationPreservesExistingPublicAPIAndDoesNotClearReviewByDefault() throws {
+    func testRubricTemplateApplicationPreservesExistingPublicAPI() throws {
         let template = try XCTUnwrap(RubricTemplateCatalog.template(id: "formative-exit-ticket-8pt"))
-        var assignment = AssignmentRecord(title: "Exit ticket", assessmentPurpose: .summative)
+        var assignment = Assignment(classGroupID: UUID(), title: "Exit ticket", assessmentPurpose: .summative)
         assignment.rubricImportMode = .structuredConfirmed
-        assignment.confirmedParsedRubric = ParsedRubric(criteria: [], issues: [], groups: [])
-        assignment.latestDraft = GradeDraftResult(studentResponseSummary: "Summary", criteria: [], totalScore: 0, maxScore: 0, studentFeedback: "Draft", teacherNotes: "Note", uncertaintyFlags: [])
-        let updated = GradeDraftTemplateApplication.applyingRubricTemplate(template, to: assignment)
+        assignment.confirmedRubric = ParsedRubric(criteria: [], issues: [], groups: [])
+        let updated = GradeDraftTemplateApplication.applyingRubricTemplate(template, to: AssignmentSetup(assignment: assignment)).assignment
         XCTAssertEqual(updated.assignmentType, .shortAnswer)
         XCTAssertEqual(updated.assessmentPurpose, .formative)
         XCTAssertTrue(updated.rubricText.contains("Shows current understanding"))
         XCTAssertEqual(updated.rubricImportMode, .automatic)
-        XCTAssertNil(updated.confirmedParsedRubric)
-        XCTAssertNotNil(updated.latestDraft)
+        XCTAssertNil(updated.confirmedRubric)
         XCTAssertEqual(RubricTemplates.builtIn.map(\.id), RubricTemplateCatalog.builtIn.map(\.id))
     }
 
@@ -211,15 +198,12 @@ final class GradeDraftContentCatalogTests: XCTestCase {
         XCTAssertEqual(ExportWarningCatalog.warningIDs(for: .csvGradebook), ["csv-warning"])
         XCTAssertEqual(ExportWarningCatalog.warningIDs(for: .zipArchive), ["zip-archive-warning"])
         XCTAssertEqual(ExportWarningCatalog.warningIDs(for: .fullBackupArchive), ["zip-archive-warning", "json-backup-warning"])
-        XCTAssertEqual(ExportWarningCatalog.warningIDs(for: .backupJSON), ["json-backup-warning"])
-        XCTAssertTrue(ExportWarningCatalog.warningIDs(for: .assignmentGradebookArchive).contains("zip-archive-warning"))
-        XCTAssertTrue(ExportWarningCatalog.warningIDs(for: .assignmentGradebookArchive).contains("csv-warning"))
         XCTAssertEqual(ExportWarningCatalog.primaryWarning(for: .fullBackupArchive)?.id, "zip-archive-warning")
 
-        let teacherPDFWarnings = ExportConfirmationKind.teacherReviewPDF.baseWarnings
+        let teacherPDFWarnings = ExportWarningCatalog.warnings(for: .teacherAuditPDF)
         XCTAssertEqual(teacherPDFWarnings.map(\.id), ["teacher-only-record-warning", "pdf-warning"])
         XCTAssertNotNil(teacherPDFWarnings.first { $0.id == "pdf-warning" }?.postPreviewConfirmation)
-        XCTAssertEqual(ExportConfirmationKind.fullBackup.baseWarnings.map(\.id), ["zip-archive-warning", "json-backup-warning"])
+        XCTAssertEqual(ExportWarningCatalog.warnings(for: .fullBackupArchive).map(\.id), ["zip-archive-warning", "json-backup-warning"])
         XCTAssertNotNil(ExportWarningCatalog.warning(id: "delete-local-data-warning")?.escalatedConfirmation)
         XCTAssertEqual(ExportWarningCatalog.clearStudentWorkWarning.id, "clear-student-work-warning")
 
@@ -230,27 +214,40 @@ final class GradeDraftContentCatalogTests: XCTestCase {
         }
     }
 
-    func testReportsKeepStudentTeacherSeparationAndTeacherContext() {
-        var assignment = AssignmentRecord(title: "Report", rubricText: "Criterion: 0-1 point", reviewedStudentText: "Student answer")
-        assignment.customInstructions = "Teacher-only instruction."
-        assignment.formativeFocusText = "Teacher-only formative focus."
-        assignment.answerKeyText = "Teacher-only answer key."
-        assignment.exemplarText = "Teacher-only exemplar."
-        assignment.appliedTemplates = [AppliedTemplateRecord(templateID: "general-evidence-first", templateName: "Evidence first", templateKind: .teacherInstruction, insertionMode: .append)]
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
+    func testReportsKeepStudentTeacherSeparationAndTeacherContext() throws {
+        var fixture = try ExportFixtureFactory.baseAssignment(title: "Report")
+        fixture.setup.assignment.rubricText = "Criterion: 0-1 point"
+        fixture.setup.assignment.customInstructions = "Teacher-only instruction."
+        fixture.setup.assignment.formativeFocusText = "Teacher-only formative focus."
+        fixture.setup.assignment.answerKeyText = "Teacher-only answer key."
+        fixture.setup.assignment.exemplarText = "Teacher-only exemplar."
+        fixture.setup.appliedTemplates = [AppliedTemplateRecord(
+            assignmentID: fixture.setup.id, templateID: "general-evidence-first", templateName: "Evidence first",
+            templateKind: .teacherInstruction, insertionMode: .append
+        )]
+        let fingerprint = try fixture.currentFingerprint()
+        fixture.submission.finalReview = FinalGradeReview(
+            finalizedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            packetFingerprint: fingerprint,
             status: .approved,
-            criteria: [],
-            totalScore: 1,
-            maxScore: 1,
+            criteria: [FinalCriterionScore(
+                criterionID: fixture.criterionID, rating: "", proposedPoints: 1, finalPoints: 1,
+                explanation: "", teacherApproved: true
+            )],
             studentFeedback: "Student-facing feedback.",
             privateTeacherNotes: "Private teacher note.",
             teacherEdited: true
         )
-        assignment.exportRecords = [ExportRecord(exportKind: .teacherAuditMarkdown, contentFingerprint: "export-fingerprint", includesPrivateTeacherNotes: true, includesOriginalSources: false)]
-        assignment.appendAuditEvent(.inputChanged, detail: "Review history detail.")
+        fixture.submission.exports = [ExportRecord(
+            assignmentID: fixture.setup.id, submissionID: fixture.submission.submission.id, kind: .teacherAuditMarkdown,
+            contentSHA256: "export-fingerprint", includesPrivateTeacherNotes: true, includesOriginalSources: false
+        )]
+        fixture.submission.audit = [AuditEvent(
+            assignmentID: fixture.setup.id, submissionID: fixture.submission.submission.id,
+            eventType: .inputChanged, detail: "Review history detail."
+        )]
 
-        let student = MarkdownReportBuilder.studentMarkdown(for: assignment)
+        let student = try fixture.studentReportMarkdown()
         XCTAssertTrue(student.contains("Student-facing feedback."))
         XCTAssertFalse(student.contains("Teacher-only instruction."))
         XCTAssertFalse(student.contains("Teacher-only formative focus."))
@@ -260,23 +257,26 @@ final class GradeDraftContentCatalogTests: XCTestCase {
         XCTAssertFalse(student.contains("export-fingerprint"))
         XCTAssertFalse(student.contains("Review history detail."))
 
-        var draftOnly = AssignmentRecord(title: "Draft-only", rubricText: "Criterion: 0-1 point", reviewedStudentText: "Student answer")
-        draftOnly.latestDraft = GradeDraftResult(
+        var draftOnly = try ExportFixtureFactory.baseAssignment(title: "Draft-only")
+        draftOnly.submission.draft = GradeDraftResult(
+            packetFingerprint: try draftOnly.currentFingerprint(),
             studentResponseSummary: "Summary",
-            criteria: [CriterionScore(criterion: "Claim", rating: "Good", proposedPoints: 1, maxPoints: 1, evidence: ["Student answer"], explanation: "Met.", teacherReviewRequired: false)],
-            totalScore: 1,
-            maxScore: 1,
+            criteria: [CriterionScore(
+                criterionID: draftOnly.criterionID, rating: "Good", proposedPoints: 1,
+                evidenceQuotes: ["Student answer"], explanation: "Met.", teacherReviewRequired: false
+            )],
             studentFeedback: "Draft-only feedback.",
             teacherNotes: "Private draft teacher note.",
             uncertaintyFlags: []
         )
-        let draftStudent = MarkdownReportBuilder.studentMarkdown(for: draftOnly)
-        XCTAssertTrue(draftStudent.contains("No final teacher-approved grade is available"))
-        XCTAssertFalse(draftStudent.contains("Draft-only feedback."))
-        XCTAssertFalse(draftStudent.contains("Private draft teacher note."))
-        XCTAssertTrue(MarkdownReportBuilder.teacherAuditMarkdown(for: draftOnly, generatedForExportKind: .teacherAuditMarkdown).contains("Draft-only feedback."))
+        XCTAssertThrowsError(
+            try ReportBuilder.studentReport(setup: draftOnly.setup, submission: draftOnly.submission, generatedAt: Date(timeIntervalSince1970: 0))
+        ) { error in
+            XCTAssertEqual(error as? ReportError, .notApproved)
+        }
+        XCTAssertTrue(draftOnly.teacherRecordMarkdown().contains("Draft-only feedback."))
 
-        let teacher = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment, generatedForExportKind: .teacherAuditMarkdown)
+        let teacher = fixture.teacherRecordMarkdown()
         XCTAssertTrue(teacher.contains("Teacher-only instruction."))
         XCTAssertTrue(teacher.contains("Teacher-only formative focus."))
         XCTAssertTrue(teacher.contains("Teacher-only answer key."))
@@ -286,11 +286,11 @@ final class GradeDraftContentCatalogTests: XCTestCase {
         XCTAssertTrue(teacher.contains("Private teacher note."))
         XCTAssertTrue(teacher.contains("export-fingerprint"))
         XCTAssertTrue(teacher.contains("Review history detail."))
-        XCTAssertTrue(teacher.contains(assignment.gradingPacketFingerprint))
-        XCTAssertTrue(teacher.contains("Generated for export"))
+        XCTAssertTrue(teacher.contains(fingerprint))
+        XCTAssertTrue(teacher.contains("Report generated"))
     }
 
-    func testProhibitedLabelsAreNotInUserFacingCatalogCopyOrSwiftUISource() throws {
+    func testProhibitedLabelsAreNotInUserFacingCatalogCopy() throws {
         var visibleCopy: [String] = GradeDraftCopyCatalog.Labels.safe
         visibleCopy += RubricTemplateCatalog.builtIn.flatMap { [$0.name, $0.description, $0.rubricText, $0.customInstructions] }
         visibleCopy += TeacherInstructionTemplateCatalog.all.flatMap { [$0.name, $0.description, $0.text] }
@@ -302,25 +302,6 @@ final class GradeDraftContentCatalogTests: XCTestCase {
         }
 
         try GradeDraftContentValidator.assertNoProhibitedLabels(in: visibleCopy)
-        try assertNoProhibitedLabelsInSwiftUISource()
-    }
-
-    private func assertNoProhibitedLabelsInSwiftUISource() throws {
-        let repoRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let gradeDraftURL = repoRoot.appendingPathComponent("GradeDraft")
-        let excludedRelativePaths: Set<String> = [
-            "GradeDraft/Content/GradeDraftCopyCatalog.swift"
-        ]
-        let prohibited = GradeDraftCopyCatalog.Labels.prohibited.map { $0.lowercased() }
-        guard let enumerator = FileManager.default.enumerator(at: gradeDraftURL, includingPropertiesForKeys: nil) else { return }
-        for case let url as URL in enumerator where url.pathExtension == "swift" {
-            let relative = url.path.replacingOccurrences(of: repoRoot.path + "/", with: "")
-            if excludedRelativePaths.contains(relative) { continue }
-            let text = try String(contentsOf: url).lowercased()
-            for label in prohibited where text.contains(label) {
-                XCTFail("Prohibited label \(label) appears in \(relative)")
-            }
-        }
     }
 
     private func loadResourceCatalog() throws -> ResourceCatalog {

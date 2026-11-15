@@ -3,6 +3,56 @@ import ZIPFoundation
 @testable import GradeDraft
 
 extension GradeDraftTests {
+    /// An in-memory submission (no store) with an approved, current final review.
+    fileprivate func approvedGraph(
+        setup: AssignmentSetup,
+        student: Student = Student(displayName: "Kai"),
+        finalPoints: Double = 4,
+        privateNotes: String = "Private instructor comment."
+    ) throws -> SubmissionGraph {
+        var graph = SubmissionGraph(
+            submission: Submission(assignmentID: setup.id, studentID: student.id, inputKind: .pasted, pastedText: "Student text"),
+            student: student
+        )
+        graph.finalReview = FinalGradeReview(
+            packetFingerprint: try graph.packetFingerprint(setup: setup),
+            status: .approved,
+            criteria: [FinalCriterionScore(
+                criterionID: setup.parsedRubric.criteria[0].id, rating: "Proficient", proposedPoints: 3, finalPoints: finalPoints,
+                explanation: "Strong claim.", teacherApproved: true
+            )],
+            studentFeedback: "Good.",
+            privateTeacherNotes: privateNotes,
+            teacherEdited: true
+        )
+        return graph
+    }
+
+    /// Saves an approved, current final review for the submission in the store.
+    fileprivate func saveApprovedReview(_ app: AppModel, _ seeded: SeededSubmission) async throws {
+        let database = try app.requireDatabase()
+        let savedSetup = try await database.assignmentSetup(id: seeded.assignmentID)
+        let setup = try XCTUnwrap(savedSetup)
+        try await database.saveFinalReview(
+            FinalGradeReview(
+                packetFingerprint: try await TestApp.fingerprint(app, seeded),
+                status: .approved,
+                criteria: [FinalCriterionScore(
+                    criterionID: setup.parsedRubric.criteria[0].id, rating: "Proficient", proposedPoints: 3, finalPoints: 4,
+                    explanation: "Strong claim.", teacherApproved: true
+                )],
+                studentFeedback: "Good.",
+                privateTeacherNotes: "Private note.",
+                teacherEdited: true
+            ),
+            submissionID: seeded.submissionID
+        )
+    }
+
+    private static let denied = StubExportAuthenticationService(
+        result: ExportAuthenticationResult(allowed: false, authenticationPerformed: true, message: "Denied")
+    )
+
     func testCSVSanitizationEscapesFormulaLikePrefixes() throws {
         XCTAssertEqual(SpreadsheetSafety.sanitizedCell("=1+1"), "'=1+1")
         XCTAssertEqual(SpreadsheetSafety.sanitizedCell("+1-2"), "'+1-2")
@@ -21,339 +71,196 @@ extension GradeDraftTests {
         XCTAssertEqual(SpreadsheetSafety.sanitizedCell("  -3"), "  -3")
     }
 
-    func testCSVExportBuildRowsUsesFormulaSafeguardsAndOmitsPrivateNotes() throws {
-        let draft = GradeDraftResult(
+    func testGradebookCSVUsesFormulaSafeguardsAndOmitsPrivateNotes() throws {
+        let setup = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "=Exploit prompt", rubricText: "Claim: 0-4 points"))
+        var graph = try approvedGraph(
+            setup: setup, student: Student(displayName: "-Jane", localIdentifier: "=ID1"), finalPoints: 4,
+            privateNotes: "Private instructor comment."
+        )
+        graph.draft = GradeDraftResult(
+            packetFingerprint: "draft-packet",
             studentResponseSummary: "Draft summary",
-            criteria: [
-                CriterionScore(
-                    criterionID: "claim",
-                    criterion: "Claim",
-                    rating: "Proficient",
-                    proposedPoints: 3,
-                    maxPoints: 4,
-                    evidence: ["Student text"],
-                    explanation: "Evidence supports claim.",
-                    teacherReviewRequired: false
-                )
-            ],
-            totalScore: 3,
-            maxScore: 4,
+            criteria: [CriterionScore(
+                criterionID: setup.parsedRubric.criteria[0].id, rating: "Proficient", proposedPoints: 3,
+                evidenceQuotes: ["Student text"], explanation: "Evidence supports claim.", teacherReviewRequired: false
+            )],
             studentFeedback: "Good effort.",
             teacherNotes: "Private grading note.",
             uncertaintyFlags: []
         )
 
-        var assignment = AssignmentRecord(
-            title: "=Exploit prompt",
-            subject: "+English",
-            gradeLevel: "9",
-            studentDisplayName: "-Jane",
-            assignmentType: .essay
-        )
-        assignment.latestDraft = draft
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .approved,
-            criteria: [FinalCriterionScore(
-                criterionID: "claim",
-                criterion: "Claim",
-                rating: "Proficient",
-                proposedPoints: 3,
-                finalPoints: 4,
-                maxPoints: 4,
-                evidence: ["Student text"],
-                explanation: "Strong claim.",
-                teacherApproved: true
-            )],
-            totalScore: 4,
-            maxScore: 4,
-            studentFeedback: "Good.",
-            privateTeacherNotes: "Private instructor comment.",
-            teacherEdited: true
-        )
+        let csv = CSVExportService.gradebookCSV(setup: setup, submissions: [graph])
 
-        let rows = CSVExportService.buildStudentRows(from: [assignment])
+        XCTAssertTrue(csv.hasPrefix("\u{FEFF}\"student\""))
+        let rows = try CSVParser.parseRows(csv.replacingOccurrences(of: "\u{FEFF}", with: ""))
+        XCTAssertEqual(rows.first, ["student", "local_id", "status", "total_score", "max_score", "ai_draft_suggestion"])
         XCTAssertEqual(rows.count, 2)
-        let dataRow = rows[1]
-        XCTAssertEqual(dataRow[1], "'=Exploit prompt")
-        XCTAssertEqual(dataRow[2], "'+English")
-        XCTAssertEqual(dataRow[5], "'-Jane")
-        XCTAssertEqual(dataRow.count, 16)
-        XCTAssertEqual(dataRow[10], "approved")
-        XCTAssertEqual(dataRow[11], "notNeeded")
-        XCTAssertEqual(dataRow[12], "teacherReviewRequired")
-        XCTAssertEqual(dataRow[13], "false")
-        XCTAssertEqual(dataRow[14], "false")
-
-        let csv = CSVExportService.exportedCSV(from: [assignment])
-        let parsedRows = try CSVParser.parseRows(csv)
-        XCTAssertEqual(parsedRows.first, ["assignment_id", "title", "subject", "grade_level", "class_name", "student", "assignment_type", "assessment_purpose", "total_score", "max_score", "final_status", "ocr_status", "draft_status", "final_review_stale", "draft_stale", "updated_at"])
-        XCTAssertTrue(csv.hasPrefix("\"assignment_id\""))
+        XCTAssertEqual(rows[1], ["'-Jane", "'=ID1", "approved", "4", "4", "3"])
         XCTAssertFalse(csv.contains("Private grading note."))
         XCTAssertFalse(csv.contains("Private instructor comment."))
     }
 
-    @MainActor
-    func testTeacherAuditIncludesPrivateNotesAndOCRStatusAndFingerprint() {
-        var assignment = AssignmentRecord(title: "Audit test", subject: "Science")
-        assignment.reviewedStudentText = "Student text"
-        assignment.rubricText = "Claim: 0-4 points"
-        assignment.ocrReviewStatus = .reviewed
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .approved,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim",
-                rating: "",
-                proposedPoints: 0,
-                finalPoints: 4,
-                maxPoints: 4,
-                evidence: [],
-                explanation: "",
-                teacherApproved: true
-            )],
-            totalScore: 4,
-            maxScore: 4,
-            studentFeedback: "Great.",
-            privateTeacherNotes: "Private audit note here.",
-            teacherEdited: true
+    func testTeacherRecordIncludesPrivateNotesScannedTextStatusAndFingerprint() throws {
+        let setup = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "Audit test", subject: "Science", rubricText: "Claim: 0-4 points"))
+        var graph = try approvedGraph(setup: setup, privateNotes: "Private audit note here.")
+        graph.submission.inputKind = .scanned
+        graph.submission.pastedText = nil
+        let line = OCRLine(text: "Student text", confidence: 0.95, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true)
+        graph.ocr = OCRDocument(pages: [OCRPage(pageIndex: 0, lines: [line])], reviewStatus: .reviewed)
+        graph.finalReview?.packetFingerprint = try graph.packetFingerprint(setup: setup)
+
+        let record = MarkdownRenderer.render(ReportBuilder.teacherRecord(setup: setup, submission: graph, generatedAt: Date()))
+
+        XCTAssertTrue(record.contains("Private audit note here."), "Teacher record should include private notes")
+        XCTAssertTrue(record.contains("Scanned text review status: Ready for teacher review"), "Teacher record should include scanned-text status")
+        XCTAssertTrue(record.contains(try graph.packetFingerprint(setup: setup)), "Teacher record should include packet fingerprint")
+    }
+
+    func testTeacherArchiveFailsVisiblyWhenReferencedSourceFileIsMissing() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: nil)
+        let database = try app.requireDatabase()
+        let source = SourceInputRef(
+            submissionID: seeded.submissionID, sourceType: .scan, localRelativePath: "Sources/\(seeded.submissionID.uuidString)/missing.png",
+            fileName: "missing.png", includedInTeacherArchive: true
         )
+        let line = OCRLine(text: "Text", confidence: 0.95, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true)
+        _ = try await database.replaceInput(
+            submissionID: seeded.submissionID, kind: .scanned, pastedText: nil, sources: [source],
+            ocr: OCRDocument(pages: [OCRPage(sourceInputID: source.id, pageIndex: 0, lines: [line])], reviewStatus: .reviewed)
+        )
+        let session = try await openSession(app, seeded.submissionID)
 
-        let audit = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment)
-        XCTAssertTrue(audit.contains("Private audit note here."), "Teacher review should include private notes")
-        XCTAssertTrue(audit.contains("Scanned-text review status: Ready for teacher review"), "Teacher review should include scanned-text status")
-        XCTAssertTrue(audit.contains(assignment.gradingPacketFingerprint), "Teacher review should include packet fingerprint")
+        await session.prepareExport(.zipArchive)
+
+        XCTAssertNil(session.preparedExport)
+        XCTAssertTrue(session.alert?.message.contains("missing") == true)
+        let graph = try await database.submission(id: seeded.submissionID)
+        XCTAssertEqual(graph?.exports.count, 0, "A failed export must not be recorded")
     }
 
-    @MainActor
-    func testTeacherArchiveFailsVisiblyWhenReferencedSourceFileIsMissing() {
-        var assignment = AssignmentRecord(title: "Missing source")
-        assignment.sourceInputs = [
-            SourceInputRef(
-                sourceType: .scan,
-                localRelativePath: "Sources/\(assignment.id.uuidString)/missing.png",
-                fileName: "missing.png",
-                teacherIncludedInExport: true
-            )
-        ]
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        store.appSupportDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftMissingSource-\(UUID())")
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        viewModel.exportArchiveBundle()
-
-        XCTAssertNil(viewModel.exportURL)
-        XCTAssertNil(viewModel.exportKind)
-        XCTAssertTrue(viewModel.errorMessage?.contains("missing") == true)
-        XCTAssertFalse(viewModel.statusMessage.contains("ready to share"))
-    }
-
-    @MainActor
     func testClipboardCopyBlocksBackupArchiveAndPDFArtifactsByDefault() {
-        let assignment = AssignmentRecord(title: "Clipboard safety")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+        XCTAssertTrue(ExportKind.studentMarkdown.canCopyAsText)
+        XCTAssertTrue(ExportKind.teacherAuditMarkdown.canCopyAsText)
+        XCTAssertTrue(ExportKind.csvGradebook.canCopyAsText)
 
-        XCTAssertTrue(viewModel.clipboardTextExportKinds.contains(.studentMarkdown))
-        XCTAssertTrue(viewModel.clipboardTextExportKinds.contains(.teacherAuditMarkdown))
-        XCTAssertTrue(viewModel.clipboardTextExportKinds.contains(.csvGradebook))
-
-        for blockedKind in [ExportKind.studentPDF, .teacherAuditPDF, .zipArchive, .fullBackupArchive, .backupJSON, .assignmentGradebookArchive] {
+        for blockedKind in [ExportKind.studentPDF, .teacherAuditPDF, .zipArchive, .fullBackupArchive] {
             XCTAssertFalse(
-                viewModel.clipboardTextExportKinds.contains(blockedKind),
+                blockedKind.canCopyAsText,
                 "\(blockedKind.displayName) must not be copied to the clipboard; create and share the file artifact instead."
             )
         }
     }
 
-    // MARK: - Local AI unavailability tests
+    func testPDFRendererWritesNonEmptyFiles() throws {
+        let setup = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "PDF", rubricText: "Claim: 0-1 points"))
+        let graph = try approvedGraph(setup: setup, finalPoints: 1, privateNotes: "Private")
 
-    @MainActor
-    func testPDFExportServicesWriteNonEmptyFiles() throws {
-        var assignment = AssignmentRecord(title: "PDF", reviewedStudentText: "Evidence")
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .approved,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim",
-                rating: "",
-                proposedPoints: 0,
-                finalPoints: 1,
-                maxPoints: 1,
-                evidence: ["Evidence"],
-                explanation: "Met.",
-                teacherApproved: true
-            )],
-            totalScore: 1,
-            maxScore: 1,
-            studentFeedback: "Good.",
-            privateTeacherNotes: "Private",
-            teacherEdited: true
+        let student = try PDFRenderer.render(ReportBuilder.studentReport(setup: setup, submission: graph, generatedAt: Date()))
+        let audit = try PDFRenderer.render(ReportBuilder.teacherRecord(setup: setup, submission: graph, generatedAt: Date()))
+
+        XCTAssertGreaterThan(student.count, 100)
+        XCTAssertGreaterThan(audit.count, 100)
+        XCTAssertEqual(String(decoding: student.prefix(4), as: UTF8.self), "%PDF")
+        XCTAssertEqual(String(decoding: audit.prefix(4), as: UTF8.self), "%PDF")
+    }
+
+    func testTeacherArchiveContainsSnapshotAndTeacherRecordFiles() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Text")
+        let session = try await openSession(app, seeded.submissionID)
+
+        await session.prepareExport(.zipArchive)
+
+        XCTAssertNil(session.alert)
+        let export = try XCTUnwrap(session.preparedExport)
+        let archive = try Archive(url: export.url, accessMode: .read)
+        XCTAssertNotNil(archive["snapshot.json"])
+        XCTAssertTrue(archive.contains { $0.path.hasSuffix(".md") }, "The archive holds the Teacher Record in Markdown")
+        XCTAssertTrue(archive.contains { $0.path.hasSuffix(".pdf") }, "The archive holds the Teacher Record in PDF")
+        session.finishSharing()
+    }
+
+    // MARK: - Export authentication gate
+
+    func testTeacherRecordExportBlockedWhenAuthFails() async throws {
+        let app = try TestApp.make(exportAuthentication: Self.denied)
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student text")
+        let session = try await openSession(app, seeded.submissionID)
+
+        await session.prepareExport(.teacherAuditMarkdown)
+
+        XCTAssertNil(session.preparedExport, "Teacher-only export must be blocked when auth fails")
+        XCTAssertEqual(session.alert?.message, "Denied")
+        let graph = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertEqual(graph?.exports.count, 0)
+    }
+
+    func testGradebookCSVBlockedWhenAuthFails() async throws {
+        let app = try TestApp.make(exportAuthentication: Self.denied)
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student text")
+        let model = try await openSetupModel(app, seeded.assignmentID)
+
+        await model.prepareGradebookCSV()
+
+        XCTAssertNil(model.preparedExport, "Gradebook CSV must not be created when auth fails")
+        XCTAssertNotNil(model.alert)
+    }
+
+    func testFullBackupBlockedWhenAuthFails() async throws {
+        let app = try TestApp.make(exportAuthentication: Self.denied)
+        _ = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student text")
+
+        await app.backupRestore.createFullBackup(password: "pw")
+
+        XCTAssertNil(app.backupRestore.preparedExport, "Full backup must not be created when auth fails")
+        XCTAssertNotNil(app.backupRestore.alert)
+    }
+
+    func testAuthUnavailableAllowsExport() async throws {
+        let unavailable = StubExportAuthenticationService(
+            result: ExportAuthenticationResult(allowed: true, authenticationPerformed: false, message: "Device authentication is unavailable on this platform.")
         )
-        let studentURL = FileManager.default.temporaryDirectory.appendingPathComponent("student-\(UUID()).pdf")
-        let auditURL = FileManager.default.temporaryDirectory.appendingPathComponent("audit-\(UUID()).pdf")
-        defer { try? FileManager.default.removeItem(at: studentURL); try? FileManager.default.removeItem(at: auditURL) }
-        let writtenStudent = try PDFExportService.studentReportPDF(for: assignment, destination: studentURL)
-        let writtenAudit = try PDFExportService.teacherAuditPDF(for: assignment, destination: auditURL)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: writtenStudent.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: writtenAudit.path))
-        XCTAssertGreaterThan((try Data(contentsOf: writtenStudent)).count, 100)
-        XCTAssertGreaterThan((try Data(contentsOf: writtenAudit)).count, 100)
+        let app = try TestApp.make(exportAuthentication: unavailable)
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student text")
+        let session = try await openSession(app, seeded.submissionID)
+
+        await session.prepareExport(.teacherAuditMarkdown)
+
+        XCTAssertNil(session.alert, "Export should proceed when auth is unavailable but policy allows it")
+        XCTAssertNotNil(session.preparedExport)
+        session.finishSharing()
     }
 
-    func testArchiveContainsManifestAndCoreFiles() throws {
-        let assignment = AssignmentRecord(title: "Archive", reviewedStudentText: "Text")
-        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("archive-\(UUID()).zip")
-        defer { try? FileManager.default.removeItem(at: destination) }
-        let written = try BundleExportService.writeTeacherAuditArchive(assignment: assignment, sourceFiles: [], to: destination)
-        guard let archive = Archive(url: written, accessMode: .read) else {
-            return XCTFail("Archive should open")
-        }
-        XCTAssertNotNil(archive["manifest.json"])
-        XCTAssertNotNil(archive["student_report.md"])
-        XCTAssertNotNil(archive["teacher_audit_report.md"])
-        XCTAssertNotNil(archive["assignment.json"])
+    func testStudentReportDoesNotRequireAuthentication() async throws {
+        let app = try TestApp.make(exportAuthentication: Self.denied)
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student text")
+        try await saveApprovedReview(app, seeded)
+        let session = try await openSession(app, seeded.submissionID)
+
+        await session.prepareExport(.studentMarkdown)
+
+        XCTAssertNil(session.alert, "Student-facing exports must not require authentication")
+        XCTAssertEqual(session.preparedExport?.kind, .studentMarkdown)
+        session.finishSharing()
     }
 
-    func testPDFImportPlannerIdentifiesScannedPagesInMixedPDF() {
-        let pagesNeedingOCR = PDFImportPlanner.pageIndexesNeedingOCR(digitalTextByPage: [
-            "Digital page text",
-            "   ",
-            "Second digital page"
-        ])
+    // MARK: - Gradebook CSV
 
-        XCTAssertEqual(pagesNeedingOCR, [1])
+    func testGradebookCSVExportsEveryStudentOfTheAssignment() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: nil)
+        try await app.requireDatabase().save(Student(displayName: "Bob"), enrolledIn: seeded.classGroupID)
+        let model = try await openSetupModel(app, seeded.assignmentID)
+
+        await model.prepareGradebookCSV()
+
+        XCTAssertNil(model.alert)
+        let export = try XCTUnwrap(model.preparedExport)
+        XCTAssertEqual(export.kind, .csvGradebook)
+        let content = try String(contentsOf: export.url, encoding: .utf8)
+        XCTAssertTrue(content.contains("Kai"), "CSV must include the first student")
+        XCTAssertTrue(content.contains("Bob"), "CSV must include the second student")
+        model.finishSharing()
     }
-
-    func testPDFImportPlannerMergesDigitalAndOCRPages() {
-        let refs = (0..<3).map { index in
-            SourceInputRef(
-                sourceType: .pdf,
-                pageIndex: index,
-                fileName: "PDF page \(index + 1)",
-                imageWidth: 600,
-                imageHeight: 800
-            )
-        }
-        let scannedPage = OCRPage(
-            sourceInputID: refs[1].id,
-            pageIndex: 1,
-            imageWidth: 600,
-            imageHeight: 800,
-            lines: [OCRLine(text: "Scanned page OCR", confidence: 0.83, boundingBox: .zero)]
-        )
-
-        let document = PDFImportPlanner.mergedDocument(
-            digitalTextByPage: ["Digital page text", "", "More digital text"],
-            sourceRefs: refs,
-            recognizedOCRPagesByPageIndex: [1: scannedPage],
-            pageCount: 3
-        )
-
-        XCTAssertEqual(document.engine, "PDFKit digital text + Apple Vision")
-        XCTAssertEqual(document.pages.map(\.pageIndex), [0, 1, 2])
-        XCTAssertEqual(document.pages[0].lines.first?.rawText, "Digital page text")
-        XCTAssertEqual(document.pages[1].lines.first?.rawText, "Scanned page OCR")
-        XCTAssertEqual(document.pages[2].lines.first?.rawText, "More digital text")
-    }
-
-    func testPDFImportPlannerPreservesEmptyPageWhenOCRReturnsNoLines() {
-        let refs = [
-            SourceInputRef(sourceType: .pdf, pageIndex: 0, fileName: "PDF page 1", imageWidth: 600, imageHeight: 800)
-        ]
-
-        let document = PDFImportPlanner.mergedDocument(
-            digitalTextByPage: [""],
-            sourceRefs: refs,
-            recognizedOCRPagesByPageIndex: [:],
-            pageCount: 1
-        )
-
-        XCTAssertEqual(document.engine, "PDFKit digital text + Apple Vision")
-        XCTAssertEqual(document.pages.count, 1)
-        XCTAssertEqual(document.pages[0].sourceInputID, refs[0].id)
-        XCTAssertTrue(document.pages[0].lines.isEmpty)
-    }
-
-    // MARK: - Change 1: Export authentication gate tests
-
-    @MainActor
-    func testTeacherAuditExportBlockedWhenAuthFails() async {
-        let alwaysDeny = StubExportAuthenticationService(result: ExportAuthenticationResult(allowed: false, authenticationPerformed: true, message: "Denied"))
-        let assignment = AssignmentRecord(title: "Test")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store, exportAuthenticationService: alwaysDeny)
-        let allowed = await vm.authenticateForExportIfNeeded(.teacherAuditMarkdown)
-        XCTAssertFalse(allowed, "Teacher-only export must be blocked when auth fails")
-        XCTAssertNil(vm.exportURL, "exportURL must be nil after auth failure")
-    }
-
-    @MainActor
-    func testGradebookCSVBlockedWhenAuthFails() async {
-        let alwaysDeny = StubExportAuthenticationService(result: ExportAuthenticationResult(allowed: false, authenticationPerformed: true, message: nil))
-        let assignment = AssignmentRecord(title: "Test")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store, exportAuthenticationService: alwaysDeny)
-        await vm.performConfirmedExport(.gradebookCSV)
-        XCTAssertNil(vm.exportURL, "Gradebook CSV must not be created when auth fails")
-    }
-
-    @MainActor
-    func testGradebookArchiveBlockedWhenAuthFails() async {
-        let alwaysDeny = StubExportAuthenticationService(result: ExportAuthenticationResult(allowed: false, authenticationPerformed: true, message: nil))
-        let assignment = AssignmentRecord(title: "Test")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store, exportAuthenticationService: alwaysDeny)
-        await vm.performConfirmedExport(.gradebookArchive)
-        XCTAssertNil(vm.exportURL, "Gradebook Archive must not be created when auth fails")
-    }
-
-    @MainActor
-    func testAuthUnavailableAllowsExportAndSetsStatusMessage() async {
-        let unavailableResult = ExportAuthenticationResult(allowed: true, authenticationPerformed: false, message: "Device authentication is unavailable on this platform.")
-        let unavailable = StubExportAuthenticationService(result: unavailableResult)
-        let assignment = AssignmentRecord(title: "Test")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store, exportAuthenticationService: unavailable)
-        let allowed = await vm.authenticateForExportIfNeeded(.teacherAuditMarkdown)
-        XCTAssertTrue(allowed, "Export should proceed when auth is unavailable but policy allows it")
-        XCTAssertNotNil(vm.lastExportAuthenticationResult)
-        XCTAssertFalse(vm.lastExportAuthenticationResult?.authenticationPerformed ?? true)
-    }
-
-    // MARK: - Change 2: Gradebook CSV and Gradebook Archive tests
-
-    @MainActor
-    func testGradebookCSVExportsAllAssignments() {
-        let a1 = AssignmentRecord(title: "Assign 1", studentDisplayName: "Alice")
-        let a2 = AssignmentRecord(title: "Assign 2", studentDisplayName: "Bob")
-        let store = InMemoryAssignmentStore(assignments: [a1, a2])
-        let vm = GradeDraftViewModel(assignments: [a1, a2], store: store)
-        vm.exportCSVGradebook()
-        // The CSV file should reference both students
-        if let url = vm.exportURL, let content = try? String(contentsOf: url, encoding: .utf8) {
-            XCTAssertTrue(content.contains("Alice") || content.contains("Assign 1"), "CSV must include first assignment")
-            XCTAssertTrue(content.contains("Bob") || content.contains("Assign 2"), "CSV must include second assignment")
-        } else {
-            XCTFail("exportURL not set after exportCSVGradebook")
-        }
-        XCTAssertEqual(vm.exportKind, .csvGradebook)
-    }
-
-    @MainActor
-    func testGradebookArchiveWritesZIP() throws {
-        let assignment = AssignmentRecord(title: "Archive Test")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        vm.exportGradebookArchive()
-        guard let url = vm.exportURL else {
-            XCTFail("exportURL not set after exportGradebookArchive")
-            return
-        }
-        XCTAssertEqual(url.pathExtension, "zip", "Gradebook archive must be a ZIP file")
-        XCTAssertEqual(vm.exportKind, .assignmentGradebookArchive)
-    }
-
-    // MARK: - Change 3: Two-phase backup restore tests
-
 }
