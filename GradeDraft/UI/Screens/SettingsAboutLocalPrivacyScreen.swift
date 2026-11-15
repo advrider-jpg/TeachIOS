@@ -1,112 +1,121 @@
 import SwiftUI
 
 struct SettingsAboutLocalPrivacyScreen: View {
-    @ObservedObject var viewModel: GradeDraftViewModel
+    @Environment(AppModel.self) private var appModel
     @State private var showingBackupToggleWarning = false
+
+    /// The device-backup setting as the saved-work files report it.
+    private var backupStatus: DeviceBackupPolicyStatus {
+        switch appModel.deviceBackupIncluded {
+        case .some(true): return .included
+        case .some(false): return .excluded
+        case .none: return .unknown("The platform did not report a consistent exclusion value for the saved work.")
+        }
+    }
 
     var body: some View {
         Form {
             Section {
-                ExportStationeryHeaderCard(
-                    eyebrow: "Local privacy",
-                    title: "Privacy & Storage",
-                    note: "Student work is not sent to us for marking. Copy must match the real app path.",
-                    status: .teacherOnly
-                )
+                Text("MarkForMe stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The core workflow does not upload or send this information.")
+                Label("No cloud text recognition in the core workflow.", systemImage: "checkmark.circle")
+                Label("No cloud AI grading in the core workflow.", systemImage: "checkmark.circle")
+                Label("No usage tracking in the core workflow.", systemImage: "checkmark.circle")
+                Label("No account or login required.", systemImage: "checkmark.circle")
+                Label("Teacher finalizes all grades.", systemImage: "person.badge.checkmark")
+            } header: {
+                Text("Local Privacy")
+            } footer: {
+                Text("Student work is not sent to us for marking.")
             }
-            .listRowBackground(Color.clear)
-
-            Section("Local Privacy") {
-                ExportStationeryCard(status: .teacherOnly, showsPerforation: true) {
-                    HStack(alignment: .top, spacing: 10) {
-                        TapeLabel("Device only", theme: .exportPrivacy)
-                        Spacer(minLength: 8)
-                        StatusChip(.teacherOnly, compact: true, theme: .exportPrivacy)
-                        PaperclipDecoration(theme: .exportPrivacy)
-                            .frame(width: 28, height: 40)
-                    }
-                    Text("MarkForMe stores and processes student work, grading records, rubrics, teacher notes, and feedback locally on your device. The core workflow does not upload or send this information.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Label("No cloud text recognition in the core workflow.", systemImage: "checkmark.circle")
-                    Label("No cloud AI grading in the core workflow.", systemImage: "checkmark.circle")
-                    Label("No usage tracking in the core workflow.", systemImage: "checkmark.circle")
-                    Label("No account or login required.", systemImage: "checkmark.circle")
-                    Label("Teacher finalizes all grades.", systemImage: "person.badge.checkmark")
-                }
-            }
-            .listRowBackground(Color.clear)
 
             Section {
-                ExportStationeryCard(status: backupPolicyUIStatus, showsPerforation: true) {
-                    TapeLabel("Storage ledger", theme: .exportPrivacy)
-                    GradeDraftStatusLabeledContent(title: "Local Only", value: viewModel.persistenceSummary, status: .teacherOnly)
-                    GradeDraftStatusLabeledContent(title: "Device Backup Setting", value: viewModel.deviceBackupStatusSummary, status: backupPolicyUIStatus)
-                    LabeledContent("Assignments", value: "\(viewModel.assignments.count)")
-                    LabeledContent("Classes", value: "\(viewModel.classGroups.count)")
-                    LabeledContent("Students", value: "\(viewModel.students.count)")
-                    HandwrittenAnnotation("Device backup behavior depends on this device and account configuration.", status: backupPolicyUIStatus, theme: .exportPrivacy)
-                    Button {
-                        if viewModel.localDataExcludedFromDeviceBackup {
-                            showingBackupToggleWarning = true
-                        } else {
-                            viewModel.keepLocalDataExcludedFromDeviceBackup()
-                        }
-                    } label: {
-                        Label(
-                            viewModel.localDataExcludedFromDeviceBackup ? "Review Backup Inclusion" : "Keep Local Only",
-                            systemImage: viewModel.localDataExcludedFromDeviceBackup ? "externaldrive.badge.icloud" : "lock.shield"
-                        )
-                    }
+                storageRows
+                LabeledContent("Device Backup Setting") {
+                    StatusLabel(backupPolicyUIStatus, subject: "Device backup status")
+                        .accessibilityIdentifier("settings.backupStatus")
                 }
+                Text(backupStatus.summary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("settings.backupSummary")
+                Button {
+                    if backupStatus.isExcluded {
+                        showingBackupToggleWarning = true
+                    } else {
+                        Task { await appModel.setDeviceBackupIncluded(false) }
+                    }
+                } label: {
+                    Label(
+                        backupStatus.isExcluded ? "Review Backup Inclusion" : "Keep Local Only",
+                        systemImage: backupStatus.isExcluded ? "externaldrive.badge.icloud" : "lock.shield"
+                    )
+                }
+                .disabled(appModel.database == nil)
+                .accessibilityIdentifier("settings.backupToggle")
             } header: {
                 Text("Local Storage")
             } footer: {
                 Text("Student records are stored locally. Device backup behavior depends on this device and account configuration.")
             }
-            .listRowBackground(Color.clear)
 
             Section("Backup and Export Warnings") {
-                ExportStationeryCard(status: .needsAttention, showsPerforation: true) {
-                    TapeLabel("Warnings", theme: .exportPrivacy)
-                    BlockingIssueRow(title: "Exports", detail: "Exports may contain sensitive student information. Review the confirmation sheet before creating a file.", status: .needsAttention)
-                    BlockingIssueRow(title: "Exported backups", detail: "Full backup archive exports include all MarkForMe data stored on this device. Store exported files securely.", status: .teacherOnly)
-                    Label("Opening the share sheet sends the selected file to another app.", systemImage: "square.and.arrow.up")
-                    Label("Backup import must preview before mutating records.", systemImage: "archivebox")
-                }
+                Label("Exports may contain sensitive student information. Review the confirmation sheet before creating a file.", systemImage: "exclamationmark.triangle")
+                Label("Full backup archive exports include all MarkForMe data stored on this device. Store exported files securely.", systemImage: "lock")
+                Label("Opening the share sheet sends the selected file to another app.", systemImage: "square.and.arrow.up")
+                Label("Backup import must preview before mutating records.", systemImage: "archivebox")
             }
-            .listRowBackground(Color.clear)
 
             Section("About") {
-                ExportStationeryCard(status: .studentFacing) {
-                    TapeLabel("About", theme: .exportPrivacy)
-                    LabeledContent("App", value: "MarkForMe")
-                    LabeledContent("Mode", value: "Student work is not sent to us")
-                    LabeledContent("Core workflow", value: "Local text review, teacher final grade, local export")
-                }
+                LabeledContent("App", value: "MarkForMe")
+                LabeledContent("Mode", value: "Student work is not sent to us")
+                LabeledContent("Core workflow", value: "Local text review, teacher final grade, local export")
             }
-            .listRowBackground(Color.clear)
         }
-        .stationeryScreen(theme: .exportPrivacy)
         .navigationTitle("Privacy & Storage")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
-        .onAppear { viewModel.refreshDeviceBackupPolicyStatus() }
+        .task(id: appModel.storageRoot) {
+            appModel.refreshDeviceBackupStatus()
+        }
         .confirmationDialog(backupToggleWarningTitle, isPresented: $showingBackupToggleWarning, titleVisibility: .visible) {
-            Button(backupTogglePrimaryButton) { viewModel.includeLocalDataInDeviceBackupAfterWarning() }
-            Button(backupToggleSecondaryButton, role: .cancel) { viewModel.keepLocalDataExcludedFromDeviceBackup() }
+            Button(backupTogglePrimaryButton) {
+                Task { await appModel.setDeviceBackupIncluded(true) }
+            }
+            .accessibilityIdentifier("settings.backupEnable")
+            Button(backupToggleSecondaryButton, role: .cancel) {
+                Task { await appModel.setDeviceBackupIncluded(false) }
+            }
+            .accessibilityIdentifier("settings.backupKeepLocal")
         } message: {
             Text(backupToggleWarningBody)
         }
     }
 
-    private var backupPolicyUIStatus: GradeDraftUIStatus {
-        switch viewModel.deviceBackupPolicyStatus {
-        case .excluded:
-            return .teacherOnly
-        case .included, .unknown:
-            return .needsAttention
+    @ViewBuilder
+    private var storageRows: some View {
+        if appModel.database != nil {
+            Label("Saved work is open and stored on this device.", systemImage: "internaldrive")
+                .accessibilityIdentifier("settings.storageStatus")
+            LabeledContent("Classes", value: "\(appModel.classGroups.count)")
+            LabeledContent("Assignments", value: "\(appModel.assignmentSummaries.count)")
+            LabeledContent("Submissions", value: "\(appModel.submissionSummaries.count)")
+        } else {
+            Label {
+                Text("Saved work is not open.")
+            } icon: {
+                Image(systemName: "exclamationmark.octagon")
+                    .foregroundStyle(.red)
+            }
+                .accessibilityIdentifier("settings.storageStatus")
+            if let error = appModel.startupError {
+                Text(error.localizedDescription)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
+    }
+
+    private var backupPolicyUIStatus: GradeDraftUIStatus {
+        backupStatus.isExcluded ? .teacherOnly : .needsAttention
     }
 
     private var backupToggleWarningTitle: String {
@@ -125,3 +134,31 @@ struct SettingsAboutLocalPrivacyScreen: View {
         ExportWarningCatalog.warning(id: "backup-toggle-warning")?.secondaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Keep Local Only"
     }
 }
+
+#if DEBUG
+private struct SettingsPreview: View {
+    @State private var model = PreviewFixtures.makeAppModel()
+
+    var body: some View {
+        NavigationStack {
+            SettingsAboutLocalPrivacyScreen()
+        }
+        .environment(model)
+        .task { await model.observeLists() }
+    }
+}
+
+#Preview("Light") {
+    SettingsPreview()
+}
+
+#Preview("Dark") {
+    SettingsPreview()
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Largest text") {
+    SettingsPreview()
+        .dynamicTypeSize(.accessibility3)
+}
+#endif

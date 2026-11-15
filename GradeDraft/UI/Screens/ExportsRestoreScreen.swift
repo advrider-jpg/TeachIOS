@@ -1,358 +1,510 @@
+import QuickLook
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct ExportsRestoreScreen: View {
-    @ObservedObject var viewModel: GradeDraftViewModel
-    var assignmentID: UUID? = nil
-    @State private var confirmationKind: ExportConfirmationKind?
-    @State private var showingBackupImporter = false
-    @State private var showingShareSheetWarning = false
-    @State private var showingClipboardWarning = false
-    @State private var shareLinkApproved = false
-    @State private var showingResolutionSheet = false
+// MARK: - One student's exports
+
+/// The exports one submission offers. Each file is created on this device, opened for preview, and can be
+/// shared only after the teacher confirms they reviewed it. Student-facing files need an approved, current
+/// final grade (the session refuses them otherwise).
+struct SubmissionExportsScreen: View {
+    @Bindable var session: SubmissionSession
+    @State private var preparing: ExportKind?
 
     var body: some View {
-        Group {
-            if let assignmentID, selectedAssignment == nil {
-                MissingAssignmentRouteView(assignmentID: assignmentID, actionName: "Assignment export")
-            } else {
-                exportsForm
+        List {
+            if let graph = session.graph, let setup = session.setup {
+                headerSection(graph: graph, setup: setup)
+                exportsSection
+                if !graph.exports.isEmpty {
+                    Section("Previous Exports") {
+                        ForEach(graph.exports.sorted { $0.createdAt > $1.createdAt }) { record in
+                            LabeledContent(record.kind.displayName, value: record.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        }
+                    }
+                }
+                ExportSafetySection()
             }
         }
-        .navigationTitle("Exports & Backup")
+        .navigationTitle("Exports")
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private var exportsForm: some View {
-        Form {
-            let assignment = selectedAssignment ?? viewModel.assignment
-            Section {
-                ExportStationeryHeaderCard(
-                    eyebrow: "Local files",
-                    title: "Exports & Backup",
-                    note: "Create only the export the current teacher-reviewed state actually allows.",
-                    status: .teacherOnly
-                )
-            }
-            .listRowBackground(Color.clear)
-
-            if !assignment.isStudentFacingExportReady {
-                Section {
-                    WarningBanner(
-                        title: "Final approval required",
-                        message: "Student-facing export is blocked until the teacher approves the final grade.",
-                        status: .teacherOnly
-                    )
-                }
-                .listRowBackground(Color.clear)
-            }
-
-            Section {
-                ForEach(ExportConfirmationKind.allCases) { kind in
-                    ExportOptionRow(
-                        title: kind.title,
-                        subtitle: kind.subtitle,
-                        status: kind.warningStatus,
-                        actionLabel: exportActionLabel(for: kind),
-                        disabled: exportDisabled(for: kind, assignment: assignment),
-                        action: { confirmationKind = kind }
-                    )
-                }
-            } header: {
-                Text("Create Export")
-            } footer: {
-                Text("Audience labels show whether a file is student-facing or teacher-only. Student-facing exports omit private teacher notes.")
-            }
-            .listRowBackground(Color.clear)
-
-            Section {
-                ExportStationeryCard(status: .teacherOnly, showsPerforation: true) {
-                    HStack(alignment: .top, spacing: 10) {
-                        TapeLabel("Preview first", theme: .exportPrivacy)
-                        Spacer(minLength: 8)
-                        StatusChip(.teacherOnly, compact: true, theme: .exportPrivacy)
-                        PaperclipDecoration(theme: .exportPrivacy)
-                            .frame(width: 28, height: 40)
-                    }
-                    HandwrittenAnnotation("Backup imports preview records before changing anything.", status: .teacherOnly, theme: .exportPrivacy)
-                    Picker("Backup import option", selection: $viewModel.backupConflictResolution) {
-                        ForEach(BackupConflictResolution.allCases) { option in
-                            Text(option.displayName).tag(option)
-                        }
-                    }
-                    Button {
-                        showingResolutionSheet = true
-                    } label: {
-                        Label("Choose Option", systemImage: "slider.horizontal.3")
-                    }
-                    Button {
-                        showingBackupImporter = true
-                    } label: {
-                        Label("Choose Backup", systemImage: "tray.and.arrow.down")
-                    }
-                }
-            } header: {
-                Text("Import Backup")
-            } footer: {
-                Text("Choose a backup to preview records before importing. Records are not changed until you confirm.")
-            }
-            .listRowBackground(Color.clear)
-
-            if let preview = viewModel.pendingRestorePreview {
-                restorePreviewSection(preview, title: "Preview Import", pending: true)
-            } else if let preview = viewModel.latestRestorePreview {
-                restorePreviewSection(preview, title: "Backup Preview", pending: false)
-            }
-
-            if let artifact = viewModel.preparedExportArtifact {
-                Section {
-                    ExportStationeryCard(status: artifact.audienceStatus, showsPerforation: true) {
-                        HStack(alignment: .top, spacing: 10) {
-                            TapeLabel("Ready", theme: .exportPrivacy)
-                            Spacer(minLength: 8)
-                            StatusChip(artifact.audienceStatus, compact: true, theme: .exportPrivacy)
-                            PaperclipDecoration(theme: .exportPrivacy)
-                                .frame(width: 28, height: 40)
-                        }
-                        HStack(spacing: 12) {
-                            StatusIconBubble(artifact.audienceStatus, theme: .exportPrivacy)
-                                .frame(width: 34, height: 34)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(artifact.displayName)
-                                    .font(.system(.headline, design: .serif).weight(.semibold))
-                                    .lineLimit(1)
-                                Text(artifact.url.lastPathComponent)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
-                            Spacer(minLength: 8)
-                        }
-                        LabeledContent("Audience", value: artifact.audienceStatus.fullAccessibilityLabel)
-                            .accessibilityLabel("Export audience")
-                            .accessibilityValue("\(artifact.displayName). \(artifact.audienceStatus.fullAccessibilityLabel).")
-                        LabeledContent("Stored", value: "Local file")
-                        if shareLinkApproved {
-                            ShareLink(item: artifact.url) {
-                                Label("Share Export", systemImage: "square.and.arrow.up")
-                            }
-                            .accessibilityLabel("Share \(artifact.displayName)")
-                            .accessibilityValue("\(artifact.audienceStatus.fullAccessibilityLabel). Opens the system share sheet.")
-                        } else {
-                            Button {
-                                showingShareSheetWarning = true
-                            } label: {
-                                Label("Review Share Warning", systemImage: "exclamationmark.triangle")
-                            }
-                            .accessibilityLabel("Review share warning for \(artifact.displayName)")
-                            .accessibilityValue(artifact.audienceStatus.fullAccessibilityLabel)
-                        }
-                        if clipboardCopyAvailable(for: artifact.kind) {
-                            Button {
-                                showingClipboardWarning = true
-                            } label: {
-                                Label("Copy Text", systemImage: "doc.on.clipboard")
-                            }
-                            .accessibilityLabel("Copy text from \(artifact.displayName)")
-                            .accessibilityValue("\(artifact.audienceStatus.fullAccessibilityLabel). Requires clipboard warning confirmation.")
-                        }
-                    }
-                } header: {
-                    Text("Ready to Share")
-                } footer: {
-                    Text("Opening the share sheet sends the selected file to another app.")
-                }
-                .listRowBackground(Color.clear)
-            }
-
-            Section("Recent Exports") {
-                let records = viewModel.recentExportRows
-                if records.isEmpty {
-                    ContentUnavailableView(
-                        "No exports yet",
-                        systemImage: "square.and.arrow.up",
-                        description: Text("Create an export before opening the share sheet.")
-                    )
-                } else {
-                    ForEach(records) { record in
-                        ExportStationeryCard(status: record.kind.v6AudienceStatus) {
-                            HStack(spacing: 12) {
-                                StatusIconBubble(record.kind.v6AudienceStatus, theme: .exportPrivacy)
-                                    .frame(width: 34, height: 34)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(record.kind.v6DisplayName)
-                                        .font(.system(.headline, design: .serif).weight(.semibold))
-                                        .lineLimit(1)
-                                    Text(record.assignmentTitle)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                                Spacer(minLength: 8)
-                                StatusChip(record.kind.v6AudienceStatus, compact: true, theme: .exportPrivacy)
-                            }
-                        }
-                    }
-                }
-            }
-            .listRowBackground(Color.clear)
-
-            Section("Export Safety") {
-                ExportStationeryCard(status: .teacherOnly, showsPerforation: true) {
-                    TapeLabel("Warnings", theme: .exportPrivacy)
-                    Label("Student-facing exports omit private teacher notes.", systemImage: "person.crop.circle.badge.checkmark")
-                    Label("Teacher-only exports may include private notes, review history, and source details.", systemImage: "lock.doc")
-                    Label("Backup import previews before mutating records.", systemImage: "archivebox")
-                    HandwrittenAnnotation("Teacher-only files may include sensitive student records.", status: .teacherOnly, theme: .exportPrivacy)
-                }
-            }
-            .listRowBackground(Color.clear)
-        }
-        .stationeryScreen(theme: .exportPrivacy)
-        .sheet(item: $confirmationKind) { kind in
-            ExportConfirmationSheet(kind: kind, assignment: selectedAssignment ?? viewModel.assignment, allAssignments: viewModel.assignments, onCancel: { confirmationKind = nil }, onConfirm: { confirm(kind) })
-        }
-        .sheet(isPresented: $showingResolutionSheet) {
-            RestoreConflictResolutionSheet(selection: $viewModel.backupConflictResolution) {
-                showingResolutionSheet = false
-            }
-        }
-        .fileImporter(isPresented: $showingBackupImporter, allowedContentTypes: [.json, .zip, .item]) { result in
-            switch result {
-            case .success(let url):
-                viewModel.previewBackupRestore(from: url)
-            case .failure(let error):
-                viewModel.errorMessage = error.localizedDescription
-            }
-        }
-        .confirmationDialog(shareSheetWarningTitle, isPresented: $showingShareSheetWarning, titleVisibility: .visible) {
-            Button(shareSheetPrimaryButton) { shareLinkApproved = true }
-            Button(shareSheetSecondaryButton, role: .cancel) {}
-        } message: {
-            Text(shareSheetWarningBody)
-        }
-        .confirmationDialog(clipboardWarningTitle, isPresented: $showingClipboardWarning, titleVisibility: .visible) {
-            Button(clipboardWarningPrimaryButton) { viewModel.copyPreparedExportTextToClipboard() }
-            Button(clipboardWarningSecondaryButton, role: .cancel) {}
-        } message: {
-            Text(clipboardWarningBody)
-        }
-        .onChange(of: viewModel.preparedExportArtifact) { _, _ in
-            shareLinkApproved = false
-        }
-        .onAppear {
-            if let assignmentID, viewModel.assignment(for: assignmentID) != nil {
-                viewModel.selectAssignment(assignmentID)
+        .alertMessage($session.alert)
+        .sheet(isPresented: Binding(
+            get: { session.preparedExport != nil },
+            set: { if !$0 { session.finishSharing() } }
+        )) {
+            if let export = session.preparedExport {
+                PreparedExportSheet(export: export, onCopyText: { session.copyPreparedExportText() })
             }
         }
     }
 
-    private var selectedAssignment: AssignmentRecord? {
-        assignmentID.flatMap { viewModel.assignment(for: $0) }
-    }
-
-    @ViewBuilder
-    private func restorePreviewSection(_ preview: BackupRestorePreview, title: String, pending: Bool) -> some View {
-        Section {
-            ExportStationeryCard(status: pending ? .needsAttention : .teacherOnly, showsPerforation: true) {
-                TapeLabel(pending ? "Preview before import" : "Backup preview", theme: .exportPrivacy)
-                Text(preview.summary)
-                    .font(.subheadline)
+    private func headerSection(graph: SubmissionGraph, setup: AssignmentSetup) -> some View {
+        let readiness = session.readiness
+        return Section {
+            LabeledContent("Student", value: graph.student.displayName)
+            LabeledContent("Assignment", value: setup.assignment.title)
+            StatusLabel(readiness?.canExportStudentReport == true ? .readyToExport : .reviewFinalGrade, subject: "Student-facing export")
+            ForEach(readiness?.studentReportIssues ?? [], id: \.self) { issue in
+                Label(issue.message, systemImage: "lock")
                     .foregroundStyle(.secondary)
-                LabeledContent("Assignments", value: "\(preview.assignmentCount)")
-                LabeledContent("Classes", value: "\(preview.classCount)")
-                LabeledContent("Students", value: "\(preview.studentCount)")
-                LabeledContent("Original files", value: "\(preview.sourceFileCount)")
-                if preview.conflictAssignmentIDs.isEmpty {
-                    BlockingIssueRow(title: "No matching records found", detail: "Import can continue with the selected option.", status: .onTrack)
-                } else {
-                    RestoreConflictRow(count: preview.conflictAssignmentIDs.count)
-                }
-                ForEach(preview.warnings, id: \.self) { warning in
-                    BlockingIssueRow(title: "Needs attention", detail: warning, status: .needsAttention)
-                }
-                if pending {
-                    Button(role: .cancel, action: viewModel.cancelPendingRestore) {
-                        Label("Cancel Import", systemImage: "xmark")
+            }
+        }
+    }
+
+    private var exportsSection: some View {
+        let studentReportAllowed = session.readiness?.canExportStudentReport == true
+        return Section {
+            ForEach(SubmissionSession.exportKinds) { kind in
+                let policy = kind.contentPolicy
+                Button {
+                    preparing = kind
+                    Task {
+                        await session.prepareExport(kind)
+                        preparing = nil
                     }
-                    Button(action: viewModel.confirmPendingRestore) {
-                        Label("Confirm Import", systemImage: "tray.and.arrow.down")
+                } label: {
+                    LabeledContent {
+                        if preparing == kind {
+                            ProgressView()
+                        } else {
+                            StatusLabel(policy.isStudentFacing ? .studentFacing : .teacherOnly, subject: "Audience")
+                        }
+                    } label: {
+                        Text(kind.displayName)
+                        Text(policy.warningTitle)
                     }
                 }
+                .disabled(preparing != nil || (policy.isStudentFacing && !studentReportAllowed))
+                .accessibilityIdentifier("exports.\(kind.rawValue)")
             }
         } header: {
-            Text(title)
+            Text("Create Export")
         } footer: {
-            Text("Records are not changed until you confirm the import.")
-        }
-        .listRowBackground(Color.clear)
-    }
-
-    private func confirm(_ kind: ExportConfirmationKind) {
-        confirmationKind = nil
-        if let assignmentID {
-            viewModel.selectAssignment(assignmentID)
-        }
-        Task { await viewModel.performConfirmedExport(kind) }
-    }
-
-    private func exportActionLabel(for kind: ExportConfirmationKind) -> String {
-        switch kind {
-        case .studentReportMarkdown, .teacherReviewMarkdown, .studentReportPDF, .teacherReviewPDF:
-            return "Export"
-        case .fullBackup, .teacherArchive, .gradebookCSV, .gradebookArchive:
-            return "Create"
+            Text("Each file is created on this device and opened for preview before you can share it. Student-facing files omit private teacher notes.")
         }
     }
+}
 
-    private func exportDisabled(for kind: ExportConfirmationKind, assignment: AssignmentRecord) -> Bool {
-        switch kind {
-        case .studentReportMarkdown, .studentReportPDF:
-            return !assignment.isStudentFacingExportReady
-        case .teacherReviewMarkdown, .teacherReviewPDF, .fullBackup, .teacherArchive, .gradebookCSV, .gradebookArchive:
-            return false
+// MARK: - Exports tab
+
+/// The Exports tab: students whose approved grade is current, class-level gradebooks, full backup and restore.
+struct ExportsTabScreen: View {
+    @Environment(AppModel.self) private var appModel
+
+    @State private var backupPassword = ""
+    @State private var showingRestoreImporter = false
+    @State private var restoreURL: URL?
+    @State private var restorePassword = ""
+
+    private static let backupType = UTType(exportedAs: "com.markforme.backup")
+
+    var body: some View {
+        @Bindable var backup = appModel.backupRestore
+        List {
+            readySection
+            recentExportsSection
+            gradebookSection
+            backupSection(backup)
+            restoreSection(backup)
+            ExportSafetySection()
+        }
+        .navigationTitle("Exports")
+        .alertMessage($backup.alert)
+        .sheet(isPresented: Binding(
+            get: { backup.preparedExport != nil },
+            set: { if !$0 { backup.finishSharing() } }
+        )) {
+            if let export = backup.preparedExport {
+                PreparedExportSheet(export: export)
+            }
         }
     }
 
-    private func clipboardCopyAvailable(for kind: ExportKind?) -> Bool {
-        guard let kind else { return false }
-        switch kind {
-        case .studentMarkdown, .teacherAuditMarkdown, .csvGradebook:
-            return true
-        case .studentPDF, .teacherAuditPDF, .zipArchive, .fullBackupArchive, .backupJSON, .assignmentGradebookArchive:
-            return false
+    private var readySection: some View {
+        let ready = appModel.submissionSummaries.filter { $0.rosterStatus == .approved || $0.rosterStatus == .exported }
+        return Section {
+            if !appModel.listsLoaded {
+                ProgressView()
+            } else if ready.isEmpty {
+                ContentUnavailableView(
+                    "No approved grades yet",
+                    systemImage: "checkmark.seal",
+                    description: Text("A student appears here once their final grade is approved and still current.")
+                )
+            }
+            ForEach(Array(ready.enumerated()), id: \.element.id) { index, summary in
+                NavigationLink(value: Route.submissionExports(summary.id)) {
+                    LabeledContent {
+                        StatusLabel(summary.rosterStatus.uiStatus, subject: "Export status")
+                    } label: {
+                        Text(summary.studentName)
+                        Text("\(summary.assignmentTitle) · \(summary.className)")
+                    }
+                }
+                .accessibilityIdentifier("exportsTab.submission.\(index)")
+            }
+        } header: {
+            Text("Ready to Export")
         }
     }
 
-    private var shareSheetWarningTitle: String {
-        ExportWarningCatalog.warning(id: "share-sheet-warning")?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Share outside the app?"
+    private var recentExportsSection: some View {
+        Section {
+            if appModel.listsLoaded && appModel.recentExports.isEmpty {
+                ContentUnavailableView(
+                    "No exports yet",
+                    systemImage: "square.and.arrow.up",
+                    description: Text("Create an export before opening the share sheet.")
+                )
+            }
+            ForEach(Array(appModel.recentExports.enumerated()), id: \.element.id) { index, record in
+                LabeledContent {
+                    StatusLabel(record.kind.contentPolicy.isStudentFacing ? .studentFacing : .teacherOnly, subject: "Audience")
+                } label: {
+                    Text(record.kind.displayName)
+                    let detail = [record.assignmentTitle, record.studentName].compactMap { $0 }.joined(separator: " · ")
+                    if !detail.isEmpty {
+                        Text(detail)
+                    }
+                    Text(record.createdAt.formatted(date: .abbreviated, time: .shortened))
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("exportsTab.recent.\(index)")
+            }
+        } header: {
+            Text("Recent Exports")
+        }
     }
 
-    private var shareSheetWarningBody: String {
-        ExportWarningCatalog.warning(id: "share-sheet-warning")?.body.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Confirm before sharing this export outside MarkForMe."
+    private var gradebookSection: some View {
+        Section {
+            if appModel.listsLoaded, appModel.assignmentSummaries.isEmpty {
+                ContentUnavailableView(
+                    "No assignments",
+                    systemImage: "tablecells",
+                    description: Text("Create an assignment to export its gradebook.")
+                )
+            }
+            ForEach(Array(appModel.assignmentSummaries.enumerated()), id: \.element.id) { index, summary in
+                GradebookExportRow(summary: summary, index: index, app: appModel)
+            }
+        } header: {
+            Text("Class Gradebooks")
+        } footer: {
+            Text("One CSV per assignment. A total appears only for a student whose final grade is approved and current.")
+        }
     }
 
-    private var shareSheetPrimaryButton: String {
-        "Show Share Link"
+    private func backupSection(_ backup: BackupRestoreModel) -> some View {
+        Section {
+            SecureField("Backup password", text: $backupPassword)
+                .accessibilityIdentifier("exportsTab.backupPassword")
+            Button {
+                let password = backupPassword
+                Task {
+                    await backup.createFullBackup(password: password)
+                    if backup.alert == nil { backupPassword = "" }
+                }
+            } label: {
+                if backup.isWorking {
+                    Label {
+                        Text("Working…")
+                    } icon: {
+                        ProgressView()
+                    }
+                } else {
+                    Label("Create Full Backup", systemImage: "archivebox")
+                }
+            }
+            .disabled(backupPassword.isEmpty || backup.isWorking)
+            .accessibilityIdentifier("exportsTab.createBackup")
+        } header: {
+            Text("Full Backup")
+        } footer: {
+            Text(ExportKind.fullBackupArchive.contentPolicy.warningBody + " The backup is encrypted with this password and cannot be opened without it.")
+        }
     }
 
-    private var shareSheetSecondaryButton: String {
-        ExportWarningCatalog.warning(id: "share-sheet-warning")?.secondaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Cancel"
+    private func restoreSection(_ backup: BackupRestoreModel) -> some View {
+        Section {
+            Button {
+                showingRestoreImporter = true
+            } label: {
+                Label("Choose Backup File", systemImage: "tray.and.arrow.down")
+            }
+            .disabled(backup.isWorking)
+            .accessibilityIdentifier("exportsTab.chooseBackup")
+            .fileImporter(isPresented: $showingRestoreImporter, allowedContentTypes: [Self.backupType]) { result in
+                switch result {
+                case .success(let url):
+                    restorePassword = ""
+                    restoreURL = url
+                case .failure(let error):
+                    backup.alert = AlertMessage(title: "Backup not opened", error: error)
+                }
+            }
+            .alert("Backup Password", item: $restoreURL) { url in
+                SecureField("Password", text: $restorePassword)
+                    .accessibilityIdentifier("exportsTab.restorePassword")
+                Button("Open Backup") {
+                    let password = restorePassword
+                    restoreURL = nil
+                    restorePassword = ""
+                    Task { await backup.prepareRestore(from: url, password: password) }
+                }
+                .accessibilityIdentifier("exportsTab.openBackup")
+                Button("Cancel", role: .cancel) {
+                    restoreURL = nil
+                    restorePassword = ""
+                }
+            } message: { _ in
+                Text("Enter the password used when this backup was created. Nothing on this device changes until you confirm the restore.")
+            }
+
+            if let preview = backup.preview {
+                LabeledContent("Backup created", value: preview.manifest.createdAt.formatted(date: .abbreviated, time: .shortened))
+                LabeledContent("Classes", value: "\(preview.classCount)")
+                LabeledContent("Assignments", value: "\(preview.assignmentCount)")
+                LabeledContent("Students", value: "\(preview.studentCount)")
+                LabeledContent("Original files", value: "\(preview.sourceFileCount)")
+                if backup.conflicts.isEmpty {
+                    Label("No assignment in this backup already exists on this device.", systemImage: "checkmark.circle")
+                }
+                ForEach(Array(backup.conflicts.enumerated()), id: \.element.id) { index, setup in
+                    Picker(selection: Binding(
+                        get: { backup.resolutions[setup.id] },
+                        set: { resolution in
+                            if let resolution { backup.setResolution(resolution, for: setup.id) }
+                        }
+                    )) {
+                        Text("Choose…").tag(RestoreResolution?.none)
+                        ForEach(RestoreResolution.allCases) { resolution in
+                            Text(resolution.displayName).tag(RestoreResolution?.some(resolution))
+                        }
+                    } label: {
+                        Text(setup.assignment.title)
+                        Text("Already on this device")
+                    }
+                    .accessibilityIdentifier("exportsTab.conflict.\(index)")
+                }
+                Button {
+                    Task { await backup.commitRestore() }
+                } label: {
+                    Label("Restore", systemImage: "arrow.down.doc")
+                }
+                .disabled(!backup.canCommitRestore)
+                .accessibilityIdentifier("exportsTab.commitRestore")
+                Button(role: .destructive) {
+                    backup.discardRestore()
+                } label: {
+                    Label("Discard", systemImage: "xmark.circle")
+                }
+                .disabled(backup.isWorking)
+                .accessibilityIdentifier("exportsTab.discardRestore")
+            }
+        } header: {
+            Text("Restore from Backup")
+        } footer: {
+            Text("Restore never overwrites local work silently. For each assignment that already exists here, choose to keep it, replace it, or import the backup as a copy. Nothing changes until you tap Restore.")
+        }
+    }
+}
+
+/// One assignment's gradebook CSV. The row owns that assignment's setup model and keeps it observing
+/// while shown, so the export reads the current setup.
+private struct GradebookExportRow: View {
+    var summary: AssignmentSummary
+    var index: Int
+    @State private var model: AssignmentSetupModel
+
+    init(summary: AssignmentSummary, index: Int, app: AppModel) {
+        self.summary = summary
+        self.index = index
+        _model = State(initialValue: AssignmentSetupModel(assignmentID: summary.id, app: app))
     }
 
-    private var clipboardWarningTitle: String {
+    var body: some View {
+        Button {
+            Task { await model.prepareGradebookCSV() }
+        } label: {
+            LabeledContent {
+                if model.hasLoaded {
+                    StatusLabel(.teacherOnly, subject: "Audience")
+                } else {
+                    ProgressView()
+                }
+            } label: {
+                Text("Gradebook CSV")
+                Text("\(summary.assignment.title) · \(summary.className)")
+            }
+        }
+        .disabled(!model.hasLoaded)
+        .accessibilityIdentifier("exportsTab.gradebook.\(index)")
+        .task { await model.observe() }
+        .alertMessage($model.alert)
+        .sheet(isPresented: Binding(
+            get: { model.preparedExport != nil },
+            set: { if !$0 { model.finishSharing() } }
+        )) {
+            if let export = model.preparedExport {
+                PreparedExportSheet(export: export, onCopyText: { model.copyPreparedExportText() })
+            }
+        }
+    }
+}
+
+// MARK: - Preview, review and share
+
+/// Shows a prepared export: who it is for, what it contains, a Quick Look preview of the real file, the
+/// "I reviewed this export" confirmation, then Share. Closing the sheet deletes the prepared file.
+private struct PreparedExportSheet: View {
+    var export: PreparedExport
+    /// Copies the export's text to the clipboard after the teacher confirms the clipboard warning; nil when
+    /// the owner offers no copy (the full backup).
+    var onCopyText: (() -> Void)?
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var previewURL: URL?
+    @State private var hasPreviewed = false
+    @State private var reviewed = false
+    @State private var showingClipboardWarning = false
+
+    private var policy: ExportContentPolicy { export.kind.contentPolicy }
+
+    /// Encrypted backups and archives cannot be shown by Quick Look; their contents are described instead.
+    private var canPreview: Bool { export.kind != .fullBackupArchive && export.kind != .zipArchive }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text(export.title)
+                        .font(.headline)
+                    StatusLabel(policy.isStudentFacing ? .studentFacing : .teacherOnly, subject: "Audience")
+                    LabeledContent("File", value: export.url.lastPathComponent)
+                    Text(policy.warningBody)
+                        .foregroundStyle(.secondary)
+                }
+                Section("What This File Contains") {
+                    ForEach(policy.inclusionSummaryLines, id: \.self) { line in
+                        Label(line, systemImage: "doc.text")
+                    }
+                }
+                if canPreview {
+                    Section {
+                        Button {
+                            hasPreviewed = true
+                            previewURL = export.url
+                        } label: {
+                            Label(hasPreviewed ? "Preview Again" : "Preview", systemImage: "eye")
+                        }
+                        .accessibilityIdentifier("exportSheet.preview")
+                    }
+                }
+                if hasPreviewed || !canPreview {
+                    Section {
+                        Toggle("I reviewed this export", isOn: $reviewed)
+                            .accessibilityIdentifier("exportSheet.reviewed")
+                        if reviewed {
+                            ShareLink(item: export.url, subject: Text(export.title), preview: SharePreview(export.title)) {
+                                Label("Share", systemImage: "square.and.arrow.up")
+                            }
+                            .accessibilityIdentifier("exportSheet.share")
+                            if export.kind.canCopyAsText, onCopyText != nil {
+                                Button {
+                                    showingClipboardWarning = true
+                                } label: {
+                                    Label("Copy Text", systemImage: "doc.on.clipboard")
+                                }
+                                .accessibilityIdentifier("exportSheet.copyText")
+                            }
+                        }
+                    } footer: {
+                        Text("Sharing sends this file to another app. MarkForMe cannot recall it afterwards. The file is deleted from this device when you tap Done.")
+                    }
+                }
+            }
+            .navigationTitle(export.kind.displayName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("exportSheet.done")
+                }
+            }
+            .quickLookPreview($previewURL)
+            .confirmationDialog(clipboardWarningTitle, isPresented: $showingClipboardWarning, titleVisibility: .visible) {
+                Button(clipboardWarningPrimaryButton) { onCopyText?() }
+                    .accessibilityIdentifier("exportSheet.copyConfirm")
+                Button(clipboardWarningSecondaryButton, role: .cancel) {}
+            } message: {
+                Text(clipboardWarningBody)
+            }
+            .onAppear {
+                guard canPreview, !hasPreviewed else { return }
+                hasPreviewed = true
+                previewURL = export.url
+            }
+        }
+    }
+}
+
+extension PreparedExportSheet {
+    fileprivate var clipboardWarningTitle: String {
         ExportWarningCatalog.warning(id: "clipboard-warning")?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Copy student information?"
     }
 
-    private var clipboardWarningBody: String {
+    fileprivate var clipboardWarningBody: String {
         ExportWarningCatalog.warning(id: "clipboard-warning")?.body.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Confirm before copying this export."
     }
 
-    private var clipboardWarningPrimaryButton: String {
+    fileprivate var clipboardWarningPrimaryButton: String {
         ExportWarningCatalog.warning(id: "clipboard-warning")?.primaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Copy"
     }
 
-    private var clipboardWarningSecondaryButton: String {
+    fileprivate var clipboardWarningSecondaryButton: String {
         ExportWarningCatalog.warning(id: "clipboard-warning")?.secondaryButton.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Cancel"
     }
 }
+
+/// The audience rules every export screen repeats.
+private struct ExportSafetySection: View {
+    var body: some View {
+        Section("Export Safety") {
+            Label("Student-facing exports omit private teacher notes.", systemImage: "person.crop.circle.badge.checkmark")
+            Label("Teacher-only exports may include private notes, review history and source files.", systemImage: "lock.doc")
+            Label("Backup restore shows what it contains before anything changes.", systemImage: "archivebox")
+        }
+    }
+}
+
+#if DEBUG
+#Preview("Exports tab — Light") {
+    ScreenPreview { _ in ExportsTabScreen() }
+}
+
+#Preview("Exports tab — Dark") {
+    ScreenPreview { _ in ExportsTabScreen() }
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Exports tab — Accessibility XXXL") {
+    ScreenPreview { _ in ExportsTabScreen() }
+        .environment(\.dynamicTypeSize, .accessibility5)
+}
+
+#Preview("Student exports — Light") {
+    ScreenPreview { app in RouteDestination(route: .submissionExports(PreviewFixtures.approvedSubmissionID), app: app) }
+}
+
+#Preview("Student exports — Dark") {
+    ScreenPreview { app in RouteDestination(route: .submissionExports(PreviewFixtures.approvedSubmissionID), app: app) }
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Student exports — Accessibility XXXL") {
+    ScreenPreview { app in RouteDestination(route: .submissionExports(PreviewFixtures.scannedSubmissionID), app: app) }
+        .environment(\.dynamicTypeSize, .accessibility5)
+}
+#endif

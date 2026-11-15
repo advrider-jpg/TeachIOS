@@ -1,44 +1,62 @@
 #!/usr/bin/env python3
-"""Validate the committed Australian Curriculum catalog resources."""
+"""Validate the bundled Australian Curriculum SQLite catalogue."""
 from __future__ import annotations
 
-import importlib.util
+import json
 import pathlib
+import sqlite3
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-GENERATOR = ROOT / "scripts" / "curriculum" / "build_acara_curriculum_catalog.py"
+DB_PATH = ROOT / "GradeDraft" / "Resources" / "Curriculum" / "curriculum_acara_v9.sqlite"
 
 
-def load_generator():
-    spec = importlib.util.spec_from_file_location("gradedraft_curriculum_generator", GENERATOR)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Could not load curriculum catalog generator")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+def validate(connection: sqlite3.Connection) -> list[str]:
+    failures: list[str] = []
+    sources = connection.execute("SELECT id, attribution FROM source").fetchall()
+    if not sources:
+        failures.append("Table `source` is empty")
+    for source_id, attribution in sources:
+        count = connection.execute("SELECT count(*) FROM item WHERE sourceID = ?", (source_id,)).fetchone()[0]
+        if count <= 0:
+            failures.append(f"Source {source_id} has no items")
+        if "ACARA" not in attribution:
+            failures.append(f"Source {source_id} is missing ACARA attribution")
+    orphans = connection.execute("SELECT count(*) FROM item WHERE sourceID NOT IN (SELECT id FROM source)").fetchone()[0]
+    if orphans:
+        failures.append(f"{orphans} item(s) reference a source that does not exist")
+
+    ids = {row[0] for row in connection.execute("SELECT id FROM item")}
+    for item_id, parents, children in connection.execute("SELECT id, parentIDs, childIDs FROM item"):
+        for column, raw in (("parentIDs", parents), ("childIDs", children)):
+            try:
+                referenced = json.loads(raw)
+            except json.JSONDecodeError:
+                failures.append(f"Item {item_id} has invalid JSON in {column}")
+                continue
+            for other in referenced:
+                if other not in ids:
+                    failures.append(f"Item {item_id} {column} references missing item {other}")
+
+    item_count = len(ids)
+    indexed = connection.execute("SELECT count(*) FROM itemSearch_docsize").fetchone()[0]
+    if indexed != item_count:
+        failures.append(f"Full-text index has {indexed} row(s) but there are {item_count} item(s)")
+    return failures
 
 
 def main() -> int:
-    module = load_generator()
-    failures = list(module.validate_files())
-    pbxproj = ROOT / "GradeDraft.xcodeproj" / "project.pbxproj"
-    text = pbxproj.read_text(encoding="utf-8") if pbxproj.exists() else ""
-    for resource in [
-        "curriculum_catalog_acara_v9.json",
-        "curriculum_catalog_acara_v9_index.json",
-        "curriculum_catalog_acara_v9_manifest.json",
-        "curriculum_catalog_acara_v9_summary.json",
-    ]:
-        if resource not in text:
-            failures.append(f"Xcode project does not include bundled curriculum resource {resource}")
-    for shard in sorted((ROOT / "GradeDraft" / "Resources" / "JSON" / "CurriculumShards").glob("*.json")):
-        if shard.name not in text:
-            failures.append(f"Xcode project does not include bundled curriculum shard {shard.name}")
+    if not DB_PATH.exists():
+        print(f"Curriculum catalog validator failed:\n- Missing {DB_PATH.relative_to(ROOT).as_posix()}")
+        return 1
+    connection = sqlite3.connect(f"file:{DB_PATH.as_posix()}?mode=ro", uri=True)
+    try:
+        failures = validate(connection)
+    finally:
+        connection.close()
     if failures:
         print("Curriculum catalog validator failed:")
-        for failure in failures:
+        for failure in failures[:50]:
             print(f"- {failure}")
         return 1
     print("Curriculum catalog validator passed.")
@@ -46,4 +64,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

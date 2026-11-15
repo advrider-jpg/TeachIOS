@@ -5,15 +5,16 @@ import XCTest
 
 final class SourceInputRefHardeningTests: XCTestCase {
     func testDefaultValuesAreCorrect() {
-        let source = SourceInputRef(sourceType: .pastedText)
-        XCTAssertFalse(source.teacherIncludedInExport)
+        let source = SourceInputRef(submissionID: UUID(), sourceType: .pastedText)
+        XCTAssertFalse(source.includedInTeacherArchive)
         XCTAssertNil(source.localRelativePath)
-        XCTAssertNil(source.contentDigest)
+        XCTAssertNil(source.sha256)
         XCTAssertNil(source.pdfPageCount)
     }
 
     func testPDFSourceWithMetadata() {
         let source = SourceInputRef(
+            submissionID: UUID(),
             sourceType: .pdf,
             fileName: "work.pdf",
             mimeType: "application/pdf",

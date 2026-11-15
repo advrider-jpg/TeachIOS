@@ -22,7 +22,7 @@
     "answerKeyText": "Clouds form when water vapour cools and condenses.",
     "exemplarText": "",
     "curriculumReference": "",
-    "ocrReviewStatus": "notNeeded",
+    "ocrReviewStatus": "reviewed",
     "expected": {
       "mustNotContain": ["answers the question well", "final grade"],
       "mustContainTeacherReviewReasons": ["off-prompt"],

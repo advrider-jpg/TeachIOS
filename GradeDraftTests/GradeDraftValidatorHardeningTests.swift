@@ -1,73 +1,78 @@
 import XCTest
 @testable import GradeDraft
 
+/// What the model proposed, in the form the validator receives it.
+enum ProposalFixtures {
+    static func criterion(
+        id: String,
+        points: Double = 3,
+        evidence: [String] = ["Student response"],
+        title: String? = nil,
+        maxPoints: Double? = nil,
+        confidence: String = "high",
+        teacherReviewRequired: Bool = false
+    ) -> ModelCriterionProposal {
+        ModelCriterionProposal(
+            criterionID: id,
+            title: title,
+            maxPoints: maxPoints,
+            rating: "Good",
+            proposedPoints: points,
+            evidence: evidence,
+            evidenceSourceRefs: [],
+            explanation: "Met.",
+            nextStep: "",
+            confidence: confidence,
+            teacherReviewRequired: teacherReviewRequired,
+            uncertaintyFlags: []
+        )
+    }
+
+    static func proposal(
+        _ criteria: [ModelCriterionProposal],
+        summary: String = "Summary",
+        feedback: String = "",
+        teacherNotes: String = ""
+    ) -> ModelDraftProposal {
+        ModelDraftProposal(
+            studentResponseSummary: summary,
+            criteria: criteria,
+            studentFeedback: feedback,
+            teacherNotes: teacherNotes,
+            uncertaintyFlags: [],
+            complianceFlags: []
+        )
+    }
+}
+
 // MARK: - GradeDraftValidator hardening
 
 final class GradeDraftValidatorHardeningTests: XCTestCase {
     func testProhibitedInferenceInSummaryThrows() {
         let input = sampleInput()
-        let draft = GradeDraftResult(
-            studentResponseSummary: "This student shows great effort and ability",
-            criteria: [
-                CriterionScore(
-                    criterionID: input.parsedRubric.criteria[0].id,
-                    criterion: "Claim",
-                    rating: "Good",
-                    proposedPoints: 3,
-                    maxPoints: 4,
-                    evidence: ["Direct quote"],
-                    explanation: "Met claim.",
-                    teacherReviewRequired: false
-                )
-            ],
-            totalScore: 3,
-            maxScore: 4,
-            studentFeedback: "Good job",
-            teacherNotes: "",
-            uncertaintyFlags: []
+        let proposal = ProposalFixtures.proposal(
+            [ProposalFixtures.criterion(id: input.parsedRubric.criteria[0].id, evidence: ["Direct quote"])],
+            summary: "This student shows great effort and ability",
+            feedback: "Good job"
         )
-        XCTAssertThrowsError(try GradeDraftValidator.normalizeAndValidate(draft, input: input)) { error in
+        XCTAssertThrowsError(try GradeDraftValidator.validate(proposal, input: input, audit: nil)) { error in
             XCTAssertEqual(error as? GradeDraftError, .invalidModelGrade("The model output included prohibited inference language."))
         }
     }
 
     func testProhibitedInferenceInFeedbackThrows() {
         let input = sampleInput()
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary of work",
-            criteria: [
-                CriterionScore(
-                    criterionID: input.parsedRubric.criteria[0].id,
-                    criterion: "Claim",
-                    rating: "Good",
-                    proposedPoints: 3,
-                    maxPoints: 4,
-                    evidence: ["Quote"],
-                    explanation: "Met claim.",
-                    teacherReviewRequired: false
-                )
-            ],
-            totalScore: 3,
-            maxScore: 4,
-            studentFeedback: "The student shows strong motivation and intelligence",
-            teacherNotes: "",
-            uncertaintyFlags: []
+        let proposal = ProposalFixtures.proposal(
+            [ProposalFixtures.criterion(id: input.parsedRubric.criteria[0].id, evidence: ["Quote"])],
+            summary: "Summary of work",
+            feedback: "The student shows strong motivation and intelligence"
         )
-        XCTAssertThrowsError(try GradeDraftValidator.normalizeAndValidate(draft, input: input))
+        XCTAssertThrowsError(try GradeDraftValidator.validate(proposal, input: input, audit: nil))
     }
 
     func testEmptyCriteriaThrows() {
         let input = sampleInput()
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [],
-            totalScore: 0,
-            maxScore: 0,
-            studentFeedback: "",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
-        XCTAssertThrowsError(try GradeDraftValidator.normalizeAndValidate(draft, input: input)) { error in
+        XCTAssertThrowsError(try GradeDraftValidator.validate(ProposalFixtures.proposal([]), input: input, audit: nil)) { error in
             XCTAssertEqual(error as? GradeDraftError, .invalidModelGrade("At least one rubric criterion is required."))
         }
     }
@@ -75,193 +80,74 @@ final class GradeDraftValidatorHardeningTests: XCTestCase {
     func testEmptyReviewedTextInInputThrows() {
         var input = sampleInput()
         input.reviewedStudentText = "  "
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [
-                CriterionScore(
-                    criterionID: input.parsedRubric.criteria[0].id,
-                    criterion: "Claim",
-                    rating: "Good",
-                    proposedPoints: 3,
-                    maxPoints: 4,
-                    evidence: ["Quote"],
-                    explanation: "Met.",
-                    teacherReviewRequired: false
-                )
-            ],
-            totalScore: 3,
-            maxScore: 4,
-            studentFeedback: "",
-            teacherNotes: "",
-            uncertaintyFlags: []
+        let proposal = ProposalFixtures.proposal(
+            [ProposalFixtures.criterion(id: input.parsedRubric.criteria[0].id, evidence: ["Quote"])]
         )
-        XCTAssertThrowsError(try GradeDraftValidator.normalizeAndValidate(draft, input: input))
+        XCTAssertThrowsError(try GradeDraftValidator.validate(proposal, input: input, audit: nil))
     }
 
     func testDuplicateCriterionIDThrows() {
         let input = sampleInput(rubric: "Claim: 0-2 points\nEvidence: 0-4 points")
         let id = input.parsedRubric.criteria[0].id
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [
-                CriterionScore(
-                    criterionID: id,
-                    criterion: "Claim",
-                    rating: "Good",
-                    proposedPoints: 2,
-                    maxPoints: 2,
-                    evidence: ["Quote"],
-                    explanation: "Met.",
-                    teacherReviewRequired: false
-                ),
-                CriterionScore(
-                    criterionID: id,
-                    criterion: "Claim",
-                    rating: "Good",
-                    proposedPoints: 2,
-                    maxPoints: 2,
-                    evidence: ["Quote"],
-                    explanation: "Met.",
-                    teacherReviewRequired: false
-                )
-            ],
-            totalScore: 4,
-            maxScore: 4,
-            studentFeedback: "",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
-        XCTAssertThrowsError(try GradeDraftValidator.normalizeAndValidate(draft, input: input))
+        let proposal = ProposalFixtures.proposal([
+            ProposalFixtures.criterion(id: id, points: 2, evidence: ["Quote"]),
+            ProposalFixtures.criterion(id: id, points: 2, evidence: ["Quote"])
+        ])
+        XCTAssertThrowsError(try GradeDraftValidator.validate(proposal, input: input, audit: nil))
     }
 
+    /// With no point-bearing rubric the model names each criterion itself; an empty name is rejected.
     func testEmptyCriterionNameThrows() {
-        let input = sampleInput()
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [
-                CriterionScore(
-                    criterionID: input.parsedRubric.criteria[0].id,
-                    criterion: "   ",
-                    rating: "Good",
-                    proposedPoints: 3,
-                    maxPoints: 4,
-                    evidence: ["Quote"],
-                    explanation: "Met.",
-                    teacherReviewRequired: false
-                )
-            ],
-            totalScore: 3,
-            maxScore: 4,
-            studentFeedback: "",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
-        XCTAssertThrowsError(try GradeDraftValidator.normalizeAndValidate(draft, input: input))
+        var input = sampleInput(rubric: "")
+        input.answerKeyText = "Expected: two specific examples."
+        input.hasGradingStandard = true
+        let proposal = ProposalFixtures.proposal([
+            ProposalFixtures.criterion(id: "model-criterion", points: 3, evidence: ["Quote"], title: "   ", maxPoints: 4)
+        ])
+        XCTAssertThrowsError(try GradeDraftValidator.validate(proposal, input: input, audit: nil)) { error in
+            XCTAssertEqual(error as? GradeDraftError, .invalidModelGrade("A criterion was missing its name."))
+        }
     }
 
     func testEvidenceOutsideReviewedTextFlaggedForReview() throws {
         let input = sampleInput()
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [
-                CriterionScore(
-                    criterionID: input.parsedRubric.criteria[0].id,
-                    criterion: "Claim",
-                    rating: "Good",
-                    proposedPoints: 3,
-                    maxPoints: 4,
-                    evidence: ["This text is NOT in the student response"],
-                    explanation: "Met.",
-                    teacherReviewRequired: false
-                )
-            ],
-            totalScore: 3,
-            maxScore: 4,
-            studentFeedback: "",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
-        let normalized = try GradeDraftValidator.normalizeAndValidate(draft, input: input)
+        let proposal = ProposalFixtures.proposal([
+            ProposalFixtures.criterion(
+                id: input.parsedRubric.criteria[0].id,
+                evidence: ["This text is NOT in the student response"]
+            )
+        ])
+        let normalized = try GradeDraftValidator.validate(proposal, input: input, audit: nil)
         XCTAssertTrue(normalized.criteria[0].teacherReviewRequired, "Evidence not in reviewed text should flag for review")
     }
 
     func testMissingEvidenceMarkerIsRecognized() throws {
         let input = sampleInput()
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [
-                CriterionScore(
-                    criterionID: input.parsedRubric.criteria[0].id,
-                    criterion: "Claim",
-                    rating: "Good",
-                    proposedPoints: 3,
-                    maxPoints: 4,
-                    evidence: ["No supporting evidence found."],
-                    explanation: "Met.",
-                    teacherReviewRequired: false
-                )
-            ],
-            totalScore: 3,
-            maxScore: 4,
-            studentFeedback: "",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
-        let normalized = try GradeDraftValidator.normalizeAndValidate(draft, input: input)
+        let proposal = ProposalFixtures.proposal([
+            ProposalFixtures.criterion(
+                id: input.parsedRubric.criteria[0].id,
+                evidence: ["No supporting evidence found."]
+            )
+        ])
+        let normalized = try GradeDraftValidator.validate(proposal, input: input, audit: nil)
         XCTAssertTrue(normalized.criteria[0].teacherReviewRequired, "Missing evidence marker should flag for review")
     }
 
     func testConfidenceNormalization() throws {
         let input = sampleInput()
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [
-                CriterionScore(
-                    criterionID: input.parsedRubric.criteria[0].id,
-                    criterion: "Claim",
-                    rating: "Good",
-                    proposedPoints: 3,
-                    maxPoints: 4,
-                    evidence: ["Student response"],
-                    explanation: "Met.",
-                    teacherReviewRequired: false,
-                    confidence: "HIGH"
-                )
-            ],
-            totalScore: 3,
-            maxScore: 4,
-            studentFeedback: "",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
-        let normalized = try GradeDraftValidator.normalizeAndValidate(draft, input: input)
+        let proposal = ProposalFixtures.proposal([
+            ProposalFixtures.criterion(id: input.parsedRubric.criteria[0].id, confidence: "HIGH")
+        ])
+        let normalized = try GradeDraftValidator.validate(proposal, input: input, audit: nil)
         XCTAssertEqual(normalized.criteria[0].confidence, "high")
     }
 
     func testUnknownConfidenceDefaultsToMedium() throws {
         let input = sampleInput()
-        let draft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [
-                CriterionScore(
-                    criterionID: input.parsedRubric.criteria[0].id,
-                    criterion: "Claim",
-                    rating: "Good",
-                    proposedPoints: 3,
-                    maxPoints: 4,
-                    evidence: ["Student response"],
-                    explanation: "Met.",
-                    teacherReviewRequired: false,
-                    confidence: "very confident"
-                )
-            ],
-            totalScore: 3,
-            maxScore: 4,
-            studentFeedback: "",
-            teacherNotes: "",
-            uncertaintyFlags: []
-        )
-        let normalized = try GradeDraftValidator.normalizeAndValidate(draft, input: input)
+        let proposal = ProposalFixtures.proposal([
+            ProposalFixtures.criterion(id: input.parsedRubric.criteria[0].id, confidence: "very confident")
+        ])
+        let normalized = try GradeDraftValidator.validate(proposal, input: input, audit: nil)
         XCTAssertEqual(normalized.criteria[0].confidence, "medium")
     }
 

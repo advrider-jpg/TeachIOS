@@ -8,8 +8,10 @@ final class SpreadsheetSafetyHardeningTests: XCTestCase {
         XCTAssertEqual(SpreadsheetSafety.sanitizedCell(""), "")
     }
 
-    func testTabPrefixNotEscaped() {
-        XCTAssertEqual(SpreadsheetSafety.sanitizedCell("\tHello"), "\tHello")
+    /// Changed expectation: a leading tab is now one of the formula-prefix characters (`dangerousFormulaPrefixes`
+    /// is `= + - @ tab CR`), so a cell that starts with a tab is escaped.
+    func testTabPrefixIsEscaped() {
+        XCTAssertEqual(SpreadsheetSafety.sanitizedCell("\tHello"), "'\tHello")
     }
 
     func testNormalTextUnchanged() {

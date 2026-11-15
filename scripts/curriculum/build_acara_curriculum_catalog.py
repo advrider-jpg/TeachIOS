@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
-"""Build and validate the bundled GradeDraft Australian Curriculum catalog.
+"""Build the bundled MarkForMe Australian Curriculum catalogue.
 
-The preferred maintenance path downloads official MRAC JSON-LD files and
-normalizes them into app-bundled JSON. This Linux implementation also supports a
-local official workbook fallback because the uploaded repo already contains the
-Australian Curriculum workbook under docs/australiancurriculum and this execution
-environment has no outbound DNS access from the working tree. The fallback is
-recorded explicitly in the generated manifest and summary; it is not used by the
-app at runtime.
+Normalizes Australian Curriculum Version 9.0 source material into one read-only
+SQLite file (GradeDraft/Resources/Curriculum/curriculum_acara_v9.sqlite) with
+tables `source`, `item` and an FTS5 index `itemSearch`. The preferred source is
+the official MRAC JSON-LD; when that cannot be reached, the official workbook
+under docs/australiancurriculum is used. The iOS app never runs this script and
+never downloads curriculum data at runtime.
+
+  --refresh [--workbook-only]  regenerate the SQLite file
+  --check                      rebuild from the workbook into a temp file and
+                               compare the rows of `source` and `item` with the
+                               committed file
 """
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import hashlib
 import html
 import json
 import pathlib
 import re
+import sqlite3
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 import zipfile
@@ -27,34 +32,13 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote
 
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CACHE_DIR = ROOT / ".build" / "curriculum-cache"
-RESOURCE_DIR = ROOT / "GradeDraft" / "Resources" / "JSON"
-CATALOG_PATH = RESOURCE_DIR / "curriculum_catalog_acara_v9.json"
-INDEX_PATH = RESOURCE_DIR / "curriculum_catalog_acara_v9_index.json"
-SHARD_DIR = RESOURCE_DIR / "CurriculumShards"
-MANIFEST_PATH = RESOURCE_DIR / "curriculum_catalog_acara_v9_manifest.json"
-SUMMARY_PATH = RESOURCE_DIR / "curriculum_catalog_acara_v9_summary.json"
-MAX_RUNTIME_CATALOG_SHELL_BYTES = 250_000
-MAX_INDEX_BYTES = 30_000_000
-MAX_SHARD_BYTES = 3_000_000
+DB_PATH = ROOT / "GradeDraft" / "Resources" / "Curriculum" / "curriculum_acara_v9.sqlite"
 WORKBOOK_PATH = ROOT / "docs" / "australiancurriculum" / "curriculum-workbook.xlsx"
-SCRIPT_NAME = "scripts/curriculum/build_acara_curriculum_catalog.py"
 SOURCE_VERSION = "Australian Curriculum Version 9.0 / MRAC 2024-04"
-FILES_UPDATED = "2024-06-07"
-SCHEMA_VERSION = "1.0.0"
-CATALOG_ID = "acara-australian-curriculum-v9-mrac-2024-04"
 LICENSE_NAME = "CC BY 4.0, subject to Australian Curriculum website terms and excluded materials"
-NON_ENDORSEMENT = (
-    "Australian Curriculum references are provided as local reference aids only. "
-    "Confirm requirements with your school, sector, and jurisdiction before reporting. "
-    "MarkForMe does not claim ACARA endorsement, certification, compliance, or reporting approval."
-)
-ICIP_WARNING = (
-    "Some Australian Curriculum material relates to Aboriginal and Torres Strait Islander Histories and Cultures "
-    "and may involve Indigenous Cultural and Intellectual Property considerations. Use, adaptation, and publication "
-    "must respect applicable cultural protocols and permissions."
-)
 ATTRIBUTION = (
     "© Australian Curriculum, Assessment and Reporting Authority (ACARA) 2010 to present, unless otherwise indicated. "
     "This material was downloaded from the Australian Curriculum website or machine-readable Australian Curriculum "
@@ -130,10 +114,6 @@ PRIORITY_KEY = {
 REQUIRED_SOURCE_KEYS = {source.key for source in SOURCES}
 SEED_IDS = {"AC-ENG-Y7-RESPOND", "AC-MATH-Y6-REASON", "AC-HASS-Y8-SOURCE"}
 NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-
-
-def utcnow() -> str:
-    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -214,20 +194,16 @@ def classify_item(text_parts: list[str], code: str = "") -> str:
     return "concept"
 
 
-def source_object(source: SourceDefinition, retrieved_at: str, sha: str, mode: str) -> dict[str, Any]:
+def source_row(source: SourceDefinition, sha256: str) -> dict[str, str]:
     return {
         "id": source.key,
         "name": source.name,
         "version": SOURCE_VERSION,
-        "provenance": f"{mode}. Normalized for local MarkForMe search and mapping.",
-        "localPath": "",
-        "importedAt": retrieved_at,
-        "kind": source.kind,
         "sourceVersion": source.source_version,
-        "jsonldURL": source.jsonld_url,
-        "retrievedAt": retrieved_at,
-        "sha256": sha,
         "licenseName": LICENSE_NAME,
+        "attribution": ATTRIBUTION,
+        "sha256": sha256,
+        "jsonldURL": source.jsonld_url,
     }
 
 
@@ -364,13 +340,11 @@ def row_dict(headers: list[str], row: list[str]) -> dict[str, str]:
     return {headers[i]: compact(row[i]) if i < len(row) else "" for i in range(len(headers))}
 
 
-def build_from_workbook(generated_at: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def build_from_workbook() -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
     if not WORKBOOK_PATH.exists():
         raise FileNotFoundError(f"Missing workbook fallback: {WORKBOOK_PATH.relative_to(ROOT)}")
-    workbook_bytes = WORKBOOK_PATH.read_bytes()
-    workbook_sha = sha256_bytes(workbook_bytes)
+    workbook_sha = sha256_bytes(WORKBOOK_PATH.read_bytes())
     items: dict[str, dict[str, Any]] = {}
-    per_source: dict[str, int] = {source.key: 0 for source in SOURCES}
     with zipfile.ZipFile(WORKBOOK_PATH) as zf:
         shared = read_shared_strings(zf)
         sheets = workbook_sheets(zf)
@@ -421,7 +395,6 @@ def build_from_workbook(generated_at: str) -> tuple[dict[str, Any], dict[str, An
                 tags=["workbook-fallback"],
             )
             items[item["id"]] = item
-            per_source[source_key] += 1
 
         # Achievement standards.
         rows = read_sheet_rows(zf, sheets["Achievement standards"], shared)
@@ -451,7 +424,6 @@ def build_from_workbook(generated_at: str) -> tuple[dict[str, Any], dict[str, An
                 uri_suffix=f"achievement-standard-{offset}",
             )
             items[item["id"]] = item
-            per_source[source_key] += 1
 
         # Cross-curriculum priorities.
         rows = read_sheet_rows(zf, sheets["Cross-curriculum priorities"], shared)
@@ -479,7 +451,6 @@ def build_from_workbook(generated_at: str) -> tuple[dict[str, Any], dict[str, An
                 tags=["cross-curriculum-priority", "workbook-fallback"],
             )
             items[item["id"]] = item
-            per_source[source_key] += 1
 
         # General capabilities.
         rows = read_sheet_rows(zf, sheets["General capabilities"], shared)
@@ -511,24 +482,8 @@ def build_from_workbook(generated_at: str) -> tuple[dict[str, Any], dict[str, An
                 tags=["general-capability", "workbook-fallback"],
             )
             items[item["id"]] = item
-            per_source[source_key] += 1
 
-    source_mode = "Official Australian Curriculum workbook fallback used because MRAC JSON-LD source refresh could not run in this environment"
-    source_sha = {source.key: sha256_text(f"{source.key}:{workbook_sha}") for source in SOURCES}
-    sources = [source_object(source, generated_at, source_sha[source.key], source_mode) for source in SOURCES]
-    catalog_items = sorted(
-        items.values(),
-        key=lambda i: (i["catalogKind"], i["learningArea"], i["subject"], i["yearLevel"], i["band"], i["code"], i["title"], i["id"]),
-    )
-    catalog = base_catalog(generated_at, sources, catalog_items)
-    manifest = base_manifest(generated_at, sources, per_source, source_mode)
-    manifest["workbookFallback"] = {
-        "path": WORKBOOK_PATH.relative_to(ROOT).as_posix(),
-        "sha256": workbook_sha,
-        "rationale": "Network access for MRAC JSON-LD download was unavailable in the implementation environment; the committed app catalog was normalized from the official Australian Curriculum workbook already present in the repository.",
-    }
-    summary = base_summary(generated_at, catalog, per_source, source_mode)
-    return catalog, manifest, summary
+    return [source_row(source, sha256_text(f"{source.key}:{workbook_sha}")) for source in SOURCES], list(items.values())
 
 
 def flatten_values(value: Any) -> list[str]:
@@ -587,10 +542,8 @@ def download_sources() -> dict[str, bytes]:
     return downloaded
 
 
-def build_from_jsonld(blobs: dict[str, bytes], generated_at: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def build_from_jsonld(blobs: dict[str, bytes]) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
     items: dict[str, dict[str, Any]] = {}
-    per_source: dict[str, int] = {source.key: 0 for source in SOURCES}
-    source_sha = {key: sha256_bytes(data) for key, data in blobs.items()}
     for source in SOURCES:
         payload = json.loads(blobs[source.key].decode("utf-8"))
         graph = payload.get("@graph") if isinstance(payload, dict) else None
@@ -625,372 +578,155 @@ def build_from_jsonld(blobs: dict[str, bytes], generated_at: str) -> tuple[dict[
             item["sourceURL"] = uri
             item["id"] = stable_item_id(source.key, uri)
             items[item["id"]] = item
-            per_source[source.key] += 1
-    source_mode = "Machine Readable Australian Curriculum Version 9.0 JSON-LD source"
-    sources = [source_object(source, generated_at, source_sha[source.key], source_mode) for source in SOURCES]
-    catalog_items = sorted(
-        items.values(),
-        key=lambda i: (i["catalogKind"], i["learningArea"], i["subject"], i["yearLevel"], i["band"], i["code"], i["title"], i["id"]),
-    )
-    catalog = base_catalog(generated_at, sources, catalog_items)
-    manifest = base_manifest(generated_at, sources, per_source, source_mode)
-    summary = base_summary(generated_at, catalog, per_source, source_mode)
-    return catalog, manifest, summary
+    return [source_row(source, sha256_bytes(blobs[source.key])) for source in SOURCES], list(items.values())
 
 
-def base_catalog(generated_at: str, sources: list[dict[str, Any]], items: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
-        "schemaVersion": SCHEMA_VERSION,
-        "catalogID": CATALOG_ID,
-        "displayName": "Australian Curriculum Version 9.0 reference catalog",
-        "sourceVersion": SOURCE_VERSION,
-        "filesUpdated": FILES_UPDATED,
-        "generatedAt": generated_at,
-        "generatedBy": SCRIPT_NAME,
-        "licenseName": LICENSE_NAME,
-        "attributionText": ATTRIBUTION,
-        "nonEndorsementWarning": NON_ENDORSEMENT,
-        "icipWarning": ICIP_WARNING,
-        "warning": NON_ENDORSEMENT,
-        "sources": sources,
-        "items": items,
-        "relationships": [],
-        "tags": [],
-    }
+CREATE_SQL = """
+CREATE TABLE source (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    version TEXT NOT NULL,
+    licenseName TEXT NOT NULL,
+    attribution TEXT NOT NULL,
+    sourceVersion TEXT NOT NULL DEFAULT '',
+    sha256 TEXT NOT NULL DEFAULT '',
+    jsonldURL TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE item (
+    id TEXT PRIMARY KEY,
+    sourceID TEXT NOT NULL REFERENCES source(id),
+    code TEXT NOT NULL,
+    title TEXT NOT NULL,
+    shortDescription TEXT NOT NULL,
+    learningArea TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    yearLevel TEXT NOT NULL,
+    band TEXT NOT NULL,
+    strand TEXT NOT NULL,
+    substrand TEXT NOT NULL,
+    organizer TEXT NOT NULL,
+    itemType TEXT NOT NULL,
+    catalogKind TEXT NOT NULL,
+    sourceURL TEXT NOT NULL,
+    externalURI TEXT NOT NULL,
+    provenance TEXT NOT NULL,
+    sourceKey TEXT NOT NULL,
+    altLabels TEXT NOT NULL,
+    parentIDs TEXT NOT NULL,
+    childIDs TEXT NOT NULL,
+    tags TEXT NOT NULL,
+    isOfficial INTEGER NOT NULL
+);
+CREATE INDEX item_sourceID ON item(sourceID);
+CREATE VIRTUAL TABLE itemSearch USING fts5(code, title, shortDescription, strand, tags, content='item', content_rowid='rowid');
+"""
+
+SOURCE_COLUMNS = ["id", "name", "version", "licenseName", "attribution", "sourceVersion", "sha256", "jsonldURL"]
+ITEM_COLUMNS = [
+    "id", "sourceID", "code", "title", "shortDescription", "learningArea", "subject", "yearLevel", "band",
+    "strand", "substrand", "organizer", "itemType", "catalogKind", "sourceURL", "externalURI", "provenance",
+    "sourceKey", "altLabels", "parentIDs", "childIDs", "tags", "isOfficial",
+]
 
 
-def base_manifest(generated_at: str, sources: list[dict[str, Any]], per_source: dict[str, int], mode: str) -> dict[str, Any]:
-    return {
-        "schemaVersion": SCHEMA_VERSION,
-        "catalogID": CATALOG_ID,
-        "sourceVersion": SOURCE_VERSION,
-        "filesUpdated": FILES_UPDATED,
-        "generatedAt": generated_at,
-        "generatedBy": SCRIPT_NAME,
-        "sourceMode": mode,
-        "requiredSourceKeys": sorted(REQUIRED_SOURCE_KEYS),
-        "sources": [
-            {
-                "id": source["id"],
-                "kind": source["kind"],
-                "name": source["name"],
-                "jsonldURL": source["jsonldURL"],
-                "sourceVersion": source["sourceVersion"],
-                "sha256": source["sha256"],
-                "itemCount": per_source.get(source["id"], 0),
-            }
-            for source in sources
-        ],
-        "resourceChecksums": {},
-    }
+def item_row(item: dict[str, Any]) -> list[Any]:
+    values = dict(item)
+    values["sourceID"] = item["sourceKey"]
+    for key in ("altLabels", "parentIDs", "childIDs", "tags"):
+        values[key] = json.dumps(item.get(key) or [], ensure_ascii=False)
+    values["isOfficial"] = 1 if item.get("isOfficial") else 0
+    return [values[column] for column in ITEM_COLUMNS]
 
 
-def base_summary(generated_at: str, catalog: dict[str, Any], per_source: dict[str, int], mode: str) -> dict[str, Any]:
-    items = catalog["items"]
-    kind_counts: dict[str, int] = {}
-    area_counts: dict[str, int] = {}
-    for item in items:
-        kind_counts[item["itemType"]] = kind_counts.get(item["itemType"], 0) + 1
-        area_counts[item["learningArea"]] = area_counts.get(item["learningArea"], 0) + 1
-    return {
-        "schemaVersion": SCHEMA_VERSION,
-        "catalogID": CATALOG_ID,
-        "generatedAt": generated_at,
-        "generatedBy": SCRIPT_NAME,
-        "sourceMode": mode,
-        "sourceCount": len(catalog["sources"]),
-        "itemCount": len(items),
-        "officialItemCount": sum(1 for item in items if item.get("isOfficial") is True),
-        "sourceCounts": dict(sorted(per_source.items())),
-        "itemTypeCounts": dict(sorted(kind_counts.items())),
-        "learningAreaCounts": dict(sorted(area_counts.items())),
-        "lowerOfficialParsedCountRationale": "",
-    }
-
-
-def write_json(path: pathlib.Path, data: dict[str, Any]) -> None:
+def write_database(path: pathlib.Path, sources: list[dict[str, str]], items: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes((json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8"))
+    if path.exists():
+        path.unlink()
+    connection = sqlite3.connect(path)
+    try:
+        connection.executescript(CREATE_SQL)
+        connection.executemany(
+            f"INSERT INTO source ({', '.join(SOURCE_COLUMNS)}) VALUES ({', '.join('?' * len(SOURCE_COLUMNS))})",
+            [[row[column] for column in SOURCE_COLUMNS] for row in sorted(sources, key=lambda r: r["id"])],
+        )
+        connection.executemany(
+            f"INSERT INTO item ({', '.join(ITEM_COLUMNS)}) VALUES ({', '.join('?' * len(ITEM_COLUMNS))})",
+            [item_row(item) for item in sorted(items, key=lambda i: i["id"])],
+        )
+        connection.execute("INSERT INTO itemSearch(itemSearch) VALUES('rebuild')")
+        connection.commit()
+        connection.execute("VACUUM")
+    finally:
+        connection.close()
 
 
-def shard_file_name(source_key: str, part: int) -> str:
-    safe = re.sub(r"[^A-Za-z0-9_-]+", "_", source_key)
-    return f"curriculum_catalog_acara_v9_{safe}_{part:03d}.json"
+def read_rows(path: pathlib.Path) -> tuple[list[tuple], list[tuple]]:
+    connection = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+    try:
+        sources = connection.execute(f"SELECT {', '.join(SOURCE_COLUMNS)} FROM source ORDER BY id").fetchall()
+        items = connection.execute(f"SELECT {', '.join(ITEM_COLUMNS)} FROM item ORDER BY id").fetchall()
+    finally:
+        connection.close()
+    return sources, items
 
 
-def normalized_search_value(value: Any) -> str:
-    return str(value or "").strip().lower()
-
-
-def split_catalog_resources(catalog: dict[str, Any], chunk_size: int = 1000) -> tuple[dict[str, Any], dict[str, Any], list[tuple[str, dict[str, Any]]]]:
-    items = list(catalog.get("items", []))
-    compact_catalog = dict(catalog)
-    compact_catalog["items"] = []
-    compact_catalog["warning"] = (
-        str(compact_catalog.get("warning", "")).strip()
-        + " Runtime item detail is stored in bundled source-key shards and searched through curriculum_catalog_acara_v9_index.json."
-    ).strip()
-    by_source: dict[str, list[dict[str, Any]]] = {}
-    for item in items:
-        source_key = str(item.get("sourceKey") or item.get("source") or "UNKNOWN")
-        by_source.setdefault(source_key, []).append(item)
-
-    rows: list[dict[str, Any]] = []
-    shard_entries: list[dict[str, Any]] = []
-    shard_payloads: list[tuple[str, dict[str, Any]]] = []
-    for source_key in sorted(by_source):
-        source_items = by_source[source_key]
-        for part, start in enumerate(range(0, len(source_items), chunk_size), start=1):
-            shard_items = source_items[start:start + chunk_size]
-            file_name = shard_file_name(source_key, part)
-            payload = {
-                "schemaVersion": catalog.get("schemaVersion"),
-                "catalogID": catalog.get("catalogID"),
-                "sourceKey": source_key,
-                "part": part,
-                "itemCount": len(shard_items),
-                "items": shard_items,
-            }
-            shard_payloads.append((file_name, payload))
-            for shard_item_index, item in enumerate(shard_items):
-                searchable = " ".join(
-                    [str(item.get(key, "")) for key in ["code", "title", "shortDescription", "learningArea", "subject", "strand", "substrand", "organizer"]]
-                    + list(item.get("altLabels") or [])
-                    + list(item.get("tags") or [])
-                )
-                rows.append({
-                    "itemID": item.get("id", ""),
-                    "shardName": file_name,
-                    "shardItemIndex": shard_item_index,
-                    "catalogKind": normalized_search_value(item.get("catalogKind") or item.get("itemType")),
-                    "itemType": normalized_search_value(item.get("itemType")),
-                    "subject": normalized_search_value(item.get("subject")),
-                    "learningArea": normalized_search_value(item.get("learningArea")),
-                    "yearLevel": normalized_search_value(item.get("yearLevel")),
-                    "band": normalized_search_value(item.get("band")),
-                    "searchable": normalized_search_value(searchable),
-                })
-
-    for file_name, payload in shard_payloads:
-        data = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
-        shard_entries.append({
-            "sourceKey": payload["sourceKey"],
-            "fileName": file_name,
-            "itemCount": payload["itemCount"],
-            "sha256": sha256_bytes(data),
-        })
-
-    index = {
-        "schemaVersion": catalog.get("schemaVersion"),
-        "catalogID": catalog.get("catalogID"),
-        "displayName": catalog.get("displayName"),
-        "sourceVersion": catalog.get("sourceVersion"),
-        "itemCount": len(items),
-        "shardDirectory": SHARD_DIR.name,
-        "shards": shard_entries,
-        "catalogKinds": sorted({str(item.get("catalogKind") or item.get("itemType") or "").strip() for item in items if str(item.get("catalogKind") or item.get("itemType") or "").strip()}, key=str.lower),
-        "learningAreas": sorted({str(item.get("learningArea") or "").strip() for item in items if str(item.get("learningArea") or "").strip()}, key=str.lower),
-        "subjects": sorted({str(item.get("subject") or "").strip() for item in items if str(item.get("subject") or "").strip()}, key=str.lower),
-        "yearLevelsAndBands": sorted({str(item.get("yearLevel") or item.get("band") or "").strip() for item in items if str(item.get("yearLevel") or item.get("band") or "").strip()}, key=str.lower),
-        "rows": rows,
-    }
-    return compact_catalog, index, shard_payloads
-
-
-def generate(refresh_jsonld: bool) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    generated_at = utcnow()
+def generate(refresh_jsonld: bool) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
     if refresh_jsonld:
         try:
-            blobs = download_sources()
-            return build_from_jsonld(blobs, generated_at)
+            return build_from_jsonld(download_sources())
         except RuntimeError as error:
             print(str(error), file=sys.stderr)
             print("Falling back to local official curriculum workbook.", file=sys.stderr)
-    return build_from_workbook(generated_at)
-
-
-def validate_loaded(catalog: dict[str, Any], manifest: dict[str, Any], summary: dict[str, Any]) -> list[str]:
-    failures: list[str] = []
-    for key in ["schemaVersion", "catalogID", "displayName", "sourceVersion", "generatedAt", "generatedBy", "licenseName", "attributionText", "nonEndorsementWarning", "icipWarning", "sources", "items"]:
-        if key not in catalog:
-            failures.append(f"Catalog missing top-level key {key}")
-    source_keys = {source.get("id") for source in catalog.get("sources", [])}
-    missing = sorted(REQUIRED_SOURCE_KEYS - source_keys)
-    if missing:
-        failures.append("Catalog missing required sources: " + ", ".join(missing))
-    if len(catalog.get("sources", [])) < 18:
-        failures.append("Catalog contains fewer than 18 required sources")
-    items = catalog.get("items", [])
-    item_count = len(items) if isinstance(items, list) else 0
-    lower_rationale = str(summary.get("lowerOfficialParsedCountRationale", "")).strip()
-    if item_count < 5000 and not lower_rationale:
-        failures.append(f"Catalog contains {item_count} items; expected at least 5000 or a documented lower official parsed count rationale")
-    per_source_count = {key: 0 for key in REQUIRED_SOURCE_KEYS}
-    for item in items:
-        source_key = item.get("sourceKey", "")
-        if source_key in per_source_count:
-            per_source_count[source_key] += 1
-        if item.get("isOfficial") is True and item.get("isEditable") is True:
-            failures.append(f"Official item is editable: {item.get('id')}")
-        if item.get("isOfficial") is True:
-            uri = str(item.get("externalURI", ""))
-            if not uri.startswith(("http://", "https://")):
-                failures.append(f"Official item missing external URI: {item.get('id')}")
-            if "ACARA" not in str(item.get("sourceAttribution", "")):
-                failures.append(f"Official item missing ACARA attribution: {item.get('id')}")
-    for key, count in sorted(per_source_count.items()):
-        if count <= 0:
-            failures.append(f"Required source has no parsed items: {key}")
-    for source in catalog.get("sources", []):
-        if not re.fullmatch(r"[a-f0-9]{64}", str(source.get("sha256", ""))):
-            failures.append(f"Source {source.get('id')} missing SHA-256")
-    warning = " ".join([str(catalog.get("warning", "")), str(catalog.get("nonEndorsementWarning", "")), str(catalog.get("attributionText", ""))]).lower()
-    if "does not claim" not in warning and "not affiliated" not in warning:
-        failures.append("Catalog warning lacks non-endorsement copy")
-    for prohibited in ["endorsed by acara", "certified by acara", "approved by acara", "official gradedraft", "jurisdiction-compliant reporting"]:
-        if prohibited in warning:
-            failures.append(f"Catalog copy contains prohibited phrase: {prohibited}")
-    if set(manifest.get("requiredSourceKeys", [])) != REQUIRED_SOURCE_KEYS:
-        failures.append("Manifest requiredSourceKeys does not match the required source set")
-    if int(summary.get("itemCount", 0)) != item_count:
-        failures.append("Summary itemCount does not match catalog items")
-    seed_only = item_count <= len(SEED_IDS) and all(item.get("id") in SEED_IDS for item in items)
-    if seed_only:
-        failures.append("Catalog is still seed-only")
-    return failures
-
-
-def validate_files() -> list[str]:
-    failures: list[str] = []
-    for path in [CATALOG_PATH, INDEX_PATH, MANIFEST_PATH, SUMMARY_PATH]:
-        if not path.exists():
-            failures.append(f"Missing generated resource: {path.relative_to(ROOT)}")
-    if failures:
-        return failures
-    try:
-        catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-        index = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
-        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-        summary = json.loads(SUMMARY_PATH.read_text(encoding="utf-8"))
-        shard_items: list[dict[str, Any]] = []
-        for shard in index.get("shards", []):
-            shard_path = SHARD_DIR / str(shard.get("fileName", ""))
-            if not shard_path.exists():
-                failures.append(f"Missing generated curriculum shard: {shard_path.relative_to(ROOT)}")
-                continue
-            payload = json.loads(shard_path.read_text(encoding="utf-8"))
-            items = payload.get("items", [])
-            if len(items) != int(shard.get("itemCount", -1)):
-                failures.append(f"Shard {shard_path.name} itemCount does not match its index entry")
-            if sha256_bytes(shard_path.read_bytes()) != shard.get("sha256"):
-                failures.append(f"Shard {shard_path.name} checksum does not match its index entry")
-            shard_items.extend(items)
-    except json.JSONDecodeError as error:
-        return [f"Generated JSON did not decode: {error}"]
-    if CATALOG_PATH.stat().st_size > MAX_RUNTIME_CATALOG_SHELL_BYTES:
-        failures.append(
-            f"Runtime catalog shell is {CATALOG_PATH.stat().st_size} bytes; "
-            f"expected <= {MAX_RUNTIME_CATALOG_SHELL_BYTES} bytes so item detail stays in shards"
-        )
-    if INDEX_PATH.stat().st_size > MAX_INDEX_BYTES:
-        failures.append(
-            f"Curriculum search index is {INDEX_PATH.stat().st_size} bytes; "
-            f"expected <= {MAX_INDEX_BYTES} bytes"
-        )
-    for shard_path in sorted(SHARD_DIR.glob("*.json")):
-        if shard_path.stat().st_size > MAX_SHARD_BYTES:
-            failures.append(
-                f"Curriculum shard {shard_path.name} is {shard_path.stat().st_size} bytes; "
-                f"expected <= {MAX_SHARD_BYTES} bytes"
-            )
-    if catalog.get("items") != []:
-        failures.append("Runtime catalog shell must not contain bundled item detail; use CurriculumShards instead")
-    if int(index.get("itemCount", 0)) != len(shard_items):
-        failures.append("Index itemCount does not match loaded curriculum shards")
-    if len(index.get("rows", [])) != len(shard_items):
-        failures.append("Index rows do not match loaded curriculum shards")
-    full_catalog = dict(catalog)
-    full_catalog["items"] = shard_items
-    failures.extend(validate_loaded(full_catalog, manifest, summary))
-    # Verify committed checksum metadata after reading all resources.
-    actual = {
-        CATALOG_PATH.name: sha256_bytes(CATALOG_PATH.read_bytes()),
-        INDEX_PATH.name: sha256_bytes(INDEX_PATH.read_bytes()),
-        SUMMARY_PATH.name: sha256_bytes(SUMMARY_PATH.read_bytes()),
-    }
-    for shard_path in sorted(SHARD_DIR.glob("*.json")):
-        actual[f"{SHARD_DIR.name}/{shard_path.name}"] = sha256_bytes(shard_path.read_bytes())
-    recorded = manifest.get("resourceChecksums", {})
-    for required_name in actual:
-        if required_name not in recorded:
-            failures.append(f"Manifest missing checksum for {required_name}")
-    for name, checksum in recorded.items():
-        if name not in actual:
-            failures.append(f"Manifest records unsupported self-referential or unknown checksum for {name}")
-            continue
-        if actual[name] != checksum:
-            failures.append(f"Manifest checksum mismatch for {name}")
-    return failures
+    return build_from_workbook()
 
 
 def command_refresh(args: argparse.Namespace) -> int:
-    catalog, manifest, summary = generate(refresh_jsonld=not args.workbook_only)
-    compact_catalog, index, shard_payloads = split_catalog_resources(catalog)
-    # Write once without resource checksums, compute, then write manifest with final checksums.
-    write_json(CATALOG_PATH, compact_catalog)
-    write_json(INDEX_PATH, index)
-    if SHARD_DIR.exists():
-        for stale in SHARD_DIR.glob("*.json"):
-            stale.unlink()
-    SHARD_DIR.mkdir(parents=True, exist_ok=True)
-    for file_name, payload in shard_payloads:
-        write_json(SHARD_DIR / file_name, payload)
-    write_json(SUMMARY_PATH, summary)
-    manifest["resourceChecksums"] = {
-        CATALOG_PATH.name: sha256_bytes(CATALOG_PATH.read_bytes()),
-        INDEX_PATH.name: sha256_bytes(INDEX_PATH.read_bytes()),
-        SUMMARY_PATH.name: sha256_bytes(SUMMARY_PATH.read_bytes()),
-    }
-    for shard_path in sorted(SHARD_DIR.glob("*.json")):
-        manifest["resourceChecksums"][f"{SHARD_DIR.name}/{shard_path.name}"] = sha256_bytes(shard_path.read_bytes())
-    write_json(MANIFEST_PATH, manifest)
-    print(f"Wrote split curriculum catalog with {len(catalog['items'])} items across {len(shard_payloads)} shards from {len(catalog['sources'])} sources.")
+    sources, items = generate(refresh_jsonld=not args.workbook_only)
+    write_database(DB_PATH, sources, items)
+    print(f"Wrote {DB_PATH.relative_to(ROOT).as_posix()} with {len(items)} items from {len(sources)} sources.")
     return 0
 
 
 def command_check() -> int:
-    failures = validate_files()
-    if failures:
+    if not DB_PATH.exists():
+        print(f"Curriculum catalog check failed: missing {DB_PATH.relative_to(ROOT).as_posix()}")
+        return 1
+    with tempfile.TemporaryDirectory() as temp_dir:
+        rebuilt = pathlib.Path(temp_dir) / "curriculum_acara_v9.sqlite"
+        sources, items = build_from_workbook()
+        write_database(rebuilt, sources, items)
+        expected_sources, expected_items = read_rows(rebuilt)
+    actual_sources, actual_items = read_rows(DB_PATH)
+    problems: list[str] = []
+    if actual_sources != expected_sources:
+        problems.append("table `source` differs from a fresh build")
+    if actual_items != expected_items:
+        expected_by_id = {row[0]: row for row in expected_items}
+        actual_by_id = {row[0]: row for row in actual_items}
+        missing = sorted(expected_by_id.keys() - actual_by_id.keys())
+        extra = sorted(actual_by_id.keys() - expected_by_id.keys())
+        changed = sorted(key for key in expected_by_id.keys() & actual_by_id.keys() if expected_by_id[key] != actual_by_id[key])
+        problems.append(f"table `item` differs from a fresh build: {len(missing)} missing, {len(extra)} extra, {len(changed)} changed")
+    if problems:
         print("Curriculum catalog check failed:")
-        for failure in failures:
-            print(f"- {failure}")
+        for problem in problems:
+            print(f"- {problem}")
+        print("Run: python3 scripts/curriculum/build_acara_curriculum_catalog.py --refresh --workbook-only")
         return 1
-    print("Curriculum catalog check passed.")
-    return 0
-
-
-def command_print_summary() -> int:
-    if not SUMMARY_PATH.exists():
-        print("No generated summary found. Run --refresh first.", file=sys.stderr)
-        return 1
-    summary = json.loads(SUMMARY_PATH.read_text(encoding="utf-8"))
-    print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+    print(f"Curriculum catalog check passed: {len(actual_sources)} sources and {len(actual_items)} items match a fresh build.")
     return 0
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--refresh", action="store_true", help="download/cache MRAC JSON-LD when available and regenerate bundled resources")
-    group.add_argument("--check", action="store_true", help="validate committed generated resources without network")
-    group.add_argument("--print-summary", action="store_true", help="print generated catalog summary")
+    group.add_argument("--refresh", action="store_true", help="download MRAC JSON-LD when available and regenerate the SQLite file")
+    group.add_argument("--check", action="store_true", help="compare the committed SQLite file with a fresh build from the repository workbook")
     parser.add_argument("--workbook-only", action="store_true", help="regenerate from the local official workbook without attempting MRAC JSON-LD download")
     args = parser.parse_args()
     if args.refresh:
         return command_refresh(args)
-    if args.check:
-        return command_check()
-    return command_print_summary()
+    return command_check()
 
 
 if __name__ == "__main__":

@@ -1,168 +1,148 @@
 import SwiftUI
 
+extension RosterStatus {
+    /// Waiting on the teacher: scanned text to check, work ready to review, a final review to finish or recheck.
+    var needsTeacherReview: Bool {
+        switch self {
+        case .ocrReviewNeeded, .readyForGrading, .finalReviewInProgress, .needsRecheck: return true
+        case .notStarted, .draftGenerated, .approved, .exported: return false
+        }
+    }
+
+    var hasDraftReady: Bool { self == .draftGenerated }
+}
+
+/// One submission as a list row: the student, optionally the assignment and class, and the status.
+struct SubmissionSummaryRow: View {
+    var summary: SubmissionSummary
+    var showsAssignment = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(summary.studentName)
+                .font(.headline)
+            if showsAssignment {
+                Text("\(summary.assignmentTitle) · \(summary.className)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            StatusLabel(summary.rosterStatus.uiStatus, subject: "Grading status")
+                .font(.subheadline)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct HomeScreen: View {
-    @ObservedObject var viewModel: GradeDraftViewModel
+    @Environment(AppModel.self) private var appModel
+
+    private var needsReview: [SubmissionSummary] {
+        appModel.submissionSummaries.filter { $0.rosterStatus.needsTeacherReview }
+    }
+
+    private var draftsReady: [SubmissionSummary] {
+        appModel.submissionSummaries.filter { $0.rosterStatus.hasDraftReady }
+    }
+
+    private var recentlyExported: [SubmissionSummary] {
+        let exported = appModel.submissionSummaries
+            .filter { $0.rosterStatus == .exported }
+            .sorted { ($0.lastExportedAt ?? .distantPast) > ($1.lastExportedAt ?? .distantPast) }
+        return Array(exported.prefix(10))
+    }
 
     var body: some View {
         List {
-            StationeryPageHeader(
-                eyebrow: "Home",
-                title: "MarkForMe",
-                subtitle: "Local records, teacher-reviewed work, and export readiness at a glance."
-            )
-
-            HomeStationeryCard(tapeLabel: "Local first", showsPaperclip: true) {
-                VStack(alignment: .leading, spacing: 12) {
-                    LocalCapabilityBanner(status: viewModel.localAIStatus, message: viewModel.statusMessage)
-                    HandwrittenAnnotation("MarkForMe stores student work and grading records locally on this device.", status: .teacherOnly)
-                }
+            Section {
+                aiStatus
+            } header: {
+                Text("On-Device AI")
+            } footer: {
+                Text("MarkForMe stores student work and grading records locally on this device.")
             }
 
-            HomeStationeryCard(title: "Summary", tapeLabel: "Desk check") {
-                MetricStrip(metrics: [
-                    MetricStrip.Metric("Assignments", value: "\(viewModel.assignments.count)"),
-                    MetricStrip.Metric(GradeDraftWorkflowLanguage.reviewTextActionLabel, value: "\(viewModel.scannedTextReviewAssignments.count)", status: .reviewScannedText),
-                    MetricStrip.Metric("Final Review", value: "\(viewModel.finalReviewAssignments.count)", status: .reviewFinalGrade),
-                    MetricStrip.Metric("Ready to Export", value: "\(viewModel.readyToExportAssignments.count)", status: .readyToExport)
-                ])
-            }
-
-            HomeStationeryCard(title: "Needs Attention", tapeLabel: "Review queue", showsPaperclip: true) {
-                let items = viewModel.homeAttentionItems
-                if items.isEmpty {
+            if appModel.listsLoaded && needsReview.isEmpty && draftsReady.isEmpty && recentlyExported.isEmpty {
+                Section {
                     ContentUnavailableView(
-                        "Nothing needs attention",
+                        "Nothing needs your review",
                         systemImage: "checkmark.circle",
-                        description: Text("Assignments that block review or export will appear here.")
-                    )
-                } else {
-                    LazyVStack(spacing: 12) {
-                        ForEach(items) { item in
-                            NavigationLink {
-                                item.destinationView(viewModel: viewModel)
-                            } label: {
-                                ReviewQueueRow(title: item.title, detail: item.detail, countText: item.countText, status: item.status, actionLabel: item.actionLabel)
-                                    .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-
-            HomeStationeryCard(title: "Assignments Needing Action", tapeLabel: "Next five") {
-                let rows = Array(viewModel.assignmentsNeedingAction.prefix(5))
-                if rows.isEmpty {
-                    ContentUnavailableView(
-                        "No assignment action needed",
-                        systemImage: "tray",
                         description: Text("Create an assignment or open Exports for approved work.")
                     )
-                } else {
-                    LazyVStack(spacing: 12) {
-                        ForEach(rows) { assignment in
-                            NavigationLink {
-                                AssignmentOverviewScreen(viewModel: viewModel, assignmentID: assignment.id)
-                            } label: {
-                                AssignmentRow(assignment: assignment, status: viewModel.v6Status(for: assignment), actionLabel: viewModel.v6ActionLabel(for: assignment))
-                                    .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+                    .listRowBackground(Color.clear)
                 }
             }
 
-            HomeStationeryCard(title: "Recent Exports & Backups", tapeLabel: "Local files", showsPaperclip: true) {
-                let records = viewModel.recentExportRows
-                if records.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        ContentUnavailableView(
-                            "No exports yet",
-                            systemImage: "square.and.arrow.up",
-                            description: Text("Approved student reports and teacher-only records will appear here.")
-                        )
-                        HandwrittenAnnotation("Files are created locally and shared only when you choose.", status: .teacherOnly)
-                    }
-                } else {
-                    LazyVStack(spacing: 12) {
-                        ForEach(records) { record in
-                            HStack(spacing: 12) {
-                                StatusIconBubble(record.kind.v6AudienceStatus)
-                                    .frame(width: 32, height: 32)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(record.kind.v6DisplayName)
-                                        .font(.headline)
-                                        .lineLimit(1)
-                                    Text(record.assignmentTitle)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                                Spacer(minLength: 8)
-                                StatusChip(record.kind.v6AudienceStatus, compact: true)
-                            }
-                            .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-                            .padding(.vertical, GradeDraftLayout.rowVerticalPadding)
-                            .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
-                            .accessibilityElement(children: .combine)
-                        }
-                        HandwrittenAnnotation("Files are created locally and shared only when you choose.", status: .teacherOnly)
-                    }
+            submissionSection("Needs your review", key: "needsReview", items: needsReview)
+            submissionSection("Drafts ready", key: "draftsReady", items: draftsReady)
+            submissionSection("Recently exported", key: "recentlyExported", items: recentlyExported)
+        }
+        .navigationTitle("MarkForMe")
+    }
+
+    @ViewBuilder
+    private var aiStatus: some View {
+        Group {
+            switch appModel.services.grading.localAIStatus {
+            case .available:
+                Label {
+                    Text("Foundation Models is available on this device for local draft assistance.")
+                } icon: {
+                    Image(systemName: "checkmark.circle").foregroundStyle(.green)
                 }
+            case .unavailable(let detail):
+                Label {
+                    Text(ReadinessIssue.localAIUnavailable(detail).message)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
+                }
+                Text("Manual final review remains available. Student work is not sent to cloud AI as a fallback.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
-        .gradeDraftNativeGroupedList()
-        .navigationTitle("MarkForMe")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink {
-                    SettingsAboutLocalPrivacyScreen(viewModel: viewModel)
-                } label: {
-                    Image(systemName: "gearshape")
+        .accessibilityIdentifier("home.aiStatus")
+    }
+
+    @ViewBuilder
+    private func submissionSection(_ title: String, key: String, items: [SubmissionSummary]) -> some View {
+        if !items.isEmpty {
+            Section(title) {
+                ForEach(items) { item in
+                    NavigationLink(value: Route.submission(item.id)) {
+                        SubmissionSummaryRow(summary: item)
+                    }
+                    .accessibilityIdentifier("home.\(key).\(item.id.uuidString)")
                 }
-                .accessibilityLabel("Settings, About, and Local Privacy")
             }
         }
     }
 }
 
-private struct HomeStationeryCard<Content: View>: View {
-    var title: String?
-    var tapeLabel: String?
-    var showsPaperclip: Bool
-    private let content: Content
-
-    init(title: String? = nil, tapeLabel: String? = nil, showsPaperclip: Bool = false, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.tapeLabel = tapeLabel
-        self.showsPaperclip = showsPaperclip
-        self.content = content()
-    }
+#if DEBUG
+private struct HomeScreenPreview: View {
+    @State private var model = PreviewFixtures.makeAppModel()
 
     var body: some View {
-        NotebookCard(showsPerforation: true) {
-            if title != nil || tapeLabel != nil || showsPaperclip {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .top, spacing: 10) {
-                        if let tapeLabel {
-                            TapeLabel(tapeLabel)
-                        }
-                        Spacer(minLength: 8)
-                        if showsPaperclip {
-                            PaperclipDecoration()
-                                .frame(width: 32, height: 44)
-                        }
-                    }
-                    if let title {
-                        Text(title)
-                            .font(.system(.title3, design: .serif).weight(.semibold))
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-            content
+        NavigationStack {
+            HomeScreen()
+                .navigationDestination(for: Route.self) { RouteDestination(route: $0, app: model) }
         }
+        .environment(model)
+        .task { await model.observeLists() }
     }
 }
+
+#Preview("Light") {
+    HomeScreenPreview()
+}
+
+#Preview("Dark") {
+    HomeScreenPreview()
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Largest text") {
+    HomeScreenPreview()
+        .dynamicTypeSize(.accessibility3)
+}
+#endif

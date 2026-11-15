@@ -1,281 +1,381 @@
 import SwiftUI
 
-struct AssignmentOverviewScreen: View {
-    @ObservedObject var viewModel: GradeDraftViewModel
-    var assignmentID: UUID
-    @State private var showWizard = false
+// MARK: - Steps
 
-    var body: some View {
-        Group {
-            if let assignment = viewModel.assignment(for: assignmentID) {
-                Form {
-                    AssignmentStationeryHeader(
-                        eyebrow: "Workflow",
-                        title: assignment.title.isEmpty ? "Assignment" : assignment.title,
-                        subtitle: nextUpDetail(for: assignment),
-                        status: viewModel.v6Status(for: assignment)
-                    )
-                    PaperStack(theme: AssignmentWorkflowStationery.theme) {
-                        HStack(alignment: .top) {
-                            TapeLabel("Next up", theme: AssignmentWorkflowStationery.theme)
-                            Spacer(minLength: 8)
-                            PaperclipDecoration(theme: AssignmentWorkflowStationery.theme)
-                        }
-                        NavigationLink {
-                            nextDestination(for: assignment)
-                        } label: {
-                            ReviewQueueRow(
-                                title: viewModel.v6Status(for: assignment).rawValue,
-                                detail: nextUpDetail(for: assignment),
-                                countText: nil,
-                                status: viewModel.v6Status(for: assignment),
-                                actionLabel: viewModel.v6ActionLabel(for: assignment)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        HandwrittenAnnotation(nextUpDetail(for: assignment), status: viewModel.v6Status(for: assignment), theme: AssignmentWorkflowStationery.theme)
-                        Button {
-                            viewModel.selectAssignment(assignmentID)
-                            showWizard = true
-                        } label: {
-                            Label("Start Guided Grading", systemImage: "wand.and.stars")
-                                .frame(minHeight: GradeDraftLayout.minimumTapTarget)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityHint("Walk through every grading step for this student")
-                    }
+/// The ordered steps of grading an assignment for its class, mirroring the teacher workflow.
+enum GradeWizardStep: Int, CaseIterable, Identifiable, Hashable, Sendable {
+    case setup
+    case studentWork
+    case scannedText
+    case aiDraft
+    case finalReview
+    case export
 
-                    NotebookCard(theme: AssignmentWorkflowStationery.theme, showsPerforation: true) {
-                        TapeLabel("Timeline", theme: AssignmentWorkflowStationery.theme)
-                        workflowProgressSummary(for: assignment)
-                        WorkflowProgressRail(steps: workflowSteps(for: assignment))
-                        HandwrittenAnnotation("Visible steps match the teacher workflow.", theme: AssignmentWorkflowStationery.theme)
-                    }
+    var id: Int { rawValue }
 
-                    if !blockingIssues(for: assignment).isEmpty {
-                        NotebookCard(theme: AssignmentWorkflowStationery.theme, status: .fixBeforeContinuing, showsPerforation: true) {
-                            TapeLabel("Fix first", theme: AssignmentWorkflowStationery.theme)
-                            ForEach(blockingIssues(for: assignment), id: \.title) { issue in
-                                BlockingIssueRow(title: issue.title, detail: issue.detail, status: issue.status)
-                            }
-                            HandwrittenAnnotation("These items prevent grading or export.", status: .fixBeforeContinuing, theme: AssignmentWorkflowStationery.theme)
-                        }
-                    }
-
-                    NotebookCard(theme: AssignmentWorkflowStationery.theme, showsPerforation: true) {
-                        TapeLabel("Assignment details", theme: AssignmentWorkflowStationery.theme)
-                        VStack(spacing: 12) {
-                            assignmentField("Assignment title") {
-                                TextField("Assignment title", text: binding(\.title))
-                            }
-                            assignmentField("Assignment question or prompt") {
-                                TextField("Assignment question or prompt", text: promptBinding, axis: .vertical)
-                                    .lineLimit(2...6)
-                            }
-                            assignmentField("Student name or local identifier") {
-                                TextField("Student name or local identifier", text: binding(\.studentDisplayName))
-                            }
-                            assignmentField("Class or section") {
-                                TextField("Class or section", text: binding(\.className))
-                            }
-                            assignmentField("Subject") {
-                                TextField("Subject", text: binding(\.subject))
-                            }
-                            assignmentField("Grade level") {
-                                TextField("Grade level", text: binding(\.gradeLevel))
-                            }
-                            assignmentField("Assignment type") {
-                                Picker("Assignment type", selection: binding(\.assignmentType)) {
-                                    ForEach(AssignmentType.allCases) { type in
-                                        Text(type.displayName).tag(type)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                            }
-                        }
-                        HandwrittenAnnotation("Setup fields stay local and are used to build the teacher-reviewed grading packet.", theme: AssignmentWorkflowStationery.theme)
-                    }
-                }
-                .stationeryScreen(theme: AssignmentWorkflowStationery.theme)
-                .navigationTitle(assignment.title.isEmpty ? "Assignment" : assignment.title)
-            } else {
-                ContentUnavailableView(
-                    "Assignment not found",
-                    systemImage: "doc.text.magnifyingglass",
-                    description: Text("Return to Assignments and choose a saved assignment.")
-                )
-                .navigationTitle("Assignment")
-            }
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Save") { save() }
-                    .disabled(viewModel.assignment(for: assignmentID) == nil)
-            }
-        }
-        .onAppear { viewModel.selectAssignment(assignmentID) }
-        .fullScreenCover(isPresented: $showWizard) {
-            GradeWizardView(viewModel: viewModel, assignmentID: assignmentID)
+    var title: String {
+        switch self {
+        case .setup: return "Setup"
+        case .studentWork: return "Student Work"
+        case .scannedText: return "Scanned Text"
+        case .aiDraft: return "AI Draft"
+        case .finalReview: return "Final Review"
+        case .export: return "Export"
         }
     }
 
-    @ViewBuilder
-    private func assignmentField<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(GradeDraftTypography.helper.weight(.semibold))
-                .foregroundStyle(AssignmentWorkflowStationery.theme.mutedInk)
-            content()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AssignmentWorkflowStationery.theme.paperTint.opacity(0.72), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
-    }
-
-    private func workflowProgressSummary(for assignment: AssignmentRecord) -> some View {
-        let steps = workflowSteps(for: assignment)
-        let total = steps.count
-        let done = steps.filter { isStepComplete($0.status) }.count
-        let currentStep = min(done + 1, total)
-        let percent = total == 0 ? 0 : Int((Double(done) / Double(total) * 100).rounded())
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(done >= total ? "All steps complete" : "Step \(currentStep) of \(total)")
-                    .font(.system(.headline, design: .serif))
-                    .foregroundStyle(AssignmentWorkflowStationery.theme.ink)
-                Spacer(minLength: 8)
-                Text("\(percent)%")
-                    .font(.subheadline.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(AssignmentWorkflowStationery.theme.mutedInk)
-            }
-            ProgressView(value: Double(done), total: Double(max(total, 1)))
-                .tint(AssignmentWorkflowStationery.theme.accent)
-                .accessibilityLabel("Workflow progress")
-                .accessibilityValue("\(done) of \(total) steps complete")
+    var systemImage: String {
+        switch self {
+        case .setup: return "doc.text"
+        case .studentWork: return "tray.and.arrow.down"
+        case .scannedText: return "text.viewfinder"
+        case .aiDraft: return "sparkles"
+        case .finalReview: return "checklist"
+        case .export: return "square.and.arrow.up"
         }
     }
 
-    private func isStepComplete(_ status: GradeDraftUIStatus) -> Bool {
-        switch status {
-        case .onTrack, .approved, .readyToExport, .exported:
-            return true
-        default:
-            return false
+    /// The last part of the step's accessibility identifier.
+    var identifier: String {
+        switch self {
+        case .setup: return "setup"
+        case .studentWork: return "studentWork"
+        case .scannedText: return "scannedText"
+        case .aiDraft: return "aiDraft"
+        case .finalReview: return "finalReview"
+        case .export: return "export"
         }
-    }
-
-    private func workflowSteps(for assignment: AssignmentRecord) -> [WorkflowStepRow] {
-        [
-            WorkflowStepRow(index: 1, title: "Setup", detail: assignment.hasGradingStandard ? "Rubric or grading standard saved." : "Add a rubric, answer key, exemplar, or grading criteria.", status: assignment.hasGradingStandard ? .onTrack : .notStarted),
-            WorkflowStepRow(index: 2, title: "Student Work", detail: assignment.reviewedStudentText.isEmpty ? "Add student work for teacher-reviewed grading." : "Student work has been added.", status: assignment.reviewedStudentText.isEmpty ? .addStudentWork : .onTrack),
-            WorkflowStepRow(index: 3, title: GradeDraftWorkflowLanguage.ocrReviewStepLabel, detail: assignment.ocrReviewStatus.blocksGrading ? GradeDraftWorkflowLanguage.reviewScannedTextExplanation : "Text review gate is satisfied.", status: assignment.ocrReviewStatus.v6Status),
-            WorkflowStepRow(index: 4, title: "Rubric", detail: assignment.hasGradingStandard ? "Rubric or instructions ready for teacher review." : "Rubric needs fixes before grading.", status: assignment.hasGradingStandard ? .onTrack : .needsAttention),
-            WorkflowStepRow(index: 5, title: "Final Review", detail: finalReviewStepDetail(for: assignment), status: finalReviewStepStatus(for: assignment)),
-            WorkflowStepRow(index: 6, title: "Export", detail: assignment.isStudentFacingExportReady ? "Ready to export." : "Final approval required before student-facing export.", status: assignment.isStudentFacingExportReady ? .readyToExport : .notStarted)
-        ]
-    }
-
-    @ViewBuilder
-    private func nextDestination(for assignment: AssignmentRecord) -> some View {
-        switch viewModel.v6Status(for: assignment) {
-        case .addStudentWork:
-            StudentWorkScreen(viewModel: viewModel, assignmentID: assignment.id)
-        case .reviewScannedText, .textNeedsAttention:
-            ReviewScannedTextScreen(viewModel: viewModel, assignmentID: assignment.id)
-        case .reviewFinalGrade, .needsRecheck, .readyForTeacherReview, .inProgress:
-            FinalReviewScreen(viewModel: viewModel, assignmentID: assignment.id)
-        case .readyToExport, .approved, .exported:
-            ExportsRestoreScreen(viewModel: viewModel, assignmentID: assignment.id)
-                .toolbar(.hidden, for: .tabBar)
-        case .notStarted, .needsAttention, .fixBeforeContinuing, .onTrack, .studentFacing, .teacherOnly:
-            RubricInstructionsScreen(viewModel: viewModel, assignmentID: assignment.id)
-        }
-    }
-
-    private func nextUpDetail(for assignment: AssignmentRecord) -> String {
-        switch viewModel.v6Status(for: assignment) {
-        case .reviewScannedText, .textNeedsAttention:
-            return "Next up: \(GradeDraftWorkflowLanguage.reviewScannedTextExplanation)"
-        case .addStudentWork:
-            return "Next up: Add student work for teacher-reviewed grading."
-        case .needsRecheck:
-            return "Next up: Recheck review because student work, rubric, or evidence changed."
-        case .reviewFinalGrade:
-            return "Next up: Review final grade and approve each criterion."
-        case .readyToExport, .approved:
-            return "Next up: Export student-facing or teacher-only records."
-        default:
-            return "Next up: Complete setup and review requirements."
-        }
-    }
-
-    private func blockingIssues(for assignment: AssignmentRecord) -> [(title: String, detail: String, status: GradeDraftUIStatus)] {
-        var issues: [(String, String, GradeDraftUIStatus)] = []
-        if assignment.ocrReviewStatus == .blocked {
-            issues.append(("Text lines need checking", "Low confidence text needs review before grading.", .textNeedsAttention))
-        } else if assignment.ocrReviewStatus.blocksGrading {
-            issues.append(("Text lines need checking", GradeDraftWorkflowLanguage.reviewScannedTextExplanation, .fixBeforeContinuing))
-        }
-        if !assignment.hasGradingStandard {
-            issues.append(("Rubric needs fixes", "Add rubric, answer key, exemplar, or grading criteria.", .fixBeforeContinuing))
-        }
-        if assignment.finalReviewIsStale {
-            issues.append(("This review needs rechecking", "Student work, rubric, or evidence changed after this review was last saved.", .needsRecheck))
-        }
-        return issues
-    }
-
-    private func binding<Value>(_ keyPath: WritableKeyPath<AssignmentRecord, Value>) -> Binding<Value> {
-        Binding(
-            get: {
-                if let assignment = viewModel.assignment(for: assignmentID) {
-                    return assignment[keyPath: keyPath]
-                }
-                return viewModel.assignment[keyPath: keyPath]
-            },
-            set: { newValue in
-                viewModel.selectAssignment(assignmentID)
-                viewModel.updateAssignment { $0[keyPath: keyPath] = newValue }
-            }
-        )
-    }
-
-    private var promptBinding: Binding<String> {
-        Binding(
-            get: { viewModel.assignment(for: assignmentID)?.prompt ?? "" },
-            set: { value in
-                viewModel.selectAssignment(assignmentID)
-                viewModel.updateAssignment { $0.prompt = value.nilIfBlank }
-            }
-        )
-    }
-
-    private func save() {
-        do {
-            viewModel.selectAssignment(assignmentID)
-            try viewModel.saveCurrentAssignment()
-            viewModel.statusMessage = "Assignment saved locally."
-        } catch {
-            viewModel.errorMessage = error.localizedDescription
-        }
-    }
-
-    private func finalReviewStepDetail(for assignment: AssignmentRecord) -> String {
-        if assignment.finalReviewIsStale {
-            return "Recheck final review because student work, rubric, or evidence changed."
-        }
-        guard let finalReview = assignment.finalReview else {
-            return "Review final grade before export."
-        }
-        return finalReview.status == .approved ? "Teacher-approved final review is saved." : "Teacher final review is in progress."
-    }
-
-    private func finalReviewStepStatus(for assignment: AssignmentRecord) -> GradeDraftUIStatus {
-        if assignment.finalReviewIsStale { return .needsRecheck }
-        return assignment.finalReview?.status.v6Status ?? .reviewFinalGrade
     }
 }
+
+/// Where an assignment stands, step by step, worked out from the assignment's grading standard and
+/// each student's status. A step is complete only when every student has passed it. The messages for a
+/// step that is not complete come from `ReadinessIssue`.
+struct GradeWizardProgress: Equatable {
+    let hasGradingStandard: Bool
+    let submissions: [SubmissionSummary]
+
+    init(assignment: Assignment, submissions: [SubmissionSummary]) {
+        self.hasGradingStandard = assignment.hasGradingStandard
+        self.submissions = submissions
+    }
+
+    func count(_ status: RosterStatus) -> Int {
+        submissions.filter { $0.rosterStatus == status }.count
+    }
+
+    /// Students who have not yet passed the step.
+    private func notYetPast(_ step: GradeWizardStep) -> Set<RosterStatus> {
+        switch step {
+        case .setup:
+            return []
+        case .studentWork:
+            return [.notStarted]
+        case .scannedText:
+            return [.notStarted, .ocrReviewNeeded]
+        case .aiDraft:
+            return [.notStarted, .ocrReviewNeeded, .readyForGrading, .needsRecheck]
+        case .finalReview:
+            return Set(RosterStatus.allCases).subtracting([.approved, .exported])
+        case .export:
+            return Set(RosterStatus.allCases).subtracting([.exported])
+        }
+    }
+
+    /// The statuses a student is in when this step is the one for them to do next.
+    private func nextUp(for step: GradeWizardStep) -> Set<RosterStatus> {
+        switch step {
+        case .setup: return []
+        case .studentWork: return [.notStarted]
+        case .scannedText: return [.ocrReviewNeeded]
+        case .aiDraft: return [.readyForGrading, .needsRecheck]
+        case .finalReview: return [.draftGenerated, .finalReviewInProgress, .needsRecheck]
+        case .export: return [.approved]
+        }
+    }
+
+    func isComplete(_ step: GradeWizardStep) -> Bool {
+        if step == .setup { return hasGradingStandard }
+        return !submissions.isEmpty && submissions.allSatisfy { !notYetPast(step).contains($0.rosterStatus) }
+    }
+
+    var completedCount: Int {
+        GradeWizardStep.allCases.filter(isComplete).count
+    }
+
+    /// The first step that is not complete; nil when every step is.
+    var currentStep: GradeWizardStep? {
+        GradeWizardStep.allCases.first { !isComplete($0) }
+    }
+
+    /// The first student, in roster order, whose next task is this step.
+    func nextSubmission(for step: GradeWizardStep) -> SubmissionSummary? {
+        let statuses = nextUp(for: step)
+        return submissions.first { statuses.contains($0.rosterStatus) }
+    }
+
+    /// Why the step is not complete, in the words `ReadinessIssue` defines; nil when complete or when the
+    /// step is only waiting for an earlier one.
+    func issue(for step: GradeWizardStep) -> ReadinessIssue? {
+        guard !isComplete(step) else { return nil }
+        switch step {
+        case .setup:
+            return .missingGradingStandard
+        case .studentWork:
+            return .missingStudentWork
+        case .scannedText:
+            return count(.ocrReviewNeeded) > 0 ? .scannedTextNotMarkedReviewed : nil
+        case .aiDraft:
+            if count(.needsRecheck) > 0 { return .draftStale }
+            return count(.readyForGrading) > 0 ? .aiReadinessNotChecked : nil
+        case .finalReview:
+            if count(.needsRecheck) > 0 { return .finalReviewStale }
+            if count(.finalReviewInProgress) > 0 { return .criteriaNotApproved }
+            return count(.draftGenerated) > 0 ? .noFinalReview : nil
+        case .export:
+            let waiting = submissions.contains { ![.approved, .exported].contains($0.rosterStatus) }
+            return waiting ? .finalReviewNotApproved : nil
+        }
+    }
+
+    func status(_ step: GradeWizardStep) -> GradeDraftUIStatus {
+        if isComplete(step) {
+            switch step {
+            case .finalReview: return .approved
+            case .export: return .exported
+            default: return .onTrack
+            }
+        }
+        guard step == currentStep else { return .notStarted }
+        switch step {
+        case .setup: return .needsAttention
+        case .studentWork: return .addStudentWork
+        case .scannedText: return .reviewScannedText
+        case .aiDraft: return count(.needsRecheck) > 0 ? .needsRecheck : .readyForTeacherReview
+        case .finalReview: return count(.needsRecheck) > 0 ? .needsRecheck : .reviewFinalGrade
+        case .export: return .readyToExport
+        }
+    }
+
+    /// One status for the whole assignment: the current step's, or "Exported" when every step is complete.
+    var overallStatus: GradeDraftUIStatus {
+        currentStep.map(status) ?? .exported
+    }
+}
+
+// MARK: - Screen
+
+/// One assignment: its details, the six grading steps with the current one open, and every student's
+/// submission with its status.
+struct AssignmentOverviewScreen: View {
+    let model: AssignmentSetupModel
+    @State private var expandedSteps: Set<GradeWizardStep>
+
+    init(model: AssignmentSetupModel) {
+        self.model = model
+        var current = GradeWizardStep.export
+        if let setup = model.setup,
+           let step = GradeWizardProgress(assignment: setup.assignment, submissions: model.submissions).currentStep {
+            current = step
+        }
+        _expandedSteps = State(initialValue: [current])
+    }
+
+    var body: some View {
+        @Bindable var model = model
+        Group {
+            if let setup = model.setup {
+                content(setup)
+            } else {
+                ProgressView()
+            }
+        }
+        .alertMessage($model.alert)
+    }
+
+    private func content(_ setup: AssignmentSetup) -> some View {
+        let progress = GradeWizardProgress(assignment: setup.assignment, submissions: model.submissions)
+        let stepCount = GradeWizardStep.allCases.count
+        return List {
+            Section {
+                LabeledContent("Class", value: model.className)
+                LabeledContent("Rubric", value: rubricSummary(setup))
+                ProgressView("Progress", value: Double(progress.completedCount), total: Double(stepCount))
+                    .accessibilityValue("\(progress.completedCount) of \(stepCount) steps complete")
+                    .accessibilityIdentifier("assignmentOverview.progress")
+            }
+
+            Section("Assignment Details") {
+                TextField("Assignment title", text: model.text(\.title))
+                    .accessibilityIdentifier("assignmentOverview.title")
+                TextField("Assignment question or prompt", text: model.text(\.prompt), axis: .vertical)
+                    .accessibilityIdentifier("assignmentOverview.prompt")
+                TextField("Subject", text: model.text(\.subject))
+                    .accessibilityIdentifier("assignmentOverview.subject")
+                TextField("Grade level", text: model.text(\.gradeLevel))
+                    .accessibilityIdentifier("assignmentOverview.gradeLevel")
+                Picker("Assignment type", selection: assignmentType(setup)) {
+                    ForEach(AssignmentType.allCases) { type in
+                        Text(type.displayName).tag(type)
+                    }
+                }
+                .accessibilityIdentifier("assignmentOverview.type")
+            }
+
+            ForEach(GradeWizardStep.allCases) { step in
+                Section(isExpanded: expansion(of: step)) {
+                    stepRows(step, progress: progress, setup: setup)
+                } header: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(step.title, systemImage: step.systemImage)
+                            .font(.headline)
+                        StatusLabel(progress.status(step), subject: "\(step.title) status")
+                            .font(.subheadline)
+                    }
+                    .textCase(nil)
+                    .accessibilityIdentifier("assignmentOverview.step.\(step.identifier)")
+                }
+            }
+
+            Section("Students") {
+                if model.submissions.isEmpty {
+                    ContentUnavailableView(
+                        "No students yet",
+                        systemImage: "person.crop.circle.badge.plus",
+                        description: Text("Add students to the class to start grading this assignment.")
+                    )
+                } else {
+                    ForEach(model.submissions) { submission in
+                        NavigationLink(value: Route.submission(submission.id)) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(submission.studentName)
+                                    .font(.headline)
+                                StatusLabel(submission.rosterStatus.uiStatus, subject: "Grading status")
+                                    .font(.subheadline)
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                        .accessibilityIdentifier("assignmentOverview.submission.\(submission.id.uuidString)")
+                    }
+                }
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationTitle(setup.assignment.title.isEmpty ? "Assignment" : setup.assignment.title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // MARK: Steps
+
+    @ViewBuilder
+    private func stepRows(_ step: GradeWizardStep, progress: GradeWizardProgress, setup: AssignmentSetup) -> some View {
+        if let issue = progress.issue(for: step) {
+            Label {
+                Text(issue.message)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            }
+        }
+        switch step {
+        case .setup:
+            NavigationLink(value: Route.rubric(model.assignmentID)) {
+                Label("Rubric & Instructions", systemImage: "list.bullet.rectangle")
+            }
+            .accessibilityIdentifier("assignmentOverview.rubric")
+            NavigationLink(value: Route.curriculum(assignmentID: model.assignmentID)) {
+                LabeledContent {
+                    Text("\(setup.curriculumMappings.count)")
+                } label: {
+                    Label("Curriculum References", systemImage: "books.vertical")
+                }
+            }
+            .accessibilityIdentifier("assignmentOverview.curriculum")
+        case .studentWork:
+            LabeledContent("Students without work", value: "\(progress.count(.notStarted))")
+        case .scannedText:
+            LabeledContent("Scanned text to review", value: "\(progress.count(.ocrReviewNeeded))")
+        case .aiDraft:
+            if case .unavailable(let detail) = model.localAIStatus {
+                Label {
+                    Text(ReadinessIssue.localAIUnavailable(detail).message)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
+            } else {
+                LabeledContent("On-device AI", value: "Ready")
+            }
+            LabeledContent("Ready to draft", value: "\(progress.count(.readyForGrading))")
+            LabeledContent("Drafts to review", value: "\(progress.count(.draftGenerated))")
+        case .finalReview:
+            LabeledContent("Final reviews in progress", value: "\(progress.count(.finalReviewInProgress))")
+            LabeledContent("Needing recheck", value: "\(progress.count(.needsRecheck))")
+            LabeledContent("Approved", value: "\(progress.count(.approved) + progress.count(.exported)) of \(progress.submissions.count)")
+        case .export:
+            LabeledContent("Exported", value: "\(progress.count(.exported)) of \(progress.submissions.count)")
+        }
+        if let next = progress.nextSubmission(for: step) {
+            NavigationLink(value: Route.submission(next.id)) {
+                Label("Continue with \(next.studentName)", systemImage: "arrow.right.circle")
+            }
+            .accessibilityIdentifier("assignmentOverview.continue.\(step.identifier)")
+        }
+    }
+
+    private func expansion(of step: GradeWizardStep) -> Binding<Bool> {
+        Binding(
+            get: { expandedSteps.contains(step) },
+            set: { isExpanded in
+                if isExpanded {
+                    expandedSteps.insert(step)
+                } else {
+                    expandedSteps.remove(step)
+                }
+            }
+        )
+    }
+
+    private func assignmentType(_ setup: AssignmentSetup) -> Binding<AssignmentType> {
+        Binding(
+            get: { model.setup?.assignment.assignmentType ?? setup.assignment.assignmentType },
+            set: { newValue in model.edit { $0.assignment.assignmentType = newValue } }
+        )
+    }
+
+    private func rubricSummary(_ setup: AssignmentSetup) -> String {
+        guard setup.assignment.hasGradingStandard else { return "Not added" }
+        let count = setup.parsedRubric.criteria.count
+        if count == 0 { return "Added, no criteria read" }
+        return count == 1 ? "1 criterion" : "\(count) criteria"
+    }
+}
+
+#if DEBUG
+private struct AssignmentOverviewPreview: View {
+    @State private var model = PreviewFixtures.makeAppModel()
+
+    var body: some View {
+        NavigationStack {
+            RouteDestination(route: .assignment(PreviewFixtures.assignmentID), app: model)
+                .navigationDestination(for: Route.self) { RouteDestination(route: $0, app: model) }
+        }
+        .environment(model)
+        .task { await model.observeLists() }
+    }
+}
+
+#Preview("Light") {
+    AssignmentOverviewPreview()
+}
+
+#Preview("Dark") {
+    AssignmentOverviewPreview()
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Largest text") {
+    AssignmentOverviewPreview()
+        .dynamicTypeSize(.accessibility3)
+}
+#endif

@@ -1,179 +1,148 @@
 import XCTest
 @testable import GradeDraft
 
-// MARK: - AssignmentRecord edge cases
+// MARK: - Assignment, submission and grading-packet edge cases
 
-final class AssignmentRecordHardeningTests: XCTestCase {
+final class AssignmentHardeningTests: XCTestCase {
+    private func assignment(rubric: String = "", answerKey: String = "", exemplar: String = "") -> Assignment {
+        Assignment(classGroupID: UUID(), title: "Test", rubricText: rubric, answerKeyText: answerKey, exemplarText: exemplar)
+    }
+
+    /// An assignment with one student's pasted work.
+    private func pastedWork(rubric: String = "Claim: 0-4 points", text: String = "text") -> (setup: AssignmentSetup, graph: SubmissionGraph) {
+        let setup = AssignmentSetup(assignment: assignment(rubric: rubric))
+        let student = Student(displayName: "Student")
+        let graph = SubmissionGraph(
+            submission: Submission(assignmentID: setup.id, studentID: student.id, inputKind: .pasted, pastedText: text),
+            student: student
+        )
+        return (setup, graph)
+    }
+
+    private func emptyDraft(fingerprint: String) -> GradeDraftResult {
+        GradeDraftResult(
+            packetFingerprint: fingerprint,
+            studentResponseSummary: "", criteria: [],
+            studentFeedback: "", teacherNotes: "", uncertaintyFlags: []
+        )
+    }
+
+    private func emptyFinalReview(fingerprint: String) -> FinalGradeReview {
+        FinalGradeReview(
+            packetFingerprint: fingerprint,
+            criteria: [],
+            studentFeedback: "", privateTeacherNotes: "", teacherEdited: false
+        )
+    }
+
     func testHasGradingStandardWithRubricOnly() {
-        let record = AssignmentRecord(rubricText: "Claim: 0-4 points")
-        XCTAssertTrue(record.hasGradingStandard)
+        XCTAssertTrue(assignment(rubric: "Claim: 0-4 points").hasGradingStandard)
     }
 
     func testHasGradingStandardWithAnswerKeyOnly() {
-        let record = AssignmentRecord(answerKeyText: "Two examples needed.")
-        XCTAssertTrue(record.hasGradingStandard)
+        XCTAssertTrue(assignment(answerKey: "Two examples needed.").hasGradingStandard)
     }
 
     func testHasGradingStandardWithExemplarOnly() {
-        let record = AssignmentRecord(exemplarText: "Model response here.")
-        XCTAssertTrue(record.hasGradingStandard)
+        XCTAssertTrue(assignment(exemplar: "Model response here.").hasGradingStandard)
     }
 
     func testHasNoGradingStandard() {
-        let record = AssignmentRecord(rubricText: "", answerKeyText: "", exemplarText: "")
-        XCTAssertFalse(record.hasGradingStandard)
+        XCTAssertFalse(assignment().hasGradingStandard)
     }
 
     func testHasNoGradingStandardWhitespaceOnly() {
-        let record = AssignmentRecord(rubricText: "  ", answerKeyText: " ", exemplarText: "\n")
-        XCTAssertFalse(record.hasGradingStandard)
+        XCTAssertFalse(assignment(rubric: "  ", answerKey: " ", exemplar: "\n").hasGradingStandard)
     }
 
-    func testRequiresOCRReviewBeforeGrading() {
-        XCTAssertTrue(AssignmentRecord(ocrReviewStatus: .needsReview).requiresOCRReviewBeforeGrading)
-        XCTAssertTrue(AssignmentRecord(ocrReviewStatus: .blocked).requiresOCRReviewBeforeGrading)
-        XCTAssertFalse(AssignmentRecord(ocrReviewStatus: .notNeeded).requiresOCRReviewBeforeGrading)
-        XCTAssertFalse(AssignmentRecord(ocrReviewStatus: .reviewed).requiresOCRReviewBeforeGrading)
-    }
-
-    func testGradingPacketFingerprintChangesWithRubric() {
-        var record = AssignmentRecord(title: "Test", rubricText: "Claim: 0-4 points", reviewedStudentText: "text")
-        let fingerprintBefore = record.gradingPacketFingerprint
-        record.rubricText = "Evidence: 0-2 points"
-        let fingerprintAfter = record.gradingPacketFingerprint
+    func testGradingPacketFingerprintChangesWithRubric() throws {
+        var work = pastedWork()
+        let fingerprintBefore = try work.graph.packetFingerprint(setup: work.setup)
+        work.setup.assignment.rubricText = "Evidence: 0-2 points"
+        let fingerprintAfter = try work.graph.packetFingerprint(setup: work.setup)
         XCTAssertNotEqual(fingerprintBefore, fingerprintAfter)
     }
 
-    func testGradingPacketFingerprintChangesWithStudentText() {
-        var record = AssignmentRecord(title: "Test", rubricText: "Claim: 0-4 points", reviewedStudentText: "text A")
-        let fingerprintBefore = record.gradingPacketFingerprint
-        record.reviewedStudentText = "text B"
-        let fingerprintAfter = record.gradingPacketFingerprint
+    func testGradingPacketFingerprintChangesWithStudentText() throws {
+        var work = pastedWork(text: "text A")
+        let fingerprintBefore = try work.graph.packetFingerprint(setup: work.setup)
+        work.graph.submission.pastedText = "text B"
+        let fingerprintAfter = try work.graph.packetFingerprint(setup: work.setup)
         XCTAssertNotEqual(fingerprintBefore, fingerprintAfter)
     }
 
-    func testGradingPacketFingerprintChangesWithOCRStatus() {
-        var record = AssignmentRecord(title: "Test", rubricText: "Claim: 0-4 points", reviewedStudentText: "text")
-        record.ocrReviewStatus = .notNeeded
-        let fingerprintBefore = record.gradingPacketFingerprint
-        record.ocrReviewStatus = .reviewed
-        let fingerprintAfter = record.gradingPacketFingerprint
-        XCTAssertNotEqual(fingerprintBefore, fingerprintAfter)
+    func testDraftIsStaleWhenFingerprintDiffers() throws {
+        var work = pastedWork()
+        work.graph.draft = emptyDraft(fingerprint: "old-fingerprint")
+        XCTAssertTrue(try work.graph.draftIsStale(setup: work.setup))
     }
 
-    func testLatestDraftIsStaleWhenFingerprintDiffers() {
-        var record = AssignmentRecord(title: "Test", rubricText: "Claim: 0-4 points", reviewedStudentText: "text")
-        record.latestDraft = GradeDraftResult(
-            packetFingerprint: "old-fingerprint",
-            studentResponseSummary: "", criteria: [], totalScore: 0, maxScore: 0,
-            studentFeedback: "", teacherNotes: "", uncertaintyFlags: []
-        )
-        XCTAssertTrue(record.latestDraftIsStale)
+    func testDraftIsNotStaleWhenFingerprintMatches() throws {
+        var work = pastedWork()
+        work.graph.draft = emptyDraft(fingerprint: try work.graph.packetFingerprint(setup: work.setup))
+        XCTAssertFalse(try work.graph.draftIsStale(setup: work.setup))
     }
 
-    func testLatestDraftIsNotStaleWhenFingerprintMatches() {
-        var record = AssignmentRecord(title: "Test", rubricText: "Claim: 0-4 points", reviewedStudentText: "text")
-        record.latestDraft = GradeDraftResult(
-            packetFingerprint: record.gradingPacketFingerprint,
-            studentResponseSummary: "", criteria: [], totalScore: 0, maxScore: 0,
-            studentFeedback: "", teacherNotes: "", uncertaintyFlags: []
-        )
-        XCTAssertFalse(record.latestDraftIsStale)
+    func testFinalReviewIsStaleWhenFingerprintDiffers() throws {
+        var work = pastedWork()
+        work.graph.finalReview = emptyFinalReview(fingerprint: "old-fingerprint")
+        XCTAssertTrue(try work.graph.finalReviewIsStale(setup: work.setup))
     }
 
-    func testFinalReviewIsStaleWhenFingerprintDiffers() {
-        var record = AssignmentRecord(title: "Test", rubricText: "Claim: 0-4 points", reviewedStudentText: "text")
-        record.finalReview = FinalGradeReview(
-            packetFingerprint: "old-fingerprint",
-            criteria: [], totalScore: 0, maxScore: 0,
-            studentFeedback: "", privateTeacherNotes: "", teacherEdited: false
-        )
-        XCTAssertTrue(record.finalReviewIsStale)
+    func testSourceReferencedReviewedTextWithoutOCR() throws {
+        let work = pastedWork(text: "plain text")
+        let input = try GradingPacketBuilder.gradingInput(setup: work.setup, graph: work.graph, className: "6A", mappedItems: [])
+        XCTAssertEqual(input.reviewedTextWithSourceRefs, "plain text")
     }
 
-    func testSourceReferencedReviewedTextWithoutOCR() {
-        let record = AssignmentRecord(reviewedStudentText: "plain text")
-        XCTAssertEqual(record.sourceReferencedReviewedText, "plain text")
-    }
-
-    func testSourceReferencedReviewedTextWithOCR() {
-        var record = AssignmentRecord(reviewedStudentText: "")
-        record.ocrDocument = OCRDocument(
+    func testSourceReferencedReviewedTextWithOCR() throws {
+        var work = pastedWork(text: "")
+        work.graph.submission.inputKind = .scanned
+        work.graph.submission.pastedText = nil
+        work.graph.ocr = OCRDocument(
             pages: [OCRPage(pageIndex: 0, lines: [
-                OCRLine(text: "line one", confidence: 0.9, boundingBox: .zero)
+                OCRLine(text: "line one", confidence: 0.9, boundingBox: .zero, origin: .visionOCR)
             ])]
         )
-        let result = record.sourceReferencedReviewedText
-        XCTAssertTrue(result.contains("[p1-l1-"))
-        XCTAssertTrue(result.contains("line one"))
+        let input = try GradingPacketBuilder.gradingInput(setup: work.setup, graph: work.graph, className: "6A", mappedItems: [])
+        XCTAssertTrue(input.reviewedTextWithSourceRefs.contains("[p1-l1-"))
+        XCTAssertTrue(input.reviewedTextWithSourceRefs.contains("line one"))
     }
 
-    func testAuditEventAppend() {
-        var record = AssignmentRecord()
-        XCTAssertTrue(record.auditEvents.isEmpty)
-        record.appendAuditEvent(.assignmentCreated, detail: "Test event")
-        XCTAssertEqual(record.auditEvents.count, 1)
-        XCTAssertEqual(record.auditEvents[0].eventType, .assignmentCreated)
+    func testAuditEventAppend() async throws {
+        let fixture = try ExportFixtureFactory.baseAssignment()
+        let database = try AppDatabase.inMemory()
+        _ = try await database.restore(fixture.snapshot, resolutions: [:])
+        let beforeGraph = try await database.submission(id: fixture.submission.id)
+        XCTAssertTrue(try XCTUnwrap(beforeGraph).audit.isEmpty)
+
+        try await database.appendAudit(AuditEvent(
+            assignmentID: fixture.setup.id,
+            submissionID: fixture.submission.id,
+            eventType: .assignmentCreated,
+            detail: "Test event"
+        ))
+
+        let afterGraph = try await database.submission(id: fixture.submission.id)
+        let after = try XCTUnwrap(afterGraph).audit
+        XCTAssertEqual(after.count, 1)
+        XCTAssertEqual(after.first?.eventType, .assignmentCreated)
     }
 
     func testGradingInputIsReadyForGrading() {
-        let input = GradingInput(
-            assignmentID: UUID(),
-            assignmentTitle: "Test",
-            prompt: "",
-            subject: "",
-            gradeLevel: "",
-            className: "",
-            studentDisplayName: "",
-            assignmentType: .essay,
-            rubricText: "Claim: 0-4 points",
-            parsedRubric: RubricParser.parse("Claim: 0-4 points"),
-            customInstructions: "",
-            answerKeyText: "",
-            exemplarText: "",
-            assessmentPurpose: .summative,
-            curriculumReference: "",
-            reviewedStudentText: "Student text",
-            reviewedTextWithSourceRefs: "Student text",
-            ocrQualitySummary: OCRQualitySummary(),
-            ocrReviewStatus: .notNeeded,
-            sourceInputCount: 0,
-            packetFingerprint: "fp",
-            hasGradingStandard: true
-        )
-        XCTAssertTrue(input.isReadyForGrading)
+        XCTAssertTrue(gradingInput(rubric: "Claim: 0-4 points", hasGradingStandard: true, ocrReviewStatus: .reviewed).isReadyForGrading)
     }
 
     func testGradingInputNotReadyWithoutStandard() {
-        let input = GradingInput(
-            assignmentID: UUID(),
-            assignmentTitle: "Test",
-            prompt: "",
-            subject: "",
-            gradeLevel: "",
-            className: "",
-            studentDisplayName: "",
-            assignmentType: .essay,
-            rubricText: "",
-            parsedRubric: ParsedRubric(criteria: [], issues: []),
-            customInstructions: "",
-            answerKeyText: "",
-            exemplarText: "",
-            assessmentPurpose: .summative,
-            curriculumReference: "",
-            reviewedStudentText: "Student text",
-            reviewedTextWithSourceRefs: "Student text",
-            ocrQualitySummary: OCRQualitySummary(),
-            ocrReviewStatus: .notNeeded,
-            sourceInputCount: 0,
-            packetFingerprint: "fp",
-            hasGradingStandard: false
-        )
-        XCTAssertFalse(input.isReadyForGrading)
+        XCTAssertFalse(gradingInput(rubric: "", hasGradingStandard: false, ocrReviewStatus: .reviewed).isReadyForGrading)
     }
 
     func testGradingInputNotReadyWithBlockingOCR() {
-        let input = GradingInput(
+        XCTAssertFalse(gradingInput(rubric: "Claim: 0-4 points", hasGradingStandard: true, ocrReviewStatus: .needsReview).isReadyForGrading)
+    }
+
+    private func gradingInput(rubric: String, hasGradingStandard: Bool, ocrReviewStatus: OCRReviewStatus) -> GradingInput {
+        GradingInput(
             assignmentID: UUID(),
             assignmentTitle: "Test",
             prompt: "",
@@ -182,8 +151,8 @@ final class AssignmentRecordHardeningTests: XCTestCase {
             className: "",
             studentDisplayName: "",
             assignmentType: .essay,
-            rubricText: "Claim: 0-4 points",
-            parsedRubric: RubricParser.parse("Claim: 0-4 points"),
+            rubricText: rubric,
+            parsedRubric: rubric.isEmpty ? ParsedRubric(criteria: [], issues: []) : RubricParser.parse(rubric),
             customInstructions: "",
             answerKeyText: "",
             exemplarText: "",
@@ -192,11 +161,10 @@ final class AssignmentRecordHardeningTests: XCTestCase {
             reviewedStudentText: "Student text",
             reviewedTextWithSourceRefs: "Student text",
             ocrQualitySummary: OCRQualitySummary(),
-            ocrReviewStatus: .needsReview,
+            ocrReviewStatus: ocrReviewStatus,
             sourceInputCount: 0,
             packetFingerprint: "fp",
-            hasGradingStandard: true
+            hasGradingStandard: hasGradingStandard
         )
-        XCTAssertFalse(input.isReadyForGrading)
     }
 }

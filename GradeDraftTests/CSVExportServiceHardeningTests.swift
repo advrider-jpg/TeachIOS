@@ -4,65 +4,54 @@ import XCTest
 // MARK: - CSVExportService edge cases
 
 final class CSVExportServiceHardeningTests: XCTestCase {
-    func testEmptyAssignmentListProducesHeaderOnly() {
-        let rows = CSVExportService.buildStudentRows(from: [])
+    func testEmptySubmissionListProducesHeaderOnly() throws {
+        let fixture = try ExportFixtureFactory.baseAssignment()
+        let rows = try parsedRows(setup: fixture.setup, submissions: [])
         XCTAssertEqual(rows.count, 1, "Should only have header row")
-        XCTAssertTrue(rows[0].contains("assignment_id"))
+        XCTAssertTrue(rows[0].contains("student"))
     }
 
-    func testMultipleAssignmentsProduceMultipleRows() {
-        let assignmentA = AssignmentRecord(title: "A", rubricText: "Claim: 0-4 points", reviewedStudentText: "text")
-        let assignmentB = AssignmentRecord(title: "B", rubricText: "Evidence: 0-2 points", reviewedStudentText: "text")
-        let rows = CSVExportService.buildStudentRows(from: [assignmentA, assignmentB])
+    func testMultipleStudentsProduceMultipleRows() throws {
+        let first = try ExportFixtureFactory.baseAssignment(student: "A")
+        var second = first
+        second.submission.student = Student(displayName: "B")
+        second.submission.submission.studentID = second.submission.student.id
+        let rows = try parsedRows(setup: first.setup, submissions: [first.submission, second.submission])
         XCTAssertEqual(rows.count, 3, "Header + 2 data rows")
     }
 
     func testCSVOutputHasCorrectHeaderColumns() throws {
-        let csv = CSVExportService.exportedCSV(from: [])
-        let rows = try CSVParser.parseRows(csv)
-        XCTAssertEqual(rows.first?.first, "assignment_id")
-        XCTAssertTrue(rows.first?.contains("final_status") == true)
-        XCTAssertTrue(rows.first?.contains("ocr_status") == true)
-        XCTAssertTrue(csv.hasPrefix("\"assignment_id\""))
+        let fixture = try ExportFixtureFactory.baseAssignment()
+        let csv = CSVExportService.gradebookCSV(setup: fixture.setup, submissions: [])
+        let rows = try CSVParser.parseRows(String(csv.dropFirst()))
+        XCTAssertEqual(rows.first?.first, "student")
+        XCTAssertTrue(rows.first?.contains("status") == true)
+        XCTAssertTrue(rows.first?.contains("total_score") == true)
+        XCTAssertTrue(csv.hasPrefix("\u{FEFF}\"student\""))
     }
 
-    func testCSVNoPrivateNotesExposed() {
-        var assignment = AssignmentRecord(title: "Test")
-        assignment.reviewedStudentText = "text"
-        assignment.rubricText = "Claim: 0-4 points"
-        assignment.latestDraft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [],
-            totalScore: 0,
-            maxScore: 0,
-            studentFeedback: "",
-            teacherNotes: "SECRET PRIVATE NOTE",
-            uncertaintyFlags: []
-        )
-        let csv = CSVExportService.exportedCSV(from: [assignment])
+    func testCSVNoPrivateNotesExposed() throws {
+        var fixture = try ExportFixtureFactory.draftOnlyAssignment()
+        fixture.submission.draft?.teacherNotes = "SECRET PRIVATE NOTE"
+        let csv = CSVExportService.gradebookCSV(setup: fixture.setup, submissions: [fixture.submission])
         XCTAssertFalse(csv.contains("SECRET PRIVATE NOTE"))
     }
 
-    func testDraftStatusNotGenerated() {
-        let assignment = AssignmentRecord(title: "No draft")
-        let rows = CSVExportService.buildStudentRows(from: [assignment])
-        XCTAssertEqual(rows[1][12], "not_generated")
+    func testNoDraftAndNoFinalReviewIsPendingWithBlankSuggestion() throws {
+        let fixture = try ExportFixtureFactory.baseAssignment()
+        let rows = try parsedRows(setup: fixture.setup, submissions: [fixture.submission])
+        XCTAssertEqual(rows[1][2], "pending_final_review")
+        XCTAssertEqual(rows[1][5], "")
     }
 
-    func testInProgressFinalStatus() {
-        var assignment = AssignmentRecord(title: "In progress")
-        assignment.rubricText = "Claim: 0-4 points"
-        assignment.reviewedStudentText = "text"
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .inProgress,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim", rating: "", proposedPoints: 0, finalPoints: 2,
-                maxPoints: 4, evidence: [], explanation: "", teacherApproved: false
-            )],
-            totalScore: 2, maxScore: 4, studentFeedback: "", privateTeacherNotes: "", teacherEdited: false
-        )
-        let rows = CSVExportService.buildStudentRows(from: [assignment])
-        XCTAssertEqual(rows[1][10], "in_progress")
+    func testInProgressFinalStatus() throws {
+        let fixture = try ExportFixtureFactory.inProgressFinalReviewAssignment()
+        let rows = try parsedRows(setup: fixture.setup, submissions: [fixture.submission])
+        XCTAssertEqual(rows[1][2], "in_progress")
+    }
+
+    /// The file starts with a byte-order mark, which the parser does not read.
+    private func parsedRows(setup: AssignmentSetup, submissions: [SubmissionGraph]) throws -> [[String]] {
+        try CSVParser.parseRows(String(CSVExportService.gradebookCSV(setup: setup, submissions: submissions).dropFirst()))
     }
 }

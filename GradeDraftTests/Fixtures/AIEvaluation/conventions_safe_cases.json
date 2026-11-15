@@ -22,7 +22,7 @@
     "answerKeyText": "Relevant reasons include reducing rubbish or conserving resources.",
     "exemplarText": "",
     "curriculumReference": "",
-    "ocrReviewStatus": "notNeeded",
+    "ocrReviewStatus": "reviewed",
     "expected": {
       "mustNotContain": ["lower because spelling", "final grade"],
       "mustContainTeacherReviewReasons": [],

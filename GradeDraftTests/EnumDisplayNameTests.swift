@@ -23,7 +23,7 @@ final class EnumDisplayNameTests: XCTestCase {
     }
 
     func testExportKindDisplayNames() {
-        let allKinds: [ExportKind] = [.studentMarkdown, .teacherAuditMarkdown, .studentPDF, .teacherAuditPDF, .csvGradebook, .zipArchive, .fullBackupArchive, .backupJSON, .assignmentGradebookArchive]
+        let allKinds: [ExportKind] = [.studentMarkdown, .teacherAuditMarkdown, .studentPDF, .teacherAuditPDF, .csvGradebook, .zipArchive, .fullBackupArchive]
         for kind in allKinds {
             XCTAssertFalse(kind.displayName.isEmpty, "\(kind.rawValue) should have a display name")
         }

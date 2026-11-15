@@ -9,68 +9,59 @@ enum TemplateInsertionMode: String, Codable, Equatable {
 }
 
 enum GradeDraftTemplateApplication {
-    static func applyingRubricTemplate(_ template: RubricTemplate, to assignment: AssignmentRecord, resetDrafts: Bool = false) -> AssignmentRecord {
-        var copy = assignment
-        copy.assignmentType = template.assignmentType
-        copy.assessmentPurpose = template.assessmentPurpose
-        copy.rubricText = template.rubricText
-        copy.rubricImportMode = .automatic
-        copy.confirmedParsedRubric = nil
-        copy.customInstructions = template.customInstructions
+    static func applyingRubricTemplate(_ template: RubricTemplate, to setup: AssignmentSetup) -> AssignmentSetup {
+        var copy = setup
+        copy.assignment.assignmentType = template.assignmentType
+        copy.assignment.assessmentPurpose = template.assessmentPurpose
+        copy.assignment.rubricText = template.rubricText
+        copy.assignment.rubricImportMode = .automatic
+        copy.assignment.confirmedRubric = nil
+        copy.assignment.customInstructions = template.customInstructions
         copy.recordAppliedTemplate(id: template.id, name: template.name, kind: .rubric, mode: .replace)
-        if resetDrafts {
-            copy.latestDraft = nil
-            copy.finalReview = nil
-        }
-        copy.updatedAt = Date()
-        copy.appendAuditEvent(.inputChanged, detail: "Applied rubric template: \(template.name)")
+        copy.assignment.updatedAt = Date()
         return copy
     }
 
-    static func appendingInstructionTemplate(_ template: TeacherInstructionTemplate, to assignment: AssignmentRecord, mode: TemplateInsertionMode = .append) -> AssignmentRecord {
-        var copy = assignment
+    static func appendingInstructionTemplate(_ template: TeacherInstructionTemplate, to setup: AssignmentSetup, mode: TemplateInsertionMode = .append) -> AssignmentSetup {
+        var copy = setup
         let incoming = markedMarkdown(kind: .teacherInstruction, templateID: template.id, content: "## \(template.name)\n\n\(template.text.trimmingCharacters(in: .whitespacesAndNewlines))")
-        guard shouldApply(kind: .teacherInstruction, templateID: template.id, to: copy.customInstructions, mode: mode) else { return copy }
-        copy.customInstructions = mergedMarkdown(existing: copy.customInstructions, incoming: incoming, mode: mode)
+        guard shouldApply(kind: .teacherInstruction, templateID: template.id, to: copy.assignment.customInstructions, mode: mode) else { return copy }
+        copy.assignment.customInstructions = mergedMarkdown(existing: copy.assignment.customInstructions, incoming: incoming, mode: mode)
         copy.recordAppliedTemplate(id: template.id, name: template.name, kind: .teacherInstruction, mode: mode)
-        copy.updatedAt = Date()
-        copy.appendAuditEvent(.inputChanged, detail: "Appended teacher instruction template: \(template.name)")
+        copy.assignment.updatedAt = Date()
         return copy
     }
 
-    static func insertingAnswerKeyTemplate(_ template: AnswerKeyTemplate, to assignment: AssignmentRecord, mode: TemplateInsertionMode = .append) -> AssignmentRecord {
-        var copy = assignment
+    static func insertingAnswerKeyTemplate(_ template: AnswerKeyTemplate, to setup: AssignmentSetup, mode: TemplateInsertionMode = .append) -> AssignmentSetup {
+        var copy = setup
         let incoming = markedMarkdown(kind: .answerKey, templateID: template.id, content: template.markdownTemplate)
-        guard shouldApply(kind: .answerKey, templateID: template.id, to: copy.answerKeyText, mode: mode) else { return copy }
-        copy.answerKeyText = mergedMarkdown(existing: copy.answerKeyText, incoming: incoming, mode: mode)
+        guard shouldApply(kind: .answerKey, templateID: template.id, to: copy.assignment.answerKeyText, mode: mode) else { return copy }
+        copy.assignment.answerKeyText = mergedMarkdown(existing: copy.assignment.answerKeyText, incoming: incoming, mode: mode)
         copy.recordAppliedTemplate(id: template.id, name: template.name, kind: .answerKey, mode: mode)
-        copy.updatedAt = Date()
-        copy.appendAuditEvent(.inputChanged, detail: "Inserted answer-key template: \(template.name)")
+        copy.assignment.updatedAt = Date()
         return copy
     }
 
-    static func insertingExemplarTemplate(_ template: ExemplarTemplate, to assignment: AssignmentRecord, mode: TemplateInsertionMode = .append) -> AssignmentRecord {
-        var copy = assignment
+    static func insertingExemplarTemplate(_ template: ExemplarTemplate, to setup: AssignmentSetup, mode: TemplateInsertionMode = .append) -> AssignmentSetup {
+        var copy = setup
         let incoming = markedMarkdown(kind: .exemplar, templateID: template.id, content: template.markdownTemplate)
-        guard shouldApply(kind: .exemplar, templateID: template.id, to: copy.exemplarText, mode: mode) else { return copy }
-        copy.exemplarText = mergedMarkdown(existing: copy.exemplarText, incoming: incoming, mode: mode)
+        guard shouldApply(kind: .exemplar, templateID: template.id, to: copy.assignment.exemplarText, mode: mode) else { return copy }
+        copy.assignment.exemplarText = mergedMarkdown(existing: copy.assignment.exemplarText, incoming: incoming, mode: mode)
         copy.recordAppliedTemplate(id: template.id, name: template.name, kind: .exemplar, mode: mode)
-        copy.updatedAt = Date()
-        copy.appendAuditEvent(.inputChanged, detail: "Inserted exemplar template: \(template.name)")
+        copy.assignment.updatedAt = Date()
         return copy
     }
 
-    static func insertingFormativeFocusTemplate(_ template: FormativeFocusTemplate, to assignment: AssignmentRecord, mode: TemplateInsertionMode = .append) -> AssignmentRecord {
-        var copy = assignment
+    static func insertingFormativeFocusTemplate(_ template: FormativeFocusTemplate, to setup: AssignmentSetup, mode: TemplateInsertionMode = .append) -> AssignmentSetup {
+        var copy = setup
         let incoming = markedMarkdown(kind: .formativeFocus, templateID: template.id, content: template.markdownTemplate)
-        guard shouldApply(kind: .formativeFocus, templateID: template.id, to: copy.formativeFocusText, mode: mode) else { return copy }
-        copy.formativeFocusText = mergedMarkdown(existing: copy.formativeFocusText, incoming: incoming, mode: mode)
+        guard shouldApply(kind: .formativeFocus, templateID: template.id, to: copy.assignment.formativeFocusText, mode: mode) else { return copy }
+        copy.assignment.formativeFocusText = mergedMarkdown(existing: copy.assignment.formativeFocusText, incoming: incoming, mode: mode)
         copy.recordAppliedTemplate(id: template.id, name: template.name, kind: .formativeFocus, mode: mode)
-        if copy.assessmentPurpose != .formative {
-            copy.assessmentPurpose = .formative
+        if copy.assignment.assessmentPurpose != .formative {
+            copy.assignment.assessmentPurpose = .formative
         }
-        copy.updatedAt = Date()
-        copy.appendAuditEvent(.inputChanged, detail: "Inserted formative focus template: \(template.name)")
+        copy.assignment.updatedAt = Date()
         return copy
     }
 
@@ -110,13 +101,14 @@ enum GradeDraftTemplateApplication {
     }
 }
 
-private extension AssignmentRecord {
+private extension AssignmentSetup {
     mutating func recordAppliedTemplate(id: String, name: String, kind: GradeDraftTemplateKind, mode: TemplateInsertionMode) {
         if mode != .appendAgain {
             appliedTemplates.removeAll { $0.templateID == id && $0.templateKind == kind }
         }
         appliedTemplates.append(
             AppliedTemplateRecord(
+                assignmentID: assignment.id,
                 templateID: id,
                 templateName: name,
                 templateKind: kind,

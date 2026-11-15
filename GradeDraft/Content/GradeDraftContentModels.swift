@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 
 // MARK: - Planned grading-content model layer
 
@@ -82,8 +83,11 @@ enum GradeDraftTemplateKind: String, CaseIterable, Codable, Equatable, Identifia
     }
 }
 
-struct AppliedTemplateRecord: Identifiable, Codable, Equatable {
+struct AppliedTemplateRecord: Identifiable, Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "appliedTemplate"
+
     var id: UUID
+    var assignmentID: UUID
     var templateID: String
     var templateName: String
     var templateKind: GradeDraftTemplateKind
@@ -92,6 +96,7 @@ struct AppliedTemplateRecord: Identifiable, Codable, Equatable {
 
     init(
         id: UUID = UUID(),
+        assignmentID: UUID,
         templateID: String,
         templateName: String,
         templateKind: GradeDraftTemplateKind,
@@ -99,6 +104,7 @@ struct AppliedTemplateRecord: Identifiable, Codable, Equatable {
         insertionMode: TemplateInsertionMode
     ) {
         self.id = id
+        self.assignmentID = assignmentID
         self.templateID = templateID
         self.templateName = templateName
         self.templateKind = templateKind

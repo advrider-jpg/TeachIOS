@@ -10,12 +10,17 @@ opt_in_rules:
   - empty_string
   - first_where
   - closure_spacing
+  - force_unwrapping
 
 included:
   - GradeDraft
   - GradeDraftTests
+  - GradeDraftUITests
 
 excluded:
   - .build
   - DerivedData
   - GradeDraft.xcodeproj
+
+todo:
+  severity: error

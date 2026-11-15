@@ -81,13 +81,6 @@ enum CSVParser {
             case "\n":
                 appendRow()
                 index = nextIndex
-            case "\r":
-                appendRow()
-                if nextIndex < normalizedCSVText.endIndex, normalizedCSVText[nextIndex] == "\n" {
-                    index = normalizedCSVText.index(after: nextIndex)
-                } else {
-                    index = nextIndex
-                }
             default:
                 field.append(character)
                 index = nextIndex

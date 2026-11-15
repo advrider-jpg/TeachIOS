@@ -22,7 +22,7 @@
     "answerKeyText": "Accept relevant safety rules such as wearing goggles, tying hair back, or following teacher instructions.",
     "exemplarText": "",
     "curriculumReference": "",
-    "ocrReviewStatus": "notNeeded",
+    "ocrReviewStatus": "reviewed",
     "expected": {
       "mustNotContain": ["disability", "support level", "final grade"],
       "mustContainTeacherReviewReasons": [],

@@ -1,229 +1,130 @@
 import SwiftUI
 
-enum GradeDraftTab: String, CaseIterable, Hashable, Identifiable {
-    case home
-    case classes
-    case assignments
-    case review
-    case exports
+/// The window's root: the storage error screen when saved work cannot be opened, otherwise the tabs.
+/// Open Assignment Shortcuts are routed here.
+struct RootView: View {
+    @Environment(AppModel.self) private var appModel
+    var retryStorage: () -> Void
 
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .home:
-            return "Home"
-        case .classes:
-            return "Classes"
-        case .assignments:
-            return "Assignments"
-        case .review:
-            return "Review"
-        case .exports:
-            return "Exports"
+    var body: some View {
+        Group {
+            if let startupError = appModel.startupError, appModel.database == nil {
+                StorageErrorView(error: startupError, tryAgain: retryStorage)
+            } else {
+                AppTabShell()
+            }
         }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .home:
-            return "house"
-        case .classes:
-            return "person.2"
-        case .assignments:
-            return "doc.text"
-        case .review:
-            return "checklist"
-        case .exports:
-            return "square.and.arrow.up"
+        .onAppIntentExecution(OpenSubmissionIntent.self) { intent in
+            appModel.open(intent.target.id, destination: intent.destination ?? .overview)
         }
     }
 }
 
+/// Home, Classes, Assignments, Review and Exports, declared once. On iPad the tab bar becomes a sidebar.
+/// Each tab has its own navigation stack whose path is a list of `Route`s, saved per window.
 struct AppTabShell: View {
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @ObservedObject var viewModel: GradeDraftViewModel
-    @State private var selectedTab: GradeDraftTab = .home
-    @State private var launchRoute: AppLaunchRoute?
+    @Environment(AppModel.self) private var appModel
+    @Environment(\.scenePhase) private var scenePhase
+
+    @SceneStorage("navigation.home") private var homePath: Data?
+    @SceneStorage("navigation.classes") private var classesPath: Data?
+    @SceneStorage("navigation.assignments") private var assignmentsPath: Data?
+    @SceneStorage("navigation.review") private var reviewPath: Data?
+    @SceneStorage("navigation.exports") private var exportsPath: Data?
+    @State private var restoredPaths = false
 
     var body: some View {
-        rootShell
-        .task { viewModel.refreshCapabilityStatus() }
-        .task { consumePendingLaunchRequest() }
-        .alert("MarkForMe", isPresented: Binding(
-            get: { viewModel.errorMessage != nil },
-            set: { if !$0 { viewModel.errorMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) { viewModel.errorMessage = nil }
-        } message: {
-            Text(viewModel.errorMessage ?? "Unknown error")
-        }
-    }
-
-    @ViewBuilder
-    private var rootShell: some View {
-        if horizontalSizeClass == .regular {
-            NavigationSplitView {
-                List {
-                    ForEach(GradeDraftTab.allCases) { tab in
-                        Button {
-                            selectedTab = tab
-                        } label: {
-                            Label(tab.title, systemImage: tab.systemImage)
+        @Bindable var appModel = appModel
+        TabView(selection: $appModel.selectedTab) {
+            Tab(AppTab.home.title, systemImage: AppTab.home.systemImage, value: AppTab.home) {
+                stack(.home) {
+                    HomeScreen()
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                NavigationLink {
+                                    SettingsAboutLocalPrivacyScreen()
+                                } label: {
+                                    Label("Settings", systemImage: "gearshape")
+                                }
+                                .accessibilityIdentifier("home.settings")
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .listRowBackground(selectedTab == tab ? Color.accentColor.opacity(0.12) : Color.clear)
-                        .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
-                    }
-                }
-                .navigationTitle("MarkForMe")
-            } detail: {
-                NavigationStack {
-                    selectedRootScreen
-                }
-                .navigationDestination(item: $launchRoute) { route in
-                    launchRouteDestination(route)
                 }
             }
-        } else {
-            TabView(selection: $selectedTab) {
-                NavigationStack {
-                    HomeScreen(viewModel: viewModel)
-                }
-                .navigationDestination(item: $launchRoute) { route in
-                    launchRouteDestination(route)
-                }
-                .tabItem { Label(GradeDraftTab.home.title, systemImage: GradeDraftTab.home.systemImage) }
-                .tag(GradeDraftTab.home)
-
-                NavigationStack {
-                    ClassesScreen(viewModel: viewModel)
-                }
-                .navigationDestination(item: $launchRoute) { route in
-                    launchRouteDestination(route)
-                }
-                .tabItem { Label(GradeDraftTab.classes.title, systemImage: GradeDraftTab.classes.systemImage) }
-                .tag(GradeDraftTab.classes)
-
-                NavigationStack {
-                    AssignmentsScreen(viewModel: viewModel)
-                }
-                .navigationDestination(item: $launchRoute) { route in
-                    launchRouteDestination(route)
-                }
-                .tabItem { Label(GradeDraftTab.assignments.title, systemImage: GradeDraftTab.assignments.systemImage) }
-                .tag(GradeDraftTab.assignments)
-
-                NavigationStack {
-                    ReviewScreen(viewModel: viewModel)
-                }
-                .navigationDestination(item: $launchRoute) { route in
-                    launchRouteDestination(route)
-                }
-                .tabItem { Label(GradeDraftTab.review.title, systemImage: GradeDraftTab.review.systemImage) }
-                .tag(GradeDraftTab.review)
-
-                NavigationStack {
-                    ExportsRestoreScreen(viewModel: viewModel)
-                }
-                .navigationDestination(item: $launchRoute) { route in
-                    launchRouteDestination(route)
-                }
-                .tabItem { Label(GradeDraftTab.exports.title, systemImage: GradeDraftTab.exports.systemImage) }
-                .tag(GradeDraftTab.exports)
+            Tab(AppTab.classes.title, systemImage: AppTab.classes.systemImage, value: AppTab.classes) {
+                stack(.classes) { ClassesScreen() }
+            }
+            Tab(AppTab.assignments.title, systemImage: AppTab.assignments.systemImage, value: AppTab.assignments) {
+                stack(.assignments) { AssignmentsScreen() }
+            }
+            Tab(AppTab.review.title, systemImage: AppTab.review.systemImage, value: AppTab.review) {
+                stack(.review) { ReviewScreen() }
+            }
+            Tab(AppTab.exports.title, systemImage: AppTab.exports.systemImage, value: AppTab.exports) {
+                stack(.exports) { ExportsTabScreen() }
             }
         }
+        .tabViewStyle(.sidebarAdaptable)
+        .task {
+            restorePaths()
+            await appModel.observeLists()
+        }
+        .onChange(of: appModel.paths) {
+            savePaths()
+        }
+        .alertMessage($appModel.alert)
     }
 
-    @ViewBuilder
-    private var selectedRootScreen: some View {
-        switch selectedTab {
-        case .home:
-            HomeScreen(viewModel: viewModel)
-        case .classes:
-            ClassesScreen(viewModel: viewModel)
-        case .assignments:
-            AssignmentsScreen(viewModel: viewModel)
-        case .review:
-            ReviewScreen(viewModel: viewModel)
-        case .exports:
-            ExportsRestoreScreen(viewModel: viewModel)
+    private func stack<Root: View>(_ tab: AppTab, @ViewBuilder root: () -> Root) -> some View {
+        NavigationStack(path: Binding(
+            get: { appModel.path(for: tab) },
+            set: { appModel.setPath($0, for: tab) }
+        )) {
+            root()
+                .navigationDestination(for: Route.self) { route in
+                    RouteDestination(route: route, app: appModel)
+                }
+        }
+        .environment(\.appTab, tab)
+    }
+
+    // MARK: - Saved paths
+
+    private func storedPath(for tab: AppTab) -> Data? {
+        switch tab {
+        case .home: return homePath
+        case .classes: return classesPath
+        case .assignments: return assignmentsPath
+        case .review: return reviewPath
+        case .exports: return exportsPath
         }
     }
 
-    @ViewBuilder
-    private func launchRouteDestination(_ route: AppLaunchRoute) -> some View {
-        switch route {
-        case .assignmentOverview(let id):
-            AssignmentOverviewScreen(viewModel: viewModel, assignmentID: id)
-        case .aiReadiness(let id):
-            AIReadinessScreen(viewModel: viewModel, assignmentID: id)
-        case .finalReview(let id):
-            FinalReviewScreen(viewModel: viewModel, assignmentID: id)
-        case .packetPreview(let id):
-            AIPacketPreviewScreen(viewModel: viewModel, assignmentID: id)
-        case .ocrReview(let id):
-            ReviewScannedTextScreen(viewModel: viewModel, assignmentID: id)
-        case .curriculum(let id):
-            CurriculumBrowserScreen(viewModel: viewModel, assignmentID: id)
-        case .studentWork(let id):
-            StudentWorkScreen(viewModel: viewModel, assignmentID: id)
-        case .exports(let id):
-            ExportsRestoreScreen(viewModel: viewModel, assignmentID: id)
+    private func store(_ data: Data?, for tab: AppTab) {
+        switch tab {
+        case .home: homePath = data
+        case .classes: classesPath = data
+        case .assignments: assignmentsPath = data
+        case .review: reviewPath = data
+        case .exports: exportsPath = data
         }
     }
 
-    private func consumePendingLaunchRequest() {
-        guard let request = AppLaunchRequestStore.consume() else { return }
-        viewModel.handleLaunchRequest(request)
-        selectedTab = tab(for: request.destination)
-        launchRoute = launchRoute(for: request)
-    }
-
-    private func tab(for destination: AppLaunchDestination) -> GradeDraftTab {
-        switch destination {
-        case .home:
-            return .home
-        case .assignments, .finalReview:
-            return .assignments
-        case .aiReadiness, .latestDraft, .review, .packetPreview, .ocrReview, .studentWork:
-            return .review
-        case .exports:
-            return .exports
-        case .curriculum:
-            return .assignments
+    /// A saved route whose record has since been deleted reopens to its not-found screen.
+    private func restorePaths() {
+        guard !restoredPaths else { return }
+        restoredPaths = true
+        for tab in AppTab.allCases {
+            guard let data = storedPath(for: tab), let path = try? JSONDecoder().decode([Route].self, from: data) else { continue }
+            appModel.setPath(path, for: tab)
         }
     }
 
-    private func launchRoute(for request: AppLaunchRequest) -> AppLaunchRoute? {
-        if let assignmentID = request.assignmentID,
-           viewModel.assignment(for: assignmentID) == nil {
-            return nil
+    private func savePaths() {
+        for tab in AppTab.allCases {
+            let path = appModel.path(for: tab)
+            let data = path.isEmpty ? nil : (try? JSONEncoder().encode(path))
+            store(data, for: tab)
         }
-        switch request.destination {
-        case .home, .review:
-            return nil
-        case .assignments:
-            return currentAssignmentRoute(AppLaunchRoute.assignmentOverview)
-        case .aiReadiness:
-            return currentAssignmentRoute(AppLaunchRoute.aiReadiness)
-        case .finalReview, .latestDraft:
-            return currentAssignmentRoute(AppLaunchRoute.finalReview)
-        case .packetPreview:
-            return currentAssignmentRoute(AppLaunchRoute.packetPreview)
-        case .ocrReview:
-            return currentAssignmentRoute(AppLaunchRoute.ocrReview)
-        case .curriculum:
-            return currentAssignmentRoute(AppLaunchRoute.curriculum)
-        case .studentWork:
-            return currentAssignmentRoute(AppLaunchRoute.studentWork)
-        case .exports:
-            return .exports(viewModel.selectedAssignmentID)
-        }
-    }
-
-    private func currentAssignmentRoute(_ makeRoute: (UUID) -> AppLaunchRoute) -> AppLaunchRoute? {
-        guard let selectedAssignmentID = viewModel.selectedAssignmentID else { return nil }
-        return makeRoute(selectedAssignmentID)
     }
 }

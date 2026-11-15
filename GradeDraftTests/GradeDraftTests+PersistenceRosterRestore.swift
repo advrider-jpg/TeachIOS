@@ -1,46 +1,9 @@
+import GRDB
 import XCTest
-import UIKit
-import ZIPFoundation
 @testable import GradeDraft
 
-private enum ImportTransactionTestError: Error {
+private enum ImportTestError: Error {
     case injectedOCRFailure
-    case injectedSaveFailure
-}
-
-private final class ImportTransactionOCRService: OCRServicing, @unchecked Sendable {
-    var result: Result<OCRDocument, Error>
-
-    init(result: Result<OCRDocument, Error>) {
-        self.result = result
-    }
-
-    func recognizeText(in images: [UIImage]) async throws -> OCRDocument {
-        try result.get()
-    }
-}
-
-private func makeImportTransactionImage() -> UIImage {
-    let renderer = UIGraphicsImageRenderer(size: CGSize(width: 80, height: 60))
-    return renderer.image { context in
-        UIColor.white.setFill()
-        context.fill(CGRect(x: 0, y: 0, width: 80, height: 60))
-        UIColor.black.setFill()
-        UIBezierPath(rect: CGRect(x: 8, y: 12, width: 64, height: 8)).fill()
-    }
-}
-
-private func makeImportTransactionPDF() throws -> URL {
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent("import-transaction-\(UUID()).pdf")
-    let renderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 160, height: 120))
-    try renderer.writePDF(to: url) { context in
-        context.beginPage()
-        UIColor.white.setFill()
-        context.fill(CGRect(x: 0, y: 0, width: 160, height: 120))
-        UIColor.black.setFill()
-        UIBezierPath(rect: CGRect(x: 16, y: 24, width: 96, height: 10)).fill()
-    }
-    return url
 }
 
 private func regularFilesUnder(_ root: URL) -> [URL] {
@@ -57,1306 +20,667 @@ private func regularFilesUnder(_ root: URL) -> [URL] {
 }
 
 extension GradeDraftTests {
-    func testCanApproveAndPersistFinalReviewWhenAllCriteriaApproved() {
-        let criterion = FinalCriterionScore(
-            criterionID: "claim",
-            criterion: "Claim",
-            rating: "Proficient",
-            proposedPoints: 3,
-            finalPoints: 3,
-            maxPoints: 4,
-            evidence: ["Evidence"],
-            explanation: "Strong claim.",
-            teacherApproved: true
-        )
-        let assignment = AssignmentRecord(
-            title: "Essay",
-            subject: "ELA",
-            gradeLevel: "7",
-            studentDisplayName: "Kai",
-            assignmentType: .essay,
-            reviewedStudentText: "Student response",
-            latestDraft: nil,
-            finalReview: FinalGradeReview(
-                packetFingerprint: "packet-1",
-                status: .inProgress,
-                criteria: [criterion],
-                totalScore: 0,
-                maxScore: 0,
-                studentFeedback: "Good.",
-                privateTeacherNotes: "Hidden",
-                teacherEdited: true
-            )
-        )
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        XCTAssertTrue(viewModel.canApproveFinalReview)
-        viewModel.approveFinalReview()
-        XCTAssertNil(viewModel.errorMessage)
-        XCTAssertEqual(viewModel.assignment.finalReview?.status, .approved)
-        XCTAssertNotNil(viewModel.assignment.finalReview?.finalizedAt)
-    }
-
-    @MainActor
-    func testGRDBStoreRoundTripsAssignmentsAndDeletes() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftTests-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-
-        let store = try GRDBAssignmentStore(applicationSupportURL: root)
-
-        let oldDate = Date(timeIntervalSince1970: 1_700_000_000)
-        let assignmentA = AssignmentRecord(
-            id: UUID(),
-            title: "Essay 1",
-            subject: "History",
-            gradeLevel: "9",
-            studentDisplayName: "Alex",
-            assignmentType: .essay,
-            reviewedStudentText: "Reviewed text",
-            ocrReviewStatus: .reviewed,
-            latestDraft: GradeDraftResult(
-                generatedAt: oldDate,
-                studentResponseSummary: "Summary",
-                criteria: [
-                    CriterionScore(
-                        criterionID: "claim",
-                        criterion: "Claim",
-                        rating: "Proficient",
-                        proposedPoints: 2,
-                        maxPoints: 2,
-                        evidence: ["Evidence"],
-                        explanation: "Good",
-                        teacherReviewRequired: false
-                    )
-                ],
-                totalScore: 2,
-                maxScore: 2,
-                studentFeedback: "Nice",
-                teacherNotes: "",
-                uncertaintyFlags: []
-            ),
-            createdAt: oldDate,
-            updatedAt: oldDate
-        )
-
-        let assignmentB = AssignmentRecord(
-            id: UUID(),
-            title: "Response",
-            subject: "Math",
-            gradeLevel: "8",
-            studentDisplayName: "Bri",
-            assignmentType: .shortAnswer,
-            reviewedStudentText: "Short answer",
-            ocrReviewStatus: .reviewed,
-            createdAt: oldDate.addingTimeInterval(1),
-            updatedAt: oldDate.addingTimeInterval(1)
-        )
-
-        try store.saveAssignments([assignmentA, assignmentB])
-        let loaded = try store.loadAssignments()
-        XCTAssertEqual(loaded.count, 2)
-        XCTAssertTrue(loaded.contains(assignmentB))
-        XCTAssertTrue(loaded.contains(assignmentA))
-
-        try store.deleteAssignment(id: assignmentA.id)
-        let afterDelete = try store.loadAssignments()
-        XCTAssertEqual(afterDelete.count, 1)
-        XCTAssertEqual(afterDelete[0].id, assignmentB.id)
-    }
-
-    func testGRDBAssignmentRosterSaveReplacesRemovedEntries() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftRoster-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let store = try GRDBAssignmentStore(applicationSupportURL: root)
-        let entryA = AssignmentRosterEntry(assignmentID: UUID(), studentID: UUID(), studentDisplayName: "Alex", sortOrder: 0)
-        let entryB = AssignmentRosterEntry(assignmentID: UUID(), studentID: UUID(), studentDisplayName: "Bri", sortOrder: 1)
-
-        try store.replaceAssignmentRosterSnapshot([entryA, entryB])
-        try store.replaceAssignmentRosterSnapshot([entryB])
-
-        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: entryA.assignmentID).isEmpty)
-        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: entryB.assignmentID), [entryB])
-    }
-
-    func testGRDBDeletingAssignmentRemovesRosterRows() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftRosterDeleteAssignment-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let store = try GRDBAssignmentStore(applicationSupportURL: root)
-        let student = StudentRecord(displayName: "Alex")
-        let keptStudent = StudentRecord(displayName: "Bri")
-        let removed = AssignmentRecord(studentID: student.id, title: "Removed", studentDisplayName: student.displayName)
-        let kept = AssignmentRecord(studentID: keptStudent.id, title: "Kept", studentDisplayName: keptStudent.displayName)
-        let removedEntry = AssignmentRosterEntry(assignmentID: removed.id, studentID: student.id, studentDisplayName: student.displayName)
-        let keptEntry = AssignmentRosterEntry(assignmentID: kept.id, studentID: keptStudent.id, studentDisplayName: keptStudent.displayName)
-
-        try store.saveStudent(student)
-        try store.saveStudent(keptStudent)
-        try store.saveAssignments([removed, kept])
-        try store.replaceAssignmentRosterSnapshot([removedEntry, keptEntry])
-        try store.deleteAssignment(id: removed.id)
-
-        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: removed.id).isEmpty)
-        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: kept.id), [keptEntry])
-    }
-
-    func testGRDBSavingAssignmentsPreservesExistingRosterRowsForKeptAssignments() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftRosterUpdatePreserve-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let store = try GRDBAssignmentStore(applicationSupportURL: root)
-        let student = StudentRecord(displayName: "Alex")
-        var assignment = AssignmentRecord(studentID: student.id, title: "Draft", studentDisplayName: student.displayName)
-        let entry = AssignmentRosterEntry(assignmentID: assignment.id, studentID: student.id, studentDisplayName: student.displayName)
-
-        try store.saveStudent(student)
-        try store.saveAssignments([assignment])
-        try store.replaceAssignmentRosterSnapshot([entry])
-        assignment.title = "Draft updated"
-        try store.saveAssignments([assignment])
-
-        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: assignment.id), [entry])
-    }
-
-    func testGRDBDeletingStudentRemovesRosterRows() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftRosterDeleteStudent-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let store = try GRDBAssignmentStore(applicationSupportURL: root)
-        let removedStudent = StudentRecord(displayName: "Alex")
-        let keptStudent = StudentRecord(displayName: "Bri")
-        let removedAssignment = AssignmentRecord(studentID: removedStudent.id, title: "Alex work", studentDisplayName: removedStudent.displayName)
-        let keptAssignment = AssignmentRecord(studentID: keptStudent.id, title: "Bri work", studentDisplayName: keptStudent.displayName)
-        let removedEntry = AssignmentRosterEntry(assignmentID: removedAssignment.id, studentID: removedStudent.id, studentDisplayName: removedStudent.displayName)
-        let keptEntry = AssignmentRosterEntry(assignmentID: keptAssignment.id, studentID: keptStudent.id, studentDisplayName: keptStudent.displayName)
-
-        try store.saveStudent(removedStudent)
-        try store.saveStudent(keptStudent)
-        try store.saveAssignments([removedAssignment, keptAssignment])
-        try store.replaceAssignmentRosterSnapshot([removedEntry, keptEntry])
-        try store.deleteStudent(id: removedStudent.id)
-
-        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: removedAssignment.id).isEmpty)
-        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: keptAssignment.id), [keptEntry])
-    }
-
-    func testGRDBSnapshotReplacementRemovesStaleRosterRows() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftRosterSnapshot-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let store = try GRDBAssignmentStore(applicationSupportURL: root)
-        let staleStudent = StudentRecord(displayName: "Stale")
-        let staleAssignment = AssignmentRecord(studentID: staleStudent.id, title: "Stale", studentDisplayName: staleStudent.displayName)
-        let staleEntry = AssignmentRosterEntry(assignmentID: staleAssignment.id, studentID: staleStudent.id, studentDisplayName: staleStudent.displayName)
-        let freshStudent = StudentRecord(displayName: "Fresh")
-        let freshAssignment = AssignmentRecord(studentID: freshStudent.id, title: "Fresh", studentDisplayName: freshStudent.displayName)
-        let freshEntry = AssignmentRosterEntry(assignmentID: freshAssignment.id, studentID: freshStudent.id, studentDisplayName: freshStudent.displayName)
-
-        try store.replaceLocalDataSnapshot(
-            AssignmentStoreSnapshot(assignments: [staleAssignment], classGroups: [], students: [staleStudent], rosterEntries: [staleEntry])
-        )
-        try store.replaceLocalDataSnapshot(
-            AssignmentStoreSnapshot(assignments: [freshAssignment], classGroups: [], students: [freshStudent], rosterEntries: [freshEntry])
-        )
-
-        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: staleAssignment.id).isEmpty)
-        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: freshAssignment.id), [freshEntry])
-        assertStudentsPersistedFieldsEqual(try store.loadStudents(), [freshStudent])
-        XCTAssertEqual(try store.loadAssignments().map(\.id), [freshAssignment.id])
-    }
-
-    func testLocalJSONAssignmentRosterSaveReplacesRemovedEntries() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftJSONRoster-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = LocalJSONStore(applicationSupportURL: root)
-        let entryA = AssignmentRosterEntry(assignmentID: UUID(), studentID: UUID(), studentDisplayName: "Alex", sortOrder: 0)
-        let entryB = AssignmentRosterEntry(assignmentID: UUID(), studentID: UUID(), studentDisplayName: "Bri", sortOrder: 1)
-
-        try store.replaceAssignmentRosterSnapshot([entryA, entryB])
-        try store.replaceAssignmentRosterSnapshot([entryB])
-
-        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: entryA.assignmentID).isEmpty)
-        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: entryB.assignmentID), [entryB])
-    }
-
-    func testLocalJSONDeletingAssignmentRemovesRosterRows() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftJSONRosterDeleteAssignment-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = LocalJSONStore(applicationSupportURL: root)
-        let student = StudentRecord(displayName: "Alex")
-        let keptStudent = StudentRecord(displayName: "Bri")
-        let removed = AssignmentRecord(studentID: student.id, title: "Removed", studentDisplayName: student.displayName)
-        let kept = AssignmentRecord(studentID: keptStudent.id, title: "Kept", studentDisplayName: keptStudent.displayName)
-        let removedEntry = AssignmentRosterEntry(assignmentID: removed.id, studentID: student.id, studentDisplayName: student.displayName)
-        let keptEntry = AssignmentRosterEntry(assignmentID: kept.id, studentID: keptStudent.id, studentDisplayName: keptStudent.displayName)
-
-        try store.saveStudent(student)
-        try store.saveStudent(keptStudent)
-        try store.saveAssignments([removed, kept])
-        try store.replaceAssignmentRosterSnapshot([removedEntry, keptEntry])
-        try store.deleteAssignment(id: removed.id)
-
-        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: removed.id).isEmpty)
-        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: kept.id), [keptEntry])
-    }
-
-    func testLocalJSONSavingAssignmentsPreservesExistingRosterRowsForKeptAssignments() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftJSONRosterUpdatePreserve-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = LocalJSONStore(applicationSupportURL: root)
-        let student = StudentRecord(displayName: "Alex")
-        var assignment = AssignmentRecord(studentID: student.id, title: "Draft", studentDisplayName: student.displayName)
-        let entry = AssignmentRosterEntry(assignmentID: assignment.id, studentID: student.id, studentDisplayName: student.displayName)
-
-        try store.saveStudent(student)
-        try store.saveAssignments([assignment])
-        try store.replaceAssignmentRosterSnapshot([entry])
-        assignment.title = "Draft updated"
-        try store.saveAssignments([assignment])
-
-        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: assignment.id), [entry])
-    }
-
-    func testLocalJSONDeletingStudentRemovesRosterRows() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftJSONRosterDeleteStudent-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = LocalJSONStore(applicationSupportURL: root)
-        let removedStudent = StudentRecord(displayName: "Alex")
-        let keptStudent = StudentRecord(displayName: "Bri")
-        let removedAssignment = AssignmentRecord(studentID: removedStudent.id, title: "Alex work", studentDisplayName: removedStudent.displayName)
-        let keptAssignment = AssignmentRecord(studentID: keptStudent.id, title: "Bri work", studentDisplayName: keptStudent.displayName)
-        let removedEntry = AssignmentRosterEntry(assignmentID: removedAssignment.id, studentID: removedStudent.id, studentDisplayName: removedStudent.displayName)
-        let keptEntry = AssignmentRosterEntry(assignmentID: keptAssignment.id, studentID: keptStudent.id, studentDisplayName: keptStudent.displayName)
-
-        try store.saveStudent(removedStudent)
-        try store.saveStudent(keptStudent)
-        try store.saveAssignments([removedAssignment, keptAssignment])
-        try store.replaceAssignmentRosterSnapshot([removedEntry, keptEntry])
-        try store.deleteStudent(id: removedStudent.id)
-
-        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: removedAssignment.id).isEmpty)
-        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: keptAssignment.id), [keptEntry])
-    }
-
-    func testLocalJSONSnapshotReplacementRemovesStaleRosterRows() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftJSONRosterSnapshot-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = LocalJSONStore(applicationSupportURL: root)
-        let staleStudent = StudentRecord(displayName: "Stale")
-        let staleAssignment = AssignmentRecord(studentID: staleStudent.id, title: "Stale", studentDisplayName: staleStudent.displayName)
-        let staleEntry = AssignmentRosterEntry(assignmentID: staleAssignment.id, studentID: staleStudent.id, studentDisplayName: staleStudent.displayName)
-        let freshStudent = StudentRecord(displayName: "Fresh")
-        let freshAssignment = AssignmentRecord(studentID: freshStudent.id, title: "Fresh", studentDisplayName: freshStudent.displayName)
-        let freshEntry = AssignmentRosterEntry(assignmentID: freshAssignment.id, studentID: freshStudent.id, studentDisplayName: freshStudent.displayName)
-
-        try store.replaceLocalDataSnapshot(
-            AssignmentStoreSnapshot(assignments: [staleAssignment], classGroups: [], students: [staleStudent], rosterEntries: [staleEntry])
-        )
-        try store.replaceLocalDataSnapshot(
-            AssignmentStoreSnapshot(assignments: [freshAssignment], classGroups: [], students: [freshStudent], rosterEntries: [freshEntry])
-        )
-
-        XCTAssertTrue(try store.loadAssignmentRoster(assignmentID: staleAssignment.id).isEmpty)
-        assertRosterEntriesPersistedFieldsEqual(try store.loadAssignmentRoster(assignmentID: freshAssignment.id), [freshEntry])
-        assertStudentsPersistedFieldsEqual(try store.loadStudents(), [freshStudent])
-        XCTAssertEqual(try store.loadAssignments().map(\.id), [freshAssignment.id])
-    }
-
-    func testLocalJSONStoreSurfacesCorruptRosterFile() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftCorruptRoster-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = LocalJSONStore(applicationSupportURL: root)
-        let supportDirectory = try store.applicationSupportDirectory()
-        let rosterURL = supportDirectory.appendingPathComponent("roster-v3.json")
-        try Data("{".utf8).write(to: rosterURL)
-
-        XCTAssertThrowsError(try store.loadAssignmentRoster(assignmentID: UUID())) { error in
-            XCTAssertTrue(error.localizedDescription.contains("roster-v3.json"))
+    /// The store refuses a change to a record that is not there.
+    fileprivate func assertNotFound(_ operation: () async throws -> Void, file: StaticString = #file, line: UInt = #line) async {
+        do {
+            try await operation()
+            XCTFail("Expected the change to be refused.", file: file, line: line)
+        } catch AppDatabaseError.notFound {
+        } catch {
+            XCTFail("Unexpected error: \(error)", file: file, line: line)
         }
     }
 
-    func testGRDBInjectedRootIsRespectedAndNotDefaultDirectory() throws {
-        let injectedRoot = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftInjected-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: injectedRoot) }
-        try FileManager.default.createDirectory(at: injectedRoot, withIntermediateDirectories: true)
-
-        let store = try GRDBAssignmentStore(applicationSupportURL: injectedRoot)
-        let supportDir = try store.applicationSupportDirectory()
-
-        // The support directory must be inside the injected root, not the default App Support path
-        XCTAssertTrue(supportDir.path.hasPrefix(injectedRoot.path),
-                      "Expected support dir \(supportDir.path) to be under injected root \(injectedRoot.path)")
-
-        let defaultAppSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        if let defaultPath = defaultAppSupport?.appendingPathComponent("GradeDraft").path {
-            XCTAssertNotEqual(supportDir.path, defaultPath,
-                              "Injected root should produce a different path than the default App Support path")
-        }
+    fileprivate func firstRubricCriterionID(_ app: AppModel, _ seeded: SeededSubmission) async throws -> String {
+        let saved = try await app.requireDatabase().assignmentSetup(id: seeded.assignmentID)
+        return try XCTUnwrap(try XCTUnwrap(saved).parsedRubric.criteria.first).id
     }
 
-    func testGRDBBootstrapIsIdempotent() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftBootstrap-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-
-        let store1 = try GRDBAssignmentStore(applicationSupportURL: root)
-        let store2 = try GRDBAssignmentStore(applicationSupportURL: root)
-
-        // Both bootstraps should succeed; loading on an already-migrated DB should not throw
-        let assignments = [AssignmentRecord(title: "Idempotent test")]
-        try store1.saveAssignments(assignments)
-        let loaded = try store2.loadAssignments()
-        XCTAssertEqual(loaded.count, 1)
-        XCTAssertEqual(loaded[0].title, "Idempotent test")
+    /// A backup file of everything in the app's store.
+    fileprivate func writeBackup(from app: AppModel, password: String = "pw") async throws -> URL {
+        let snapshot = try await app.requireDatabase().backupSnapshot()
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("backup-\(UUID().uuidString).markformebackup")
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        return try BackupArchiveService.writeFullBackup(
+            snapshot: snapshot, storageRoot: try app.requireStorageRoot(), password: password, appVersion: "1.0", to: url
+        )
     }
 
-    func testStudentReportExcludesPrivateTeacherNotes() {
-        var assignment = AssignmentRecord(title: "Response 1", subject: "ELA", gradeLevel: "5")
-        assignment.reviewedStudentText = "Student text"
-        assignment.rubricText = "Claim: 0-4 points"
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
+    /// An in-memory approved review (no store) with the given fingerprint, or the current one.
+    fileprivate func approvedGraph(setup: AssignmentSetup, fingerprint: String? = nil, privateNotes: String = "Sensitive private note.") throws -> SubmissionGraph {
+        var graph = SubmissionGraph(
+            submission: Submission(assignmentID: setup.id, studentID: UUID(), inputKind: .pasted, pastedText: "Student text"),
+            student: Student(displayName: "Kai")
+        )
+        graph.finalReview = FinalGradeReview(
+            packetFingerprint: try fingerprint ?? graph.packetFingerprint(setup: setup),
             status: .approved,
             criteria: [FinalCriterionScore(
-                criterionID: "claim",
-                criterion: "Claim",
-                rating: "Proficient",
-                proposedPoints: 3,
-                finalPoints: 4,
-                maxPoints: 4,
-                evidence: ["Student text"],
-                explanation: "Clear claim.",
-                teacherApproved: true
+                criterionID: setup.parsedRubric.criteria[0].id, rating: "Proficient", proposedPoints: 3, finalPoints: 4,
+                explanation: "Clear claim.", teacherApproved: true
             )],
-            totalScore: 4,
-            maxScore: 4,
             studentFeedback: "Good claim.",
-            privateTeacherNotes: "Sensitive private note.",
+            privateTeacherNotes: privateNotes,
             teacherEdited: true
         )
+        return graph
+    }
 
-        let student = MarkdownReportBuilder.studentMarkdown(for: assignment)
+    // MARK: - Approval and storage
+
+    func testCanApproveAndPersistFinalReviewWhenAllCriteriaApproved() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student response")
+        let criterion = FinalCriterionScore(
+            criterionID: try await firstRubricCriterionID(app, seeded), rating: "Proficient", proposedPoints: 3, finalPoints: 3,
+            explanation: "Strong claim.", teacherApproved: true
+        )
+        try await app.requireDatabase().saveFinalReview(
+            FinalGradeReview(
+                packetFingerprint: try await TestApp.fingerprint(app, seeded), criteria: [criterion],
+                studentFeedback: "Good.", privateTeacherNotes: "Hidden", teacherEdited: true
+            ),
+            submissionID: seeded.submissionID
+        )
+        let session = try await openSession(app, seeded.submissionID)
+
+        XCTAssertEqual(session.readiness?.canApproveFinalReview, true)
+        await session.approveFinalReview()
+
+        XCTAssertNil(session.alert)
+        let graph = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertEqual(graph?.finalReview?.status, .approved)
+        XCTAssertNotNil(graph?.finalReview?.finalizedAt)
+    }
+
+    func testStoreRoundTripsDraftsAndDeletesAssignments() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Reviewed text")
+        let database = try app.requireDatabase()
+        let draft = GradeDraftResult(
+            generatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            packetFingerprint: try await TestApp.fingerprint(app, seeded),
+            studentResponseSummary: "Summary",
+            criteria: [CriterionScore(
+                criterionID: "claim", rating: "Proficient", proposedPoints: 2, evidenceQuotes: ["Evidence"],
+                explanation: "Good", teacherReviewRequired: false
+            )],
+            studentFeedback: "Nice",
+            teacherNotes: "",
+            uncertaintyFlags: []
+        )
+        try await database.replaceDraft(draft, submissionID: seeded.submissionID)
+        let other = Assignment(classGroupID: seeded.classGroupID, title: "Response", rubricText: "Claim: 0-2 points")
+        try await database.createAssignment(other)
+
+        let loaded = try await database.submission(id: seeded.submissionID)
+        XCTAssertEqual(loaded?.draft, draft)
+        let before = try await database.assignmentSummaries(inClass: nil)
+        XCTAssertEqual(Set(before.map(\.id)), [seeded.assignmentID, other.id])
+
+        await app.deleteAssignment(id: seeded.assignmentID)
+
+        let after = try await database.assignmentSummaries(inClass: nil)
+        XCTAssertEqual(after.map(\.id), [other.id])
+    }
+
+    func testDeletingAnAssignmentRemovesItsSubmissionsOnly() async throws {
+        let app = try TestApp.make()
+        let removed = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Removed work")
+        let database = try app.requireDatabase()
+        let kept = Assignment(classGroupID: removed.classGroupID, title: "Kept", rubricText: "Claim: 0-4 points")
+        try await database.createAssignment(kept)
+        let keptSubmissions = try await database.submissionSummaries(assignmentID: kept.id)
+        XCTAssertEqual(keptSubmissions.count, 1)
+
+        await app.deleteAssignment(id: removed.assignmentID)
+
+        let removedAfter = try await database.submission(id: removed.submissionID)
+        XCTAssertNil(removedAfter)
+        let keptAfter = try await database.submissionSummaries(assignmentID: kept.id)
+        XCTAssertEqual(keptAfter.map(\.id), keptSubmissions.map(\.id))
+    }
+
+    func testDeletingAStudentRemovesTheirSubmissionsOnly() async throws {
+        let app = try TestApp.make()
+        let first = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Alex's work")
+        let database = try app.requireDatabase()
+        let bri = Student(displayName: "Bri")
+        try await database.save(bri, enrolledIn: first.classGroupID)
+        let both = try await database.submissionSummaries(assignmentID: first.assignmentID)
+        XCTAssertEqual(both.count, 2)
+
+        _ = try await database.deleteStudent(id: first.studentID)
+
+        let remaining = try await database.submissionSummaries(assignmentID: first.assignmentID)
+        XCTAssertEqual(remaining.map(\.studentID), [bri.id])
+        let deleted = try await database.submission(id: first.submissionID)
+        XCTAssertNil(deleted)
+    }
+
+    func testSavingAnAssignmentKeepsItsSubmissions() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Work")
+        let database = try app.requireDatabase()
+        let before = try await database.submissionSummaries(assignmentID: seeded.assignmentID)
+        let model = try await openSetupModel(app, seeded.assignmentID)
+
+        model.edit { $0.assignment.title = "Draft updated" }
+        await model.flushPendingEdits()
+
+        let after = try await database.submissionSummaries(assignmentID: seeded.assignmentID)
+        XCTAssertEqual(after.map(\.id), before.map(\.id))
+        XCTAssertEqual(after.first?.assignmentTitle, "Draft updated")
+    }
+
+    func testFailedStudentDeleteLeavesTheStoreUnchanged() async throws {
+        let app = try TestApp.make()
+        _ = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Work")
+        let database = try app.requireDatabase()
+        let before = try await database.backupSnapshot()
+
+        await assertNotFound { _ = try await database.deleteStudent(id: UUID()) }
+
+        let after = try await database.backupSnapshot()
+        XCTAssertEqual(after, before)
+    }
+
+    func testRosterImportIntoAMissingClassFailsWithoutSavingAnything() async throws {
+        let app = try TestApp.make()
+        let database = try app.requireDatabase()
+
+        await assertNotFound {
+            _ = try await database.importRoster([RosterImportRow(displayName: "Alice", localIdentifier: "A1")], into: UUID())
+        }
+
+        let students = try await database.students(inClass: nil)
+        XCTAssertTrue(students.isEmpty)
+        let classes = try await database.classGroups()
+        XCTAssertTrue(classes.isEmpty)
+    }
+
+    func testRosterImportSurfacesAFailureToTheTeacher() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: nil)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("roster-\(UUID().uuidString).csv")
+        try Data("displayName,localIdentifier\nNew Student,N-1".utf8).write(to: url)
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        let model = RosterModel(classGroupID: seeded.classGroupID, app: app)
+        model.previewRosterFile(at: url)
+        await app.deleteClass(id: seeded.classGroupID)
+
+        await model.confirmRosterImport()
+
+        XCTAssertNotNil(model.alert)
+        XCTAssertNil(model.lastImportResult)
+    }
+
+    func testMigrationIsIdempotent() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("migrate-\(UUID().uuidString).sqlite")
+        addTeardownBlock { try? FileManager.default.removeItem(at: file) }
+        let queue = try DatabaseQueue(path: file.path)
+
+        try AppDatabase.makeMigrator().migrate(queue)
+        XCTAssertNoThrow(try AppDatabase.makeMigrator().migrate(queue))
+        XCTAssertTrue(try queue.read { try $0.tableExists("assignment") })
+    }
+
+    func testPromptPersistsInStoreRoundTrip() async throws {
+        let app = try TestApp.make()
+        let classID = await app.addClass(name: "6A")
+        let database = try app.requireDatabase()
+        let assignment = Assignment(classGroupID: try XCTUnwrap(classID), title: "Prompt persistence test", prompt: "Describe the water cycle.")
+
+        try await database.createAssignment(assignment)
+
+        let loaded = try await database.assignmentSetup(id: assignment.id)
+        XCTAssertEqual(loaded?.assignment.prompt, "Describe the water cycle.")
+    }
+
+    // MARK: - Reports
+
+    func testStudentReportExcludesPrivateTeacherNotes() throws {
+        let setup = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "Response 1", subject: "ELA", rubricText: "Claim: 0-4 points"))
+        let graph = try approvedGraph(setup: setup)
+
+        let student = MarkdownRenderer.render(try ReportBuilder.studentReport(setup: setup, submission: graph, generatedAt: Date()))
         XCTAssertTrue(student.contains("Final teacher-approved grade"))
         XCTAssertTrue(student.contains("Good claim."))
         XCTAssertFalse(student.contains("Sensitive private note"))
 
-        let audit = MarkdownReportBuilder.teacherAuditMarkdown(for: assignment)
+        let audit = MarkdownRenderer.render(ReportBuilder.teacherRecord(setup: setup, submission: graph, generatedAt: Date()))
         XCTAssertTrue(audit.contains("Sensitive private note"))
     }
 
-    // MARK: - Content-source consistency tests
-
-    func testPromptPersistsInGRDBRoundTrip() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftPrompt-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-
-        let store = try GRDBAssignmentStore(applicationSupportURL: root)
-        var record = AssignmentRecord(title: "Prompt persistence test")
-        record.prompt = "Describe the water cycle."
-
-        try store.saveAssignments([record])
-        let loaded = try store.loadAssignments()
-        XCTAssertEqual(loaded.count, 1)
-        XCTAssertEqual(loaded[0].prompt, "Describe the water cycle.")
-    }
-
-    func testLaunchRequestPayloadRoundTripsThroughStore() {
-        let defaults = UserDefaults(suiteName: "GradeDraftTests.\(UUID().uuidString)")!
-        let id = UUID()
-        let request = AppLaunchRequest(
-            destination: .studentWork,
-            assignmentID: id,
-            action: .applyPastedStudentText,
-            payloadText: "Student answer"
+    /// The model's raw response is no longer kept on the draft, so this checks what is still stored: the
+    /// draft's private teacher notes never reach the student report.
+    func testStudentReportExcludesModelDraftNotes() throws {
+        let setup = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "Essay", subject: "ELA", rubricText: "Claim: 0-4 points"))
+        var graph = try approvedGraph(setup: setup, privateNotes: "")
+        graph.draft = GradeDraftResult(
+            packetFingerprint: "draft-packet", studentResponseSummary: "Summary", criteria: [],
+            studentFeedback: "Draft feedback", teacherNotes: "Private model note.", uncertaintyFlags: []
         )
+        graph.finalReview?.studentFeedback = "Teacher final feedback."
 
-        AppLaunchRequestStore.save(request, defaults: defaults)
+        let report = MarkdownRenderer.render(try ReportBuilder.studentReport(setup: setup, submission: graph, generatedAt: Date()))
 
-        XCTAssertEqual(AppLaunchRequestStore.consume(defaults: defaults), request)
-        XCTAssertNil(AppLaunchRequestStore.consume(defaults: defaults))
-    }
-
-    @MainActor
-    func testShortcutPastedStudentWorkActionSavesReviewedInputLocally() {
-        var assignment = AssignmentRecord(
-            title: "Short answer",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Old text"
-        )
-        assignment.latestDraft = GradeDraftResult(
-            packetFingerprint: "old-packet",
-            studentResponseSummary: "Old",
-            criteria: [],
-            totalScore: 0,
-            maxScore: 0,
-            studentFeedback: "Old",
-            teacherNotes: "Old",
-            uncertaintyFlags: []
-        )
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: "old-packet",
-            criteria: [FinalCriterionScore(
-                criterion: "Claim",
-                rating: "",
-                proposedPoints: 1,
-                finalPoints: 1,
-                maxPoints: 2,
-                evidence: [],
-                explanation: "",
-                teacherApproved: true
-            )],
-            totalScore: 1,
-            maxScore: 2,
-            studentFeedback: "",
-            privateTeacherNotes: "",
-            teacherEdited: true
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        viewModel.handleLaunchRequest(AppLaunchRequest(
-            destination: .studentWork,
-            assignmentID: assignment.id,
-            action: .applyPastedStudentText,
-            payloadText: "  New student answer  "
-        ))
-
-        XCTAssertEqual(viewModel.assignment.reviewedStudentText, "New student answer")
-        XCTAssertEqual(viewModel.assignment.ocrReviewStatus, .notNeeded)
-        XCTAssertEqual(viewModel.assignment.sourceInputs.first?.sourceType, .pastedText)
-        XCTAssertNil(viewModel.assignment.latestDraft)
-        XCTAssertNil(viewModel.assignment.finalReview)
-        XCTAssertTrue(viewModel.statusMessage.contains("saved locally"))
-    }
-
-    @MainActor
-    func testShortcutPastedStudentWorkRequiresExplicitAssignmentTarget() {
-        let assignment = AssignmentRecord(
-            title: "Do not replace",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Keep this reviewed text"
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        viewModel.handleLaunchRequest(AppLaunchRequest(
-            destination: .studentWork,
-            action: .applyPastedStudentText,
-            payloadText: "New shortcut text"
-        ))
-
-        XCTAssertEqual(viewModel.assignment.reviewedStudentText, "Keep this reviewed text")
-        XCTAssertEqual(store.assignments.first?.reviewedStudentText, "Keep this reviewed text")
-        XCTAssertTrue(viewModel.errorMessage?.contains("choose an assignment") == true)
-    }
-
-    @MainActor
-    func testShortcutRecommendedAIConstraintsPersistWithoutSensitiveTemplates() {
-        let assignment = AssignmentRecord(
-            title: "Short answer",
-            assessmentPurpose: .summative,
-            rubricText: "Claim: 0-2 points",
-            answerKeyText: "Expected claim.",
-            reviewedStudentText: "Student wrote a claim.",
-            ocrReviewStatus: .notNeeded
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        viewModel.handleLaunchRequest(AppLaunchRequest(
-            destination: .packetPreview,
-            assignmentID: assignment.id,
-            action: .applyRecommendedAIConstraints
-        ))
-
-        XCTAssertFalse(viewModel.assignment.selectedInstructionTemplateIDs.isEmpty)
-        XCTAssertFalse(viewModel.assignment.selectedInstructionTemplateIDs.contains("eald-sensitive"))
-        XCTAssertFalse(viewModel.assignment.selectedInstructionTemplateIDs.contains("adjustment-context"))
-    }
-
-    @MainActor
-    func testCriterionAcceptAndRejectActionsPersistTeacherDecision() {
-        var assignment = AssignmentRecord(
-            title: "Essay",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student text."
-        )
-        let criterionID = UUID()
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            criteria: [FinalCriterionScore(
-                id: criterionID,
-                criterion: "Claim",
-                rating: "Developing",
-                proposedPoints: 3,
-                finalPoints: 0,
-                maxPoints: 2,
-                evidence: [],
-                explanation: "Draft explanation.",
-                teacherApproved: false
-            )],
-            totalScore: 0,
-            maxScore: 2,
-            studentFeedback: "",
-            privateTeacherNotes: "",
-            teacherEdited: false
-        )
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        viewModel.acceptFinalReviewCriterion(id: criterionID)
-        XCTAssertEqual(viewModel.assignment.finalReview?.criteria.first?.finalPoints, 2)
-        XCTAssertEqual(viewModel.assignment.finalReview?.criteria.first?.teacherApproved, true)
-        XCTAssertEqual(viewModel.assignment.finalReview?.status, .inProgress)
-
-        viewModel.rejectFinalReviewCriterion(id: criterionID)
-        XCTAssertEqual(viewModel.assignment.finalReview?.criteria.first?.teacherApproved, false)
-        XCTAssertTrue(viewModel.assignment.finalReview?.criteria.first?.teacherRationale.contains("rejected") == true)
-    }
-
-    @MainActor
-    func testApprovedManualFinalReviewEnablesStudentExport() {
-        var assignment = AssignmentRecord(
-            title: "Essay",
-            rubricText: "Claim: 0-2 points",
-            reviewedStudentText: "Student text."
-        )
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .approved,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim",
-                rating: "",
-                proposedPoints: 0,
-                finalPoints: 2,
-                maxPoints: 2,
-                evidence: [],
-                explanation: "",
-                teacherApproved: true
-            )],
-            totalScore: 2,
-            maxScore: 2,
-            studentFeedback: "Good work.",
-            privateTeacherNotes: "",
-            teacherEdited: true
-        )
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        XCTAssertTrue(viewModel.canExportStudentReport, "Approved manual final review should enable student export")
-    }
-
-    func testManualFinalReviewSurvivesGRDBRoundTrip() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftManual-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-
-        let store = try GRDBAssignmentStore(applicationSupportURL: root)
-
-        var assignment = AssignmentRecord(title: "Manual review round trip")
-        assignment.rubricText = "Claim: 0-2 points"
-        assignment.reviewedStudentText = "Student wrote this."
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .inProgress,
-            criteria: [FinalCriterionScore(
-                criterionID: "criterion-1",
-                criterion: "Claim",
-                rating: "",
-                proposedPoints: 0,
-                finalPoints: 1,
-                maxPoints: 2,
-                evidence: ["Student wrote this."],
-                explanation: "Partial claim.",
-                teacherApproved: false,
-                teacherRationale: "Manual teacher-created final review."
-            )],
-            totalScore: 1,
-            maxScore: 2,
-            studentFeedback: "",
-            privateTeacherNotes: "My private note",
-            teacherEdited: false
-        )
-
-        try store.saveAssignments([assignment])
-        let loaded = try store.loadAssignments()
-
-        XCTAssertEqual(loaded.count, 1)
-        let loadedReview = loaded[0].finalReview
-        XCTAssertNotNil(loadedReview)
-        XCTAssertEqual(loadedReview?.criteria.count, 1)
-        XCTAssertEqual(loadedReview?.criteria[0].criterion, "Claim")
-        XCTAssertEqual(loadedReview?.criteria[0].finalPoints, 1)
-        XCTAssertEqual(loadedReview?.privateTeacherNotes, "My private note")
-    }
-
-    // MARK: - Criterion management tests
-
-    @MainActor
-    func testStudentReportBlockedWithoutApprovedFinalReview() {
-        let assignment = AssignmentRecord(
-            title: "Essay",
-            rubricText: "Claim: 0-4 points",
-            reviewedStudentText: "Student text."
-        )
-        // No finalReview at all
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-        XCTAssertFalse(viewModel.canExportStudentReport, "Student export blocked without final review")
-    }
-
-    @MainActor
-    func testStudentReportBlockedWhenFinalReviewIsStale() {
-        var assignment = AssignmentRecord(
-            title: "Essay",
-            rubricText: "Claim: 0-4 points",
-            reviewedStudentText: "Student text."
-        )
-        // finalReview with a different packet fingerprint (stale)
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: "stale-fingerprint",
-            status: .approved,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim",
-                rating: "",
-                proposedPoints: 3,
-                finalPoints: 3,
-                maxPoints: 4,
-                evidence: ["student text"],
-                explanation: "Good.",
-                teacherApproved: true
-            )],
-            totalScore: 3,
-            maxScore: 4,
-            studentFeedback: "Good.",
-            privateTeacherNotes: "",
-            teacherEdited: true
-        )
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        XCTAssertTrue(viewModel.assignment.finalReviewIsStale, "Final review should be stale")
-        XCTAssertFalse(viewModel.canExportStudentReport, "Student export blocked when stale")
-    }
-
-    @MainActor
-    func testStudentReportExcludesRawModelResponse() {
-        var assignment = AssignmentRecord(title: "Essay", subject: "ELA", gradeLevel: "6")
-        assignment.reviewedStudentText = "Student text"
-        assignment.rubricText = "Claim: 0-4 points"
-        assignment.latestDraft = GradeDraftResult(
-            studentResponseSummary: "Summary",
-            criteria: [],
-            totalScore: 0,
-            maxScore: 0,
-            studentFeedback: "Draft feedback",
-            teacherNotes: "Private model note.",
-            uncertaintyFlags: [],
-            rawModelResponse: "Raw JSON blob should not appear"
-        )
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .approved,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim",
-                rating: "",
-                proposedPoints: 0,
-                finalPoints: 3,
-                maxPoints: 4,
-                evidence: [],
-                explanation: "",
-                teacherApproved: true
-            )],
-            totalScore: 3,
-            maxScore: 4,
-            studentFeedback: "Teacher final feedback.",
-            privateTeacherNotes: "",
-            teacherEdited: true
-        )
-
-        let report = MarkdownReportBuilder.studentMarkdown(for: assignment)
-        XCTAssertFalse(report.contains("Raw JSON blob"), "Student report must not include raw model response")
-        XCTAssertFalse(report.contains("Private model note"), "Student report must not include raw model teacher notes")
+        XCTAssertFalse(report.contains("Private model note"), "Student report must not include the draft's private notes")
+        XCTAssertFalse(report.contains("Draft feedback"), "Student report must not include the AI draft's feedback")
         XCTAssertTrue(report.contains("Teacher final feedback"), "Student report should include teacher final feedback")
     }
 
-    func testDeleteAssignmentRemovesRecord() {
-        let assignment = AssignmentRecord(title: "To delete", rubricText: "Claim: 0-4 points")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: store)
+    /// Evidence is quoted by text only; the scanned-text line it came from is never named.
+    func testStudentReportDoesNotExposeEvidenceSourceReferences() throws {
+        let setup = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "Privacy", rubricText: "Claim: 0-4 points"))
+        var graph = try approvedGraph(setup: setup, privateNotes: "Private")
+        let lineID = UUID()
+        let evidence = EvidenceReference(
+            submissionID: graph.submission.id, ocrLineID: lineID, pageIndex: 0, quote: "Evidence",
+            boundingBox: NormalizedRect(x: 0.1, y: 0.2, width: 0.3, height: 0.4), sourceKind: .ocrLine, teacherConfirmed: true
+        )
+        graph.evidence = [evidence]
+        graph.finalReview?.criteria[0].evidenceIDs = [evidence.id]
 
-        XCTAssertEqual(viewModel.assignments.count, 1)
-        viewModel.deleteCurrentAssignment()
-        // After deletion one blank starter assignment is created if empty
-        XCTAssertFalse(viewModel.assignments.contains { $0.id == assignment.id }, "Deleted assignment should not remain")
+        let report = MarkdownRenderer.render(try ReportBuilder.studentReport(setup: setup, submission: graph, generatedAt: Date()))
+
+        XCTAssertTrue(report.contains("Evidence"))
+        XCTAssertFalse(report.contains(String(lineID.uuidString.prefix(8))))
+        XCTAssertFalse(report.contains("source:"))
+        XCTAssertFalse(report.contains("Private"))
     }
 
-    @MainActor
     func testEvidenceReferenceModelStoresBoundingBoxTraceability() {
-        let sourceID = UUID()
         let lineID = UUID()
         let reference = EvidenceReference(
-            sourceInputID: sourceID,
+            submissionID: UUID(),
             ocrLineID: lineID,
             pageIndex: 0,
             quote: "Student evidence",
             startOffset: 0,
             endOffset: 16,
             boundingBox: NormalizedRect(x: 0.1, y: 0.2, width: 0.3, height: 0.4),
-            sourceKind: "ocrLine",
+            sourceKind: .ocrLine,
             teacherConfirmed: true
         )
-        XCTAssertEqual(reference.sourceInputID, sourceID)
         XCTAssertEqual(reference.ocrLineID, lineID)
         XCTAssertEqual(reference.boundingBox?.width, 0.3)
         XCTAssertTrue(reference.displaySource.contains("page 1"))
     }
 
-    func testStudentReportDoesNotExposeEvidenceSourceRefs() {
-        var assignment = AssignmentRecord(title: "Privacy", reviewedStudentText: "Evidence")
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .approved,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim",
-                rating: "",
-                proposedPoints: 0,
-                finalPoints: 1,
-                maxPoints: 1,
-                evidence: ["Evidence"],
-                evidenceSourceRefs: ["source:secret:page:0:ocrLine:secret"],
-                explanation: "Evidence supports claim.",
-                teacherApproved: true
-            )],
-            totalScore: 1,
-            maxScore: 1,
-            studentFeedback: "Good.",
-            privateTeacherNotes: "Private",
-            teacherEdited: true
-        )
-        let report = MarkdownReportBuilder.studentMarkdown(for: assignment)
-        XCTAssertFalse(report.contains("source:secret"))
-        XCTAssertFalse(report.contains("Private"))
-    }
-
-    func testFullBackupArchiveCanBeReadBack() throws {
-        let assignment = AssignmentRecord(title: "Backup", reviewedStudentText: "Text")
-        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("backup-\(UUID()).zip")
-        defer { try? FileManager.default.removeItem(at: destination) }
-        let written = try BundleExportService.writeFullBackup(assignments: [assignment], sourceFiles: [], to: destination)
-        let restored = try BundleExportService.readBackupAssignments(from: written)
-        XCTAssertEqual(restored.count, 1)
-        XCTAssertEqual(restored[0].title, "Backup")
-    }
-
     func testSourceInputStoresPDFMetadata() {
-        let source = SourceInputRef(sourceType: .pdf, fileName: "work.pdf", mimeType: "application/pdf", pdfPageCount: 2)
+        let source = SourceInputRef(submissionID: UUID(), sourceType: .pdf, fileName: "work.pdf", mimeType: "application/pdf", pdfPageCount: 2)
         XCTAssertEqual(source.fileName, "work.pdf")
         XCTAssertEqual(source.mimeType, "application/pdf")
         XCTAssertEqual(source.pdfPageCount, 2)
     }
 
-    func testStudentReportDoesNotRequireAuthentication() async {
-        let alwaysDeny = StubExportAuthenticationService(result: ExportAuthenticationResult(allowed: false, authenticationPerformed: true, message: "Denied"))
-        let assignment = AssignmentRecord(title: "Test")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store, exportAuthenticationService: alwaysDeny)
-        let allowed = await vm.authenticateForExportIfNeeded(.studentMarkdown)
-        XCTAssertTrue(allowed, "Student-facing exports must not require authentication")
-        XCTAssertNil(vm.lastExportAuthenticationResult, "No auth result should be set for student exports")
-    }
+    // MARK: - Teacher actions on a final review
 
-    @MainActor
-    func testFullBackupBlockedWhenAuthFails() async {
-        let alwaysDeny = StubExportAuthenticationService(result: ExportAuthenticationResult(allowed: false, authenticationPerformed: true, message: nil))
-        let assignment = AssignmentRecord(title: "Test")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store, exportAuthenticationService: alwaysDeny)
-        await vm.performConfirmedExport(.fullBackup)
-        XCTAssertNil(vm.exportURL, "Full backup must not be created when auth fails")
-    }
-
-    @MainActor
-    func testPreviewBackupRestoreDoesNotMutateAssignments() throws {
-        let local = AssignmentRecord(title: "Local")
-        let store = InMemoryAssignmentStore(assignments: [local])
-        let vm = GradeDraftViewModel(assignments: [local], store: store)
-        let initialCount = vm.assignments.count
-
-        // Build a minimal backup JSON
-        let backup = [AssignmentRecord(title: "From Backup")]
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(backup)
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("test-backup-\(UUID()).json")
-        try data.write(to: url)
-        defer { try? FileManager.default.removeItem(at: url) }
-
-        vm.previewBackupRestore(from: url)
-
-        XCTAssertEqual(vm.assignments.count, initialCount, "Preview must not mutate assignments")
-        XCTAssertNotNil(vm.pendingRestorePreview, "Pending restore preview must be set")
-        XCTAssertNotNil(vm.pendingRestoreFileURL, "Pending restore file URL must be staged")
-    }
-
-    @MainActor
-    func testCancelPendingRestoreDoesNotMutate() throws {
-        let local = AssignmentRecord(title: "Local")
-        let store = InMemoryAssignmentStore(assignments: [local])
-        let vm = GradeDraftViewModel(assignments: [local], store: store)
-        let initialCount = vm.assignments.count
-
-        let backup = [AssignmentRecord(title: "From Backup")]
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(backup)
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("test-cancel-\(UUID()).json")
-        try data.write(to: url)
-        defer { try? FileManager.default.removeItem(at: url) }
-
-        vm.previewBackupRestore(from: url)
-        vm.cancelPendingRestore()
-
-        XCTAssertEqual(vm.assignments.count, initialCount, "Cancel must not mutate assignments")
-        XCTAssertNil(vm.pendingRestorePreview, "Pending restore preview must be cleared")
-        XCTAssertNil(vm.pendingRestoreFileURL, "Pending restore file URL must be cleared")
-    }
-
-    @MainActor
-    func testConfirmPendingRestoreMutatesAssignments() throws {
-        let local = AssignmentRecord(title: "Local")
-        let store = InMemoryAssignmentStore(assignments: [local])
-        let vm = GradeDraftViewModel(assignments: [local], store: store)
-
-        let backup = [AssignmentRecord(title: "New From Backup")]
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(backup)
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("test-confirm-\(UUID()).json")
-        try data.write(to: url)
-        defer { try? FileManager.default.removeItem(at: url) }
-
-        vm.backupConflictResolution = .restoreAsCopy
-        vm.previewBackupRestore(from: url)
-        XCTAssertEqual(vm.assignments.count, 1, "Before confirm, assignments unchanged")
-        vm.confirmPendingRestore()
-        XCTAssertTrue(vm.assignments.contains { $0.title.contains("Backup") || $0.title == "New From Backup" }, "After confirm, backup assignment should exist")
-    }
-
-    @MainActor
-    func testConfirmPendingRestoreKeepsPreviewWhenRelatedRecordSaveFails() throws {
-        var backupAssignment = AssignmentRecord(title: "From Backup", className: "7A", studentDisplayName: "Alex")
-        let student = StudentRecord(displayName: "Alex", className: "7A", localIdentifier: "A-1")
-        backupAssignment.studentID = student.id
-        let classGroup = ClassGroupRecord(name: "7A")
-        let rosterEntry = AssignmentRosterEntry(
-            assignmentID: backupAssignment.id,
-            studentID: student.id,
-            studentDisplayName: student.displayName,
-            localIdentifier: student.localIdentifier,
-            sortOrder: 0
+    func testRecommendedAIConstraintsExcludeSensitiveTemplates() {
+        let assignment = Assignment(
+            classGroupID: UUID(), title: "Short answer", assessmentPurpose: .summative,
+            rubricText: "Claim: 0-2 points", answerKeyText: "Expected claim."
         )
-        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("backup-failure-\(UUID()).zip")
-        defer { try? FileManager.default.removeItem(at: destination) }
-        try BundleExportService.writeFullBackup(
-            assignments: [backupAssignment],
-            sourceFiles: [],
-            to: destination,
-            classGroups: [classGroup],
-            students: [student],
-            rosterEntries: [rosterEntry]
-        )
-        let local = AssignmentRecord(title: "Local")
-        let store = InMemoryAssignmentStore(assignments: [local])
-        store.replaceSnapshotError = NSError(
-            domain: "GradeDraftTests",
-            code: 1,
-            userInfo: [NSLocalizedDescriptionKey: "snapshot persistence failed"]
-        )
-        let vm = GradeDraftViewModel(assignments: [local], store: store)
 
-        vm.previewBackupRestore(from: destination)
-        XCTAssertNotNil(vm.pendingRestorePreview)
-        vm.confirmPendingRestore()
+        let ids = GradingConstraintTemplates.recommendedIDs(for: assignment, ocrPresent: false)
 
-        XCTAssertNotNil(vm.errorMessage)
-        XCTAssertNotNil(vm.pendingRestorePreview)
-        XCTAssertNotNil(vm.pendingRestoreFileURL)
-        XCTAssertFalse(vm.statusMessage.hasPrefix("Restored 1 assignment"))
+        XCTAssertFalse(ids.isEmpty)
+        XCTAssertFalse(ids.contains("eald-sensitive"))
+        XCTAssertFalse(ids.contains("adjustment-context"))
     }
 
-    @MainActor
-    func testClearCurrentStudentWorkDoesNotDeleteSourceFilesWhenPersistenceFails() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftClearWorkFailure-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let assignmentID = UUID()
-        let relativePath = "Sources/\(assignmentID.uuidString)/page-1.txt"
+    func testSavingPastedStudentWorkReplacesReviewedInputAndLeavesOldResultsStale() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Old text")
+        let database = try app.requireDatabase()
+        let fingerprint = try await TestApp.fingerprint(app, seeded)
+        try await database.replaceDraft(
+            GradeDraftResult(
+                packetFingerprint: fingerprint, studentResponseSummary: "Old", criteria: [],
+                studentFeedback: "Old", teacherNotes: "Old", uncertaintyFlags: []
+            ),
+            submissionID: seeded.submissionID
+        )
+        try await database.saveFinalReview(
+            FinalGradeReview(
+                packetFingerprint: fingerprint,
+                criteria: [FinalCriterionScore(
+                    criterionID: try await firstRubricCriterionID(app, seeded), rating: "", proposedPoints: 1, finalPoints: 1,
+                    explanation: "", teacherApproved: true
+                )],
+                studentFeedback: "", privateTeacherNotes: "", teacherEdited: true
+            ),
+            submissionID: seeded.submissionID
+        )
+        let session = try await openSession(app, seeded.submissionID)
+
+        await session.savePastedText("  New student answer  ")
+
+        let setupSaved = try await database.assignmentSetup(id: seeded.assignmentID)
+        let setup = try XCTUnwrap(setupSaved)
+        let graphSaved = try await database.submission(id: seeded.submissionID)
+        let graph = try XCTUnwrap(graphSaved)
+        XCTAssertEqual(graph.reviewedText, "New student answer")
+        XCTAssertEqual(graph.submission.inputKind, .pasted)
+        XCTAssertTrue(graph.sources.isEmpty)
+        XCTAssertNotNil(graph.draft)
+        XCTAssertNotNil(graph.finalReview)
+        XCTAssertTrue(try graph.draftIsStale(setup: setup))
+        XCTAssertTrue(try graph.finalReviewIsStale(setup: setup))
+        XCTAssertNil(session.alert)
+    }
+
+    func testCriterionAcceptAndRejectActionsPersistTeacherDecision() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Student text.")
+        let criterion = FinalCriterionScore(
+            criterionID: try await firstRubricCriterionID(app, seeded), rating: "Developing", proposedPoints: 3, finalPoints: 0,
+            explanation: "Draft explanation.", teacherApproved: false
+        )
+        try await app.requireDatabase().saveFinalReview(
+            FinalGradeReview(
+                packetFingerprint: try await TestApp.fingerprint(app, seeded), criteria: [criterion],
+                studentFeedback: "", privateTeacherNotes: "", teacherEdited: false
+            ),
+            submissionID: seeded.submissionID
+        )
+        let session = try await openSession(app, seeded.submissionID)
+
+        session.acceptCriterion(criterion.id)
+        XCTAssertEqual(session.review?.criteria.first?.finalPoints, 2, "Accepted points are kept within the criterion's maximum")
+        XCTAssertEqual(session.review?.criteria.first?.teacherApproved, true)
+        XCTAssertEqual(session.review?.status, .inProgress)
+
+        session.rejectCriterion(criterion.id)
+        XCTAssertEqual(session.review?.criteria.first?.teacherApproved, false)
+        XCTAssertTrue(session.review?.criteria.first?.teacherRationale.contains("rejected") == true)
+
+        await session.flushPendingEdits()
+        let saved = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertEqual(saved?.finalReview?.criteria.first?.teacherApproved, false)
+    }
+
+    func testApprovedManualFinalReviewEnablesStudentExport() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-2 points", studentWork: "Student text.")
+        try await app.requireDatabase().saveFinalReview(
+            FinalGradeReview(
+                packetFingerprint: try await TestApp.fingerprint(app, seeded),
+                status: .approved,
+                criteria: [FinalCriterionScore(
+                    criterionID: try await firstRubricCriterionID(app, seeded), rating: "", proposedPoints: 0, finalPoints: 2,
+                    explanation: "", teacherApproved: true
+                )],
+                studentFeedback: "Good work.", privateTeacherNotes: "", teacherEdited: true
+            ),
+            submissionID: seeded.submissionID
+        )
+        let session = try await openSession(app, seeded.submissionID)
+
+        XCTAssertEqual(session.readiness?.canExportStudentReport, true, "Approved manual final review should enable student export")
+    }
+
+    func testManualFinalReviewSurvivesStoreRoundTrip() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "", studentWork: "Student wrote this.") { assignment in
+            assignment.answerKeyText = "Expected: a claim."
+        }
+        let review = FinalGradeReview(
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            packetFingerprint: try await TestApp.fingerprint(app, seeded),
+            criteria: [FinalCriterionScore(
+                criterionID: "criterion-1", rating: "", proposedPoints: 0, finalPoints: 1, explanation: "Partial claim.",
+                teacherApproved: false, teacherRationale: "Manual teacher-created final review.", title: "Claim", maxPoints: 2
+            )],
+            studentFeedback: "",
+            privateTeacherNotes: "My private note",
+            teacherEdited: false
+        )
+        try await app.requireDatabase().saveFinalReview(review, submissionID: seeded.submissionID)
+
+        let loaded = try await app.requireDatabase().submission(id: seeded.submissionID)
+
+        XCTAssertEqual(loaded?.finalReview, review)
+        XCTAssertEqual(loaded?.finalReview?.criteria.count, 1)
+        XCTAssertEqual(loaded?.finalReview?.criteria[0].title, "Claim")
+        XCTAssertEqual(loaded?.finalReview?.criteria[0].finalPoints, 1)
+        XCTAssertEqual(loaded?.finalReview?.privateTeacherNotes, "My private note")
+    }
+
+    func testStudentReportBlockedWithoutApprovedFinalReview() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student text.")
+        let session = try await openSession(app, seeded.submissionID)
+
+        XCTAssertEqual(session.readiness?.canExportStudentReport, false, "Student export blocked without final review")
+    }
+
+    func testStudentReportBlockedWhenFinalReviewIsStale() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Student text.")
+        try await app.requireDatabase().saveFinalReview(
+            FinalGradeReview(
+                packetFingerprint: "stale-fingerprint",
+                status: .approved,
+                criteria: [FinalCriterionScore(
+                    criterionID: try await firstRubricCriterionID(app, seeded), rating: "", proposedPoints: 3, finalPoints: 3,
+                    explanation: "Good.", teacherApproved: true
+                )],
+                studentFeedback: "Good.", privateTeacherNotes: "", teacherEdited: true
+            ),
+            submissionID: seeded.submissionID
+        )
+        let session = try await openSession(app, seeded.submissionID)
+
+        XCTAssertEqual(session.readiness?.finalReviewIsStale, true, "Final review should be stale")
+        XCTAssertEqual(session.readiness?.canExportStudentReport, false, "Student export blocked when stale")
+    }
+
+    func testDeleteAssignmentRemovesRecord() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: nil)
+
+        await app.deleteAssignment(id: seeded.assignmentID)
+
+        let setup = try await app.requireDatabase().assignmentSetup(id: seeded.assignmentID)
+        XCTAssertNil(setup, "Deleted assignment should not remain")
+    }
+
+    // MARK: - Roster status
+
+    func testRosterStatusStaleReviewBeatsExported() throws {
+        let setup = AssignmentSetup(assignment: Assignment(classGroupID: UUID(), title: "Stale", rubricText: "Claim: 0-4 points"))
+        var graph = try approvedGraph(setup: setup, fingerprint: "OLD-STALE-FINGERPRINT")
+        graph.exports = [ExportRecord(
+            assignmentID: setup.id, submissionID: graph.submission.id, kind: .studentPDF, contentSHA256: "fp",
+            includesPrivateTeacherNotes: false, includesOriginalSources: false
+        )]
+
+        XCTAssertEqual(try graph.rosterStatus(setup: setup), .needsRecheck, "Stale final review must produce needsRecheck, not exported")
+    }
+
+    func testRosterStatusNeedsRecheckDisplayName() {
+        XCTAssertEqual(RosterStatus.needsRecheck.displayName, "Needs recheck")
+    }
+
+    func testRosterStatusNeedsRecheckUIStatus() {
+        XCTAssertEqual(RosterStatus.needsRecheck.uiStatus, .needsRecheck)
+    }
+
+    // MARK: - Backup and restore
+
+    func testFullBackupCanBeReadBack() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Text") { $0.title = "Backup" }
+        let url = try await writeBackup(from: app)
+
+        let preview = try await BackupArchiveService.prepareRestore(
+            from: url, password: "pw", storageRoot: try app.requireStorageRoot(), database: try app.requireDatabase()
+        )
+        addTeardownBlock { BackupArchiveService.discard(preview) }
+
+        XCTAssertEqual(preview.snapshot.assignments.map(\.assignment.title), ["Backup"])
+        XCTAssertEqual(preview.snapshot.submissions.first?.reviewedText, "Text")
+        XCTAssertEqual(preview.conflictingAssignmentIDs, [seeded.assignmentID])
+    }
+
+    func testPreviewBackupRestoreDoesNotMutateLocalData() async throws {
+        let app = try TestApp.make()
+        _ = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Local text") { $0.title = "Local" }
+        let url = try await writeBackup(from: app)
+        let before = try await app.requireDatabase().backupSnapshot()
+
+        await app.backupRestore.prepareRestore(from: url, password: "pw")
+
+        XCTAssertNotNil(app.backupRestore.preview, "A pending restore preview must be set")
+        let after = try await app.requireDatabase().backupSnapshot()
+        XCTAssertEqual(after, before, "Preview must not mutate local data")
+        app.backupRestore.discardRestore()
+    }
+
+    func testCancelPendingRestoreDoesNotMutate() async throws {
+        let app = try TestApp.make()
+        _ = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Local text") { $0.title = "Local" }
+        let url = try await writeBackup(from: app)
+        let before = try await app.requireDatabase().backupSnapshot()
+        await app.backupRestore.prepareRestore(from: url, password: "pw")
+        let staging = try XCTUnwrap(app.backupRestore.preview?.stagingDirectory)
+
+        app.backupRestore.discardRestore()
+
+        XCTAssertNil(app.backupRestore.preview, "Pending restore preview must be cleared")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staging.path), "The staged files must be removed")
+        let after = try await app.requireDatabase().backupSnapshot()
+        XCTAssertEqual(after, before, "Cancel must not mutate local data")
+    }
+
+    func testConfirmPendingRestoreAddsAssignmentsFromTheBackup() async throws {
+        let backupApp = try TestApp.make()
+        _ = try await TestApp.seed(backupApp, rubric: "Claim: 0-4 points", studentWork: "Backup text") { $0.title = "New From Backup" }
+        let url = try await writeBackup(from: backupApp)
+        let app = try TestApp.make()
+        _ = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Local text") { $0.title = "Local" }
+
+        await app.backupRestore.prepareRestore(from: url, password: "pw")
+        XCTAssertEqual(app.backupRestore.preview?.conflictingAssignmentIDs, [])
+        let before = try await app.requireDatabase().assignmentSummaries(inClass: nil)
+        XCTAssertEqual(before.count, 1, "Before confirm, assignments unchanged")
+        await app.backupRestore.commitRestore()
+
+        XCTAssertEqual(app.backupRestore.alert?.message, RestoreOutcome.completeMessage)
+        let after = try await app.requireDatabase().assignmentSummaries(inClass: nil)
+        XCTAssertEqual(Set(after.map(\.assignment.title)), ["Local", "New From Backup"])
+    }
+
+    // MARK: - Clearing student work and importing
+
+    func testClearingStudentWorkKeepsSourceFilesWhenNothingWasSaved() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: nil)
+        let database = try app.requireDatabase()
+        let root = try app.requireStorageRoot()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let relativePath = "Sources/\(seeded.submissionID.uuidString)/page-1.txt"
         let sourceURL = root.appendingPathComponent(relativePath)
         try FileManager.default.createDirectory(at: sourceURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data("source".utf8).write(to: sourceURL)
-        var assignment = AssignmentRecord(id: assignmentID, title: "Clear work")
-        assignment.sourceInputs = [SourceInputRef(sourceType: .scan, localRelativePath: relativePath, fileName: "page-1.txt")]
-        assignment.reviewedStudentText = "Reviewed text"
-        assignment.ocrReviewStatus = .reviewed
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        store.appSupportDirectory = root
-        store.saveAssignmentsError = GradeDraftError.persistenceFailed("save failed")
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        vm.clearCurrentStudentWork()
-
-        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceURL.path), "Source files must not be removed before the cleared assignment record is persisted.")
-        XCTAssertEqual(vm.assignment.sourceInputs.count, 1)
-        XCTAssertEqual(store.assignments.first?.sourceInputs.count, 1)
-        XCTAssertNotNil(vm.errorMessage)
-        XCTAssertFalse(vm.statusMessage.contains("Student work cleared"))
-    }
-
-    // MARK: - Change 5: Stale status tests
-
-    @MainActor
-    func testAssignmentRosterStatusStaleReviewBeatsExported() {
-        var record = AssignmentRecord(title: "Stale")
-        record.rubricText = "Claim: 0-4 points"
-        let finalReview = FinalGradeReview(
-            packetFingerprint: "OLD-STALE-FINGERPRINT",
-            status: .approved,
-            criteria: [FinalCriterionScore(criterionID: "c1", criterion: "Claim", rating: "Proficient", proposedPoints: 4, finalPoints: 4, maxPoints: 4, evidence: [], explanation: "Good", teacherApproved: true)],
-            totalScore: 4, maxScore: 4, studentFeedback: "Good job", privateTeacherNotes: "", teacherEdited: true
+        let source = SourceInputRef(submissionID: seeded.submissionID, sourceType: .scan, localRelativePath: relativePath, fileName: "page-1.txt")
+        let line = OCRLine(text: "Reviewed text", confidence: 0.95, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true)
+        _ = try await database.replaceInput(
+            submissionID: seeded.submissionID, kind: .scanned, pastedText: nil, sources: [source],
+            ocr: OCRDocument(pages: [OCRPage(sourceInputID: source.id, pageIndex: 0, lines: [line])], reviewStatus: .reviewed)
         )
-        record.finalReview = finalReview
-        record.exportRecords = [ExportRecord(exportKind: .studentPDF, contentFingerprint: "fp", includesPrivateTeacherNotes: false, includesOriginalSources: false)]
+        let session = try await openSession(app, seeded.submissionID)
 
-        // finalReview.packetFingerprint won't match gradingPacketFingerprint
-        // so finalReviewIsStale = true => should return .needsRecheck
-        let store = InMemoryAssignmentStore(assignments: [record])
-        let vm = GradeDraftViewModel(assignments: [record], store: store)
-        let status = vm.assignmentRosterStatus(for: vm.assignment)
-        XCTAssertEqual(status, .needsRecheck, "Stale final review must produce needsRecheck, not exported")
+        // The submission is deleted before the action runs: nothing is saved, so nothing may be deleted.
+        _ = try await database.deleteStudent(id: seeded.studentID)
+        try await waitForCondition { session.isMissing }
+        await session.clearStudentWork()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceURL.path), "Source files must not be removed when nothing was saved.")
     }
 
-    func testAssignmentRosterStatusNeedsRecheckDisplayName() {
-        XCTAssertEqual(AssignmentRosterStatus.needsRecheck.displayName, "Needs recheck")
-    }
-
-    func testAssignmentRosterStatusNeedsRecheckV6Status() {
-        XCTAssertEqual(AssignmentRosterStatus.needsRecheck.v6Status, .needsRecheck)
-    }
-
-    // MARK: - Change 6: Rubric import mode tests
-
-    @MainActor
-    func testDeleteCurrentAssignmentRemovesRosterEntries() {
-        let student = StudentRecord(displayName: "Alice")
-        var assignment = AssignmentRecord(title: "To delete")
-        assignment.studentID = student.id
-        assignment.studentDisplayName = student.displayName
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        vm.students = [student]
-
-        // Manually add a roster entry for this assignment
-        let entry = AssignmentRosterEntry(assignmentID: assignment.id, studentID: student.id, studentDisplayName: "Alice")
-        vm.assignmentRosterEntries = [entry]
-
-        vm.deleteCurrentAssignment()
-        XCTAssertFalse(vm.assignmentRosterEntries.contains { $0.assignmentID == assignment.id }, "Roster entries for deleted assignment must be removed")
-    }
-
-    @MainActor
-    func testDeleteStudentPersistsRosterRemoval() {
-        let student = StudentRecord(displayName: "Alice")
-        var assignment = AssignmentRecord(title: "Student cleanup", studentDisplayName: student.displayName)
-        assignment.studentID = student.id
-        let entry = AssignmentRosterEntry(
-            assignmentID: assignment.id,
-            studentID: student.id,
-            studentDisplayName: student.displayName
+    func testClearingStudentWorkRemovesFilesAfterSaving() async throws {
+        let app = try TestApp.make()
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: nil)
+        let database = try app.requireDatabase()
+        let root = try app.requireStorageRoot()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let relativePath = "Sources/\(seeded.submissionID.uuidString)/page-1.txt"
+        let sourceURL = root.appendingPathComponent(relativePath)
+        try FileManager.default.createDirectory(at: sourceURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("source".utf8).write(to: sourceURL)
+        let source = SourceInputRef(submissionID: seeded.submissionID, sourceType: .scan, localRelativePath: relativePath, fileName: "page-1.txt")
+        let line = OCRLine(text: "Reviewed text", confidence: 0.95, boundingBox: .zero, origin: .visionOCR, teacherConfirmed: true)
+        _ = try await database.replaceInput(
+            submissionID: seeded.submissionID, kind: .scanned, pastedText: nil, sources: [source],
+            ocr: OCRDocument(pages: [OCRPage(sourceInputID: source.id, pageIndex: 0, lines: [line])], reviewStatus: .reviewed)
         )
-        let store = InMemoryAssignmentStore(assignments: [assignment], students: [student], rosterEntries: [entry])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        vm.students = [student]
-        vm.assignmentRosterEntries = [entry]
+        let session = try await openSession(app, seeded.submissionID)
 
-        vm.deleteStudent(id: student.id)
+        await session.clearStudentWork()
 
-        XCTAssertFalse(store.rosterEntries.contains { $0.studentID == student.id })
+        let graph = try await database.submission(id: seeded.submissionID)
+        XCTAssertEqual(graph?.submission.inputKind, SubmissionInputKind.none)
+        XCTAssertTrue(graph?.sources.isEmpty == true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sourceURL.path))
+        XCTAssertNil(session.alert)
     }
 
-    @MainActor
-    func testDeleteStudentFailureRollsBackMemoryAndStoredRoster() {
-        let student = StudentRecord(displayName: "Alice")
-        var assignment = AssignmentRecord(title: "Student cleanup", studentDisplayName: student.displayName)
-        assignment.studentID = student.id
-        let entry = AssignmentRosterEntry(assignmentID: assignment.id, studentID: student.id, studentDisplayName: student.displayName)
-        let store = InMemoryAssignmentStore(assignments: [assignment], students: [student], rosterEntries: [entry])
-        store.replaceSnapshotError = NSError(domain: "GradeDraftTests", code: 42)
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        vm.students = [student]
-        vm.assignmentRosterEntries = [entry]
+    func testPhotoImportLeavesPreviousWorkWhenTextRecognitionFails() async throws {
+        let app = try TestApp.make(makeImporter: { root in TestImporter(root: root, failure: ImportTestError.injectedOCRFailure) })
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: "Previous reviewed text")
+        let root = try app.requireStorageRoot()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let session = try await openSession(app, seeded.submissionID)
 
-        vm.deleteStudent(id: student.id)
+        session.importPhotos([Data()])
+        await app.backgroundWork.waitUntilFinished(submissionID: seeded.submissionID)
 
-        XCTAssertNotNil(vm.errorMessage)
-        XCTAssertTrue(vm.students.contains { $0.id == student.id })
-        XCTAssertEqual(store.rosterEntries, [entry])
-        XCTAssertEqual(vm.assignmentRosterEntries.map(\.assignmentID), [entry.assignmentID])
-        XCTAssertEqual(vm.assignmentRosterEntries.map(\.studentID), [entry.studentID])
-        XCTAssertFalse(vm.statusMessage.contains("deleted"))
+        XCTAssertTrue(regularFilesUnder(root).isEmpty, "Failed text recognition must leave no student source files.")
+        let graph = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertEqual(graph?.reviewedText, "Previous reviewed text")
+        XCTAssertTrue(graph?.sources.isEmpty == true)
+        XCTAssertNil(graph?.ocr)
+        XCTAssertNotNil(app.backgroundWork.failures[seeded.submissionID])
     }
 
-    @MainActor
-    func testRosterCSVImportFailureDoesNotPersistPartialGraph() {
-        let existing = AssignmentRecord(title: "Existing", className: "6A", studentDisplayName: "Existing")
-        let store = InMemoryAssignmentStore(assignments: [existing])
-        store.replaceSnapshotError = NSError(domain: "GradeDraftTests", code: 43)
-        let vm = GradeDraftViewModel(assignments: [existing], store: store)
-        let csv = "Student,ID\nAlice,A1\nBob,B2"
-
-        vm.createAssignmentsFromRosterCSV(csv, className: "6A")
-
-        XCTAssertNotNil(vm.errorMessage)
-        XCTAssertEqual(store.assignments.map(\.id), [existing.id])
-        XCTAssertTrue(store.classGroups.isEmpty)
-        XCTAssertTrue(store.students.isEmpty)
-        XCTAssertTrue(store.rosterEntries.isEmpty)
-        XCTAssertEqual(vm.assignments.map(\.id), [existing.id])
-    }
-
-    @MainActor
-    func testCreateAssignmentsFromRosterCSVPersistsExistingAndNewRosterEntries() {
-        let existingStudentID = UUID()
-        var existing = AssignmentRecord(title: "Existing", className: "7A", studentDisplayName: "Existing Student")
-        existing.studentID = existingStudentID
-        let store = InMemoryAssignmentStore(assignments: [existing])
-        let vm = GradeDraftViewModel(assignments: [existing], store: store)
-
-        vm.createAssignmentsFromRosterCSV("displayName,localIdentifier\nNew Student,N-1", className: "7A")
-
-        XCTAssertTrue(store.rosterEntries.contains { $0.assignmentID == existing.id })
-        XCTAssertTrue(store.rosterEntries.contains { $0.studentDisplayName == "New Student" })
-        XCTAssertEqual(store.rosterEntries.count, 2)
-        XCTAssertNil(vm.errorMessage)
-    }
-
-    @MainActor
-    func testCreateAssignmentsFromRosterCSVSurfacesRosterPersistenceFailure() {
-        let assignment = AssignmentRecord(title: "Template", className: "7A")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        store.replaceSnapshotError = NSError(
-            domain: "GradeDraftTests",
-            code: 2,
-            userInfo: [NSLocalizedDescriptionKey: "roster persistence failed"]
-        )
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        vm.createAssignmentsFromRosterCSV("displayName,localIdentifier\nNew Student,N-1", className: "7A")
-
-        XCTAssertNotNil(vm.errorMessage)
-        XCTAssertFalse(vm.statusMessage.hasPrefix("Created 1 roster assignment"))
-    }
-
-    // MARK: - Change 8: OCR centralized state tests
-
-    @MainActor
-    func testUnchangedOCRLineCommitDoesNotPersistAgain() {
-        let line = OCRLine(text: "hello", confidence: 0.9, boundingBox: .zero, correctedText: "world", teacherConfirmed: false)
-        let page = OCRPage(pageIndex: 0, lines: [line])
-        var assignment = AssignmentRecord(title: "OCR No-op", ocrReviewStatus: .needsReview)
-        assignment.ocrDocument = OCRDocument(pages: [page])
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        vm.updateOCRLine(pageID: page.id, lineID: line.id, correctedText: "world")
-
-        XCTAssertEqual(store.saveAssignmentsCallCount, 0, "Committing unchanged OCR text should not create another durable save.")
-        XCTAssertTrue(vm.assignment.auditEvents.isEmpty, "Unchanged OCR text should not create a misleading edit audit event.")
-    }
-
-    @MainActor
-    func testBatchOCRLineCorrectionsPersistOnceForLargePage() {
-        let lines = (0..<120).map { index in
-            OCRLine(text: "line \(index)", confidence: 0.92, boundingBox: .zero, teacherConfirmed: true)
+    func testPhotoImportRollsBackFilesAndSavedWorkWhenSaveFails() async throws {
+        try await assertImportSaveFailureRollsBack(previousText: "Previous reviewed text") { session in
+            session.importPhotos([Data()])
         }
-        let page = OCRPage(pageIndex: 0, lines: lines)
-        var document = OCRDocument(pages: [page])
-        document.reviewStatus = .reviewed
-        document.reviewedAt = Date()
-        var assignment = AssignmentRecord(title: "OCR Batch", ocrReviewStatus: .reviewed)
-        assignment.ocrDocument = document
-        assignment.ocrReviewedAt = Date()
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        let corrections = lines.map { line in
-            OCRLineCorrection(pageID: page.id, lineID: line.id, correctedText: "\(line.rawText) corrected")
-        }
-
-        vm.updateOCRLines(corrections)
-
-        XCTAssertEqual(store.saveAssignmentsCallCount, 1, "Batch OCR corrections should create one durable save for the page, not one save per line.")
-        XCTAssertEqual(vm.assignment.ocrReviewStatus, .needsReview)
-        XCTAssertEqual(vm.assignment.ocrDocument?.reviewStatus, .needsReview)
-        XCTAssertNil(vm.assignment.ocrDocument?.reviewedAt)
-        XCTAssertNil(vm.assignment.ocrReviewedAt)
-        XCTAssertEqual(vm.assignment.ocrDocument?.pages.first?.lines.filter { !$0.teacherConfirmed }.count, lines.count)
     }
 
-    @MainActor
-    func testUnchangedBatchOCRLineCorrectionsDoNotPersist() {
-        let lines = (0..<12).map { index in
-            OCRLine(text: "line \(index)", confidence: 0.92, boundingBox: .zero, correctedText: "kept \(index)", teacherConfirmed: false)
-        }
-        let page = OCRPage(pageIndex: 0, lines: lines)
-        var assignment = AssignmentRecord(title: "OCR Batch No-op", ocrReviewStatus: .needsReview)
-        assignment.ocrDocument = OCRDocument(pages: [page])
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-        let corrections = lines.map { line in
-            OCRLineCorrection(pageID: page.id, lineID: line.id, correctedText: line.reviewedText)
-        }
-
-        vm.updateOCRLines(corrections)
-
-        XCTAssertEqual(store.saveAssignmentsCallCount, 0, "Unchanged batch OCR corrections should not create a durable save.")
-        XCTAssertTrue(vm.assignment.auditEvents.isEmpty, "Unchanged batch OCR corrections should not create a misleading edit audit event.")
-    }
-
-    @MainActor
-    func testBatchOCRLineCorrectionsReportPersistenceFailure() {
-        let line = OCRLine(text: "line", confidence: 0.92, boundingBox: .zero, teacherConfirmed: true)
-        let page = OCRPage(pageIndex: 0, lines: [line])
-        var assignment = AssignmentRecord(title: "OCR Batch Failure", ocrReviewStatus: .reviewed)
-        assignment.ocrDocument = OCRDocument(pages: [page], reviewStatus: .reviewed, reviewedAt: Date())
-        assignment.ocrReviewedAt = Date()
-
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        store.saveAssignmentsError = GradeDraftError.persistenceFailed("Injected OCR batch save failure.")
-        let vm = GradeDraftViewModel(assignments: [assignment], store: store)
-
-        let saved = vm.updateOCRLines([
-            OCRLineCorrection(pageID: page.id, lineID: line.id, correctedText: "corrected")
-        ])
-
-        XCTAssertFalse(saved, "Failed OCR batch persistence must report failure so staged UI edits remain visible.")
-        XCTAssertNotNil(vm.errorMessage)
-        XCTAssertEqual(store.saveAssignmentsCallCount, 0)
-    }
-
-    // MARK: - Change 9: Source path safety tests
-
-    func testLegacyJSONRestoreSanitizesUnsafeSourcePaths() throws {
-        let unsafeSource = SourceInputRef(
-            sourceType: .photo,
-            localRelativePath: "/absolute/bad.png",
-            fileName: "bad.png"
-        )
-        var backupRecord = AssignmentRecord(title: "From Backup")
-        backupRecord.sourceInputs = [unsafeSource]
-
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode([backupRecord])
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("legacy-test-\(UUID()).json")
-        try data.write(to: url)
-        defer { try? FileManager.default.removeItem(at: url) }
-
-        let store = InMemoryAssignmentStore(assignments: [])
-        let vm = GradeDraftViewModel(assignments: [], store: store)
-        vm.previewBackupRestore(from: url)
-        vm.confirmPendingRestore()
-
-        let restored = vm.assignments.first { $0.title == "From Backup" }
-        XCTAssertNotNil(restored, "Backup assignment should be restored")
-        let paths = restored?.sourceInputs.map { $0.localRelativePath }
-        XCTAssertTrue(paths?.allSatisfy { $0 == nil } ?? false, "Unsafe source path must be stripped")
-    }
-
-    @MainActor
-    func testPhotoImportRollsBackFilesAndVisibleStateWhenOCRFails() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftPhotoOCRRollback-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let assignment = AssignmentRecord(title: "Photo OCR rollback", reviewedStudentText: "Previous reviewed text")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        store.appSupportDirectory = root
-        let ocr = ImportTransactionOCRService(result: .failure(ImportTransactionTestError.injectedOCRFailure))
-        let viewModel = GradeDraftViewModel(assignments: [assignment], ocrService: ocr, store: store)
-
-        await viewModel.applyPhotoImages([makeImportTransactionImage()])
-
-        XCTAssertTrue(regularFilesUnder(root).isEmpty, "Failed OCR import must remove copied student source files.")
-        XCTAssertEqual(viewModel.assignment.reviewedStudentText, "Previous reviewed text")
-        XCTAssertTrue(viewModel.assignment.sourceInputs.isEmpty)
-        XCTAssertNil(viewModel.assignment.ocrDocument)
-        XCTAssertEqual(store.saveAssignmentsCallCount, 0)
-        XCTAssertNotNil(viewModel.errorMessage)
-        XCTAssertFalse(viewModel.statusMessage.contains("Text recognition complete"))
-    }
-
-    @MainActor
-    func testPhotoImportRollsBackFilesAndVisibleStateWhenSaveFails() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftPhotoSaveRollback-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let assignment = AssignmentRecord(title: "Photo save rollback", reviewedStudentText: "Previous reviewed text")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        store.appSupportDirectory = root
-        store.saveAssignmentsError = ImportTransactionTestError.injectedSaveFailure
-        let document = OCRDocument(pages: [
-            OCRPage(pageIndex: 0, lines: [
-                OCRLine(text: "Imported text", confidence: 0.93, boundingBox: .zero)
-            ])
-        ])
-        let ocr = ImportTransactionOCRService(result: .success(document))
-        let viewModel = GradeDraftViewModel(assignments: [assignment], ocrService: ocr, store: store)
-
-        await viewModel.applyPhotoImages([makeImportTransactionImage()])
-
-        XCTAssertTrue(regularFilesUnder(root).isEmpty, "Failed durable save must remove copied student source files.")
-        XCTAssertEqual(viewModel.assignment.reviewedStudentText, "Previous reviewed text")
-        XCTAssertTrue(viewModel.assignment.sourceInputs.isEmpty)
-        XCTAssertNil(viewModel.assignment.ocrDocument)
-        XCTAssertEqual(store.assignments.first?.reviewedStudentText, "Previous reviewed text")
-        XCTAssertNotNil(viewModel.errorMessage)
-        XCTAssertFalse(viewModel.statusMessage.contains("Text recognition complete"))
-    }
-
-    @MainActor
     func testPDFImportRollsBackOriginalAndRenderedSourcesWhenSaveFails() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("GradeDraftPDFSaveRollback-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let pdfURL = try makeImportTransactionPDF()
-        defer { try? FileManager.default.removeItem(at: pdfURL) }
-        let assignment = AssignmentRecord(title: "PDF save rollback", reviewedStudentText: "Previous PDF text")
-        let store = InMemoryAssignmentStore(assignments: [assignment])
-        store.appSupportDirectory = root
-        store.saveAssignmentsError = ImportTransactionTestError.injectedSaveFailure
-        let document = OCRDocument(pages: [
-            OCRPage(pageIndex: 0, lines: [
-                OCRLine(text: "OCR PDF text", confidence: 0.88, boundingBox: .zero)
-            ])
-        ])
-        let ocr = ImportTransactionOCRService(result: .success(document))
-        let viewModel = GradeDraftViewModel(assignments: [assignment], ocrService: ocr, store: store)
-
-        await viewModel.applyPDFFile(pdfURL)
-
-        XCTAssertTrue(regularFilesUnder(root).isEmpty, "Failed PDF durable save must remove both original PDF and rendered page files.")
-        XCTAssertEqual(viewModel.assignment.reviewedStudentText, "Previous PDF text")
-        XCTAssertTrue(viewModel.assignment.sourceInputs.isEmpty)
-        XCTAssertNil(viewModel.assignment.ocrDocument)
-        XCTAssertEqual(store.assignments.first?.reviewedStudentText, "Previous PDF text")
-        XCTAssertNotNil(viewModel.errorMessage)
-        XCTAssertFalse(viewModel.statusMessage.contains("PDF imported"))
+        try await assertImportSaveFailureRollsBack(previousText: "Previous PDF text") { session in
+            session.importPDF(at: FileManager.default.temporaryDirectory.appendingPathComponent("not-read.pdf"))
+        }
     }
 
-    // MARK: - Private helpers
+    /// The import writes its files, then the store refuses the save (two source records share an ID). The files
+    /// are removed, the earlier work is unchanged, and the failure is reported.
+    private func assertImportSaveFailureRollsBack(previousText: String, start: (SubmissionSession) -> Void) async throws {
+        let gate = TestGate()
+        let app = try TestApp.make(makeImporter: { root in
+            TestImporter(root: root, gate: gate, writesFiles: true, duplicatesSourceID: true)
+        })
+        let seeded = try await TestApp.seed(app, rubric: "Claim: 0-4 points", studentWork: previousText)
+        let root = try app.requireStorageRoot()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let session = try await openSession(app, seeded.submissionID)
+
+        start(session)
+        try await waitForCondition { await gate.hasWaiter }
+        XCTAssertFalse(regularFilesUnder(root).isEmpty, "The import has written its files before the save")
+        await gate.open()
+        await app.backgroundWork.waitUntilFinished(submissionID: seeded.submissionID)
+
+        XCTAssertTrue(regularFilesUnder(root).isEmpty, "A failed save must remove the copied student source files.")
+        let graph = try await app.requireDatabase().submission(id: seeded.submissionID)
+        XCTAssertEqual(graph?.reviewedText, previousText)
+        XCTAssertEqual(graph?.submission.inputKind, .pasted)
+        XCTAssertTrue(graph?.sources.isEmpty == true)
+        XCTAssertNil(graph?.ocr)
+        XCTAssertNotNil(app.backgroundWork.failures[seeded.submissionID])
+    }
 }

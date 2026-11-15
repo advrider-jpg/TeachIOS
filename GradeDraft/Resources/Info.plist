@@ -24,13 +24,31 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>MarkForMe uses the camera so you can scan student work.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>MarkForMe needs photo access only when you choose a photo of student work to import.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>MarkForMe uses Face ID to confirm exports that may contain student work.</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.markforme.backup</string>
+			<key>UTTypeDescription</key>
+			<string>MarkForMe Backup</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>markformebackup</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

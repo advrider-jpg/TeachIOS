@@ -137,11 +137,11 @@ enum GradingConstraintTemplates {
         Dictionary(uniqueKeysWithValues: builtIn.map { ($0.id, $0) })
     }
 
-    static func recommendedIDs(for assignment: AssignmentRecord) -> [String] {
+    /// `ocrPresent`: whether any of the assignment's submissions has scanned text.
+    static func recommendedIDs(for assignment: Assignment, ocrPresent: Bool) -> [String] {
         var ids = defaultSelectedIDs
         let answerKeyPresent = !assignment.answerKeyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let exemplarPresent = !assignment.exemplarText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let ocrPresent = assignment.ocrDocument != nil || assignment.ocrReviewStatus != .notNeeded
 
         if answerKeyPresent { ids.append("strict-answer-key") }
         if exemplarPresent { ids.append("exemplar-comparison") }
@@ -164,7 +164,7 @@ enum GradingConstraintTemplates {
 
     static func fingerprint(for ids: [String]) -> String {
         let values = templates(for: ids).map { "\($0.id):\($0.text)" }
-        return StableFingerprint.fingerprint(values)
+        return ContentDigest.sha256Hex(values.joined(separator: "\u{1F}"))
     }
 
     private static func sortIndex(for id: String) -> Int {

@@ -22,7 +22,7 @@
     "answerKeyText": "A complete answer explains that heavy rain caused flooding, which forced residents to move.",
     "exemplarText": "",
     "curriculumReference": "",
-    "ocrReviewStatus": "notNeeded",
+    "ocrReviewStatus": "reviewed",
     "expected": {
       "mustNotContain": ["definitely complete", "final grade"],
       "mustContainTeacherReviewReasons": [],

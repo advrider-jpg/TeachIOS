@@ -1,10 +1,12 @@
 import Foundation
 
-// MARK: - Typed grading packet adapter
+// MARK: - Typed grading packet
 
+/// The teacher-supplied grading materials and reviewed student text for one submission, assembled by
+/// `GradingPacketBuilder` from the `GradingInput`. Readiness checks and the packet preview read it; prompts are
+/// built from the identity-redacted `GradingInput`.
 struct GradingPacket: Codable, Equatable {
     var packetVersion: String
-    var fingerprintSchemaVersion: String
     var assignment: GradingPacketAssignment
     var curriculumReference: GradingPacketCurriculumReference?
     var rubric: GradingPacketRubric
@@ -13,16 +15,11 @@ struct GradingPacket: Codable, Equatable {
     var answerKey: GradingPacketAnswerKey?
     var exemplar: GradingPacketExemplar?
     var studentEvidence: GradingPacketStudentEvidence
-    var sourceInputs: [GradingPacketSourceInput]
-    var evidenceReferences: [GradingPacketEvidenceReference]
-    var appliedTemplates: [AppliedTemplateRecord]
     var outputRules: GradingPacketOutputRules
 }
 
 struct GradingPacketAssignment: Codable, Equatable {
     var assignmentID: UUID
-    var classGroupID: UUID?
-    var studentID: UUID?
     var title: String
     var prompt: String
     var subject: String
@@ -35,7 +32,6 @@ struct GradingPacketAssignment: Codable, Equatable {
 
 struct GradingPacketCurriculumReference: Codable, Equatable {
     var rawText: String
-    var mappings: [String]
 }
 
 struct GradingPacketRubric: Codable, Equatable {
@@ -52,8 +48,7 @@ struct GradingPacketRubricCriterion: Codable, Equatable {
 }
 
 struct GradingPacketTeacherInstruction: Codable, Equatable {
-    var id: String?
-    var name: String?
+    var name: String
     var text: String
     var privateTeacherOnly: Bool
 }
@@ -74,33 +69,9 @@ struct GradingPacketStudentEvidence: Codable, Equatable {
     var reviewedText: String
     var reviewedTextWithSourceRefs: String
     var ocrReviewStatus: OCRReviewStatus
-    var ocrReviewedAt: Date?
     var ocrQualitySummary: String
     var hasLowConfidenceOCRText: Bool
     var sourceInputCount: Int
-    var evidenceReferenceQuotes: [String]
-}
-
-struct GradingPacketSourceInput: Codable, Equatable {
-    var id: UUID
-    var sourceType: SourceType
-    var pageIndex: Int?
-    var localRelativePath: String?
-    var fileName: String?
-    var contentDigest: String?
-    var digestAlgorithm: String?
-    var teacherIncludedInExport: Bool
-}
-
-struct GradingPacketEvidenceReference: Codable, Equatable {
-    var id: UUID
-    var sourceInputID: UUID?
-    var ocrLineID: UUID?
-    var pageIndex: Int?
-    var quote: String
-    var sourceKind: String
-    var teacherConfirmed: Bool
-    var boundingBox: String?
 }
 
 struct GradingPacketOutputRules: Codable, Equatable {
@@ -207,7 +178,16 @@ struct AIPacketPreview: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-enum AIGenerationStage: String, Codable, Equatable, Sendable {
+/// One criterion of a draft while the on-device model is still writing it. Shown on the AI Draft screen as
+/// "Draft in progress — not saved"; never stored.
+struct PartialCriterion: Codable, Equatable, Sendable {
+    var criterionID: String
+    var rating: String?
+    var proposedPoints: Double?
+    var explanation: String?
+}
+
+enum AIGenerationStage: Codable, Equatable, Sendable {
     case idle
     case validatingInputs
     case checkingAvailability
@@ -216,6 +196,7 @@ enum AIGenerationStage: String, Codable, Equatable, Sendable {
     case generatingCriteria
     case synthesizingSummary
     case rewritingFeedback
+    case partial([PartialCriterion])
     case validatingDraft
     case storingDraft
     case cancellationRequested

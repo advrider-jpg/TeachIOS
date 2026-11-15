@@ -27,10 +27,11 @@ Install as `PROJECT_RULES.md` at the repository root. Read with `AGENTS.md`. The
 Validation commands, run where possible; report exactly what was not run and why:
 
 - `python3 scripts/no_network_scan.py`
-- `python3 scripts/repo_health.py`
+- `python3 scripts/ci/check_curriculum_catalog.py`
+- `python3 scripts/curriculum/build_acara_curriculum_catalog.py --check`
 - `xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft`
 - `swiftlint lint --config .swiftlint.yml`
-- `xcodebuild test -project GradeDraft.xcodeproj -scheme GradeDraft -destination 'platform=iPhone Simulator,name=<available iPhone simulator destination>'`
+- `xcodebuild test -project GradeDraft.xcodeproj -scheme GradeDraft -destination 'platform=iPhone Simulator,name=<available iPhone simulator destination>'` (runs in GitHub CI, `.github/workflows/ci.yml`)
 
 ## PR review
 

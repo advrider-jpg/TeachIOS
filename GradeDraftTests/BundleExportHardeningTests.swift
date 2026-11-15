@@ -2,59 +2,55 @@ import XCTest
 import ZIPFoundation
 @testable import GradeDraft
 
-// MARK: - BundleExportService hardening
+// MARK: - Backup and Teacher Record archive hardening
 
 final class BundleExportHardeningTests: XCTestCase {
-    func testArchiveContainsAllExpectedFiles() throws {
-        var assignment = AssignmentRecord(title: "Full archive test", reviewedStudentText: "Text")
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .approved,
-            criteria: [FinalCriterionScore(
-                criterion: "Claim", rating: "", proposedPoints: 0, finalPoints: 1,
-                maxPoints: 1, evidence: [], explanation: "", teacherApproved: true
-            )],
-            totalScore: 1, maxScore: 1, studentFeedback: "Good.",
-            privateTeacherNotes: "Private", teacherEdited: true
-        )
+    func testTeacherRecordArchiveContainsAllExpectedFiles() throws {
+        let fixture = try ExportFixtureFactory.sensitiveApprovedAssignment(title: "Full archive test")
+        let report = ReportBuilder.teacherRecord(setup: fixture.setup, submission: fixture.submission, generatedAt: Date(timeIntervalSince1970: 0))
         let destination = FileManager.default.temporaryDirectory.appendingPathComponent("archive-hardening-\(UUID()).zip")
         defer { try? FileManager.default.removeItem(at: destination) }
-        let written = try BundleExportService.writeTeacherAuditArchive(assignment: assignment, sourceFiles: [], to: destination)
-        guard let archive = Archive(url: written, accessMode: .read) else {
-            return XCTFail("Archive should open")
-        }
-        XCTAssertNotNil(archive["manifest.json"])
-        XCTAssertNotNil(archive["student_report.md"])
-        XCTAssertNotNil(archive["teacher_audit_report.md"])
-        XCTAssertNotNil(archive["assignment.json"])
-        XCTAssertNotNil(archive["source_metadata.json"])
-        XCTAssertNotNil(archive["grade_summary.csv"])
-        XCTAssertNotNil(archive["student_report.pdf"])
-        XCTAssertNotNil(archive["teacher_audit_report.pdf"])
+
+        let written = try BackupArchiveService.writeTeacherRecordArchive(
+            snapshot: fixture.snapshot,
+            reportFiles: [
+                (name: "TeacherRecord.md", data: Data(MarkdownRenderer.render(report).utf8)),
+                (name: "TeacherRecord.pdf", data: try PDFRenderer.render(report))
+            ],
+            sourceFiles: [],
+            to: destination
+        )
+
+        let archive = try Archive(url: written, accessMode: .read)
+        XCTAssertNotNil(archive["snapshot.json"])
+        XCTAssertNotNil(archive["TeacherRecord.md"])
+        XCTAssertNotNil(archive["TeacherRecord.pdf"])
     }
 
-    func testFullBackupContainsManifestAndData() throws {
-        let assignmentA = AssignmentRecord(title: "A", reviewedStudentText: "Text A")
-        let assignmentB = AssignmentRecord(title: "B", reviewedStudentText: "Text B")
-        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("backup-hardening-\(UUID()).zip")
-        defer { try? FileManager.default.removeItem(at: destination) }
-        let written = try BundleExportService.writeFullBackup(assignments: [assignmentA, assignmentB], sourceFiles: [], to: destination)
-        let restored = try BundleExportService.readBackupAssignments(from: written)
-        XCTAssertEqual(restored.count, 2)
-        XCTAssertTrue(restored.contains { $0.title == "A" })
-        XCTAssertTrue(restored.contains { $0.title == "B" })
-    }
+    func testFullBackupContainsManifestAndData() async throws {
+        let first = try ExportFixtureFactory.baseAssignment(title: "A", student: "Student A")
+        let second = try ExportFixtureFactory.baseAssignment(title: "B", student: "Student B")
+        let source = try AppDatabase.inMemory()
+        _ = try await source.restore(first.snapshot, resolutions: [:])
+        _ = try await source.restore(second.snapshot, resolutions: [:])
 
-    func testGradebookArchiveContainsExpectedFiles() throws {
-        let gradebookAssignment = AssignmentRecord(title: "Gradebook A", reviewedStudentText: "Text")
-        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("gradebook-hardening-\(UUID()).zip")
-        defer { try? FileManager.default.removeItem(at: destination) }
-        let written = try BundleExportService.writeAssignmentArchive(assignments: [gradebookAssignment], sourceFiles: [], to: destination)
-        guard let archive = Archive(url: written, accessMode: .read) else {
-            return XCTFail("Archive should open")
-        }
-        XCTAssertNotNil(archive["manifest.json"])
-        XCTAssertNotNil(archive["gradebook.csv"])
-        XCTAssertNotNil(archive["assignments.json"])
+        let base = ExportFixtureFactory.temporaryDirectory("FullBackupHardening")
+        let storageRoot = base.appendingPathComponent("GradeDraft", isDirectory: true)
+        let written = try BackupArchiveService.writeFullBackup(
+            snapshot: try await source.backupSnapshot(),
+            storageRoot: storageRoot,
+            password: "test-password",
+            appVersion: "test",
+            to: base.appendingPathComponent("backup.markformebackup")
+        )
+
+        let preview = try await BackupArchiveService.prepareRestore(
+            from: written, password: "test-password", storageRoot: storageRoot, database: try AppDatabase.inMemory()
+        )
+        defer { BackupArchiveService.discard(preview) }
+
+        XCTAssertEqual(preview.manifest.formatVersion, BackupManifest.currentFormatVersion)
+        XCTAssertEqual(preview.assignmentCount, 2)
+        XCTAssertEqual(Set(preview.snapshot.assignments.map(\.assignment.title)), ["A", "B"])
     }
 }

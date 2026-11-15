@@ -22,7 +22,7 @@
     "answerKeyText": "",
     "exemplarText": "A strong response states a claim, explains a reason, and connects it to the audience.",
     "curriculumReference": "",
-    "ocrReviewStatus": "notNeeded",
+    "ocrReviewStatus": "reviewed",
     "expected": {
       "mustNotContain": ["matches the exemplar exactly", "final grade"],
       "mustContainTeacherReviewReasons": [],

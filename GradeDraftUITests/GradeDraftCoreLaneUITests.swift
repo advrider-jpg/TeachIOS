@@ -1,162 +1,227 @@
 import XCTest
 
+/// Both tests launch the DEBUG build against the shared preview fixture (`PreviewFixtures`): one class,
+/// one assignment, and three students whose work is "none", "scanned text needing review" and
+/// "approved final grade". On-device AI is reported unavailable, so the lane uses the manual final review.
 @MainActor
 final class GradeDraftCoreLaneUITests: XCTestCase {
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
+    // IDs from PreviewFixtures (uppercase, as `UUID.uuidString` prints them).
+    private let assignmentID = "6F1A0C2E-0000-4000-8000-000000000002"
+    private let scannedSubmissionID = "6F1A0C2E-0000-4000-8000-000000000012"
+
+    // MARK: - Smoke flow
 
     func testCoreNavigationAndExportGateSurfacesRealWorkflowState() throws {
+        continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments += ["--ui-smoke-test"]
         app.launch()
 
         XCTAssertTrue(
-            app.buttons["Home"].waitForExistence(timeout: 10) || app.staticTexts["Home"].waitForExistence(timeout: 10),
-            "The app must launch into a real first screen before any grading workflow can be trusted."
+            element("home.aiStatus", in: app).waitForExistence(timeout: 10),
+            "The app must launch into the Home screen before any grading workflow can be trusted."
         )
 
-        tapTab(named: "Assignments", in: app)
+        tapTab("Assignments", in: app)
         XCTAssertTrue(
-            app.staticTexts["Assignments"].waitForExistence(timeout: 5) || app.navigationBars["Assignments"].waitForExistence(timeout: 5),
-            "Assignments must be reachable through the app shell."
+            element("assignments.row.\(assignmentID)", in: app).waitForExistence(timeout: 10),
+            "The fixture assignment must be listed on the Assignments tab."
         )
 
-        tapTab(named: "Exports", in: app)
+        tapTab("Exports", in: app)
+        let approvedStudent = element("exportsTab.submission.0", in: app)
         XCTAssertTrue(
-            app.staticTexts["Exports & Backup"].waitForExistence(timeout: 5) || app.navigationBars["Exports & Backup"].waitForExistence(timeout: 5),
-            "The export surface must be reachable as a real screen, not a placeholder route."
+            approvedStudent.waitForExistence(timeout: 10),
+            "The student whose final grade is approved and current must be listed as ready to export."
         )
-        XCTAssertTrue(
-            app.staticTexts["No exports yet"].exists || app.staticTexts["Create Export"].exists,
-            "The export screen must expose actual export state or real export creation controls."
-        )
-        XCTAssertFalse(
-            app.buttons["Share Export"].exists && app.staticTexts["No exports yet"].exists,
-            "The UI must not offer sharing when no export artifact has actually been prepared."
-        )
-    }
-
-    private func tapTab(named name: String, in app: XCUIApplication) {
-        if app.tabBars.buttons[name].waitForExistence(timeout: 5) {
-            app.tabBars.buttons[name].tap()
-        } else if let button = firstHittableButton(named: name, in: app, timeout: 5) {
-            button.tap()
-        } else {
-            XCTFail("Could not find \(name) tab or button.")
+        XCTAssertTrue(scrolledTo("exportsTab.createBackup", in: app).exists, "The Exports tab must offer backup.")
+        var backSwipes = 0
+        while !approvedStudent.exists, backSwipes < 6 {
+            app.swipeDown()
+            backSwipes += 1
         }
+
+        approvedStudent.tap()
+        let studentReport = app.buttons["exports.studentMarkdown"]
+        XCTAssertTrue(studentReport.waitForExistence(timeout: 5))
+        XCTAssertTrue(studentReport.isEnabled, "An approved, current final grade must allow the student report.")
     }
 
-    func testCoreLaneApprovesFinalReviewAndExportsOnlyAfterConfirmation() throws {
+    // MARK: - Core lane with accessibility audit (T17)
+
+    func testCoreLaneAccessibilityAudit() throws {
+        continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments += ["--ui-core-lane-test"]
         app.launch()
 
-        tapTab(named: "Assignments", in: app)
-        tapTextOrButton(named: "UI Core Lane Assignment", in: app)
-        tapButton(named: "Start Guided Grading", in: app, scrolls: true)
+        // Home -> the student whose scanned text needs review.
+        let row = element("home.needsReview.\(scannedSubmissionID)", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "The scanned submission must be listed under Needs your review.")
+        try audit(app)
+        row.tap()
 
-        XCTAssertTrue(app.navigationBars["Guided Grading"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Share Student Report")).firstMatch.exists)
+        // Student work.
+        let scannedText = element("studentWork.scannedText", in: app)
+        XCTAssertTrue(scannedText.waitForExistence(timeout: 10))
+        try audit(app)
+        scannedText.tap()
 
-        tapButton(named: "Open Final Review", in: app, scrolls: true)
-        tapButton(named: "Approve Final Grade", in: app, scrolls: true)
-        tapButton(named: "Approve Final Grade", in: app, scrolls: false)
-        XCTAssertTrue(
-            app.staticTexts["Approved"].waitForExistence(timeout: 5) ||
-            app.staticTexts["Ready"].waitForExistence(timeout: 5),
-            "Approving the final review should update the UI to a real approved/export-ready state."
-        )
+        // Scanned text review: "Confirm all" must leave the low-confidence line (index 1) unresolved.
+        let confirmAll = app.buttons["scannedText.confirmAll"]
+        XCTAssertTrue(confirmAll.waitForExistence(timeout: 10))
+        let markReviewed = app.buttons["scannedText.markReviewed"]
+        XCTAssertFalse(markReviewed.isEnabled, "Scanned text cannot be marked reviewed while a line needs action.")
+        confirmAll.tap()
+        reveal(markReviewed, in: app)
+        XCTAssertFalse(markReviewed.isEnabled, "Confirm all must not confirm the low-confidence line.")
+        let confirmLowConfidence = app.buttons["scannedText.lineConfirm.1"]
+        reveal(confirmLowConfidence, in: app)
+        confirmLowConfidence.tap()
+        reveal(markReviewed, in: app)
+        waitUntil("Mark Scanned Text Reviewed becomes available once every line is resolved") { markReviewed.isEnabled }
+        try audit(app)
+        markReviewed.tap()
+        tapDialogButton(identifier: "scannedText.markReviewedConfirm", label: "Mark Reviewed", in: app)
+        waitUntil("The scanned text is marked reviewed") { !markReviewed.isEnabled }
+        goBack(in: app)
 
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        tapButton(named: "Next", in: app, scrolls: false)
-        tapButton(named: "Create Student Report PDF", in: app, scrolls: true)
+        // Final review: start manually (AI is unavailable on the fixture).
+        let finalReviewLink = element("studentWork.finalReview", in: app)
+        reveal(finalReviewLink, in: app)
+        finalReviewLink.tap()
+        let startManual = app.buttons["finalReview.startManual"]
+        XCTAssertTrue(startManual.waitForExistence(timeout: 10))
+        try audit(app)
+        waitUntil("Start Manual Final Review is enabled") { startManual.isEnabled }
+        startManual.tap()
 
-        acknowledgeVisibleSwitches(in: app)
-        tapFirstAvailableButton(["Preview PDF", "Preview Report", "Continue to Export"], in: app, scrolls: true)
-        acknowledgeVisibleSwitches(in: app)
-        tapFirstAvailableButton(["Export", "Export PDF", "Export Student Report"], in: app, scrolls: true)
+        // Not approved yet: the student-facing exports are blocked.
+        let exportsLink = element("finalReview.exports", in: app)
+        reveal(exportsLink, in: app)
+        try audit(app)
+        exportsLink.tap()
+        let studentMarkdown = app.buttons["exports.studentMarkdown"]
+        XCTAssertTrue(studentMarkdown.waitForExistence(timeout: 10))
+        XCTAssertFalse(studentMarkdown.isEnabled, "Student reports must be blocked before the final grade is approved.")
+        try audit(app)
+        goBack(in: app)
 
-        XCTAssertTrue(
-            app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Share Student Report")).firstMatch.waitForExistence(timeout: 10),
-            "The share affordance must appear only after the confirmed export creates a real local artifact."
-        )
-    }
-
-    private func tapTextOrButton(named name: String, in app: XCUIApplication) {
-        if let button = firstHittableButton(named: name, in: app, timeout: 5) {
-            button.tap()
-        } else if app.staticTexts[name].waitForExistence(timeout: 5) {
-            app.staticTexts[name].tap()
-        } else {
-            XCTFail("Could not find \(name).")
+        // Accept all three rubric criteria, then approve.
+        for index in 0..<3 {
+            let accept = app.buttons["finalReview.accept.\(index)"]
+            reveal(accept, in: app)
+            accept.tap()
         }
+        let approve = app.buttons["finalReview.approve"]
+        reveal(approve, in: app)
+        waitUntil("Approve Final Grade is enabled once every criterion is accepted") { approve.isEnabled }
+        try audit(app)
+        approve.tap()
+        tapDialogButton(identifier: "finalReview.approveConfirm", label: "Approve Final Grade", in: app)
+
+        // Approved and current: the student report is now allowed.
+        let exportsAfterApproval = element("finalReview.exports", in: app)
+        reveal(exportsAfterApproval, in: app)
+        exportsAfterApproval.tap()
+        XCTAssertTrue(studentMarkdown.waitForExistence(timeout: 10))
+        waitUntil("The student report is allowed after approval") { studentMarkdown.isEnabled }
+        try audit(app)
     }
 
-    private func tapButton(named name: String, in app: XCUIApplication, scrolls: Bool) {
-        if let button = firstHittableButton(named: name, in: app, timeout: 3) {
-            button.tap()
+    // MARK: - Helpers
+
+    /// Any element carrying the identifier (rows and links report as different element types).
+    private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// Lists create rows only when they come on screen, so swipe up until the element exists (at most 6 swipes).
+    private func scrolledTo(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
+        let target = element(identifier, in: app)
+        var swipes = 0
+        while !target.exists, swipes < 6 {
+            app.swipeUp()
+            swipes += 1
+        }
+        return target
+    }
+
+    /// The adaptable tab view shows a bottom tab bar on compact widths and a sidebar on wide ones.
+    private func tapTab(_ name: String, in app: XCUIApplication) {
+        let candidates = [app.tabBars.buttons[name], app.buttons[name], app.cells[name]]
+        _ = candidates[0].waitForExistence(timeout: 5)
+        guard let tab = candidates.first(where: { $0.exists }) else {
+            XCTFail("Could not find the \(name) tab.")
             return
         }
-        if scrolls {
-            for _ in 0..<6 {
-                app.swipeUp()
-                if let button = firstHittableButton(named: name, in: app, timeout: 1) {
-                    button.tap()
-                    return
-                }
-            }
-        }
-        XCTFail("Could not find button \(name).")
+        tab.tap()
     }
 
-    private func firstHittableButton(named name: String, in app: XCUIApplication, timeout: TimeInterval) -> XCUIElement? {
-        let deadline = Date().addingTimeInterval(timeout)
-        repeat {
-            let buttons = app.buttons
-                .matching(NSPredicate(format: "label == %@", name))
-                .allElementsBoundByIndex
-            if let button = buttons.first(where: { $0.exists && $0.isHittable }) {
-                return button
+    /// Runs Apple's accessibility audit; each issue fails the test with the issue and its element named.
+    /// Every issue on the screen is reported (the lane keeps going), so one run lists them all.
+    ///
+    /// One exception: "partially unsupported" Dynamic Type on SwiftUI text. The audit looks for a UIKit
+    /// flag that SwiftUI's text nodes don't carry, so it reports text using system text styles (which do
+    /// scale) as partially unsupported. "Unsupported" (text that doesn't scale at all) still fails, and the
+    /// screens' "Largest text" previews are where scaling is checked by eye.
+    private func audit(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) throws {
+        continueAfterFailure = true
+        defer { continueAfterFailure = false }
+        try app.performAccessibilityAudit { issue in
+            if issue.auditType == .dynamicType, issue.compactDescription.contains("partially unsupported") {
+                return true
             }
-            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
-        } while Date() < deadline
-        return nil
+            XCTFail(
+                "\(issue.compactDescription) — \(issue.detailedDescription) — element: \(issue.element?.debugDescription ?? "none")",
+                file: file, line: line
+            )
+            return true
+        }
     }
 
-    private func tapFirstAvailableButton(_ names: [String], in app: XCUIApplication, scrolls: Bool) {
-        for name in names {
-            if let button = firstHittableButton(named: name, in: app, timeout: 1) {
-                button.tap()
-                return
-            }
-        }
-        if scrolls {
-            for _ in 0..<6 {
-                app.swipeUp()
-                for name in names {
-                    if let button = firstHittableButton(named: name, in: app, timeout: 1) {
-                        button.tap()
-                        return
-                    }
-                }
-            }
-        }
-        XCTFail("Could not find any button: \(names.joined(separator: ", ")).")
+    private func goBack(in app: XCUIApplication) {
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "Could not find the back button.")
+        back.tap()
     }
 
-    private func acknowledgeVisibleSwitches(in app: XCUIApplication) {
-        for _ in 0..<10 {
-            let switches = app.switches.allElementsBoundByIndex
-            var changed = false
-            for toggle in switches where toggle.exists && toggle.isHittable && (toggle.value as? String) != "1" {
-                toggle.tap()
-                changed = true
-            }
-            if changed {
-                RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))
-            }
+    /// Scrolls the list until the element can be tapped.
+    private func reveal(_ target: XCUIElement, in app: XCUIApplication) {
+        XCTAssertTrue(target.waitForExistence(timeout: 10), "Element never appeared: \(target)")
+        var swipes = 0
+        while !target.isHittable && swipes < 8 {
             app.swipeUp()
+            swipes += 1
         }
+        swipes = 0
+        while !target.isHittable && swipes < 16 {
+            app.swipeDown()
+            swipes += 1
+        }
+        XCTAssertTrue(target.isHittable, "Could not scroll to \(target)")
+    }
+
+    /// Confirmation-dialog buttons: by identifier, else by visible label (the topmost match).
+    private func tapDialogButton(identifier: String, label: String, in app: XCUIApplication) {
+        let byIdentifier = app.buttons[identifier]
+        if byIdentifier.waitForExistence(timeout: 3) {
+            byIdentifier.tap()
+            return
+        }
+        let byLabel = app.buttons.matching(NSPredicate(format: "label == %@", label)).allElementsBoundByIndex
+        guard let button = byLabel.last(where: { $0.exists && $0.isHittable }) else {
+            XCTFail("Could not find the \(label) confirmation button.")
+            return
+        }
+        button.tap()
+    }
+
+    private func waitUntil(_ description: String, timeout: TimeInterval = 10, _ condition: @escaping () -> Bool) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() && Date() < deadline {
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
+        }
+        XCTAssertTrue(condition(), "Timed out: \(description).")
     }
 }

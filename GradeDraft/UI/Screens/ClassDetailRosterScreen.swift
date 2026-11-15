@@ -2,394 +2,363 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ClassDetailRosterScreen: View {
-    @ObservedObject var viewModel: GradeDraftViewModel
-    var classSummary: ClassSummary
-    @State private var newStudentName = ""
-    @State private var newStudentLocalID = ""
-    @State private var rosterCSV = ""
+    let model: RosterModel
+    @State private var showingAddStudent = false
     @State private var showingRosterImporter = false
-    @State private var reviewedRosterCSV: String?
-    @State private var gradingTarget: GradingTarget?
+    @State private var showingPasteRoster = false
+    /// The pasted roster waiting for its paste sheet to finish closing before the preview sheet opens.
+    @State private var pastedRoster: String?
+    @State private var pendingRemoval: Student?
 
-    private struct GradingTarget: Identifiable { let id: UUID }
+    private var rosterTypes: [UTType] {
+        [.commaSeparatedText, .plainText] + [UTType(filenameExtension: "xlsx")].compactMap { $0 }
+    }
 
     var body: some View {
-        Form {
-            StationeryPageHeader(
-                eyebrow: "Roster",
-                title: classSummary.name.isEmpty ? "Class" : classSummary.name,
-                subtitle: "Roster records, import review, and local assignment progress."
-            )
-
-            RosterStationeryCard(title: "Class Summary", tapeLabel: "Roster cover", showsPaperclip: true) {
-                VStack(spacing: 10) {
-                    RosterMetricRow(title: "Name", value: classSummary.name.isEmpty ? "Class" : classSummary.name, status: nil)
-                    RosterMetricRow(title: "Subject", value: classSummary.subject.nilIfBlank ?? "Not set", status: nil)
-                    RosterMetricRow(title: "Students", value: "\(students.count)", status: nil)
-                    RosterMetricRow(title: "Assignments", value: "\(assignments.count)", status: nil)
-                    RosterMetricRow(title: "Approved", value: "\(approvedCount)", status: .approved)
-                    RosterMetricRow(title: "Missing Grades", value: "\(missingGradeCount)", status: missingGradeCount == 0 ? .onTrack : .needsAttention)
+        @Bindable var model = model
+        let classGroup = model.classGroup
+        let submissions = Dictionary(grouping: model.app.submissionSummaries, by: \.assignmentID)
+        List {
+            Section("Class Summary") {
+                if let subject = classGroup?.subject, !subject.isEmpty {
+                    LabeledContent("Subject", value: subject)
                 }
+                if let level = classGroup?.gradeLevel, !level.isEmpty {
+                    LabeledContent("Grade level", value: level)
+                }
+                if let term = classGroup?.term, !term.isEmpty {
+                    LabeledContent("Term", value: term)
+                }
+                LabeledContent("Students", value: "\(model.students.count)")
+                LabeledContent("Assignments", value: "\(model.assignments.count)")
             }
 
-            RosterStationeryCard(title: "Class Grading", tapeLabel: "Grade the set", showsPaperclip: true) {
-                if assignments.isEmpty {
-                    ContentUnavailableView(
-                        "Nothing to grade yet",
-                        systemImage: "checklist",
-                        description: Text("Create assignments for this class to grade the whole set in one pass.")
-                    )
-                } else {
-                    VStack(alignment: .leading, spacing: 14) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(alignment: .firstTextBaseline) {
-                                Text("\(approvedCount) of \(assignments.count) approved")
-                                    .font(.headline)
-                                Spacer(minLength: 8)
-                                Text("\(Int((progressFraction * 100).rounded()))%")
-                                    .font(.subheadline.monospacedDigit().weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            }
-                            ProgressView(value: Double(approvedCount), total: Double(max(assignments.count, 1)))
-                                .tint(.green)
-                                .accessibilityLabel("Class grading progress")
-                                .accessibilityValue("\(approvedCount) of \(assignments.count) approved")
-                        }
-
-                        if let next = nextUngraded {
-                            Button {
-                                viewModel.selectAssignment(next.id)
-                                gradingTarget = GradingTarget(id: next.id)
-                            } label: {
-                                Label("Continue: \(next.studentDisplayName.nilIfBlank ?? "Next student")", systemImage: "play.circle")
-                                    .frame(minHeight: GradeDraftLayout.minimumTapTarget)
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-                        } else {
-                            HandwrittenAnnotation("Every student in this class is approved. You can export the set below.", status: .approved)
-                        }
-
-                        VStack(alignment: .leading, spacing: 10) {
-                            Button {
-                                Task { await viewModel.exportClassArchive(for: classSummary.name) }
-                            } label: {
-                                Label("Export Class Archive (ZIP)", systemImage: "tray.and.arrow.up")
-                                    .frame(minHeight: GradeDraftLayout.minimumTapTarget)
-                            }
-                            .buttonStyle(.bordered)
-                            Button {
-                                Task { await viewModel.exportClassGradebookCSV(for: classSummary.name) }
-                            } label: {
-                                Label("Export Class Gradebook (CSV)", systemImage: "tablecells")
-                                    .frame(minHeight: GradeDraftLayout.minimumTapTarget)
-                            }
-                            .buttonStyle(.bordered)
-                            if let artifact = viewModel.preparedExportArtifact,
-                               artifact.kind == .csvGradebook || artifact.kind == .assignmentGradebookArchive {
-                                ShareLink(item: artifact.url) {
-                                    Label("Share \(artifact.displayName)", systemImage: "square.and.arrow.up")
-                                        .frame(minHeight: GradeDraftLayout.minimumTapTarget)
-                                }
-                            }
-                        }
-
-                        HandwrittenAnnotation("Batch exports are teacher-only records and may prompt for device authentication.", status: .teacherOnly)
-                    }
-                }
-            }
-
-            RosterStationeryCard(title: "Roster", tapeLabel: "Student list") {
-                VStack(alignment: .leading, spacing: 12) {
-                    TextField("Student name", text: $newStudentName)
-                        .submitLabel(.next)
-                    TextField("Local ID", text: $newStudentLocalID)
-                        .submitLabel(.done)
-                        .onSubmit(saveStudent)
-                    Button(action: saveStudent) {
-                        Label("Add Student", systemImage: "person.badge.plus")
-                            .frame(minHeight: GradeDraftLayout.minimumTapTarget)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(newStudentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                    if students.isEmpty {
-                        ContentUnavailableView(
-                            "Roster not started",
-                            systemImage: "person.crop.circle.badge.plus",
-                            description: Text("Add student names or paste a roster CSV below.")
-                        )
-                    } else {
-                        LazyVStack(spacing: 12) {
-                            ForEach(students) { student in
-                                StudentRow(student: student, status: student.isActive ? .onTrack : .needsAttention, scoreText: scoreText(for: student))
-                                    .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
-                            }
-                        }
-                    }
-                }
-            }
-
-            RosterStationeryCard(title: "Import Roster CSV", tapeLabel: "Review before create", showsPaperclip: true) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Button {
-                        showingRosterImporter = true
-                    } label: {
-                        Label("Choose CSV", systemImage: "doc.badge.plus")
-                            .frame(minHeight: GradeDraftLayout.minimumTapTarget)
-                    }
-                    .buttonStyle(.bordered)
-
-                    TextEditor(text: $rosterCSV)
-                        .frame(minHeight: 110)
-                        .accessibilityLabel("Pasted roster CSV")
-                        .onChange(of: rosterCSV) { _, _ in reviewedRosterCSV = nil }
-
-                    HStack(spacing: 12) {
-                        Button {
-                            previewRosterCSV()
-                        } label: {
-                            Label("Preview Import", systemImage: "list.bullet.rectangle")
-                                .frame(minHeight: GradeDraftLayout.minimumTapTarget)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                        Button {
-                            createAssignmentsFromReviewedRoster()
-                        } label: {
-                            Label("Create Assignments", systemImage: "doc.badge.plus")
-                                .frame(minHeight: GradeDraftLayout.minimumTapTarget)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(!rosterPreviewReadyForCreate)
-                    }
-
-                    if !rosterPreviewReadyForCreate && !rosterCSV.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        HandwrittenAnnotation("Preview the current roster CSV before creating local assignment records.", status: .needsAttention)
-                    }
-
-                    HandwrittenAnnotation("Review new students, duplicates, and rejected rows before creating assignment records.", status: .teacherOnly)
-                }
-            }
-
-            if let preview = viewModel.latestRosterPreview {
-                RosterStationeryCard(title: "Preview Import", tapeLabel: "Checked rows") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        RosterMetricRow(title: "New Students", value: "\(preview.students.count)", status: preview.rejectedRowDetails.isEmpty ? .onTrack : .needsAttention)
-                        RosterMetricRow(title: "Header Row", value: preview.hasHeaderRow ? "Detected" : "Not detected", status: nil)
-                        if !preview.duplicateNames.isEmpty {
-                            BlockingIssueRow(title: "Duplicates", detail: preview.duplicateNames.joined(separator: ", "), status: .needsAttention)
-                                .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
-                        }
-                        if !preview.warnings.isEmpty {
-                            DisclosureGroup("Warnings") {
-                                ForEach(preview.warnings, id: \.self) { warning in
-                                    Text(warning)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        if !preview.rejectedRowDetails.isEmpty {
-                            DisclosureGroup("Rejected Rows") {
-                                ForEach(preview.rejectedRowDetails) { rejected in
-                                    BlockingIssueRow(title: "Row \(rejected.rowNumber)", detail: rejected.reason, status: .fixBeforeContinuing)
-                                        .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            RosterStationeryCard(title: "Assignments in Class", tapeLabel: "Grade sheets") {
-                if assignments.isEmpty {
+            Section("Assignments") {
+                if model.assignments.isEmpty {
                     ContentUnavailableView(
                         "No saved assignments",
                         systemImage: "doc.text",
-                        description: Text("Create assignments from roster or add an assignment from the Assignments tab.")
+                        description: Text("Add an assignment from the Assignments tab.")
                     )
                 } else {
-                    LazyVStack(spacing: 12) {
-                        ForEach(assignments) { assignment in
-                            NavigationLink {
-                                AssignmentOverviewScreen(viewModel: viewModel, assignmentID: assignment.id)
-                            } label: {
-                                AssignmentRow(assignment: assignment, status: viewModel.v6Status(for: assignment), actionLabel: viewModel.v6ActionLabel(for: assignment))
-                                    .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
+                    ForEach(model.assignments) { summary in
+                        NavigationLink(value: Route.assignment(summary.id)) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(summary.assignment.title.isEmpty ? "Untitled assignment" : summary.assignment.title)
+                                    .font(.headline)
+                                StatusLabel(
+                                    GradeWizardProgress(assignment: summary.assignment, submissions: submissions[summary.id] ?? []).overallStatus,
+                                    subject: "Assignment status"
+                                )
+                                .font(.subheadline)
                             }
-                            .buttonStyle(.plain)
+                            .accessibilityElement(children: .combine)
+                        }
+                        .accessibilityIdentifier("classDetail.assignment.\(summary.id.uuidString)")
+                    }
+                }
+            }
+
+            Section("Students") {
+                Button {
+                    showingAddStudent = true
+                } label: {
+                    Label("Add Student", systemImage: "person.badge.plus")
+                }
+                .accessibilityIdentifier("classDetail.addStudent")
+                Button {
+                    showingRosterImporter = true
+                } label: {
+                    Label("Import Roster File", systemImage: "doc.badge.plus")
+                }
+                .accessibilityIdentifier("classDetail.importRoster")
+                Button {
+                    showingPasteRoster = true
+                } label: {
+                    Label("Paste Roster", systemImage: "doc.on.clipboard")
+                }
+                .accessibilityIdentifier("classDetail.pasteRoster")
+
+                if model.students.isEmpty {
+                    ContentUnavailableView(
+                        "Roster not started",
+                        systemImage: "person.crop.circle.badge.plus",
+                        description: Text("Add student names or import a roster file.")
+                    )
+                } else {
+                    ForEach(model.students) { student in
+                        LabeledContent(student.displayName, value: student.localIdentifier)
+                            .accessibilityIdentifier("classDetail.student.\(student.id.uuidString)")
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    pendingRemoval = student
+                                } label: {
+                                    Label("Remove", systemImage: "person.badge.minus")
+                                }
+                                .accessibilityIdentifier("classDetail.removeStudent")
+                            }
+                    }
+                }
+            }
+
+            if let result = model.lastImportResult {
+                Section("Last Roster Import") {
+                    LabeledContent("Students added", value: "\(result.imported)")
+                    ForEach(result.warnings, id: \.self) { warning in
+                        Label {
+                            Text(warning)
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
                         }
                     }
                 }
             }
         }
-        .stationeryScreen()
-        .navigationTitle(classSummary.name.isEmpty ? "Class" : classSummary.name)
+        .navigationTitle(classGroup?.name ?? "Class")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
-        .fullScreenCover(item: $gradingTarget) { target in
-            GradeWizardView(viewModel: viewModel, assignmentID: target.id)
+        .alertMessage($model.alert)
+        .sheet(isPresented: $showingAddStudent) {
+            AddStudentSheet(model: model)
         }
-        .fileImporter(isPresented: $showingRosterImporter, allowedContentTypes: [.commaSeparatedText, .plainText, .item]) { result in
+        .sheet(isPresented: $showingPasteRoster, onDismiss: {
+            if let text = pastedRoster {
+                pastedRoster = nil
+                model.previewRosterText(text)
+            }
+        }) {
+            PasteRosterSheet { text in
+                pastedRoster = text
+                showingPasteRoster = false
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { model.rosterPreview != nil },
+            set: { if !$0 { model.discardRosterPreview() } }
+        )) {
+            RosterPreviewSheet(model: model)
+        }
+        .fileImporter(isPresented: $showingRosterImporter, allowedContentTypes: rosterTypes) { result in
             switch result {
             case .success(let url):
-                importRosterCSV(from: url)
+                model.previewRosterFile(at: url)
             case .failure(let error):
-                viewModel.errorMessage = error.localizedDescription
+                model.alert = AlertMessage(title: "Roster not read", error: error)
             }
         }
-    }
-
-    private var students: [StudentRecord] {
-        viewModel.students.filter { student in
-            student.className.caseInsensitiveCompare(classSummary.name) == .orderedSame || student.className.isEmpty && classSummary.name.isEmpty
-        }.sorted { $0.displayName < $1.displayName }
-    }
-
-    private var assignments: [AssignmentRecord] {
-        viewModel.classAssignments(for: classSummary.name)
-    }
-
-    private var approvedCount: Int {
-        assignments.filter { $0.finalReview?.status == .approved && !$0.finalReviewIsStale }.count
-    }
-
-    private var missingGradeCount: Int {
-        max(assignments.count - approvedCount, 0)
-    }
-
-    private var progressFraction: Double {
-        guard !assignments.isEmpty else { return 0 }
-        return Double(approvedCount) / Double(assignments.count)
-    }
-
-    private var nextUngraded: AssignmentRecord? {
-        viewModel.nextUngradedAssignment(in: classSummary.name)
-    }
-
-    private var rosterPreviewReadyForCreate: Bool {
-        reviewedRosterCSV == rosterCSV && viewModel.latestRosterPreview?.students.isEmpty == false
-    }
-
-    private func scoreText(for student: StudentRecord) -> String? {
-        guard let record = assignments.first(where: { $0.studentDisplayName.caseInsensitiveCompare(student.displayName) == .orderedSame }),
-              let review = record.finalReview,
-              review.status == .approved else { return nil }
-        return "\(GradeTotals.formatted(review.totalScore)) / \(GradeTotals.formatted(review.maxScore))"
-    }
-
-    private func saveStudent() {
-        let trimmedName = newStudentName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedLocalID = newStudentLocalID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return }
-        if students.contains(where: { student in
-            student.displayName.caseInsensitiveCompare(trimmedName) == .orderedSame ||
-            (!trimmedLocalID.isEmpty && student.localIdentifier.caseInsensitiveCompare(trimmedLocalID) == .orderedSame)
-        }) {
-            viewModel.errorMessage = "A matching student already exists in this class. Edit the existing roster record instead of creating a duplicate."
-            return
-        }
-        viewModel.saveStudent(StudentRecord(displayName: trimmedName, className: classSummary.name, localIdentifier: trimmedLocalID))
-        newStudentName = ""
-        newStudentLocalID = ""
-    }
-
-    private func previewRosterCSV() {
-        _ = viewModel.previewRosterCSV(rosterCSV, className: classSummary.name)
-        reviewedRosterCSV = rosterCSV
-    }
-
-    private func createAssignmentsFromReviewedRoster() {
-        guard rosterPreviewReadyForCreate else {
-            viewModel.errorMessage = "Preview the current roster CSV before creating assignment records."
-            return
-        }
-        viewModel.createAssignmentsFromRosterCSV(rosterCSV, className: classSummary.name)
-        reviewedRosterCSV = nil
-    }
-
-    private func importRosterCSV(from url: URL) {
-        let didAccess = url.startAccessingSecurityScopedResource()
-        defer {
-            if didAccess { url.stopAccessingSecurityScopedResource() }
-        }
-        do {
-            rosterCSV = try String(contentsOf: url, encoding: .utf8)
-            previewRosterCSV()
-        } catch {
-            viewModel.errorMessage = error.localizedDescription
+        .confirmationDialog(
+            "Remove this student?",
+            item: $pendingRemoval,
+            titleVisibility: .visible
+        ) { student in
+            Button("Remove \(student.displayName)", role: .destructive) {
+                Task { await model.removeStudent(student.id) }
+            }
+        } message: { _ in
+            Text("This removes the student and all of their submissions and saved files from this device. It can't be undone.")
         }
     }
 }
 
-private struct RosterMetricRow: View {
-    var title: String
-    var value: String
-    var status: GradeDraftUIStatus?
+private struct AddStudentSheet: View {
+    let model: RosterModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var localID = ""
+    @State private var isSaving = false
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 12)
-            Text(value)
-                .font(.headline)
-                .multilineTextAlignment(.trailing)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-            if let status {
-                StatusChip(status, compact: true)
+        @Bindable var model = model
+        NavigationStack {
+            Form {
+                TextField("Student name", text: $name)
+                    .submitLabel(.next)
+                    .accessibilityIdentifier("classDetail.addSheet.name")
+                TextField("Local ID", text: $localID)
+                    .submitLabel(.done)
+                    .onSubmit(add)
+                    .accessibilityIdentifier("classDetail.addSheet.localID")
             }
+            .navigationTitle("Add Student")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel) { dismiss() }
+                        .accessibilityIdentifier("classDetail.addSheet.cancel")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add", action: add)
+                        .disabled(trimmedName.isEmpty || isSaving)
+                        .accessibilityIdentifier("classDetail.addSheet.add")
+                }
+            }
+            .alertMessage($model.alert)
         }
-        .padding(.horizontal, GradeDraftLayout.rowHorizontalPadding)
-        .padding(.vertical, 8)
-        .frame(minHeight: GradeDraftLayout.minimumTapTarget)
-        .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
-        .accessibilityElement(children: .combine)
+    }
+
+    private func add() {
+        let trimmedID = localID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, !isSaving else { return }
+        let duplicate = model.students.contains { student in
+            student.displayName.caseInsensitiveCompare(trimmedName) == .orderedSame
+                || (!trimmedID.isEmpty && student.localIdentifier.caseInsensitiveCompare(trimmedID) == .orderedSame)
+        }
+        if duplicate {
+            model.alert = AlertMessage(
+                title: "Student not added",
+                message: "A matching student already exists in this class. Edit the existing roster record instead of creating a duplicate."
+            )
+            return
+        }
+        isSaving = true
+        Task {
+            await model.enrol(displayName: trimmedName, localIdentifier: trimmedID)
+            isSaving = false
+            if model.alert == nil { dismiss() }
+        }
     }
 }
 
-private struct RosterStationeryCard<Content: View>: View {
-    var title: String?
-    var tapeLabel: String?
-    var showsPaperclip: Bool
-    private let content: Content
-
-    init(title: String? = nil, tapeLabel: String? = nil, showsPaperclip: Bool = false, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.tapeLabel = tapeLabel
-        self.showsPaperclip = showsPaperclip
-        self.content = content()
-    }
+private struct PasteRosterSheet: View {
+    var onPreview: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
 
     var body: some View {
-        NotebookCard(showsPerforation: true) {
-            if title != nil || tapeLabel != nil || showsPaperclip {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .top, spacing: 10) {
-                        if let tapeLabel {
-                            TapeLabel(tapeLabel)
-                        }
-                        Spacer(minLength: 8)
-                        if showsPaperclip {
-                            PaperclipDecoration()
-                                .frame(width: 32, height: 44)
+        NavigationStack {
+            Form {
+                Section {
+                    TextEditor(text: $text)
+                        .frame(minHeight: 220)
+                        .accessibilityLabel("Pasted roster")
+                        .accessibilityIdentifier("classDetail.pasteSheet.text")
+                } footer: {
+                    Text("Paste a roster as CSV or one student per line. Nothing is added until you review the preview and confirm.")
+                }
+            }
+            .navigationTitle("Paste Roster")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel) { dismiss() }
+                        .accessibilityIdentifier("classDetail.pasteSheet.cancel")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Preview") { onPreview(text) }
+                        .disabled(text.isWhitespaceOnly)
+                        .accessibilityIdentifier("classDetail.pasteSheet.preview")
+                }
+            }
+        }
+    }
+}
+
+private struct RosterPreviewSheet: View {
+    let model: RosterModel
+
+    var body: some View {
+        @Bindable var model = model
+        NavigationStack {
+            List {
+                if let preview = model.rosterPreview {
+                    Section {
+                        LabeledContent("File", value: preview.fileName)
+                        LabeledContent("Students found", value: "\(preview.rows.count)")
+                        LabeledContent("Header row", value: preview.fileResult.hasHeaderRow ? "Detected" : "Not detected")
+                        if preview.fileResult.ignoredBlankColumns > 0 {
+                            Label("^[\(preview.fileResult.ignoredBlankColumns) empty column](inflect: true) ignored", systemImage: "rectangle.dashed")
                         }
                     }
-                    if let title {
-                        Text(title)
-                            .font(.system(.title3, design: .serif).weight(.semibold))
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
+
+                    if !preview.fileResult.unrecognisedColumns.isEmpty {
+                        Section {
+                            ForEach(preview.fileResult.unrecognisedColumns, id: \.self) { column in
+                                Text(column)
+                            }
+                        } header: {
+                            Text("Columns Not Imported")
+                        } footer: {
+                            Text("These columns are not recognised, so their contents are not imported.")
+                        }
+                    }
+
+                    if !preview.fileResult.skippedRows.isEmpty {
+                        Section("Rows Skipped") {
+                            ForEach(preview.fileResult.skippedRows, id: \.self) { row in
+                                Label(row, systemImage: "xmark.octagon")
+                            }
+                        }
+                    }
+
+                    if !preview.fileResult.warnings.isEmpty {
+                        Section("Warnings") {
+                            ForEach(preview.fileResult.warnings, id: \.self) { warning in
+                                Label {
+                                    Text(warning)
+                                } icon: {
+                                    Image(systemName: "exclamationmark.triangle")
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                        }
+                    }
+
+                    Section("Students to Add") {
+                        ForEach(Array(preview.rows.enumerated()), id: \.offset) { _, row in
+                            LabeledContent(row.displayName, value: row.localIdentifier)
+                        }
                     }
                 }
             }
-            content
+            .navigationTitle("Import Roster")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Discard", role: .cancel) { model.discardRosterPreview() }
+                        .accessibilityIdentifier("classDetail.preview.discard")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Confirm") {
+                        Task { await model.confirmRosterImport() }
+                    }
+                    .disabled(model.rosterPreview?.rows.isEmpty ?? true)
+                    .accessibilityIdentifier("classDetail.preview.confirm")
+                }
+            }
+            .alertMessage($model.alert)
         }
     }
 }
+
+#if DEBUG
+private struct ClassDetailPreview: View {
+    @State private var model = PreviewFixtures.makeAppModel()
+
+    var body: some View {
+        NavigationStack {
+            RouteDestination(route: .classDetail(PreviewFixtures.classGroupID), app: model)
+                .navigationDestination(for: Route.self) { RouteDestination(route: $0, app: model) }
+        }
+        .environment(model)
+        .task { await model.observeLists() }
+    }
+}
+
+#Preview("Light") {
+    ClassDetailPreview()
+}
+
+#Preview("Dark") {
+    ClassDetailPreview()
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Largest text") {
+    ClassDetailPreview()
+        .dynamicTypeSize(.accessibility3)
+}
+#endif

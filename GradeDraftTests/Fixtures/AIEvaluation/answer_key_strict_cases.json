@@ -22,7 +22,7 @@
     "answerKeyText": "A complete response says liquid changes to gas and gives an example such as puddles drying.",
     "exemplarText": "",
     "curriculumReference": "",
-    "ocrReviewStatus": "notNeeded",
+    "ocrReviewStatus": "reviewed",
     "expected": {
       "mustNotContain": ["complete answer", "final grade"],
       "mustContainTeacherReviewReasons": [],

@@ -2,119 +2,94 @@ import XCTest
 @testable import GradeDraft
 
 final class CurriculumCatalogProductionTests: XCTestCase {
-    func testBundledAustralianCurriculumCatalogUsesBoundedIndexAndShards() throws {
-        let shellURL = try Self.resourceURL(named: "curriculum_catalog_acara_v9")
-        let indexURL = try Self.resourceURL(named: "curriculum_catalog_acara_v9_index")
-        XCTAssertLessThan(try Data(contentsOf: shellURL).count, 100_000)
-
-        let shellObject = try JSONSerialization.jsonObject(with: Data(contentsOf: shellURL)) as? [String: Any]
-        XCTAssertEqual((shellObject?["items"] as? [Any])?.count, 0)
-
-        let indexObject = try JSONSerialization.jsonObject(with: Data(contentsOf: indexURL)) as? [String: Any]
-        let shards = try XCTUnwrap(indexObject?["shards"] as? [[String: Any]])
-        let rows = try XCTUnwrap(indexObject?["rows"] as? [[String: Any]])
-        XCTAssertGreaterThanOrEqual(shards.count, 18)
-        XCTAssertGreaterThanOrEqual(rows.count, 5_000)
-
-        for shard in shards {
-            let fileName = try XCTUnwrap(shard["fileName"] as? String)
-            let shardURL = try Self.resourceURL(named: fileName.replacingOccurrences(of: ".json", with: ""))
-            XCTAssertLessThan(try Data(contentsOf: shardURL).count, 5_000_000)
-        }
-    }
-
-    func testBundledAustralianCurriculumCatalogIsNotSeedOnly() throws {
-        let catalog = try CurriculumCatalogService.loadBundledCatalog()
-        XCTAssertGreaterThanOrEqual(catalog.sources.count, 18)
-        XCTAssertGreaterThanOrEqual(catalog.items.count, 5_000)
-        XCTAssertFalse(catalog.items.contains { item in
+    func testBundledAustralianCurriculumCatalogIsNotSeedOnly() async throws {
+        let items = try await CurriculumCatalogService().search("evidence", limit: 50)
+        XCTAssertEqual(items.count, 50)
+        XCTAssertFalse(items.contains { item in
             ["AC-ENG-Y7-RESPOND", "AC-MATH-Y6-REASON", "AC-HASS-Y8-SOURCE"].contains(item.id)
         })
-        XCTAssertTrue(catalog.items.allSatisfy { $0.isOfficial && !$0.isEditable })
+        XCTAssertTrue(items.allSatisfy { $0.isOfficial && !$0.isEditable })
     }
 
-    func testCatalogHasAttributionWarningsAndProvenance() throws {
-        let catalog = try CurriculumCatalogService.loadBundledCatalog()
-        XCTAssertTrue(catalog.attributionText.contains("ACARA"))
-        XCTAssertTrue(catalog.nonEndorsementWarning.localizedCaseInsensitiveContains("does not claim"))
-        XCTAssertTrue(catalog.icipWarning.localizedCaseInsensitiveContains("Indigenous Cultural and Intellectual Property"))
-        XCTAssertTrue(catalog.sources.allSatisfy { !$0.sha256.isEmpty && !$0.jsonldURL.isEmpty })
-        XCTAssertTrue(catalog.items.prefix(200).allSatisfy { !$0.externalURI.isEmpty && !$0.sourceAttribution.isEmpty })
+    func testSearchFindsKnownCodeAndLoadsItemsByID() async throws {
+        let service = CurriculumCatalogService()
+        let found = try await service.search("AC9E1LY01", limit: 50)
+        let known = try XCTUnwrap(found.first { $0.code == "AC9E1LY01" })
+        XCTAssertEqual(known.learningArea, "English")
+        let byID = try await service.item(id: known.id)
+        XCTAssertEqual(byID, known)
+        let byIDs = try await service.items(ids: [known.id, "missing-id"])
+        XCTAssertEqual(byIDs, [known])
     }
 
-    func testIndexedCatalogSearchMatchesCatalogFilter() throws {
-        let catalog = try CurriculumCatalogService.loadBundledCatalog()
-        let indexed = CurriculumCatalogService.searchItems(
-            in: catalog,
-            catalogKind: "learningArea",
-            subject: "English",
-            learningArea: "English",
-            yearLevel: "Year 7",
-            searchText: "evidence"
-        )
-        let direct = catalog.filtered(
-            catalogKind: "learningArea",
-            subject: "English",
-            learningArea: "English",
-            yearLevel: "Year 7",
-            searchText: "evidence"
-        )
-        XCTAssertEqual(indexed.map(\.id), direct.map(\.id))
-        XCTAssertEqual(
-            CurriculumCatalogService.availableCatalogKinds(in: catalog),
-            Array(Set(catalog.items.map { $0.catalogKind.isEmpty ? $0.itemType : $0.catalogKind }.filter { !$0.isEmpty }))
-                .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-        )
-        XCTAssertTrue(CurriculumCatalogService.availableLearningAreas(in: catalog).contains("English"))
-        XCTAssertTrue(CurriculumCatalogService.availableSubjects(in: catalog).contains("English"))
+    func testCatalogHasAttributionWarningsAndProvenance() async throws {
+        let items = try await CurriculumCatalogService().search("evidence", limit: 50)
+        XCTAssertTrue(CurriculumCatalogService.sourceWarning.localizedCaseInsensitiveContains("does not claim"))
+        XCTAssertTrue(CurriculumCatalogService.icipWarning.localizedCaseInsensitiveContains("Indigenous Cultural and Intellectual Property"))
+        XCTAssertFalse(items.isEmpty)
+        let sources = try await CurriculumCatalogService().sources()
+        XCTAssertGreaterThanOrEqual(sources.count, 18)
+        XCTAssertTrue(sources.allSatisfy { !$0.sha256.isEmpty && !$0.jsonldURL.isEmpty })
+        XCTAssertTrue(items.allSatisfy {
+            !$0.externalURI.isEmpty && !$0.licenseName.isEmpty && $0.sourceAttribution.contains("ACARA")
+        })
     }
 
+    /// A reference the teacher maps to the assignment must reach the grading packet; nothing else does.
     @MainActor
-    func testOnlyTeacherMappedCurriculumReferencesEnterGradingPacket() {
-        let catalog = CurriculumCatalogService.localCatalog
-        let item = catalog.items.first { $0.code.isEmpty == false }!
-        var assignment = AssignmentRecord(
-            title: "Curriculum Packet",
-            rubricText: "Evidence: 0-4 points",
-            reviewedStudentText: "The student uses evidence.",
-            ocrReviewStatus: .reviewed
+    func testOnlyTeacherMappedCurriculumReferencesEnterGradingPacket() async throws {
+        let found = try await CurriculumCatalogService().search("evidence", limit: 1)
+        let item = try XCTUnwrap(found.first)
+        var fixture = try ExportFixtureFactory.baseAssignment(title: "Curriculum Packet")
+        fixture.setup.assignment.curriculumReference = ""
+        let database = try AppDatabase.inMemory()
+        _ = try await database.restore(fixture.snapshot, resolutions: [:])
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CurriculumPacket-\(UUID().uuidString)", isDirectory: true)
+        let app = AppModel(
+            openStorage: { AppModel.Storage(database: database, root: root) },
+            services: PreviewFixtures.previewServices()
         )
-        assignment.curriculumReference = ""
-        assignment.curriculumMappings = []
-        let viewModel = GradeDraftViewModel(assignments: [assignment], store: InMemoryAssignmentStore(assignments: [assignment]))
+        let model = AssignmentSetupModel(assignmentID: fixture.setup.id, app: app)
+        let observing = Task { await model.observe() }
+        defer { observing.cancel() }
+        try await waitUntil { model.hasLoaded }
 
-        XCTAssertNil(viewModel.assignment.gradingPacket.curriculumReference)
-        viewModel.mapCurriculumItemToCurrentAssignment(item)
+        func packetReference() async throws -> GradingPacketCurriculumReference? {
+            let storedSetup = try await database.assignmentSetup(id: fixture.setup.id)
+            let storedGraph = try await database.submission(id: fixture.submission.id)
+            let confirmedIDs = try XCTUnwrap(storedSetup).curriculumMappings.filter(\.teacherConfirmed).map(\.curriculumItemID)
+            let input = try GradingPacketBuilder.gradingInput(
+                setup: try XCTUnwrap(storedSetup), graph: try XCTUnwrap(storedGraph), className: fixture.className,
+                mappedItems: try await CurriculumCatalogService().items(ids: confirmedIDs)
+            )
+            return GradingPacketBuilder.packet(from: input).curriculumReference
+        }
 
-        let packetReference = viewModel.assignment.gradingPacket.curriculumReference
-        XCTAssertNotNil(packetReference)
-        XCTAssertTrue(packetReference?.rawText.contains(item.code) == true)
-        XCTAssertTrue(packetReference?.mappings.contains(where: { $0.contains(item.id) }) == true)
+        let before = try await packetReference()
+        XCTAssertNil(before)
+        await model.addMapping(itemID: item.id)
+
+        let after = try await packetReference()
+        XCTAssertNotNil(after)
+        XCTAssertTrue(after?.rawText.contains(item.code) == true)
     }
 
     func testPromptRulesForbidInventedCurriculumAlignment() {
-        let input = AssignmentRecord(
-            title: "Prompt Rules",
-            rubricText: "Evidence: 0-4 points",
-            reviewedStudentText: "The student uses evidence.",
-            ocrReviewStatus: .reviewed
-        ).gradingInput
-        let instructions = PromptBuilder.gradingInstructionsText(input: input)
+        let instructions = PromptBuilder.gradingInstructionsText()
         XCTAssertTrue(instructions.localizedCaseInsensitiveContains("Do not invent"))
         XCTAssertTrue(instructions.localizedCaseInsensitiveContains("standard codes"))
         XCTAssertTrue(instructions.localizedCaseInsensitiveContains("jurisdiction compliance"))
     }
+}
 
-    private static func resourceURL(named name: String) throws -> URL {
-        let candidates = [
-            Bundle.main.url(forResource: name, withExtension: "json", subdirectory: "JSON/CurriculumShards"),
-            Bundle.main.url(forResource: name, withExtension: "json", subdirectory: "CurriculumShards"),
-            Bundle.main.url(forResource: name, withExtension: "json", subdirectory: "JSON"),
-            Bundle.main.url(forResource: name, withExtension: "json")
-        ]
-        guard let url = candidates.compactMap({ $0 }).first else {
-            throw GradeDraftError.persistenceFailed("Missing bundled test resource \(name).json")
-        }
-        return url
+private struct HarnessTimeout: Error {}
+
+@MainActor
+private func waitUntil(timeout: Duration = .seconds(5), _ condition: @MainActor () -> Bool) async throws {
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: timeout)
+    while !condition() {
+        guard clock.now < deadline else { throw HarnessTimeout() }
+        try await Task.sleep(for: .milliseconds(20))
     }
 }

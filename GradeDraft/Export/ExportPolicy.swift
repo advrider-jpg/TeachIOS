@@ -37,7 +37,7 @@ struct ExportContentPolicy: Equatable, Identifiable {
         if includesPrivateTeacherNotes { lines.append("Includes private teacher notes.") }
         if includesAuditEvents { lines.append("Includes audit events.") }
         if includesInternalMetadata { lines.append("Includes internal metadata or fingerprints.") }
-        if kind == .csvGradebook || kind == .assignmentGradebookArchive { lines.append("Spreadsheet formula-like text is neutralized before export.") }
+        if kind == .csvGradebook { lines.append("Spreadsheet formula-like text is neutralized before export.") }
         return lines
     }
 }
@@ -213,104 +213,68 @@ extension ExportKind {
                 includesAuditEvents: true,
                 includesInternalMetadata: true
             )
-        case .backupJSON:
-            return ExportContentPolicy(
-                kind: self,
-                warningTitle: "Legacy backup record",
-                warningBody: "This legacy backup classification represents complete sensitive local records if used. Prefer the full backup archive flow.",
-                primaryButtonTitle: "Create Backup",
-                secondaryButtonTitle: "Cancel",
-                isStudentFacing: false,
-                isTeacherOnly: true,
-                requiresApprovedFinalReview: false,
-                requiresShareWarning: true,
-                requiresLocalAuthenticationWhenAvailable: true,
-                includesStudentNames: true,
-                includesAssignmentWork: true,
-                includesReviewedText: true,
-                includesOCRText: true,
-                includesSourceFiles: false,
-                includesFinalGrades: true,
-                includesDraftGrades: true,
-                includesStudentFeedback: true,
-                includesPrivateTeacherNotes: true,
-                includesAuditEvents: true,
-                includesInternalMetadata: true
-            )
-        case .assignmentGradebookArchive:
-            return ExportContentPolicy(
-                kind: self,
-                warningTitle: "Gradebook archive ZIP",
-                warningBody: "This ZIP contains teacher-only gradebook records including assignment data, reports, OCR documents, evidence references, and original files when available. Treat it as sensitive student data.",
-                primaryButtonTitle: "Create Gradebook Archive",
-                secondaryButtonTitle: "Cancel",
-                isStudentFacing: false,
-                isTeacherOnly: true,
-                requiresApprovedFinalReview: false,
-                requiresShareWarning: true,
-                requiresLocalAuthenticationWhenAvailable: true,
-                includesStudentNames: true,
-                includesAssignmentWork: true,
-                includesReviewedText: true,
-                includesOCRText: true,
-                includesSourceFiles: true,
-                includesFinalGrades: true,
-                includesDraftGrades: true,
-                includesStudentFeedback: true,
-                includesPrivateTeacherNotes: true,
-                includesAuditEvents: true,
-                includesInternalMetadata: true
-            )
         }
     }
 }
 
+/// The single rule for student-facing output: only an approved final review whose inputs have
+/// not changed since approval. Stale or in-progress results never reach a student report.
+/// When staleness cannot be determined (the setup cannot be encoded), the answer is the blocking one:
+/// no student report, and the export is treated as containing draft state.
+enum ExportPolicy {
+    static func allowsStudentReport(setup: AssignmentSetup, submission: SubmissionGraph) -> Bool {
+        guard let review = submission.finalReview, review.status == .approved else { return false }
+        guard let isStale = try? submission.finalReviewIsStale(setup: setup) else { return false }
+        return !isStale
+    }
+
+    /// True when the submission holds a draft or an unapproved or stale review: material that is
+    /// not a teacher-final grade.
+    static func containsDraftGradingContent(setup: AssignmentSetup, submission: SubmissionGraph) -> Bool {
+        submission.draft != nil
+            || (submission.finalReview.map { $0.status != .approved } ?? false)
+            || finalReviewIsStaleOrUnknown(setup: setup, submission: submission)
+    }
+
+    /// Same question for the gradebook CSV, which shows the draft total when there is no final review.
+    static func gradebookContainsDraftState(setup: AssignmentSetup, submission: SubmissionGraph) -> Bool {
+        if submission.finalReview == nil, submission.draft != nil { return true }
+        if let review = submission.finalReview, review.status != .approved { return true }
+        return finalReviewIsStaleOrUnknown(setup: setup, submission: submission)
+    }
+
+    private static func finalReviewIsStaleOrUnknown(setup: AssignmentSetup, submission: SubmissionGraph) -> Bool {
+        (try? submission.finalReviewIsStale(setup: setup)) ?? true
+    }
+}
+
 extension ExportRiskSummary {
+    /// `items` is the set of submissions the export covers, each with its assignment setup:
+    /// one item for a single-student export, every submission for a class-level export.
     static func summary(
         for exportKind: ExportKind,
-        currentAssignment: AssignmentRecord,
-        allAssignments: [AssignmentRecord],
-        sourceAvailability: (AssignmentRecord) -> Bool = { !$0.sourceInputs.isEmpty }
+        items: [(setup: AssignmentSetup, submission: SubmissionGraph)],
+        sourceAvailability: ((setup: AssignmentSetup, submission: SubmissionGraph)) -> Bool = { !$0.submission.sources.isEmpty }
     ) -> ExportRiskSummary {
-        let scopedAssignments = scopedAssignments(
-            for: exportKind,
-            currentAssignment: currentAssignment,
-            allAssignments: allAssignments
-        )
-        return ExportRiskSummary(
-            includesDraftContent: includesDraftContent(for: exportKind, scopedAssignments: scopedAssignments),
+        ExportRiskSummary(
+            includesDraftContent: includesDraftContent(for: exportKind, items: items),
             includesPrivateNotes: includesPrivateNotes(for: exportKind),
-            includesOriginalSources: includesOriginalSources(
-                for: exportKind,
-                currentAssignment: currentAssignment,
-                scopedAssignments: scopedAssignments,
-                sourceAvailability: sourceAvailability
-            ),
-            affectedAssignmentCount: scopedAssignments.count
+            includesOriginalSources: includesOriginalSources(for: exportKind, items: items, sourceAvailability: sourceAvailability),
+            affectedAssignmentCount: Set(items.map { $0.setup.assignment.id }).count
         )
     }
 
-    private static func scopedAssignments(
+    private static func includesDraftContent(
         for exportKind: ExportKind,
-        currentAssignment: AssignmentRecord,
-        allAssignments: [AssignmentRecord]
-    ) -> [AssignmentRecord] {
-        switch exportKind {
-        case .fullBackupArchive, .backupJSON, .csvGradebook, .assignmentGradebookArchive:
-            return allAssignments.isEmpty ? [currentAssignment] : allAssignments
-        default:
-            return [currentAssignment]
-        }
-    }
-
-    private static func includesDraftContent(for exportKind: ExportKind, scopedAssignments: [AssignmentRecord]) -> Bool {
+        items: [(setup: AssignmentSetup, submission: SubmissionGraph)]
+    ) -> Bool {
         switch exportKind {
         case .studentMarkdown, .studentPDF:
             return false
-        case .csvGradebook, .assignmentGradebookArchive:
-            return scopedAssignments.contains { $0.gradebookExportContainsDraftState }
-        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .backupJSON, .fullBackupArchive:
-            return scopedAssignments.contains { $0.containsDraftGradingContent }
+        case .csvGradebook:
+            return items.contains { ExportPolicy.gradebookContainsDraftState(setup: $0.setup, submission: $0.submission) }
+        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .fullBackupArchive:
+            return items.contains { ExportPolicy.containsDraftGradingContent(setup: $0.setup, submission: $0.submission) }
         }
     }
 
@@ -318,38 +282,21 @@ extension ExportRiskSummary {
         switch exportKind {
         case .studentMarkdown, .studentPDF, .csvGradebook:
             return false
-        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .backupJSON, .fullBackupArchive, .assignmentGradebookArchive:
+        case .teacherAuditMarkdown, .teacherAuditPDF, .zipArchive, .fullBackupArchive:
             return true
         }
     }
 
     private static func includesOriginalSources(
         for exportKind: ExportKind,
-        currentAssignment: AssignmentRecord,
-        scopedAssignments: [AssignmentRecord],
-        sourceAvailability: (AssignmentRecord) -> Bool
+        items: [(setup: AssignmentSetup, submission: SubmissionGraph)],
+        sourceAvailability: ((setup: AssignmentSetup, submission: SubmissionGraph)) -> Bool
     ) -> Bool {
         switch exportKind {
-        case .zipArchive:
-            return sourceAvailability(currentAssignment)
-        case .fullBackupArchive, .assignmentGradebookArchive:
-            return scopedAssignments.contains(where: sourceAvailability)
+        case .zipArchive, .fullBackupArchive:
+            return items.contains(where: sourceAvailability)
         default:
             return false
         }
-    }
-}
-
-extension AssignmentRecord {
-    var containsDraftGradingContent: Bool {
-        latestDraft != nil ||
-        (finalReview.map { $0.status != .approved } ?? false) ||
-        finalReviewIsStale
-    }
-
-    var gradebookExportContainsDraftState: Bool {
-        if finalReview == nil, latestDraft != nil { return true }
-        if let finalReview, finalReview.status != .approved { return true }
-        return finalReviewIsStale
     }
 }

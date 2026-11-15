@@ -7,16 +7,9 @@ Use this skill after any code change that affects build, tests, lint, or Xcode-f
 
 Verification baseline:
 - Run from repo root: `python3 scripts/no_network_scan.py`.
-- Run from repo root: `python3 scripts/repo_health.py`.
-- Compare against `.github/workflows/swift.yml` because CI uses this exact gate.
-
-Compile-and-test sequence:
-1. `xcodebuild -resolvePackageDependencies -project GradeDraft.xcodeproj -scheme GradeDraft`.
-2. Run `swiftlint lint --config .swiftlint.yml` (or note if intentionally unavailable).
-3. Discover simulator device:
-   - `xcrun simctl list devices available | awk -F '[()]' '/iPhone/ { print "id=" $2; exit }'`
-4. Use that ID in:
-   - `xcodebuild test -project GradeDraft.xcodeproj -scheme GradeDraft -destination id=<destination>`.
+- Run from repo root: `python3 scripts/ci/check_curriculum_catalog.py`.
+- Run from repo root: `python3 scripts/curriculum/build_acara_curriculum_catalog.py --check`.
+- App build, unit tests and UI tests run in GitHub CI (`.github/workflows/ci.yml`) on the `xcode-27` runner with Xcode 27.1 and the "iPhone Duo" iOS 27.1 simulator. Read failures with `gh run view <run-id> --log-failed`.
 
 If any command fails, do not claim green status. Stop and report the first failing command plus concrete output.
 
@@ -27,5 +20,5 @@ SDK and Foundation Models checks:
 - If APIs changed by SDK, align implementation with exact project-compatible symbols and keep fallback paths explicit.
 
 Release-confidence rule:
-- Do not modify `.github/workflows/swift.yml` for local convenience without preserving CI intent.
+- Do not modify `.github/workflows/ci.yml` for local convenience without preserving CI intent.
 - If a full run is not possible in the environment, state this explicitly and provide exact commands with their current status.

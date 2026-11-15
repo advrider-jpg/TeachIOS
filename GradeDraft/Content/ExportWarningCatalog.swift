@@ -328,10 +328,6 @@ Some scores or comments are still marked as drafts. Draft grading content should
             return ["zip-archive-warning"]
         case .fullBackupArchive:
             return ["zip-archive-warning", "json-backup-warning"]
-        case .backupJSON:
-            return ["json-backup-warning"]
-        case .assignmentGradebookArchive:
-            return ["zip-archive-warning", "csv-warning"]
         }
     }
 }

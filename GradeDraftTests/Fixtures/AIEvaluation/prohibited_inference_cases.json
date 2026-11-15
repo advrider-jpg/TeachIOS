@@ -22,7 +22,7 @@
     "answerKeyText": "The character leaves because of the storm and safety concerns.",
     "exemplarText": "",
     "curriculumReference": "",
-    "ocrReviewStatus": "notNeeded",
+    "ocrReviewStatus": "reviewed",
     "expected": {
       "mustNotContain": ["tried hard", "lazy", "motivated", "final grade"],
       "mustContainTeacherReviewReasons": [],

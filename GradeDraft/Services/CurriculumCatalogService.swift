@@ -1,67 +1,131 @@
 import Foundation
+import GRDB
 
-enum CurriculumCatalogService {
-    static let bundledResourceName = "curriculum_catalog_acara_v9"
-    static let indexResourceName = "curriculum_catalog_acara_v9_index"
-    static let manifestResourceName = "curriculum_catalog_acara_v9_manifest"
-    static let summaryResourceName = "curriculum_catalog_acara_v9_summary"
+struct CurriculumFacets: Equatable, Sendable {
+    var learningAreas: [String]
+    var subjects: [String]
+    var yearLevels: [String]
+}
+
+struct CurriculumSourceInfo: Equatable, Sendable {
+    var id: String
+    var name: String
+    var version: String
+    var sourceVersion: String
+    var licenseName: String
+    var attribution: String
+    var sha256: String
+    var jsonldURL: String
+}
+
+/// Searches the bundled Australian Curriculum SQLite file on demand. The file is opened read-only on first use;
+/// nothing is decoded at launch.
+actor CurriculumCatalogService {
+    static let resourceName = "curriculum_acara_v9"
+    static let searchLimit = 50
 
     static let sourceWarning = "Australian Curriculum references are bundled for offline teacher-controlled reference only. MarkForMe does not claim ACARA endorsement, certification, compliance, or jurisdiction reporting approval. Teachers must explicitly map each reference before it is used in grading context."
+    static let icipWarning = "Some Australian Curriculum material relates to Aboriginal and Torres Strait Islander Histories and Cultures and may involve Indigenous Cultural and Intellectual Property considerations. Use, adaptation, and publication must respect applicable cultural protocols and permissions."
 
-    static let localCatalog: CurriculumCatalog = {
-        do {
-            return try loadBundledCatalog()
-        } catch {
-            return emptyCatalog(reason: error.localizedDescription)
-        }
-    }()
+    private let bundle: Bundle
+    private var queue: DatabaseQueue?
 
-    private static let localCatalogItemIndexesByID: [String: Int] = itemIndexesByID(for: localCatalog)
-    private static let localCatalogSearchIndex: CurriculumCatalogSearchIndex = {
-        if let index = try? loadBundledSearchIndex(catalog: localCatalog) {
-            return index
-        }
-        return CurriculumCatalogSearchIndex(catalog: localCatalog)
-    }()
+    init(bundle: Bundle = .main) {
+        self.bundle = bundle
+    }
 
-    static func loadBundledCatalog(bundle: Bundle = .main) throws -> CurriculumCatalog {
-        guard let url = bundledURL(resource: bundledResourceName, bundle: bundle) else {
-            throw GradeDraftError.persistenceFailed("Bundled Australian Curriculum catalog resource was not found.")
-        }
-        let data = try Data(contentsOf: url)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        var catalog = try decoder.decode(CurriculumCatalog.self, from: data)
-        guard catalog.items.isEmpty else { return catalog }
-        let index = try loadBundledIndex(bundle: bundle)
-        let shards = try index.shards.flatMap { shard in
-            let decoded = try loadBundledShard(shard, bundle: bundle, decoder: decoder)
-            guard decoded.items.count == shard.itemCount else {
-                throw GradeDraftError.persistenceFailed("Bundled Australian Curriculum shard \(shard.fileName) contained \(decoded.items.count) item(s); expected \(shard.itemCount).")
+    // MARK: Bundled catalogue
+
+    /// Full-text search over code, title, description, strand and tags. Each word is a prefix term; best match first.
+    /// Filters are exact-match conditions combined with AND. Empty text with a filter returns the filtered items
+    /// ordered by code; empty text and no filters returns nothing.
+    func search(
+        _ text: String,
+        learningArea: String? = nil,
+        subject: String? = nil,
+        yearLevel: String? = nil,
+        limit: Int = CurriculumCatalogService.searchLimit
+    ) async throws -> [CurriculumItem] {
+        let match = Self.matchExpression(for: text)
+        var conditions: [String] = []
+        var arguments: [(any DatabaseValueConvertible)?] = []
+        for (column, value) in [("learningArea", learningArea), ("subject", subject), ("yearLevel", yearLevel)] {
+            if let value, !value.isEmpty {
+                conditions.append("item.\(column) = ?")
+                arguments.append(value)
             }
-            return decoded.items
         }
-        guard shards.count == index.itemCount else {
-            throw GradeDraftError.persistenceFailed("Bundled Australian Curriculum index expected \(index.itemCount) item(s), but shards loaded \(shards.count).")
+        guard limit > 0, match != nil || !conditions.isEmpty else { return [] }
+        var sql = Self.itemSelect
+        let order: String
+        if let match {
+            sql += " JOIN itemSearch ON itemSearch.rowid = item.rowid"
+            conditions.insert("itemSearch MATCH ?", at: 0)
+            arguments.insert(match, at: 0)
+            order = "bm25(itemSearch), item.id"
+        } else {
+            order = "item.code, item.id"
         }
-        catalog.items = shards
-        return catalog
+        sql += " WHERE " + conditions.joined(separator: " AND ") + " ORDER BY \(order) LIMIT ?"
+        arguments.append(limit)
+        let queue = try openQueue()
+        let statementArguments = StatementArguments(arguments)
+        let finalSQL = sql
+        return try await queue.read { db in
+            try Row.fetchAll(db, sql: finalSQL, arguments: statementArguments).map(Self.curriculumItem(from:))
+        }
     }
 
-    static func emptyCatalog(reason: String) -> CurriculumCatalog {
-        CurriculumCatalog(
-            schemaVersion: "empty-local-catalog",
-            catalogID: "empty-australian-curriculum-catalog",
-            displayName: "Australian Curriculum catalog unavailable",
-            sourceVersion: "unloaded",
-            generatedBy: "MarkForMe",
-            nonEndorsementWarning: sourceWarning,
-            icipWarning: "Confirm Aboriginal and Torres Strait Islander Histories and Cultures material against current cultural protocols before use.",
-            sources: [],
-            items: [],
-            warning: "Australian Curriculum catalog could not be loaded from the app bundle. Manual teacher-provided curriculum import remains available. Reason: \(reason)"
-        )
+    /// Sorted distinct non-empty values for the browser's filters.
+    func facets() async throws -> CurriculumFacets {
+        let queue = try openQueue()
+        return try await queue.read { db in
+            func distinct(_ column: String) throws -> [String] {
+                try String.fetchAll(db, sql: "SELECT DISTINCT \(column) FROM item WHERE \(column) <> ''")
+                    .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            }
+            return CurriculumFacets(
+                learningAreas: try distinct("learningArea"),
+                subjects: try distinct("subject"),
+                yearLevels: try distinct("yearLevel")
+            )
+        }
     }
+
+    func sources() async throws -> [CurriculumSourceInfo] {
+        let queue = try openQueue()
+        return try await queue.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM source ORDER BY id").map { row in
+                CurriculumSourceInfo(
+                    id: row["id"], name: row["name"], version: row["version"], sourceVersion: row["sourceVersion"],
+                    licenseName: row["licenseName"], attribution: row["attribution"],
+                    sha256: row["sha256"], jsonldURL: row["jsonldURL"]
+                )
+            }
+        }
+    }
+
+    func item(id: String) async throws -> CurriculumItem? {
+        try await items(ids: [id]).first
+    }
+
+    /// Returns the items found, in the order of `ids`; unknown ids are skipped.
+    func items(ids: [String]) async throws -> [CurriculumItem] {
+        guard !ids.isEmpty else { return [] }
+        let queue = try openQueue()
+        let found: [String: CurriculumItem] = try await queue.read { db in
+            let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ", ")
+            let rows = try Row.fetchAll(
+                db,
+                sql: Self.itemSelect + " WHERE item.id IN (\(placeholders))",
+                arguments: StatementArguments(ids)
+            )
+            return Dictionary(uniqueKeysWithValues: rows.map(Self.curriculumItem(from:)).map { ($0.id, $0) })
+        }
+        return ids.compactMap { found[$0] }
+    }
+
+    // MARK: Display text
 
     static func displaySummary(for item: CurriculumItem) -> String {
         let sourceDetail = item.sourceVersion.isEmpty ? item.sourceName : "\(item.sourceName) / \(item.sourceVersion)"
@@ -69,265 +133,82 @@ enum CurriculumCatalogService {
         return "\(item.code): \(item.title) — \(item.learningArea), \(item.subject), \(level). Source: \(sourceDetail); provenance: \(item.externalURI)"
     }
 
-    static func selectedReferenceSummary(items: [CurriculumItem], catalog: CurriculumCatalog = localCatalog) -> String {
+    static func selectedReferenceSummary(items: [CurriculumItem]) -> String {
         guard !items.isEmpty else { return "" }
         let header = [
-            catalog.nonEndorsementWarning.isEmpty ? sourceWarning : catalog.nonEndorsementWarning,
-            catalog.icipWarning,
-            "Catalog: \(catalog.displayName) / \(catalog.sourceVersion); generated by \(catalog.generatedBy). Only teacher-selected references are included."
-        ].filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        let lines = items.map { item in
-            "- \(displaySummary(for: item))"
+            sourceWarning,
+            icipWarning,
+            "Only teacher-selected references are included."
+        ]
+        return (header + items.map { "- \(displaySummary(for: $0))" }).joined(separator: "\n")
+    }
+
+    // MARK: Database access
+
+    private func openQueue() throws -> DatabaseQueue {
+        if let queue { return queue }
+        guard let url = bundle.url(forResource: Self.resourceName, withExtension: "sqlite") else {
+            throw GradeDraftError.persistenceFailed("The bundled Australian Curriculum database was not found.")
         }
-        return (header + lines).joined(separator: "\n")
+        var configuration = Configuration()
+        configuration.readonly = true
+        let opened = try DatabaseQueue(path: url.path, configuration: configuration)
+        queue = opened
+        return opened
     }
 
-    static func item(id: String, in catalog: CurriculumCatalog = localCatalog) -> CurriculumItem? {
-        if isLocalCatalog(catalog) {
-            guard let index = localCatalogItemIndexesByID[id],
-                  localCatalog.items.indices.contains(index) else { return nil }
-            return localCatalog.items[index]
+    private static let itemSelect = """
+        SELECT item.*, source.name AS sourceName, source.version AS sourceVersionLabel, source.sourceVersion AS sourceVersion,
+               source.licenseName AS licenseName, source.attribution AS sourceAttribution
+        FROM item JOIN source ON source.id = item.sourceID
+        """
+
+    /// Each word becomes a quoted prefix term, so teacher text can never be read as FTS5 syntax.
+    private static func matchExpression(for text: String) -> String? {
+        let words = text
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        guard !words.isEmpty else { return nil }
+        return words.map { "\"\($0)\"*" }.joined(separator: " ")
+    }
+
+    private static func curriculumItem(from row: Row) -> CurriculumItem {
+        func strings(_ column: String) -> [String] {
+            let json: String = row[column]
+            return (try? JSONDecoder().decode([String].self, from: Data(json.utf8))) ?? []
         }
-        guard let index = itemIndexesByID(for: catalog)[id],
-              catalog.items.indices.contains(index) else { return nil }
-        return catalog.items[index]
-    }
-
-    static func items(ids: [String], in catalog: CurriculumCatalog = localCatalog) -> [CurriculumItem] {
-        ids.compactMap { item(id: $0, in: catalog) }
-    }
-
-    static func searchItems(
-        in catalog: CurriculumCatalog = localCatalog,
-        catalogKind: String = "",
-        subject: String = "",
-        learningArea: String = "",
-        yearLevel: String = "",
-        searchText: String = ""
-    ) -> [CurriculumItem] {
-        searchIndex(for: catalog).filtered(
-            catalogKind: catalogKind,
-            subject: subject,
-            learningArea: learningArea,
-            yearLevel: yearLevel,
-            searchText: searchText
+        let sourceName: String = row["sourceName"]
+        let sourceVersion: String = row["sourceVersion"]
+        return CurriculumItem(
+            id: row["id"],
+            source: sourceName,
+            version: row["sourceVersionLabel"],
+            sourceVersion: sourceVersion,
+            learningArea: row["learningArea"],
+            subject: row["subject"],
+            yearLevel: row["yearLevel"],
+            band: row["band"],
+            strand: row["strand"],
+            substrand: row["substrand"],
+            organizer: row["organizer"],
+            itemType: row["itemType"],
+            catalogKind: row["catalogKind"],
+            code: row["code"],
+            title: row["title"],
+            shortDescription: row["shortDescription"],
+            sourceURL: row["sourceURL"],
+            externalURI: row["externalURI"],
+            provenance: row["provenance"],
+            sourceKey: row["sourceKey"],
+            sourceName: sourceName,
+            altLabels: strings("altLabels"),
+            parentIDs: strings("parentIDs"),
+            childIDs: strings("childIDs"),
+            tags: strings("tags"),
+            isOfficial: row["isOfficial"],
+            isEditable: false,
+            licenseName: row["licenseName"],
+            sourceAttribution: row["sourceAttribution"]
         )
     }
-
-    static func availableCatalogKinds(in catalog: CurriculumCatalog = localCatalog) -> [String] {
-        searchIndex(for: catalog).catalogKinds
-    }
-
-    static func availableLearningAreas(in catalog: CurriculumCatalog = localCatalog) -> [String] {
-        searchIndex(for: catalog).learningAreas
-    }
-
-    static func availableSubjects(in catalog: CurriculumCatalog = localCatalog) -> [String] {
-        searchIndex(for: catalog).subjects
-    }
-
-    static func availableYearLevelsAndBands(in catalog: CurriculumCatalog = localCatalog) -> [String] {
-        searchIndex(for: catalog).yearLevelsAndBands
-    }
-
-    private static func itemIndexesByID(for catalog: CurriculumCatalog) -> [String: Int] {
-        var indexes: [String: Int] = [:]
-        indexes.reserveCapacity(catalog.items.count)
-        for (index, item) in catalog.items.enumerated() where indexes[item.id] == nil {
-            indexes[item.id] = index
-        }
-        return indexes
-    }
-
-    private static func searchIndex(for catalog: CurriculumCatalog) -> CurriculumCatalogSearchIndex {
-        isLocalCatalog(catalog) ? localCatalogSearchIndex : CurriculumCatalogSearchIndex(catalog: catalog)
-    }
-
-    private static func isLocalCatalog(_ catalog: CurriculumCatalog) -> Bool {
-        catalog.catalogID == localCatalog.catalogID
-            && catalog.sourceVersion == localCatalog.sourceVersion
-            && catalog.items.count == localCatalog.items.count
-    }
-
-    private static func loadBundledSearchIndex(catalog: CurriculumCatalog, bundle: Bundle = .main) throws -> CurriculumCatalogSearchIndex {
-        let index = try loadBundledIndex(bundle: bundle)
-        return CurriculumCatalogSearchIndex(catalog: catalog, bundledIndex: index)
-    }
-
-    private static func loadBundledIndex(bundle: Bundle) throws -> BundledCurriculumIndex {
-        guard let url = bundledURL(resource: indexResourceName, bundle: bundle) else {
-            throw GradeDraftError.persistenceFailed("Bundled Australian Curriculum search index resource was not found.")
-        }
-        let data = try Data(contentsOf: url)
-        return try JSONDecoder().decode(BundledCurriculumIndex.self, from: data)
-    }
-
-    private static func loadBundledShard(
-        _ shard: BundledCurriculumIndex.Shard,
-        bundle: Bundle,
-        decoder: JSONDecoder
-    ) throws -> BundledCurriculumShard {
-        let resourceName = String(shard.fileName.dropLast(".json".count))
-        guard let url = bundledURL(resource: resourceName, bundle: bundle, shardDirectory: "CurriculumShards") else {
-            throw GradeDraftError.persistenceFailed("Bundled Australian Curriculum shard \(shard.fileName) was not found.")
-        }
-        let data = try Data(contentsOf: url)
-        return try decoder.decode(BundledCurriculumShard.self, from: data)
-    }
-
-    private static func bundledURL(resource: String, bundle: Bundle, shardDirectory: String? = nil) -> URL? {
-        let subdirectories = [
-            shardDirectory.map { "JSON/\($0)" },
-            shardDirectory,
-            "JSON",
-            nil
-        ]
-        for subdirectory in subdirectories {
-            if let url = bundle.url(forResource: resource, withExtension: "json", subdirectory: subdirectory) {
-                return url
-            }
-        }
-        return nil
-    }
-}
-
-private struct CurriculumCatalogSearchIndex {
-    struct Row {
-        var itemID: String
-        var catalogKind: String
-        var itemType: String
-        var subject: String
-        var learningArea: String
-        var yearLevel: String
-        var band: String
-        var searchable: String
-    }
-
-    var catalog: CurriculumCatalog
-    var itemByID: [String: CurriculumItem]
-    var rows: [Row]
-    var catalogKinds: [String]
-    var learningAreas: [String]
-    var subjects: [String]
-    var yearLevelsAndBands: [String]
-
-    init(catalog: CurriculumCatalog) {
-        self.catalog = catalog
-        itemByID = Dictionary(uniqueKeysWithValues: catalog.items.map { ($0.id, $0) })
-        rows = catalog.items.enumerated().map { index, item in
-            Row(
-                itemID: item.id,
-                catalogKind: Self.normalized(item.catalogKind),
-                itemType: Self.normalized(item.itemType),
-                subject: Self.normalized(item.subject),
-                learningArea: Self.normalized(item.learningArea),
-                yearLevel: Self.normalized(item.yearLevel),
-                band: Self.normalized(item.band),
-                searchable: Self.normalized(
-                    ([item.code, item.title, item.shortDescription, item.learningArea, item.subject, item.strand, item.substrand, item.organizer] + item.altLabels + item.tags)
-                        .joined(separator: " ")
-                )
-            )
-        }
-        catalogKinds = Self.uniqueValues(catalog.items.map { $0.catalogKind.isEmpty ? $0.itemType : $0.catalogKind })
-        learningAreas = Self.uniqueValues(catalog.items.map(\.learningArea))
-        subjects = Self.uniqueValues(catalog.items.map(\.subject))
-        yearLevelsAndBands = Self.uniqueValues(catalog.items.map { $0.yearLevel.isEmpty ? $0.band : $0.yearLevel })
-    }
-
-    init(catalog: CurriculumCatalog, bundledIndex: BundledCurriculumIndex) {
-        self.catalog = catalog
-        itemByID = Dictionary(uniqueKeysWithValues: catalog.items.map { ($0.id, $0) })
-        rows = bundledIndex.rows.map { row in
-            Row(
-                itemID: row.itemID,
-                catalogKind: row.catalogKind,
-                itemType: row.itemType,
-                subject: row.subject,
-                learningArea: row.learningArea,
-                yearLevel: row.yearLevel,
-                band: row.band,
-                searchable: row.searchable
-            )
-        }
-        catalogKinds = bundledIndex.catalogKinds
-        learningAreas = bundledIndex.learningAreas
-        subjects = bundledIndex.subjects
-        yearLevelsAndBands = bundledIndex.yearLevelsAndBands
-    }
-
-    func filtered(
-        catalogKind: String = "",
-        subject: String = "",
-        learningArea: String = "",
-        yearLevel: String = "",
-        searchText: String = ""
-    ) -> [CurriculumItem] {
-        let normalizedKind = Self.normalized(catalogKind)
-        let normalizedSubject = Self.normalized(subject)
-        let normalizedLearningArea = Self.normalized(learningArea)
-        let normalizedYearLevel = Self.normalized(yearLevel)
-        let normalizedSearch = Self.normalized(searchText)
-        return rows.compactMap { row in
-            guard normalizedKind.isEmpty || row.catalogKind.contains(normalizedKind) || row.itemType.contains(normalizedKind) else { return nil }
-            guard normalizedLearningArea.isEmpty || row.learningArea.contains(normalizedLearningArea) else { return nil }
-            guard normalizedSubject.isEmpty || row.subject.contains(normalizedSubject) else { return nil }
-            guard normalizedYearLevel.isEmpty || row.yearLevel.contains(normalizedYearLevel) || row.band.contains(normalizedYearLevel) else { return nil }
-            guard normalizedSearch.isEmpty || row.searchable.contains(normalizedSearch) else { return nil }
-            return itemByID[row.itemID]
-        }
-    }
-
-    private static func uniqueValues(_ values: [String]) -> [String] {
-        Array(Set(values.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }))
-            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-    }
-
-    private static func normalized(_ value: String) -> String {
-        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
-}
-
-private struct BundledCurriculumIndex: Decodable {
-    struct Shard: Decodable {
-        var sourceKey: String
-        var fileName: String
-        var itemCount: Int
-        var sha256: String
-    }
-
-    struct Row: Decodable {
-        var itemID: String
-        var shardName: String
-        var shardItemIndex: Int
-        var catalogKind: String
-        var itemType: String
-        var subject: String
-        var learningArea: String
-        var yearLevel: String
-        var band: String
-        var searchable: String
-    }
-
-    var schemaVersion: String
-    var catalogID: String
-    var displayName: String
-    var sourceVersion: String
-    var itemCount: Int
-    var shardDirectory: String
-    var shards: [Shard]
-    var catalogKinds: [String]
-    var learningAreas: [String]
-    var subjects: [String]
-    var yearLevelsAndBands: [String]
-    var rows: [Row]
-}
-
-private struct BundledCurriculumShard: Decodable {
-    var schemaVersion: String
-    var catalogID: String
-    var sourceKey: String
-    var part: Int
-    var itemCount: Int
-    var items: [CurriculumItem]
 }
