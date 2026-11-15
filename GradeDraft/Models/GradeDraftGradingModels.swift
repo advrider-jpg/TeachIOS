@@ -1,9 +1,8 @@
-import CoreGraphics
 import Foundation
 
-// MARK: - Grading records
+// MARK: - Grading packet input
 
-struct GradingInput: Codable, Equatable {
+struct GradingInput: Codable, Equatable, Sendable {
     var assignmentID: UUID
     var assignmentTitle: String
     var prompt: String
@@ -39,122 +38,123 @@ struct GradingInput: Codable, Equatable {
     }
 }
 
-enum DraftStatus: String, Codable, Equatable {
+// MARK: - AI draft (model output, kept separate from the teacher's final review)
+
+/// Whether the draft is current is never stored: compare `packetFingerprint` with
+/// `SubmissionGraph.packetFingerprint(setup:)`.
+enum DraftStatus: String, Codable, Equatable, Sendable {
     case generated
-    case stale
     case teacherReviewRequired
 }
 
-struct GradeDraftResult: Identifiable, Codable, Equatable {
+struct GradeDraftResult: Identifiable, Codable, Equatable, Sendable {
     var id: UUID
     var generatedAt: Date
     var packetFingerprint: String
     var status: DraftStatus
     var studentResponseSummary: String
     var criteria: [CriterionScore]
-    var totalScore: Double
-    var maxScore: Double
     var studentFeedback: String
     var teacherNotes: String
     var uncertaintyFlags: [String]
     var complianceFlags: [String]
-    var rawModelResponse: String?
-    var localModelAudit: LocalModelDraftAudit?
+    var modelAudit: LocalModelDraftAudit?
 
     init(
         id: UUID = UUID(),
         generatedAt: Date = Date(),
-        packetFingerprint: String = "",
+        packetFingerprint: String,
         status: DraftStatus = .teacherReviewRequired,
         studentResponseSummary: String,
         criteria: [CriterionScore],
-        totalScore: Double,
-        maxScore: Double,
         studentFeedback: String,
         teacherNotes: String,
         uncertaintyFlags: [String],
         complianceFlags: [String] = [],
-        rawModelResponse: String? = nil,
-        localModelAudit: LocalModelDraftAudit? = nil
+        modelAudit: LocalModelDraftAudit? = nil
     ) {
         self.id = id
-        self.generatedAt = Date(timeIntervalSinceReferenceDate: floor(generatedAt.timeIntervalSinceReferenceDate * 1000) / 1000)
+        self.generatedAt = generatedAt
         self.packetFingerprint = packetFingerprint
         self.status = status
         self.studentResponseSummary = studentResponseSummary
         self.criteria = criteria
-        self.totalScore = totalScore
-        self.maxScore = maxScore
         self.studentFeedback = studentFeedback
         self.teacherNotes = teacherNotes
         self.uncertaintyFlags = uncertaintyFlags
         self.complianceFlags = complianceFlags
-        self.rawModelResponse = rawModelResponse
-        self.localModelAudit = localModelAudit
+        self.modelAudit = modelAudit
+    }
+
+    /// Always the sum of the stored criterion points (never a model-written total).
+    var totalScore: Double {
+        criteria.reduce(0) { $0 + $1.proposedPoints }
     }
 }
 
-struct CriterionScore: Identifiable, Codable, Equatable {
+/// One AI-proposed criterion score. The criterion's title and maximum come from the assignment's rubric.
+struct CriterionScore: Identifiable, Codable, Equatable, Sendable {
     var id: UUID
-    var criterionID: String?
-    var criterion: String
+    var criterionID: String
     var rating: String
     var proposedPoints: Double
-    var maxPoints: Double
-    var evidence: [String]
-    var evidenceSourceRefs: [String]
+    /// Quotes as the model wrote them.
+    var evidenceQuotes: [String]
     var explanation: String
     var teacherReviewRequired: Bool
     var nextStep: String
     var confidence: String
-    var criterionUncertaintyFlags: [String]
+    var uncertaintyFlags: [String]
+    /// Set only when the assignment has no structured point-bearing rubric (answer-key or exemplar-only
+    /// drafting); otherwise the title and maximum come from the rubric.
+    var title: String?
+    var maxPoints: Double?
 
     init(
         id: UUID = UUID(),
-        criterionID: String? = nil,
-        criterion: String,
+        criterionID: String,
         rating: String,
         proposedPoints: Double,
-        maxPoints: Double,
-        evidence: [String],
-        evidenceSourceRefs: [String] = [],
+        evidenceQuotes: [String],
         explanation: String,
         teacherReviewRequired: Bool,
         nextStep: String = "",
         confidence: String = "",
-        criterionUncertaintyFlags: [String] = []
+        uncertaintyFlags: [String] = [],
+        title: String? = nil,
+        maxPoints: Double? = nil
     ) {
         self.id = id
         self.criterionID = criterionID
-        self.criterion = criterion
         self.rating = rating
         self.proposedPoints = proposedPoints
-        self.maxPoints = maxPoints
-        self.evidence = evidence
-        self.evidenceSourceRefs = evidenceSourceRefs
+        self.evidenceQuotes = evidenceQuotes
         self.explanation = explanation
         self.teacherReviewRequired = teacherReviewRequired
         self.nextStep = nextStep
         self.confidence = confidence
-        self.criterionUncertaintyFlags = criterionUncertaintyFlags
+        self.uncertaintyFlags = uncertaintyFlags
+        self.title = title
+        self.maxPoints = maxPoints
     }
 }
 
-enum FinalReviewStatus: String, Codable, Equatable {
+// MARK: - Teacher final review
+
+/// Whether the review is current is never stored: compare `packetFingerprint` with
+/// `SubmissionGraph.packetFingerprint(setup:)`.
+enum FinalReviewStatus: String, Codable, Equatable, Sendable {
     case inProgress
     case approved
-    case stale
 }
 
-struct FinalGradeReview: Identifiable, Codable, Equatable {
+struct FinalGradeReview: Identifiable, Codable, Equatable, Sendable {
     var id: UUID
     var createdAt: Date
     var finalizedAt: Date?
     var packetFingerprint: String
     var status: FinalReviewStatus
     var criteria: [FinalCriterionScore]
-    var totalScore: Double
-    var maxScore: Double
     var studentFeedback: String
     var privateTeacherNotes: String
     var teacherEdited: Bool
@@ -163,11 +163,9 @@ struct FinalGradeReview: Identifiable, Codable, Equatable {
         id: UUID = UUID(),
         createdAt: Date = Date(),
         finalizedAt: Date? = nil,
-        packetFingerprint: String = "",
+        packetFingerprint: String,
         status: FinalReviewStatus = .inProgress,
         criteria: [FinalCriterionScore],
-        totalScore: Double,
-        maxScore: Double,
         studentFeedback: String,
         privateTeacherNotes: String,
         teacherEdited: Bool
@@ -178,11 +176,14 @@ struct FinalGradeReview: Identifiable, Codable, Equatable {
         self.packetFingerprint = packetFingerprint
         self.status = status
         self.criteria = criteria
-        self.totalScore = totalScore
-        self.maxScore = maxScore
         self.studentFeedback = studentFeedback
         self.privateTeacherNotes = privateTeacherNotes
         self.teacherEdited = teacherEdited
+    }
+
+    /// Always the sum of the stored final criterion points.
+    var totalScore: Double {
+        criteria.reduce(0) { $0 + $1.finalPoints }
     }
 
     var allCriteriaApproved: Bool {
@@ -190,61 +191,59 @@ struct FinalGradeReview: Identifiable, Codable, Equatable {
     }
 }
 
-struct FinalCriterionScore: Identifiable, Codable, Equatable {
+struct FinalCriterionScore: Identifiable, Codable, Equatable, Sendable {
     var id: UUID
-    var criterionID: String?
-    var criterion: String
+    var criterionID: String
     var rating: String
     var proposedPoints: Double
     var finalPoints: Double
-    var maxPoints: Double
-    var evidence: [String]
-    var evidenceSourceRefs: [String]?
     var explanation: String
     var teacherApproved: Bool
     var teacherRationale: String
+    /// Evidence records (`EvidenceReference.id`) the teacher attached, in order.
+    var evidenceIDs: [UUID]
+    /// Set only when the assignment has no structured point-bearing rubric; otherwise from the rubric.
+    var title: String?
+    var maxPoints: Double?
 
     init(
         id: UUID = UUID(),
-        criterionID: String? = nil,
-        criterion: String,
+        criterionID: String,
         rating: String,
         proposedPoints: Double,
         finalPoints: Double,
-        maxPoints: Double,
-        evidence: [String],
-        evidenceSourceRefs: [String]? = nil,
         explanation: String,
         teacherApproved: Bool = false,
-        teacherRationale: String = ""
+        teacherRationale: String = "",
+        evidenceIDs: [UUID] = [],
+        title: String? = nil,
+        maxPoints: Double? = nil
     ) {
         self.id = id
         self.criterionID = criterionID
-        self.criterion = criterion
         self.rating = rating
         self.proposedPoints = proposedPoints
         self.finalPoints = finalPoints
-        self.maxPoints = maxPoints
-        self.evidence = evidence
-        self.evidenceSourceRefs = evidenceSourceRefs
         self.explanation = explanation
         self.teacherApproved = teacherApproved
         self.teacherRationale = teacherRationale
+        self.evidenceIDs = evidenceIDs
+        self.title = title
+        self.maxPoints = maxPoints
     }
 
+    /// Starts the teacher's review of one criterion from the AI draft's proposal.
     init(from draft: CriterionScore) {
         self.init(
             criterionID: draft.criterionID,
-            criterion: draft.criterion,
             rating: draft.rating,
             proposedPoints: draft.proposedPoints,
             finalPoints: draft.proposedPoints,
-            maxPoints: draft.maxPoints,
-            evidence: draft.evidence,
-            evidenceSourceRefs: draft.evidenceSourceRefs,
             explanation: draft.explanation,
             teacherApproved: false,
-            teacherRationale: draft.teacherReviewRequired ? "Review required by draft." : ""
+            teacherRationale: draft.teacherReviewRequired ? "Review required by draft." : "",
+            title: draft.title,
+            maxPoints: draft.maxPoints
         )
     }
 }

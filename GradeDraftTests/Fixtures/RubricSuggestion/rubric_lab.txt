@@ -1,0 +1,9 @@
+Science practical report — marking guide
+
+Hypothesis — 3 marks: states a testable prediction that names the independent and dependent variables. 3 marks for a testable prediction naming both variables; 2 marks if one variable is missing; 1 mark for a vague statement.
+
+Method — 4 marks: lists equipment and numbered steps that another student could repeat, and identifies at least two controlled variables. 4 marks when the method is repeatable and controls are identified; 2 marks when steps are missing; 1 mark for an incomplete list.
+
+Results — 5 marks: presents the data in a correctly labelled table and an appropriate graph with units. Up to 2 marks for the table, up to 3 marks for the graph.
+
+Conclusion — 3 marks: states whether the data supports the hypothesis and suggests one improvement to the experiment. 3 marks for both parts with reference to the data; 2 marks for both parts without data; 1 mark for one part only.

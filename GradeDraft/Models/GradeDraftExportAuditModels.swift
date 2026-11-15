@@ -1,9 +1,9 @@
-import CoreGraphics
 import Foundation
+import GRDB
 
 // MARK: - Export and audit
 
-enum ExportKind: String, Codable, Equatable, Hashable, Identifiable {
+enum ExportKind: String, Codable, Equatable, Hashable, Identifiable, Sendable {
     case studentMarkdown
     case teacherAuditMarkdown
     case studentPDF
@@ -41,7 +41,7 @@ enum ExportKind: String, Codable, Equatable, Hashable, Identifiable {
 }
 
 
-enum DeviceBackupPolicyStatus: Equatable {
+enum DeviceBackupPolicyStatus: Equatable, Sendable {
     case excluded
     case included
     case unknown(String)
@@ -63,32 +63,42 @@ enum DeviceBackupPolicyStatus: Equatable {
     }
 }
 
-struct ExportRecord: Identifiable, Codable, Equatable {
+/// One export the teacher prepared. `assignmentID == nil` is a full backup; `submissionID == nil`
+/// is a class-level export (for example the gradebook CSV).
+struct ExportRecord: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable, Sendable {
+    static let databaseTableName = "exportRecord"
+
     var id: UUID
-    var exportKind: ExportKind
+    var assignmentID: UUID?
+    var submissionID: UUID?
+    var kind: ExportKind
     var createdAt: Date
-    var contentFingerprint: String
+    var contentSHA256: String
     var includesPrivateTeacherNotes: Bool
     var includesOriginalSources: Bool
 
     init(
         id: UUID = UUID(),
-        exportKind: ExportKind,
+        assignmentID: UUID?,
+        submissionID: UUID?,
+        kind: ExportKind,
         createdAt: Date = Date(),
-        contentFingerprint: String,
+        contentSHA256: String,
         includesPrivateTeacherNotes: Bool,
         includesOriginalSources: Bool
     ) {
         self.id = id
-        self.exportKind = exportKind
+        self.assignmentID = assignmentID
+        self.submissionID = submissionID
+        self.kind = kind
         self.createdAt = createdAt
-        self.contentFingerprint = contentFingerprint
+        self.contentSHA256 = contentSHA256
         self.includesPrivateTeacherNotes = includesPrivateTeacherNotes
         self.includesOriginalSources = includesOriginalSources
     }
 }
 
-enum AuditEventType: String, Codable, Equatable {
+enum AuditEventType: String, Codable, Equatable, Sendable {
     case assignmentCreated
     case sourceCaptured
     case ocrCompleted
@@ -105,15 +115,30 @@ enum AuditEventType: String, Codable, Equatable {
     case persistenceSaved
 }
 
-struct AuditEvent: Identifiable, Codable, Equatable {
+/// A review-log entry. `submissionID == nil` is an assignment-level event.
+struct AuditEvent: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable, Sendable {
+    static let databaseTableName = "auditEvent"
+
     var id: UUID
+    var assignmentID: UUID
+    var submissionID: UUID?
     var timestamp: Date
     var eventType: AuditEventType
     var actor: String
     var detail: String
 
-    init(id: UUID = UUID(), timestamp: Date = Date(), eventType: AuditEventType, actor: String = "teacher-or-local-system", detail: String) {
+    init(
+        id: UUID = UUID(),
+        assignmentID: UUID,
+        submissionID: UUID?,
+        timestamp: Date = Date(),
+        eventType: AuditEventType,
+        actor: String = "teacher-or-local-system",
+        detail: String
+    ) {
         self.id = id
+        self.assignmentID = assignmentID
+        self.submissionID = submissionID
         self.timestamp = timestamp
         self.eventType = eventType
         self.actor = actor

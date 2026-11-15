@@ -4,20 +4,21 @@ import Markdown
 /// Markdown-aware rubric parser that extracts structured criteria, groups, levels,
 /// point ranges, and warnings while keeping the raw rubric available for teacher confirmation.
 ///
-/// Structure detection is driven by the swift-markdown AST (`Document`): headings,
-/// tables (header + body rows, with the delimiter row handled natively), lists, block
-/// quotes, and paragraphs are walked directly. Paragraphs are split on soft/hard line
-/// breaks so teachers can list one criterion per line without blank-line separation.
-/// Point, title, ID, and level extraction reuse the shared `RubricParser` helpers.
+/// Structure comes only from the swift-markdown AST (`Document`): headings (tracked while
+/// walking, so each table or list row knows its group), list items, tables (`head` and `body`
+/// rows), block quotes and paragraphs. Paragraphs are split on soft/hard line breaks so
+/// teachers can list one criterion per line without blank-line separation. Tables and lists
+/// inside code blocks are not rubric content; they are ignored with a warning. Point, title,
+/// ID, and level extraction reuse the shared `RubricParser` helpers.
 enum MarkdownRubricParser {
     static func preview(_ text: String) -> RubricImportPreview {
         RubricImportPreview(rawMarkdown: text, parsedRubric: parse(text))
     }
 
     static func parse(_ text: String) -> ParsedRubric {
-        let rows = candidateRows(from: text)
+        let (rows, walkWarnings) = candidateRows(from: text)
         var criteria: [RubricCriterion] = []
-        var issues: [String] = []
+        var issues: [String] = walkWarnings
         var groups: [String] = []
         var currentGroup: String?
         var seen: Set<String> = []
@@ -135,40 +136,108 @@ enum MarkdownRubricParser {
 
     // MARK: - AST walk
 
-    private static func candidateRows(from text: String) -> [CandidateRow] {
-        var rows: [CandidateRow] = []
-        collectRows(from: Document(parsing: text), into: &rows)
-        rows.append(contentsOf: pipeTableRows(fromRawMarkdown: text))
-        rows.append(contentsOf: explicitListRows(fromRawMarkdown: text))
-        return deduplicatedRows(rows)
+    private static let codeBlockWarning = "A table or list inside a code block was ignored."
+
+    private static func candidateRows(from text: String) -> (rows: [CandidateRow], warnings: [String]) {
+        var walker = Walker()
+        walker.walk(Document(parsing: text))
+        return (walker.rows, walker.warnings)
     }
 
-    /// Recursively walks block markup, emitting one candidate row per heading, per
-    /// soft/hard-break-delimited paragraph line, per list item line, and per table row.
-    private static func collectRows(from markup: Markup, into rows: inout [CandidateRow]) {
-        for child in markup.children {
-            switch child {
+    /// Walks block markup in document order, emitting one candidate row per heading, per
+    /// soft/hard-break-delimited paragraph line, per list item, and per table body row. The
+    /// current heading is tracked so rows carry their group.
+    private struct Walker {
+        var rows: [CandidateRow] = []
+        var warnings: [String] = []
+        var currentGroup: String?
+
+        mutating func walk(_ markup: Markup) {
+            for child in markup.children { visit(child) }
+        }
+
+        mutating func visit(_ block: Markup) {
+            switch block {
             case let heading as Heading:
-                let title = markdownPlain(heading.plainText)
-                guard !title.isEmpty else { continue }
+                let title = MarkdownRubricParser.plain(heading)
+                guard !title.isEmpty else { return }
+                currentGroup = title
                 rows.append(
                     CandidateRow(kind: .heading, text: title, title: title, descriptor: "",
                                  groupTitle: nil, explicitID: nil, maxPoints: nil, levelColumns: [])
                 )
             case let table as Markdown.Table:
-                collectTableRows(table, into: &rows)
+                appendTableRows(table)
             case let paragraph as Paragraph:
-                for line in paragraphLines(paragraph) {
-                    appendTextRow(line, kind: .paragraph, into: &rows)
+                for line in MarkdownRubricParser.paragraphLines(paragraph) {
+                    appendTextRow(line, kind: .paragraph)
                 }
-            case is UnorderedList, is OrderedList, is ListItem, is BlockQuote:
-                // Block containers: recurse so their inner paragraphs become rows. The
-                // AST has already stripped list markers and quote prefixes.
-                collectRows(from: child, into: &rows)
+            case let item as ListItem:
+                let text = item.children
+                    .compactMap { $0 as? Paragraph }
+                    .map { MarkdownRubricParser.plain($0) }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " ")
+                appendTextRow(text, kind: item.parent is OrderedList ? .numbered : .bullet)
+                // Nested lists, tables and code blocks inside the item; its own paragraphs are the row above.
+                for child in item.children where !(child is Paragraph) { visit(child) }
+            case is UnorderedList, is OrderedList, is BlockQuote:
+                walk(block)
+            case let code as CodeBlock:
+                if MarkdownRubricParser.containsTableOrList(Document(parsing: code.code)),
+                   !warnings.contains(MarkdownRubricParser.codeBlockWarning) {
+                    warnings.append(MarkdownRubricParser.codeBlockWarning)
+                }
             default:
-                continue
+                return
             }
         }
+
+        private mutating func appendTextRow(_ text: String, kind: RowKind) {
+            guard !text.isEmpty else { return }
+            rows.append(
+                CandidateRow(
+                    kind: kind,
+                    text: text,
+                    title: RubricParser.criterionTitle(from: text) ?? text,
+                    descriptor: text,
+                    groupTitle: currentGroup,
+                    explicitID: RubricParser.explicitCriterionID(in: text),
+                    maxPoints: RubricParser.maxPoints(in: text),
+                    levelColumns: []
+                )
+            )
+        }
+
+        private mutating func appendTableRows(_ table: Markdown.Table) {
+            let headerCells = MarkdownRubricParser.cells(in: table.head)
+            if headerCells.contains(where: { !$0.isEmpty }) {
+                rows.append(
+                    CandidateRow(kind: .tableHeader, text: headerCells.filter { !$0.isEmpty }.joined(separator: ": "),
+                                 title: headerCells.first ?? "", descriptor: "", groupTitle: currentGroup,
+                                 explicitID: nil, maxPoints: nil, levelColumns: [])
+                )
+            }
+            for case let bodyRow as Markdown.Table.Row in table.body.children {
+                let rowCells = MarkdownRubricParser.cells(in: bodyRow)
+                guard rowCells.contains(where: { !$0.isEmpty }) else { continue }
+                var row = MarkdownRubricParser.tableRow(cells: rowCells, headers: headerCells)
+                row.groupTitle = currentGroup
+                rows.append(row)
+            }
+        }
+    }
+
+    /// Plain text of a block or inline via `PlainTextConvertibleMarkup`; soft breaks read as a space.
+    private static func plain(_ markup: Markup) -> String {
+        let text: String
+        switch markup {
+        case is SoftBreak: text = " "
+        case is LineBreak: text = "\n"
+        case let convertible as PlainTextConvertibleMarkup: text = convertible.plainText
+        default: text = markup.children.map { plain($0) }.joined()
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Splits a paragraph into one string per soft/hard line break so that consecutive
@@ -176,187 +245,30 @@ enum MarkdownRubricParser {
     private static func paragraphLines(_ paragraph: Paragraph) -> [String] {
         var lines: [String] = []
         var current = ""
-
-        // Walk inline markup by concrete type. `plainText` is not exposed on the
-        // `any Markup` existential in this swift-markdown version, so recurse into
-        // container inlines (emphasis, strong, links) and read leaf text directly.
-        func accumulate(_ markup: Markup) {
-            switch markup {
-            case is SoftBreak, is LineBreak:
+        for inline in paragraph.children {
+            if inline is SoftBreak || inline is LineBreak {
                 lines.append(current)
                 current = ""
-            case let text as Text:
-                current += text.string
-            case let code as InlineCode:
-                current += code.code
-            default:
-                for child in markup.children { accumulate(child) }
+            } else if let convertible = inline as? PlainTextConvertibleMarkup {
+                current += convertible.plainText
+            } else {
+                current += plain(inline)
             }
         }
-
-        for inline in paragraph.children { accumulate(inline) }
         lines.append(current)
         return lines
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
 
-    private static func appendTextRow(_ rawText: String, kind: RowKind, into rows: inout [CandidateRow]) {
-        let plain = markdownPlain(rawText)
-        guard !plain.isEmpty else { return }
-        rows.append(
-            CandidateRow(
-                kind: kind,
-                text: plain,
-                title: RubricParser.criterionTitle(from: plain) ?? plain,
-                descriptor: plain,
-                groupTitle: nil,
-                explicitID: RubricParser.explicitCriterionID(in: plain),
-                maxPoints: RubricParser.maxPoints(in: plain),
-                levelColumns: []
-            )
-        )
+    private static func containsTableOrList(_ markup: Markup) -> Bool {
+        if markup is Markdown.Table || markup is UnorderedList || markup is OrderedList { return true }
+        return markup.children.contains { containsTableOrList($0) }
     }
 
-    private static func collectTableRows(_ table: Markdown.Table, into rows: inout [CandidateRow]) {
-        let headerCells = cells(in: table.head)
-        if !headerCells.isEmpty {
-            rows.append(
-                CandidateRow(kind: .tableHeader, text: headerCells.joined(separator: ": "),
-                             title: headerCells.first ?? "", descriptor: "", groupTitle: nil,
-                             explicitID: nil, maxPoints: nil, levelColumns: [])
-            )
-        }
-        for case let bodyRow as Markdown.Table.Row in table.body.children {
-            let rowCells = cells(in: bodyRow)
-            guard !rowCells.isEmpty else { continue }
-            rows.append(tableRow(cells: rowCells, headers: headerCells))
-        }
-    }
-
-    private static func pipeTableRows(fromRawMarkdown text: String) -> [CandidateRow] {
-        let lines = text.components(separatedBy: .newlines)
-        var rows: [CandidateRow] = []
-        var currentGroup: String?
-        var index = 0
-
-        while index < lines.count {
-            let line = lines[index].trimmingCharacters(in: .whitespaces)
-            if let heading = rawHeadingTitle(from: line) {
-                currentGroup = heading
-                index += 1
-                continue
-            }
-            guard isPipeTableLine(line),
-                  index + 1 < lines.count,
-                  isPipeDelimiterRow(splitPipeRow(lines[index + 1])) else {
-                index += 1
-                continue
-            }
-
-            let headers = splitPipeRow(line)
-            index += 2
-            while index < lines.count {
-                let bodyLine = lines[index].trimmingCharacters(in: .whitespaces)
-                guard isPipeTableLine(bodyLine) else { break }
-                var row = tableRow(cells: splitPipeRow(bodyLine), headers: headers)
-                row.groupTitle = currentGroup
-                rows.append(row)
-                index += 1
-            }
-        }
-
-        return rows
-    }
-
-    private static func explicitListRows(fromRawMarkdown text: String) -> [CandidateRow] {
-        var rows: [CandidateRow] = []
-        var currentGroup: String?
-        for rawLine in text.components(separatedBy: .newlines) {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-            if let heading = rawHeadingTitle(from: line) {
-                currentGroup = heading
-                continue
-            }
-            guard let item = rawListItem(from: line) else { continue }
-            let plain = markdownPlain(item.text)
-            guard !plain.isEmpty else { continue }
-            rows.append(
-                CandidateRow(
-                    kind: item.kind,
-                    text: plain,
-                    title: RubricParser.criterionTitle(from: plain) ?? plain,
-                    descriptor: plain,
-                    groupTitle: currentGroup,
-                    explicitID: RubricParser.explicitCriterionID(in: item.text),
-                    maxPoints: RubricParser.maxPoints(in: plain),
-                    levelColumns: []
-                )
-            )
-        }
-        return rows
-    }
-
-    private static func rawHeadingTitle(from line: String) -> String? {
-        guard line.hasPrefix("#") else { return nil }
-        let withoutMarkers = String(line.drop(while: { $0 == "#" }))
-        let trimmed = withoutMarkers.trimmingCharacters(in: .whitespaces)
-        return markdownPlain(String(trimmed)).nilIfEmpty
-    }
-
-    private static func rawListItem(from line: String) -> (kind: RowKind, text: String)? {
-        if line.hasPrefix("- ") || line.hasPrefix("* ") || line.hasPrefix("+ ") {
-            return (.bullet, String(line.dropFirst(2)))
-        }
-        guard let markerRange = line.range(of: #"^\d+[\.)]\s+"#, options: .regularExpression) else {
-            return nil
-        }
-        return (.numbered, String(line[markerRange.upperBound...]))
-    }
-
-    private static func isPipeTableLine(_ line: String) -> Bool {
-        line.hasPrefix("|") && line.contains("|")
-    }
-
-    private static func splitPipeRow(_ line: String) -> [String] {
-        var value = line.trimmingCharacters(in: .whitespaces)
-        if value.hasPrefix("|") { value.removeFirst() }
-        if value.hasSuffix("|") { value.removeLast() }
-        return value
-            .components(separatedBy: "|")
-            .map { markdownPlain($0) }
-    }
-
-    private static func isPipeDelimiterRow(_ cells: [String]) -> Bool {
-        !cells.isEmpty && cells.allSatisfy { cell in
-            let marker = cell.trimmingCharacters(in: .whitespaces)
-            let stripped = marker.replacingOccurrences(of: ":", with: "")
-            return stripped.count >= 3 && stripped.allSatisfy { $0 == "-" }
-        }
-    }
-
-    private static func deduplicatedRows(_ rows: [CandidateRow]) -> [CandidateRow] {
-        var seen: Set<String> = []
-        var output: [CandidateRow] = []
-        for row in rows {
-            let key = [
-                row.explicitID ?? "",
-                RubricParser.normalized(row.title),
-                row.maxPoints.map { GradeTotals.formatted($0) } ?? "",
-                RubricParser.normalized(row.text)
-            ].joined(separator: "|")
-            guard !seen.contains(key) else { continue }
-            seen.insert(key)
-            output.append(row)
-        }
-        return output
-    }
-
+    /// Cell text in column order. Blank cells are kept so body cells stay aligned with their header.
     private static func cells(in container: Markup) -> [String] {
-        container.children
-            .compactMap { ($0 as? Markdown.Table.Cell)?.plainText }
-            .map(markdownPlain)
-            .filter { !$0.isEmpty }
+        container.children.compactMap { ($0 as? Markdown.Table.Cell).map { plain($0) } }
     }
 
     private static func tableRow(cells: [String], headers: [String]) -> CandidateRow {
@@ -388,14 +300,6 @@ enum MarkdownRubricParser {
             maxPoints: tableMaxPoints ?? RubricParser.maxPoints(in: pointsText) ?? RubricParser.maxPoints(in: cells.joined(separator: " ")),
             levelColumns: levelColumns
         )
-    }
-
-    private static func markdownPlain(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "**", with: "")
-            .replacingOccurrences(of: "__", with: "")
-            .replacingOccurrences(of: "`", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func stableIssues(_ issues: [String]) -> [String] {

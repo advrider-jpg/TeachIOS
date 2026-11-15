@@ -1,9 +1,8 @@
-import CoreGraphics
 import Foundation
 
 // MARK: - Rubric records
 
-struct ParsedRubric: Codable, Equatable {
+struct ParsedRubric: Codable, Equatable, Sendable {
     var criteria: [RubricCriterion]
     var issues: [String]
     var groups: [String]
@@ -14,23 +13,21 @@ struct ParsedRubric: Codable, Equatable {
         self.groups = groups
     }
 
-    private enum CodingKeys: String, CodingKey {
-        case criteria, issues, groups
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        criteria = (try? container.decode([RubricCriterion].self, forKey: .criteria)) ?? []
-        issues = (try? container.decode([String].self, forKey: .issues)) ?? []
-        groups = (try? container.decode([String].self, forKey: .groups)) ?? []
-    }
-
     var isStructured: Bool {
         !criteria.isEmpty
     }
+
+    /// The assignment's maximum: the sum of every criterion's maximum points.
+    var totalMaxPoints: Double {
+        criteria.reduce(0) { $0 + $1.maxPoints }
+    }
+
+    func criterion(id: String) -> RubricCriterion? {
+        criteria.first { $0.id == id }
+    }
 }
 
-struct RubricCriterion: Identifiable, Codable, Equatable {
+struct RubricCriterion: Identifiable, Codable, Equatable, Sendable {
     var id: String
     var title: String
     var maxPoints: Double
@@ -59,25 +56,9 @@ struct RubricCriterion: Identifiable, Codable, Equatable {
         self.levels = levels
         self.explicitID = explicitID
     }
-
-    private enum CodingKeys: String, CodingKey {
-        case id, title, maxPoints, descriptor, sortOrder, groupTitle, levels, explicitID
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        title = try container.decode(String.self, forKey: .title)
-        maxPoints = try container.decode(Double.self, forKey: .maxPoints)
-        descriptor = try container.decode(String.self, forKey: .descriptor)
-        sortOrder = try container.decode(Int.self, forKey: .sortOrder)
-        groupTitle = try container.decodeIfPresent(String.self, forKey: .groupTitle)
-        levels = (try? container.decode([RubricLevel].self, forKey: .levels)) ?? []
-        explicitID = try container.decodeIfPresent(String.self, forKey: .explicitID)
-    }
 }
 
-struct RubricLevel: Identifiable, Codable, Equatable {
+struct RubricLevel: Identifiable, Codable, Equatable, Sendable {
     var id: String
     var label: String
     var points: Double
@@ -103,31 +84,16 @@ struct RubricLevel: Identifiable, Codable, Equatable {
         self.descriptor = descriptor
         self.sortOrder = sortOrder
     }
-
-    private enum CodingKeys: String, CodingKey {
-        case id, label, points, minPoints, maxPoints, descriptor, sortOrder
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        label = try container.decode(String.self, forKey: .label)
-        points = try container.decode(Double.self, forKey: .points)
-        minPoints = try container.decodeIfPresent(Double.self, forKey: .minPoints)
-        maxPoints = try container.decodeIfPresent(Double.self, forKey: .maxPoints)
-        descriptor = try container.decode(String.self, forKey: .descriptor)
-        sortOrder = try container.decode(Int.self, forKey: .sortOrder)
-    }
 }
 
-struct RubricParseIssue: Identifiable, Codable, Equatable {
+struct RubricParseIssue: Identifiable, Codable, Equatable, Sendable {
     var id: UUID = UUID()
     var severity: String
     var message: String
     var lineNumber: Int?
 }
 
-struct RubricImportPreview: Codable, Equatable {
+struct RubricImportPreview: Codable, Equatable, Sendable {
     var rawMarkdown: String
     var parsedRubric: ParsedRubric
     var detectedCriteria: [RubricCriterion]
@@ -200,7 +166,7 @@ enum RubricParser {
     }
 
     static func stableCriterionID(order: Int, title: String, maxPoints: Double) -> String {
-        "criterion-\(order + 1)-\(StableFingerprint.fingerprint([title, String(maxPoints)]).suffix(8))"
+        "criterion-\(order + 1)-\(ContentDigest.sha256Hex(title + "\u{1F}" + String(maxPoints)).prefix(8))"
     }
 
     static func maxPoints(in line: String) -> Double? {

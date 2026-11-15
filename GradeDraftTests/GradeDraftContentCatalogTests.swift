@@ -300,24 +300,9 @@ final class GradeDraftContentCatalogTests: XCTestCase {
         visibleCopy += ExportWarningCatalog.all.flatMap { warning in
             [warning.name, warning.title, warning.body, warning.warningLine ?? "", warning.securityNote ?? "", warning.primaryButton, warning.secondaryButton, warning.finalButton ?? "", warning.acknowledgementText] + warning.checklist
         }
-        visibleCopy += ReportTemplateCatalog.studentReportTemplates
-        visibleCopy += ReportTemplateCatalog.teacherAuditReportTemplates
 
         try GradeDraftContentValidator.assertNoProhibitedLabels(in: visibleCopy)
         try assertNoProhibitedLabelsInSwiftUISource()
-    }
-
-    func testReportTemplateRulesPreserveStudentTeacherSeparation() {
-        let exclusions = ReportTemplateCatalog.studentReportExclusionRules.joined(separator: "\n")
-        XCTAssertTrue(exclusions.contains("private teacher notes"))
-        XCTAssertTrue(exclusions.contains("raw model responses"))
-        XCTAssertTrue(exclusions.contains("internal compliance flags"))
-
-        let auditSections = ReportTemplateCatalog.teacherAuditRequiredSections.joined(separator: "\n")
-        XCTAssertTrue(auditSections.contains("Answer key"))
-        XCTAssertTrue(auditSections.contains("Exemplar"))
-        XCTAssertTrue(auditSections.contains("Export records"))
-        XCTAssertTrue(auditSections.contains("Audit events"))
     }
 
     private func assertNoProhibitedLabelsInSwiftUISource() throws {

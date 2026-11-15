@@ -2,8 +2,10 @@ import SwiftUI
 import UIKit
 import VisionKit
 
+/// Presents the document camera. It never dismisses itself: the presenting view receives
+/// `onComplete`, `onCancel` or `onError` and closes the sheet by setting its own binding.
 struct DocumentScannerView: UIViewControllerRepresentable {
-    var onComplete: ([UIImage]) -> Void
+    var onComplete: ([CGImage]) -> Void
     var onCancel: () -> Void
     var onError: (Error) -> Void
 
@@ -19,42 +21,36 @@ struct DocumentScannerView: UIViewControllerRepresentable {
         Coordinator(onComplete: onComplete, onCancel: onCancel, onError: onError)
     }
 
-    // @unchecked Sendable: Coordinator only stores immutable callbacks; UIKit guarantees
-    // all VNDocumentCameraViewControllerDelegate calls arrive on the main thread.
-    final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate, @unchecked Sendable {
-        private let onComplete: ([UIImage]) -> Void
+    @MainActor
+    final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
+        private let onComplete: ([CGImage]) -> Void
         private let onCancel: () -> Void
         private let onError: (Error) -> Void
 
-        init(onComplete: @escaping ([UIImage]) -> Void, onCancel: @escaping () -> Void, onError: @escaping (Error) -> Void) {
+        init(onComplete: @escaping ([CGImage]) -> Void, onCancel: @escaping () -> Void, onError: @escaping (Error) -> Void) {
             self.onComplete = onComplete
             self.onCancel = onCancel
             self.onError = onError
         }
 
         func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
-            let images = (0..<scan.pageCount).map { scan.imageOfPage(at: $0) }
-            Task { @MainActor in
-                controller.dismiss(animated: true) {
-                    self.onComplete(images)
+            var images: [CGImage] = []
+            for index in 0..<scan.pageCount {
+                guard let image = scan.imageOfPage(at: index).cgImage else {
+                    onError(ImportError.imageUnreadable)
+                    return
                 }
+                images.append(image)
             }
+            onComplete(images)
         }
 
         func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
-            Task { @MainActor in
-                controller.dismiss(animated: true) {
-                    self.onCancel()
-                }
-            }
+            onCancel()
         }
 
         func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFailWithError error: Error) {
-            Task { @MainActor in
-                controller.dismiss(animated: true) {
-                    self.onError(error)
-                }
-            }
+            onError(error)
         }
     }
 }

@@ -1,25 +1,4 @@
-import CoreGraphics
 import Foundation
-
-// MARK: - Stable local fingerprints
-
-/// A deterministic local fingerprint used to detect stale grading packets and source changes.
-/// This is intentionally not represented as encryption or authentication. It is an app-state
-/// fingerprint for offline recordkeeping, not a security boundary.
-enum StableFingerprint {
-    static func fingerprint(_ components: [String]) -> String {
-        fingerprint(Data(components.joined(separator: "\u{001F}").utf8))
-    }
-
-    static func fingerprint(_ data: Data) -> String {
-        var hash: UInt64 = 0xcbf29ce484222325
-        for byte in data {
-            hash ^= UInt64(byte)
-            hash = hash &* 0x100000001b3
-        }
-        return String(format: "fnv1a64-%016llx", hash)
-    }
-}
 
 // MARK: - Foundation Models prompt and audit metadata
 
@@ -40,6 +19,10 @@ enum LocalModelGenerationMode: String, Codable, Equatable, Sendable {
 
 struct LocalModelDraftAudit: Codable, Equatable, Sendable {
     var provider: String
+    /// `ProcessInfo.operatingSystemVersionString` (includes the build; the on-device model ships with the OS).
+    var osVersion: String
+    /// Sampling mode used for generation, for example "greedy".
+    var sampling: String
     var framework: String
     var promptVersion: String
     var schemaVersion: String
@@ -68,6 +51,8 @@ struct LocalModelDraftAudit: Codable, Equatable, Sendable {
 
     init(
         provider: String = "Apple Foundation Models",
+        osVersion: String = ProcessInfo.processInfo.operatingSystemVersionString,
+        sampling: String,
         framework: String = "FoundationModels",
         promptVersion: String = GradeDraftPromptVersion.currentFoundationModelsTyped,
         schemaVersion: String = GradeDraftPromptVersion.schemaVersion,
@@ -95,6 +80,8 @@ struct LocalModelDraftAudit: Codable, Equatable, Sendable {
         generationErrorSummary: String? = nil
     ) {
         self.provider = provider
+        self.osVersion = osVersion
+        self.sampling = sampling
         self.framework = framework
         self.promptVersion = promptVersion
         self.schemaVersion = schemaVersion
@@ -122,7 +109,7 @@ struct LocalModelDraftAudit: Codable, Equatable, Sendable {
         self.generationErrorSummary = generationErrorSummary
     }
 
-    static func make(input: GradingInput, plan: PromptBudgetPlan, generatedCriteriaCount: Int, extraWarnings: [String] = []) -> LocalModelDraftAudit {
+    static func make(input: GradingInput, plan: PromptBudgetPlan, generatedCriteriaCount: Int, sampling: String, extraWarnings: [String] = []) -> LocalModelDraftAudit {
         let estimatedTokens: Int?
         switch plan.mode {
         case .fullPacket:
@@ -136,6 +123,7 @@ struct LocalModelDraftAudit: Codable, Equatable, Sendable {
         }
 
         return LocalModelDraftAudit(
+            sampling: sampling,
             generationMode: plan.mode,
             inputPacketFingerprint: input.packetFingerprint,
             promptFingerprint: plan.report.promptFingerprint,
@@ -156,12 +144,4 @@ struct LocalModelDraftAudit: Codable, Equatable, Sendable {
             validationWarnings: Array(Set(plan.report.warnings + extraWarnings)).sorted()
         )
     }
-}
-
-// MARK: - Rubric import mode
-
-enum RubricImportMode: String, Codable, Equatable {
-    case automatic
-    case structuredConfirmed
-    case rawTextOnly
 }

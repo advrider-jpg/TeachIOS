@@ -13,7 +13,8 @@ struct AIEvaluationCase: Codable, Equatable, Identifiable {
     var answerKeyText: String
     var exemplarText: String
     var curriculumReference: String
-    var ocrReviewStatus: OCRReviewStatus
+    /// "notNeeded" in the fixture files means pasted work, which needs no scanned-text review.
+    var ocrReviewStatus: String
     var expected: AIEvaluationExpected
 
     func makeGradingInput() -> GradingInput {
@@ -23,24 +24,6 @@ struct AIEvaluationCase: Codable, Equatable, Identifiable {
         let parsedRubric = RubricParser.parse(rubricText)
         let reviewedWithRefs = reviewedTextWithSourceRefs ?? reviewedStudentText
         let selectedTemplates = GradingConstraintTemplates.templates(for: selectedConstraintIDs)
-        let packetFingerprint = StableFingerprint.fingerprint([
-            id,
-            assignment.title,
-            assignment.prompt,
-            assignment.subject,
-            assignment.gradeLevel,
-            assignment.className,
-            assignment.studentDisplayName,
-            assignment.assignmentType.rawValue,
-            rubricText,
-            reviewedStudentText,
-            reviewedWithRefs,
-            selectedConstraintIDs.joined(separator: "|"),
-            answerKeyText,
-            exemplarText,
-            curriculumReference,
-            ocrReviewStatus.rawValue
-        ])
 
         return GradingInput(
             assignmentID: UUID(uuidString: assignment.assignmentID) ?? UUID(),
@@ -65,9 +48,9 @@ struct AIEvaluationCase: Codable, Equatable, Identifiable {
             reviewedStudentText: reviewedStudentText,
             reviewedTextWithSourceRefs: reviewedWithRefs,
             ocrQualitySummary: expected.requiresOCRReview ? OCRQualitySummary(lowConfidenceLineCount: 1) : OCRQualitySummary(),
-            ocrReviewStatus: ocrReviewStatus,
+            ocrReviewStatus: ocrReviewStatus == "notNeeded" ? .reviewed : OCRReviewStatus(rawValue: ocrReviewStatus) ?? .needsReview,
             sourceInputCount: reviewedWithRefs == reviewedStudentText ? 0 : 1,
-            packetFingerprint: packetFingerprint,
+            packetFingerprint: "evaluation-\(id)",
             hasGradingStandard: !rubric.criteria.isEmpty || !answerKeyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         )
     }
@@ -129,36 +112,46 @@ struct AIEvaluationCheckResult: Codable, Equatable, Identifiable {
 }
 
 enum AIEvaluationChecker {
-    static func deterministicPreflight(
+    /// Checks a fixture without asking the model for a draft. The packet is measured by the production
+    /// budgeter, so on a device without the on-device model the budget check fails and says why.
+    static func preflight(
         evaluationCase: AIEvaluationCase,
-        localAIStatus: LocalAIStatus = .unavailable("Device model not exercised by deterministic evaluation.")
-    ) -> AIEvaluationResult {
+        localAIStatus: LocalAIStatus,
+        supportsCurrentLocale: Bool,
+        budgeter: any GradingPromptBudgeting = GradingPromptBudgeter()
+    ) async -> AIEvaluationResult {
         let input = evaluationCase.makeGradingInput()
         var checks: [AIEvaluationCheckResult] = []
         var generationMode: LocalModelGenerationMode?
 
         do {
             try LocalOnlyGradingValidator.validate(input)
-            checks.append(pass("input-gates", "Reviewed text, OCR gate, and grading standard allow deterministic packet planning."))
+            checks.append(pass("input-gates", "Reviewed text, OCR gate, and grading standard allow packet planning."))
         } catch {
             checks.append(fail("input-gates", error.localizedDescription))
         }
 
         let budgetPlan: PromptBudgetPlan?
+        var budgetError: Error?
         do {
-            let plan = try GradingPromptBudgeter.makePlan(input: input, contextSizeTokens: 8192)
+            let plan = try await budgeter.plan(input: input, after: nil)
             budgetPlan = plan
             generationMode = plan.mode
-            checks.append(pass("budget-plan", "Planned \(plan.mode.displayName) without silent truncation."))
+            checks.append(pass("budget-plan", "Planned \(plan.mode.displayName) without truncation."))
         } catch {
             budgetPlan = nil
+            budgetError = error
             checks.append(fail("budget-plan", error.localizedDescription))
         }
 
         let report = AIReadinessAnalyzer.report(
-            for: assignmentRecord(from: evaluationCase),
+            input: input,
+            draftIsStale: false,
+            finalReviewIsStale: false,
             localAIStatus: localAIStatus,
-            budgetPlan: budgetPlan
+            supportsCurrentLocale: supportsCurrentLocale,
+            budgetPlan: budgetPlan,
+            budgetError: budgetError
         )
         checks.append(pass("readiness-report", "Readiness report generated with \(report.checks.count) checks."))
 
@@ -205,12 +198,12 @@ enum AIEvaluationChecker {
             draft.complianceFlags.joined(separator: " "),
             draft.criteria.map { criterion in
                 [
-                    criterion.criterion,
+                    title(of: criterion, input: input),
                     criterion.rating,
-                    criterion.evidence.joined(separator: " "),
+                    criterion.evidenceQuotes.joined(separator: " "),
                     criterion.explanation,
                     criterion.nextStep,
-                    criterion.criterionUncertaintyFlags.joined(separator: " ")
+                    criterion.uncertaintyFlags.joined(separator: " ")
                 ].joined(separator: " ")
             }.joined(separator: " ")
         ].joined(separator: " ").lowercased()
@@ -229,10 +222,10 @@ enum AIEvaluationChecker {
         }
 
         for (criterionKey, maxAllowedPoints) in expected.maxAllowedPointsByCriterion {
-            if let criterion = draft.criteria.first(where: { matchesCriterion($0, key: criterionKey) }) {
+            if let criterion = draft.criteria.first(where: { matchesCriterion($0, key: criterionKey, input: input) }) {
                 checks.append(criterion.proposedPoints <= maxAllowedPoints
-                    ? pass("max-points-\(normalizedID(criterionKey))", "\(criterion.criterion) stayed within expected max \(GradeTotals.formatted(maxAllowedPoints)).")
-                    : fail("max-points-\(normalizedID(criterionKey))", "\(criterion.criterion) proposed \(GradeTotals.formatted(criterion.proposedPoints)), above expected max \(GradeTotals.formatted(maxAllowedPoints))."))
+                    ? pass("max-points-\(normalizedID(criterionKey))", "\(title(of: criterion, input: input)) stayed within expected max \(GradeTotals.formatted(maxAllowedPoints)).")
+                    : fail("max-points-\(normalizedID(criterionKey))", "\(title(of: criterion, input: input)) proposed \(GradeTotals.formatted(criterion.proposedPoints)), above expected max \(GradeTotals.formatted(maxAllowedPoints))."))
             } else {
                 checks.append(fail("max-points-\(normalizedID(criterionKey))", "Draft did not include expected criterion \(criterionKey)."))
             }
@@ -242,13 +235,6 @@ enum AIEvaluationChecker {
             checks.append(containsReviewReason(reason, in: draft)
                 ? pass("review-reason-\(normalizedID(reason))", "Draft surfaced review reason \(reason).")
                 : fail("review-reason-\(normalizedID(reason))", "Draft did not surface review reason \(reason)."))
-        }
-
-        do {
-            _ = try GradeDraftValidator.normalizeAndValidate(draft, input: input)
-            checks.append(pass("deterministic-validator", "Draft passed deterministic validation."))
-        } catch {
-            checks.append(fail("deterministic-validator", error.localizedDescription))
         }
 
         return checks
@@ -282,35 +268,12 @@ enum AIEvaluationChecker {
         }
     }
 
-    private static func assignmentRecord(from evaluationCase: AIEvaluationCase) -> AssignmentRecord {
-        var assignment = AssignmentRecord(
-            id: UUID(uuidString: evaluationCase.assignment.assignmentID) ?? UUID(),
-            title: evaluationCase.assignment.title,
-            prompt: evaluationCase.assignment.prompt,
-            subject: evaluationCase.assignment.subject,
-            gradeLevel: evaluationCase.assignment.gradeLevel,
-            assessmentPurpose: evaluationCase.assignment.assessmentPurpose,
-            curriculumReference: evaluationCase.curriculumReference,
-            className: evaluationCase.assignment.className,
-            studentDisplayName: evaluationCase.assignment.studentDisplayName,
-            assignmentType: evaluationCase.assignment.assignmentType,
-            rubricText: evaluationCase.rubric.criteria.map { "\($0.text): 0-\(GradeTotals.formatted($0.maxPoints)) points" }.joined(separator: "\n"),
-            customInstructions: evaluationCase.assignment.customInstructions,
-            answerKeyText: evaluationCase.answerKeyText,
-            exemplarText: evaluationCase.exemplarText,
-            reviewedStudentText: evaluationCase.reviewedStudentText,
-            ocrReviewStatus: evaluationCase.ocrReviewStatus
-        )
-        assignment.selectedInstructionTemplateIDs = evaluationCase.selectedConstraintIDs
-        return assignment
-    }
-
     private static func containsReviewReason(_ reason: String, in draft: GradeDraftResult) -> Bool {
         let haystack = [
             draft.teacherNotes,
             draft.uncertaintyFlags.joined(separator: " "),
             draft.complianceFlags.joined(separator: " "),
-            draft.criteria.flatMap(\.criterionUncertaintyFlags).joined(separator: " ")
+            draft.criteria.flatMap(\.uncertaintyFlags).joined(separator: " ")
         ].joined(separator: " ").lowercased()
         switch reason {
         case "promptInjectionAttempt":
@@ -324,8 +287,13 @@ enum AIEvaluationChecker {
         }
     }
 
-    private static func matchesCriterion(_ criterion: CriterionScore, key: String) -> Bool {
-        criterion.criterionID == key || normalizedID(criterion.criterion) == normalizedID(key)
+    private static func matchesCriterion(_ criterion: CriterionScore, key: String, input: GradingInput) -> Bool {
+        criterion.criterionID == key || normalizedID(title(of: criterion, input: input)) == normalizedID(key)
+    }
+
+    /// The rubric's title for the criterion, or the model's own title when the assignment has no point-bearing rubric.
+    private static func title(of criterion: CriterionScore, input: GradingInput) -> String {
+        input.parsedRubric.criteria.first { $0.id == criterion.criterionID }?.title ?? criterion.title ?? criterion.criterionID
     }
 
     private static func normalizedID(_ value: String) -> String {
@@ -348,16 +316,19 @@ struct AIEvaluationRunner {
         self.gradingService = gradingService
     }
 
-    func runDeterministicPreflight(_ evaluationCase: AIEvaluationCase) -> AIEvaluationResult {
-        AIEvaluationChecker.deterministicPreflight(
+    func runPreflight(_ evaluationCase: AIEvaluationCase) async -> AIEvaluationResult {
+        await AIEvaluationChecker.preflight(
             evaluationCase: evaluationCase,
-            localAIStatus: gradingService?.localAIStatus ?? .unavailable("Device model not exercised by deterministic evaluation.")
+            localAIStatus: gradingService?.localAIStatus ?? .unavailable("No local model service was provided."),
+            supportsCurrentLocale: gradingService?.supportsCurrentLocale ?? false
         )
     }
 
+    /// Runs one fixture through the real drafting path. A draft the validator rejects is recorded as the
+    /// `validator` check; any other failure to draft is recorded as `model-run`.
     func runModelCase(_ evaluationCase: AIEvaluationCase) async -> AIEvaluationResult {
+        var result = await runPreflight(evaluationCase)
         guard let gradingService else {
-            var result = runDeterministicPreflight(evaluationCase)
             result.checks.append(AIEvaluationCheckResult(
                 id: "model-service",
                 passed: false,
@@ -365,7 +336,6 @@ struct AIEvaluationRunner {
             ))
             return result
         }
-        var result = runDeterministicPreflight(evaluationCase)
         guard case .available = gradingService.localAIStatus else {
             result.checks.append(AIEvaluationCheckResult(
                 id: "model-availability",
@@ -375,17 +345,22 @@ struct AIEvaluationRunner {
             return result
         }
 
+        let input = evaluationCase.makeGradingInput()
+        result.modelAttempted = true
         do {
-            let input = evaluationCase.makeGradingInput()
-            let draft = try await gradingService.draftGrade(input: input)
-            result.modelAttempted = true
+            let draft = try await gradingService.draftGrade(input: input, progress: nil)
             result.checks.append(contentsOf: AIEvaluationChecker.check(draft: draft, expected: evaluationCase.expected, input: input))
-            return result
+        } catch let error as GradeDraftError {
+            switch error {
+            case .invalidModelGrade, .malformedModelResponse:
+                result.checks.append(AIEvaluationCheckResult(id: "validator", passed: false, detail: error.localizedDescription))
+            default:
+                result.checks.append(AIEvaluationCheckResult(id: "model-run", passed: false, detail: error.localizedDescription))
+            }
         } catch {
-            result.modelAttempted = true
             result.checks.append(AIEvaluationCheckResult(id: "model-run", passed: false, detail: error.localizedDescription))
-            return result
         }
+        return result
     }
 }
 

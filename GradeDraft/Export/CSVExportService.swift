@@ -1,14 +1,16 @@
 import Foundation
 
 enum SpreadsheetSafety {
-    private static let dangerousFormulaPrefixes: Set<Character> = ["=", "+", "-", "@"]
+    /// A cell starting with one of these (or with whitespace followed by one of the visible ones)
+    /// can be run as a formula by a spreadsheet, so it gets a leading apostrophe.
+    static let dangerousFormulaPrefixes = ["=", "+", "-", "@", "\t", "\r"]
 
     static func sanitizedCell(_ value: String) -> String {
         guard !value.isEmpty else { return value }
-        guard let firstNonWhitespace = value.first(where: { !$0.isWhitespace }) else { return value }
         if value.first == "'" { return value }
         if isNumericalText(value) { return value }
-        if dangerousFormulaPrefixes.contains(firstNonWhitespace) {
+        if startsWithDangerousPrefix(value) { return "'" + value }
+        if let firstVisible = value.first(where: { !$0.isWhitespace }), startsWithDangerousPrefix(String(firstVisible)) {
             return "'" + value
         }
         return value
@@ -22,111 +24,42 @@ enum SpreadsheetSafety {
         if Double(trimmed) != nil { return true }
         return false
     }
+
+    // Compared by Unicode scalars so that "\r" is recognised even when it is followed by "\n".
+    private static func startsWithDangerousPrefix(_ value: String) -> Bool {
+        dangerousFormulaPrefixes.contains { value.unicodeScalars.starts(with: $0.unicodeScalars) }
+    }
 }
 
 enum CSVExportService {
-    static func buildStudentRows(from assignments: [AssignmentRecord]) -> [[String]] {
-        var rows: [[String]] = []
-        rows.append([
-            "assignment_id",
-            "title",
-            "subject",
-            "grade_level",
-            "class_name",
-            "student",
-            "assignment_type",
-            "assessment_purpose",
-            "total_score",
-            "max_score",
-            "final_status",
-            "ocr_status",
-            "draft_status",
-            "final_review_stale",
-            "draft_stale",
-            "updated_at"
-        ])
+    static let header = ["student", "local_id", "status", "total_score", "max_score", "ai_draft_suggestion"]
 
-        for assignment in assignments {
-            let finalStatus = exportFinalStatus(for: assignment)
-            let (totalScore, maxScore) = exportTotals(for: assignment)
+    /// One row per student for one assignment. `total_score` is blank unless the final review is
+    /// approved and current; the model's suggestion is only ever shown in `ai_draft_suggestion`.
+    static func gradebookCSV(setup: AssignmentSetup, submissions: [SubmissionGraph]) -> String {
+        let rubric = setup.parsedRubric.criteria
+        let maxScore = rubric.isEmpty ? "" : GradeTotals.formatted(rubric.reduce(0) { $0 + $1.maxPoints })
 
+        var rows: [[String]] = [header]
+        for submission in submissions {
+            let total = ExportPolicy.allowsStudentReport(setup: setup, submission: submission)
+                ? submission.finalReview.map { GradeTotals.formatted($0.totalScore) } ?? ""
+                : ""
             rows.append([
-                assignment.id.uuidString,
-                SpreadsheetSafety.sanitizedCell(assignment.title),
-                SpreadsheetSafety.sanitizedCell(assignment.subject),
-                SpreadsheetSafety.sanitizedCell(assignment.gradeLevel),
-                SpreadsheetSafety.sanitizedCell(assignment.className),
-                SpreadsheetSafety.sanitizedCell(assignment.studentDisplayName),
-                SpreadsheetSafety.sanitizedCell(assignment.assignmentType.rawValue),
-                SpreadsheetSafety.sanitizedCell(assignment.assessmentPurpose.rawValue),
-                String(totalScore),
-                String(maxScore),
-                SpreadsheetSafety.sanitizedCell(finalStatus),
-                SpreadsheetSafety.sanitizedCell(assignment.ocrReviewStatus.rawValue),
-                SpreadsheetSafety.sanitizedCell(exportDraftStatus(for: assignment)),
-                String(assignment.finalReviewIsStale),
-                String(assignment.finalReview == nil && assignment.latestDraftIsStale),
-                ISO8601DateFormatter.gradingExport.string(from: assignment.updatedAt)
+                SpreadsheetSafety.sanitizedCell(submission.student.displayName),
+                SpreadsheetSafety.sanitizedCell(submission.student.localIdentifier),
+                status(of: submission, setup: setup),
+                total,
+                maxScore,
+                submission.draft.map { GradeTotals.formatted($0.totalScore) } ?? ""
             ])
         }
-        return rows
+        return "\u{FEFF}" + CSVWriter.string(rows: rows, rowSeparator: "\r\n") + "\r\n"
     }
 
-    static func exportedCSV(from assignments: [AssignmentRecord]) -> String {
-        CSVWriter.string(rows: buildStudentRows(from: assignments))
+    private static func status(of submission: SubmissionGraph, setup: AssignmentSetup) -> String {
+        guard let review = submission.finalReview else { return "pending_final_review" }
+        if submission.finalReviewIsStale(setup: setup) { return "stale_review" }
+        return review.status == .approved ? "approved" : "in_progress"
     }
-
-    private static func exportFinalStatus(for assignment: AssignmentRecord) -> String {
-        guard let review = assignment.finalReview else {
-            return "pending_final_review"
-        }
-
-        if review.status == .approved {
-            if assignment.finalReviewIsStale {
-                return "stale_review"
-            }
-            return "approved"
-        }
-
-        if assignment.finalReviewIsStale || review.status == .stale {
-            return "stale_review"
-        }
-
-        return "in_progress"
-    }
-
-    private static func exportDraftStatus(for assignment: AssignmentRecord) -> String {
-        if assignment.finalReview != nil {
-            return DraftStatus.teacherReviewRequired.rawValue
-        }
-        guard let draft = assignment.latestDraft else {
-            return "not_generated"
-        }
-
-        if assignment.latestDraftIsStale {
-            return "stale"
-        }
-
-        return draft.status.rawValue
-    }
-
-    private static func exportTotals(for assignment: AssignmentRecord) -> (Double, Double) {
-        if let finalReview = assignment.finalReview {
-            return (finalReview.totalScore, finalReview.maxScore)
-        }
-
-        if let draft = assignment.latestDraft {
-            return (draft.totalScore, draft.maxScore)
-        }
-
-        return (0, 0)
-    }
-}
-
-private extension ISO8601DateFormatter {
-    nonisolated(unsafe) static let gradingExport: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
 }

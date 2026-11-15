@@ -29,8 +29,41 @@ extension ExportKind {
     }
 }
 
+/// Every export file is protected with `FileProtectionType.complete`: it can only be read while
+/// the device is unlocked. `ExportFileStore` applies that when it writes the file; the archive
+/// writers use this helper, which sets the same protection through `LocalDataProtection`.
 enum ExportFileHardening {
     static func applyBestEffortProtection(to url: URL) {
         LocalDataProtection.protectSensitiveFile(url)
+    }
+}
+
+/// The one place export files live: `tmp/Exports/`. A prepared file is removed when the share
+/// sheet finishes or a new export is prepared, and the folder is emptied at launch.
+enum ExportFileStore {
+    static func exportsDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("Exports", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.complete]
+        )
+        return directory
+    }
+
+    static func write(_ data: Data, fileName: String) throws -> URL {
+        let url = try exportsDirectory().appendingPathComponent(fileName)
+        try data.write(to: url, options: [.atomic, .completeFileProtection])
+        return url
+    }
+
+    /// Deleting a finished export is cleanup: a leftover file is emptied by `purgeAll()` at the next launch.
+    static func remove(_ url: URL) {
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    static func purgeAll() {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("Exports", isDirectory: true)
+        try? FileManager.default.removeItem(at: directory)
     }
 }
