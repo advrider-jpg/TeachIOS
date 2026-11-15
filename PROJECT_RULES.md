@@ -1,17 +1,26 @@
 # MarkForMe project rules
 
-Install as `PROJECT_RULES.md` at the repository root. Read with `AGENTS.md`. These are product requirements, not a record of past tasks. The only exception to the shared core rules is the ledger discipline below, which modifies the shared rule against development-history ledgers.
+Install as `PROJECT_RULES.md` at the repository root. Read with `AGENTS.md`. These are product requirements, not a record of past tasks. There are no exceptions to the shared core rules.
 
 ## Product and local data
 
 - MarkForMe (Xcode project and targets: `GradeDraft`) is a local-first iOS/iPadOS teacher-controlled grading assistant for text-based student work. It is not an autonomous grader: it offers local rubric suggestions, and the teacher edits and finalizes every grade.
 - The core lane is `scan/import/paste -> local OCR -> explicit teacher OCR review -> local draft -> teacher final review -> local export`. Handwriting, posters, physical models, diagrams, symbolic math, LMS sync, cloud backup, accounts and subscriptions stay out of scope.
 - No cloud fallback, no backend service in the core path, no analytics, no account or login flow. Do not add a cloud or network path to core behavior.
+- MarkForMe is fully AI-enabled, using Apple's on-device model (Foundation Models `SystemLanguageModel`) only. Do not use Private Cloud Compute, any server-backed `LanguageModel`, or any third-party model.
 - Do not show fake local AI, OCR, export or grading states. When Foundation Models is unavailable, show the local-unavailable state and refuse to draft; manual final review remains available.
+- Keep source input, scanned text, teacher-reviewed text, grading packet, AI draft, teacher final review, export and audit events as separate records. AI draft points and teacher final points stay separate.
+- Grade only teacher-reviewed text, never raw OCR or source images. Do not silently truncate reviewed text or grading materials: draft the full packet, a compact packet or criterion by criterion, or fail with an explicit too-large message.
+- Each AI-proposed criterion score cites evidence from the student's work or is marked for teacher review. Totals are calculated from stored criterion points, never taken from model-written totals.
+- AI drafts and final reviews become stale when any grading input changes; stale results cannot produce student-facing exports.
+- The app must not infer language background, disability, support needs, adjustment status, effort or intent. EAL/D-sensitive and adjustment-context AI constraint templates are selected only by the teacher, never automatically.
+- Student-facing reports omit private teacher notes, model output, audit metadata, file paths, other students' data and bounding-box coordinates. Teacher records, archives and backups are teacher-only and warning-gated.
+- Curriculum references are offline, labelled with their source, and never claim endorsement or reporting approval.
+- Backup restore never silently overwrites local work: assignment conflicts are resolved by explicit teacher choice (keep local, replace local, or restore as a copy).
 - Routed assignment IDs fail closed. A stale or invalid assignment route shows an explicit not-found state and must not display, mutate, export or grade the currently selected assignment as a fallback.
 - Low-confidence OCR lines require explicit teacher line-level action before scanned text can be marked reviewed.
 - If source code adds or keeps an Apple required-reason API such as `UserDefaults`, update `GradeDraft/Resources/PrivacyInfo.xcprivacy` and the static checks in the same change.
-- The foundational product invariants are recorded in `docs/ledgers/CORE_RULES.md`. Consult `docs/ARCHITECTURE.md`, `docs/OFFLINE_CAPABILITY.md`, `docs/TEST_PLAN.md` and the relevant `.agents/skills/*` guidance for the affected contract.
+- Consult `docs/ARCHITECTURE.md`, `docs/OFFLINE_CAPABILITY.md`, `docs/TEST_PLAN.md` and the relevant `.agents/skills/*` guidance for the affected contract.
 
 ## Verification
 
@@ -39,15 +48,3 @@ If the user provides a PR link after a prompt was drafted, review the live PR ag
   4. [Dimillian/Skills](https://github.com/Dimillian/Skills) (`ios-debugger-agent`): simulator launch, inspection and log capture when local runtime differs from CI.
   5. [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill): second-pass SwiftUI state and composition review.
   - Secondary broad Swift coverage: `npx skills add dpearson2699/swift-ios-skills --all` ([repo](https://github.com/dpearson2699/swift-ios-skills)).
-
-## Ledger discipline
-
-Exception to the shared rule against development-history ledgers: this repository keeps the existing ledgers in `docs/ledgers/`.
-
-- For routine changes, add only a short `docs/ledgers/WORKLOG.md` entry.
-- Update `PROJECT_LEDGER.md` only when phase status, scope, deliverables or durable project posture changes.
-- Update `DATA_LEDGER.md` only when source packages, schemas, datasets, migrations, generated artifacts, counts or provenance assumptions change.
-- Update `DECISIONS_LEDGER.md` only when an architectural, product, data, testing or process decision is made, changed or superseded.
-- Update `VALIDATION_LEDGER.md` only when validation gates, test commands, test evidence, release criteria or known validation status changes.
-- Update `CORE_RULES.md` only when a foundational repository invariant is identified, changed, superseded or expressly removed by the user.
-- If no durable repository state changed, do not update ledgers.

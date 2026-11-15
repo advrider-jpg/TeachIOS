@@ -36,7 +36,6 @@ MarkForMe is not release-ready. TestFlight and App Store submission are blocked 
 ## Documentation
 
 - [AGENTS.md](AGENTS.md) and [PROJECT_RULES.md](PROJECT_RULES.md): operating and product rules.
-- [CORE_RULES.md](docs/ledgers/CORE_RULES.md): foundational product invariants.
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [DATA_MODEL_V3.md](docs/DATA_MODEL_V3.md): structure and saved data.
 - [OFFLINE_CAPABILITY.md](docs/OFFLINE_CAPABILITY.md): local-only posture.
 - [TEST_PLAN.md](docs/TEST_PLAN.md) and [CI.md](docs/CI.md): verification.
