@@ -68,9 +68,8 @@ struct RubricInstructionsScreen: View {
         .alertMessage($model.alert)
         .confirmationDialog(
             "Existing content found",
-            isPresented: Binding(get: { pendingTemplate != nil }, set: { if !$0 { pendingTemplate = nil } }),
-            titleVisibility: .visible,
-            presenting: pendingTemplate
+            item: $pendingTemplate,
+            titleVisibility: .visible
         ) { target in
             Button("Append to Existing Content") { apply(target, mode: .append) }
                 .accessibilityIdentifier("rubric.templateAppend")

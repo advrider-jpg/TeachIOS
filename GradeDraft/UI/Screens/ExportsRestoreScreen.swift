@@ -244,11 +244,10 @@ struct ExportsTabScreen: View {
                     backup.alert = AlertMessage(title: "Backup not opened", error: error)
                 }
             }
-            .alert("Backup Password", isPresented: Binding(get: { restoreURL != nil }, set: { if !$0 { restoreURL = nil } })) {
+            .alert("Backup Password", item: $restoreURL) { url in
                 SecureField("Password", text: $restorePassword)
                     .accessibilityIdentifier("exportsTab.restorePassword")
                 Button("Open Backup") {
-                    guard let url = restoreURL else { return }
                     let password = restorePassword
                     restoreURL = nil
                     restorePassword = ""
@@ -259,7 +258,7 @@ struct ExportsTabScreen: View {
                     restoreURL = nil
                     restorePassword = ""
                 }
-            } message: {
+            } message: { _ in
                 Text("Enter the password used when this backup was created. Nothing on this device changes until you confirm the restore.")
             }
 

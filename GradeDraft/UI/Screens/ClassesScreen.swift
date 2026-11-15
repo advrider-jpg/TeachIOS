@@ -57,9 +57,8 @@ struct ClassesScreen: View {
         }
         .confirmationDialog(
             "Delete this class?",
-            isPresented: Binding(get: { pendingDeletion != nil }, set: { if !$0 { pendingDeletion = nil } }),
-            titleVisibility: .visible,
-            presenting: pendingDeletion
+            item: $pendingDeletion,
+            titleVisibility: .visible
         ) { group in
             Button("Delete \(group.name)", role: .destructive) {
                 Task { await appModel.deleteClass(id: group.id) }

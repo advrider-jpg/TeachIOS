@@ -81,9 +81,8 @@ struct AssignmentsScreen: View {
         }
         .confirmationDialog(
             "Delete this assignment?",
-            isPresented: Binding(get: { pendingDeletion != nil }, set: { if !$0 { pendingDeletion = nil } }),
-            titleVisibility: .visible,
-            presenting: pendingDeletion
+            item: $pendingDeletion,
+            titleVisibility: .visible
         ) { summary in
             Button("Delete \(summary.assignment.title)", role: .destructive) {
                 Task { await appModel.deleteAssignment(id: summary.id) }

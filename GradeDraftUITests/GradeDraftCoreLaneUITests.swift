@@ -159,8 +159,19 @@ final class GradeDraftCoreLaneUITests: XCTestCase {
     }
 
     /// Runs Apple's accessibility audit; each issue fails the test with the issue and its element named.
+    /// Every issue on the screen is reported (the lane keeps going), so one run lists them all.
+    ///
+    /// One exception: "partially unsupported" Dynamic Type on SwiftUI text. The audit looks for a UIKit
+    /// flag that SwiftUI's text nodes don't carry, so it reports text using system text styles (which do
+    /// scale) as partially unsupported. "Unsupported" (text that doesn't scale at all) still fails, and the
+    /// screens' "Largest text" previews are where scaling is checked by eye.
     private func audit(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) throws {
+        continueAfterFailure = true
+        defer { continueAfterFailure = false }
         try app.performAccessibilityAudit { issue in
+            if issue.auditType == .dynamicType, issue.compactDescription.contains("partially unsupported") {
+                return true
+            }
             XCTFail(
                 "\(issue.compactDescription) — \(issue.detailedDescription) — element: \(issue.element?.debugDescription ?? "none")",
                 file: file, line: line

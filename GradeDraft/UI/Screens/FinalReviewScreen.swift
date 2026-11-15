@@ -71,9 +71,8 @@ struct FinalReviewScreen: View {
         }
         .confirmationDialog(
             "Replace this final review?",
-            isPresented: Binding(get: { pendingRestart != nil }, set: { if !$0 { pendingRestart = nil } }),
-            titleVisibility: .visible,
-            presenting: pendingRestart
+            item: $pendingRestart,
+            titleVisibility: .visible
         ) { kind in
             Button(kind == .fromDraft ? "Replace with AI Draft" : "Replace with Blank Review", role: .destructive) {
                 Task {

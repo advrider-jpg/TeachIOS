@@ -148,9 +148,8 @@ struct ClassDetailRosterScreen: View {
         }
         .confirmationDialog(
             "Remove this student?",
-            isPresented: Binding(get: { pendingRemoval != nil }, set: { if !$0 { pendingRemoval = nil } }),
-            titleVisibility: .visible,
-            presenting: pendingRemoval
+            item: $pendingRemoval,
+            titleVisibility: .visible
         ) { student in
             Button("Remove \(student.displayName)", role: .destructive) {
                 Task { await model.removeStudent(student.id) }
