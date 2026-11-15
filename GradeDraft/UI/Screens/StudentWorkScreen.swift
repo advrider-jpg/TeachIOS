@@ -1,320 +1,358 @@
 import PhotosUI
 import SwiftUI
-import UIKit
 import UniformTypeIdentifiers
 import VisionKit
 
-struct DeleteAssignmentConfirmationSheet: View {
-    var warning: ExportWarningDefinition
-    var assignmentTitle: String
-    var onCancel: () -> Void
-    var onConfirm: () -> Void
+/// One student's hub for the assignment: add or replace their work, see what is attached, and go on to
+/// scanned text review, the AI draft, final review and exports.
+struct StudentWorkScreen: View {
+    @Bindable var session: SubmissionSession
 
-    @State private var acknowledged = false
-    @State private var typedConfirmation = ""
+    @State private var showingScanner = false
+    @State private var showingPDFImporter = false
+    @State private var showingPasteSheet = false
+    @State private var showingClearConfirm = false
+    @State private var photoItems: [PhotosPickerItem] = []
 
-    private var canDelete: Bool {
-        acknowledged && typedConfirmation.trimmingCharacters(in: .whitespacesAndNewlines) == "DELETE"
+    private var isBusy: Bool { session.runningWork != nil }
+
+    var body: some View {
+        List {
+            if let graph = session.graph, let setup = session.setup {
+                headerSection(graph, setup: setup)
+                workStatusSections
+                addWorkSection
+                attachmentsSection(graph)
+                reviewedTextSection(graph)
+                nextStepsSection(graph)
+                clearSection(graph)
+            }
+        }
+        .navigationTitle(session.graph?.student.displayName ?? "Student Work")
+        .navigationBarTitleDisplayMode(.inline)
+        .alertMessage($session.alert)
+        .fullScreenCover(isPresented: $showingScanner) {
+            DocumentScannerView { images in
+                showingScanner = false
+                session.importScan(images)
+            } onCancel: {
+                showingScanner = false
+            } onError: { error in
+                showingScanner = false
+                session.alert = AlertMessage(title: "Scan failed", error: error)
+            }
+            .ignoresSafeArea()
+        }
+        .fileImporter(isPresented: $showingPDFImporter, allowedContentTypes: [.pdf]) { result in
+            switch result {
+            case .success(let url):
+                session.importPDF(at: url)
+            case .failure(let error):
+                session.alert = AlertMessage(title: "PDF import failed", error: error)
+            }
+        }
+        .onChange(of: photoItems) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await importPhotos(items) }
+        }
+        .sheet(isPresented: $showingPasteSheet) {
+            PasteStudentWorkSheet(
+                session: session,
+                initialText: session.graph?.submission.inputKind == .pasted ? session.graph?.reviewedText ?? "" : ""
+            )
+        }
+        .confirmationDialog(
+            ExportWarningCatalog.clearStudentWorkWarning.title.trimmingCharacters(in: .whitespacesAndNewlines),
+            isPresented: $showingClearConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(ExportWarningCatalog.clearStudentWorkWarning.primaryButton.trimmingCharacters(in: .whitespacesAndNewlines), role: .destructive) {
+                Task { await session.clearStudentWork() }
+            }
+            .accessibilityIdentifier("studentWork.clearConfirm")
+            Button(ExportWarningCatalog.clearStudentWorkWarning.secondaryButton.trimmingCharacters(in: .whitespacesAndNewlines), role: .cancel) {}
+        } message: {
+            Text(ExportWarningCatalog.clearStudentWorkWarning.body.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+    }
+
+    // MARK: - Sections
+
+    private func headerSection(_ graph: SubmissionGraph, setup: AssignmentSetup) -> some View {
+        Section {
+            LabeledContent("Student", value: graph.student.displayName)
+            LabeledContent("Assignment", value: setup.assignment.title)
+            if !session.className.isEmpty {
+                LabeledContent("Class", value: session.className)
+            }
+            if let status = try? graph.rosterStatus(setup: setup) {
+                StatusLabel(status.uiStatus, subject: "Grading status")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var workStatusSections: some View {
+        if let kind = session.runningWork {
+            Section {
+                Label {
+                    Text(kind.displayName)
+                } icon: {
+                    ProgressView()
+                }
+            } footer: {
+                Text("This keeps running if you leave this screen. The result is saved for this student only.")
+            }
+        }
+        if let failure = session.workFailure {
+            Section {
+                Label(failure.title, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.red)
+                Text(failure.message)
+                Button("Dismiss") { session.dismissWorkFailure() }
+                    .accessibilityIdentifier("studentWork.dismissFailure")
+            }
+        }
+    }
+
+    private var addWorkSection: some View {
+        Section {
+            Button {
+                showingScanner = true
+            } label: {
+                Label("Scan Paper Work", systemImage: "doc.viewfinder")
+            }
+            .disabled(!VNDocumentCameraViewController.isSupported || isBusy)
+            .accessibilityIdentifier("studentWork.scan")
+            if !VNDocumentCameraViewController.isSupported {
+                Text("Document scanning is not available on this device. Choose photos, import a PDF, or paste text instead.")
+                    .foregroundStyle(.secondary)
+            }
+
+            PhotosPicker(selection: $photoItems, maxSelectionCount: 20, selectionBehavior: .ordered, matching: .images) {
+                Label("Choose Photos", systemImage: "photo.on.rectangle")
+            }
+            .disabled(isBusy)
+            .accessibilityIdentifier("studentWork.choosePhotos")
+
+            Button {
+                showingPDFImporter = true
+            } label: {
+                Label("Import PDF", systemImage: "doc.richtext")
+            }
+            .disabled(isBusy)
+            .accessibilityIdentifier("studentWork.importPDF")
+
+            Button {
+                showingPasteSheet = true
+            } label: {
+                Label("Paste Text", systemImage: "doc.on.clipboard")
+            }
+            .disabled(isBusy)
+            .accessibilityIdentifier("studentWork.pasteText")
+        } header: {
+            Text("Add Student Work")
+        } footer: {
+            Text("Work is read on this device; nothing is uploaded. Adding new work replaces this student's current work.")
+        }
+    }
+
+    private func attachmentsSection(_ graph: SubmissionGraph) -> some View {
+        Section("Attached Files") {
+            if graph.sources.isEmpty {
+                if graph.submission.inputKind == .none {
+                    ContentUnavailableView(
+                        "Add student work",
+                        systemImage: "doc.badge.plus",
+                        description: Text("Scan, choose photos, import a PDF, or paste text.")
+                    )
+                } else {
+                    Text(graph.submission.inputKind == .pasted ? "Pasted text has no attached file." : "No original files are attached.")
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                ForEach(graph.sources) { source in
+                    LabeledContent {
+                        Text(source.includedInTeacherArchive ? "In Teacher Record" : "Kept on device")
+                    } label: {
+                        Label(sourceTitle(source), systemImage: sourceIcon(source.sourceType))
+                        if let detail = sourceDetail(source) {
+                            Text(detail)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func reviewedTextSection(_ graph: SubmissionGraph) -> some View {
+        Section {
+            if graph.reviewedText.isWhitespaceOnly {
+                Text("No reviewed text has been saved for this student.")
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(graph.reviewedText)
+                    .textSelection(.enabled)
+            }
+        } header: {
+            Text("Reviewed Text")
+        } footer: {
+            if graph.submission.inputKind == .scanned, graph.ocr?.reviewStatus != .reviewed {
+                Text("Scanned text is used for grading only after you review it.")
+            }
+        }
+    }
+
+    private func nextStepsSection(_ graph: SubmissionGraph) -> some View {
+        let readiness = session.readiness
+        return Section("Next Steps") {
+            if graph.submission.inputKind == .scanned {
+                NavigationLink(value: Route.scannedText(session.id)) {
+                    LabeledContent {
+                        StatusLabel(readiness?.isScannedTextReviewed == true ? .onTrack : .reviewScannedText, subject: "Scanned text status")
+                    } label: {
+                        Label("Review Scanned Text", systemImage: "text.viewfinder")
+                    }
+                }
+                .accessibilityIdentifier("studentWork.scannedText")
+            }
+            NavigationLink(value: Route.aiDraft(session.id)) {
+                Label("AI Draft", systemImage: "sparkles")
+            }
+            .accessibilityIdentifier("studentWork.aiDraft")
+            NavigationLink(value: Route.finalReview(session.id)) {
+                Label("Final Review", systemImage: "checklist")
+            }
+            .accessibilityIdentifier("studentWork.finalReview")
+            NavigationLink(value: Route.submissionExports(session.id)) {
+                Label("Exports", systemImage: "square.and.arrow.up")
+            }
+            .accessibilityIdentifier("studentWork.exports")
+            ForEach(readiness?.finalReviewStartIssues ?? [], id: \.self) { issue in
+                Label(issue.message, systemImage: "info.circle")
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func clearSection(_ graph: SubmissionGraph) -> some View {
+        Section {
+            Button(role: .destructive) {
+                showingClearConfirm = true
+            } label: {
+                Label("Clear Work", systemImage: "trash")
+            }
+            .disabled(graph.submission.inputKind == .none || isBusy)
+            .accessibilityIdentifier("studentWork.clear")
+        } footer: {
+            Text("Removes this student's work, scanned text and evidence from this device.")
+        }
+    }
+
+    // MARK: - Helpers
+
+    /// Loads every chosen photo in the order picked. If any photo cannot be read, none is imported.
+    private func importPhotos(_ items: [PhotosPickerItem]) async {
+        defer { photoItems = [] }
+        var images: [Data] = []
+        for item in items {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    session.alert = AlertMessage(title: "Photos not imported", message: "One of the selected photos could not be read. No photos were imported.")
+                    return
+                }
+                images.append(data)
+            } catch {
+                session.alert = AlertMessage(title: "Photos not imported", error: error)
+                return
+            }
+        }
+        session.importPhotos(images)
+    }
+
+    private func sourceTitle(_ source: SourceInputRef) -> String {
+        if let fileName = source.fileName, !fileName.isWhitespaceOnly { return fileName }
+        if let pageIndex = source.pageIndex { return "\(source.sourceType.displayName), page \(pageIndex + 1)" }
+        return source.sourceType.displayName
+    }
+
+    private func sourceDetail(_ source: SourceInputRef) -> String? {
+        if let pages = source.pdfPageCount { return "\(pages) page(s)" }
+        if let width = source.pixelWidth, let height = source.pixelHeight { return "\(width) × \(height) pixels" }
+        return nil
+    }
+
+    private func sourceIcon(_ type: SourceType) -> String {
+        switch type {
+        case .pastedText: return "doc.plaintext"
+        case .scan: return "doc.viewfinder"
+        case .photo: return "photo"
+        case .pdf: return "doc.richtext"
+        case .handwrittenWork: return "pencil.and.scribble"
+        case .visualArtifact: return "photo.artframe"
+        }
+    }
+}
+
+/// Pasted student work. Saving records it as teacher-reviewed text and replaces the current work.
+private struct PasteStudentWorkSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Bindable var session: SubmissionSession
+    @State private var text: String
+    @State private var isSaving = false
+
+    init(session: SubmissionSession, initialText: String) {
+        self.session = session
+        _text = State(initialValue: initialText)
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    WarningBanner(title: warning.title.trimmingCharacters(in: .whitespacesAndNewlines), message: warning.body.trimmingCharacters(in: .whitespacesAndNewlines), status: .teacherOnly)
-                    if !warning.checklist.isEmpty {
-                        DisclosureGroup {
-                            ForEach(warning.checklist, id: \.self) { item in
-                                Label(item, systemImage: "checkmark.circle")
-                            }
-                        } label: {
-                            Text("Checklist")
-                        }
-                    }
-                    Toggle(isOn: $acknowledged) {
-                        Text("I understand this action is irreversible and will permanently delete \"\(assignmentTitle)\" and all associated records.")
-                    }
-                    if acknowledged {
-                        TextField("Type DELETE", text: $typedConfirmation)
-                            .textInputAutocapitalization(.characters)
-                            .autocorrectionDisabled()
-                    }
-                    Button(role: .destructive, action: onConfirm) {
-                        Label("Delete Assignment", systemImage: "trash")
-                    }
-                    .disabled(!canDelete)
-                } header: {
-                    Text("Delete Assignment")
+                    TextField("Student work", text: $text, axis: .vertical)
+                        .accessibilityIdentifier("pasteWork.text")
                 } footer: {
-                    Text(warning.escalatedConfirmation ?? "Type DELETE to confirm.")
+                    Text("Saving records this text as teacher-reviewed student work and replaces any work already attached for this student.")
                 }
             }
-            .navigationTitle("Delete Assignment")
+            .navigationTitle("Paste Student Work")
             .navigationBarTitleDisplayMode(.inline)
+            .alertMessage($session.alert)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
+                    Button("Cancel") { dismiss() }
+                        .accessibilityIdentifier("pasteWork.cancel")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save as Reviewed") {
+                        isSaving = true
+                        Task {
+                            await session.savePastedText(text)
+                            isSaving = false
+                            if session.alert == nil { dismiss() }
+                        }
+                    }
+                    .disabled(text.isWhitespaceOnly || isSaving)
+                    .accessibilityIdentifier("pasteWork.save")
                 }
             }
         }
     }
 }
 
-struct StudentWorkScreen: View {
-    @ObservedObject var viewModel: GradeDraftViewModel
-    var assignmentID: UUID
-    @State private var showingScanner = false
-    @State private var showingPDFImporter = false
-    @State private var selectedPhoto: PhotosPickerItem?
-    @State private var showingClearConfirm = false
-    @State private var showingDeleteConfirm = false
-    @State private var pastedStudentText = ""
-
-    private var assignment: AssignmentRecord? { viewModel.assignment(for: assignmentID) }
-
-    var body: some View {
-        Group {
-            if let assignment {
-                studentWorkForm(assignment: assignment)
-            } else {
-                MissingAssignmentRouteView(assignmentID: assignmentID, actionName: "Student work editing")
-            }
-        }
-        .navigationTitle("Student Work")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
-        .onAppear {
-            if assignment != nil {
-                viewModel.selectAssignment(assignmentID)
-                refreshPastedTextDraft()
-            }
-        }
-        .onChange(of: assignmentID) { _, newValue in
-            if viewModel.assignment(for: newValue) != nil {
-                viewModel.selectAssignment(newValue)
-                refreshPastedTextDraft()
-            }
-        }
-    }
-
-    private func studentWorkForm(assignment: AssignmentRecord) -> some View {
-        Form {
-            AssignmentStationeryHeader(
-                eyebrow: "Input",
-                title: "Student Work",
-                subtitle: assignment.studentDisplayName.nilIfBlank ?? "Teacher-reviewed text intake",
-                status: assignment.ocrReviewStatus.v6Status
-            )
-            PaperStack(theme: AssignmentWorkflowStationery.theme) {
-                HStack(alignment: .top) {
-                    TapeLabel("Attached files", theme: AssignmentWorkflowStationery.theme)
-                    Spacer(minLength: 8)
-                    PaperclipDecoration(theme: AssignmentWorkflowStationery.theme)
-                }
-                if assignment.sourceInputs.isEmpty {
-                    ContentUnavailableView(
-                        "Add student work",
-                        systemImage: "doc.badge.plus",
-                        description: Text("Scan, import a photo or PDF, or paste text directly.")
-                    )
-                } else {
-                    LazyVStack(spacing: 10) {
-                        ForEach(assignment.sourceInputs) { source in
-                            WorkAttachmentRow(source: source)
-                                .background(AssignmentWorkflowStationery.theme.paperTint.opacity(0.64), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
-                        }
-                    }
-                }
-                HandwrittenAnnotation("Original files stay on this device unless you export them.", theme: AssignmentWorkflowStationery.theme)
-            }
-
-            NotebookCard(theme: AssignmentWorkflowStationery.theme, showsPerforation: true) {
-                TapeLabel("Add student work", theme: AssignmentWorkflowStationery.theme)
-                VStack(alignment: .leading, spacing: 12) {
-                    Button {
-                        showingScanner = true
-                    } label: {
-                        Label("Scan Paper Work", systemImage: "doc.viewfinder")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(!VNDocumentCameraViewController.isSupported || viewModel.isWorking)
-
-                    if !VNDocumentCameraViewController.isSupported {
-                        BlockingIssueRow(
-                            title: "Scanning unavailable",
-                            detail: "Document camera scanning is not available on this device. Choose a photo, import a PDF, or paste text instead.",
-                            status: .needsAttention
-                        )
-                    }
-
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        Label("Choose Photo", systemImage: "photo")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(viewModel.isWorking)
-
-                    Button {
-                        showingPDFImporter = true
-                    } label: {
-                        Label("Import PDF", systemImage: "doc.richtext")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(viewModel.isWorking)
-                }
-                HandwrittenAnnotation("Import locally. No student work is uploaded.", theme: AssignmentWorkflowStationery.theme)
-            }
-
-            NotebookCard(theme: AssignmentWorkflowStationery.theme, showsPerforation: true) {
-                TapeLabel("Work preview", theme: AssignmentWorkflowStationery.theme)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Current reviewed text")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No reviewed text has been saved for this assignment." : assignment.reviewedStudentText)
-                        .font(.body)
-                        .foregroundStyle(assignment.reviewedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .secondary : .primary)
-                        .textSelection(.enabled)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(AssignmentWorkflowStationery.theme.paperTint.opacity(0.72), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
-
-                TextEditor(text: $pastedStudentText)
-                    .frame(minHeight: 140)
-                    .padding(8)
-                    .scrollContentBackground(.hidden)
-                    .background(AssignmentWorkflowStationery.theme.paperTint.opacity(0.72), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
-                    .accessibilityLabel("Paste student work text")
-                Button {
-                    viewModel.selectAssignment(assignmentID)
-                    viewModel.applyPastedStudentText(pastedStudentText)
-                    refreshPastedTextDraft()
-                } label: {
-                    Label("Save Pasted Text as Reviewed", systemImage: "checkmark.circle")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(pastedStudentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isWorking)
-                HandwrittenAnnotation("Saving pasted text records it as teacher-reviewed input and replaces current attached work for this assignment. Check the scanned text before marking.", theme: AssignmentWorkflowStationery.theme)
-            }
-
-            NotebookCard(theme: AssignmentWorkflowStationery.theme, status: assignment.ocrReviewStatus.v6Status, showsPerforation: true) {
-                TapeLabel("Student work status", theme: AssignmentWorkflowStationery.theme)
-                BlockingIssueRow(
-                    title: assignment.ocrReviewStatus.v6Status.rawValue,
-                    detail: assignment.ocrReviewStatus.blocksGrading ? GradeDraftWorkflowLanguage.reviewScannedTextExplanation : "Student work is ready for teacher review.",
-                    status: assignment.ocrReviewStatus.v6Status
-                )
-                HandwrittenAnnotation("Teacher review gates remain required.", status: assignment.ocrReviewStatus.v6Status, theme: AssignmentWorkflowStationery.theme)
-            }
-
-            NotebookCard(theme: AssignmentWorkflowStationery.theme, status: .teacherOnly, showsPerforation: true) {
-                TapeLabel("Danger zone", theme: AssignmentWorkflowStationery.theme)
-                VStack(alignment: .leading, spacing: 12) {
-                    Button(role: .destructive) {
-                        showingClearConfirm = true
-                    } label: {
-                        Label("Clear Work", systemImage: "trash")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled((assignment.reviewedStudentText.isEmpty && assignment.sourceInputs.isEmpty) || viewModel.isWorking)
-
-                    if let deleteWarning = ExportWarningCatalog.warning(id: "delete-local-data-warning") {
-                        Text(deleteWarning.body.trimmingCharacters(in: .whitespacesAndNewlines))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Button(role: .destructive) {
-                            showingDeleteConfirm = true
-                        } label: {
-                            Label("Delete Assignment", systemImage: "trash")
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(viewModel.isWorking)
-                    }
-                }
-                HandwrittenAnnotation("Permanent actions cannot be undone.", status: .teacherOnly, theme: AssignmentWorkflowStationery.theme)
-            }
-        }
-        .stationeryScreen(theme: AssignmentWorkflowStationery.theme)
-        .sheet(isPresented: $showingScanner) {
-            DocumentScannerView { images in
-                Task { await viewModel.applyScannedImages(images) }
-            } onCancel: {
-                viewModel.statusMessage = "Scan canceled."
-            } onError: { error in
-                viewModel.errorMessage = error.localizedDescription
-            }
-        }
-        .fileImporter(isPresented: $showingPDFImporter, allowedContentTypes: [.pdf]) { result in
-            switch result {
-            case .success(let url):
-                viewModel.selectAssignment(assignmentID)
-                Task { await viewModel.applyPDFFile(url) }
-            case .failure(let error):
-                viewModel.errorMessage = error.localizedDescription
-            }
-        }
-        .onChange(of: selectedPhoto) { _, newItem in
-            guard let newItem else { return }
-            Task {
-                if let data = try? await newItem.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                    viewModel.selectAssignment(assignmentID)
-                    await viewModel.applyPhotoImages([image])
-                } else {
-                    viewModel.errorMessage = "The selected photo could not be imported."
-                }
-                selectedPhoto = nil
-            }
-        }
-        .confirmationDialog(clearWarningTitle, isPresented: $showingClearConfirm, titleVisibility: .visible) {
-            Button(clearWarningPrimaryButton, role: .destructive) {
-                viewModel.selectAssignment(assignmentID)
-                viewModel.clearCurrentStudentWork()
-            }
-            Button(clearWarningSecondaryButton, role: .cancel) {}
-        } message: {
-            Text(clearWarningBody)
-        }
-        .sheet(isPresented: $showingDeleteConfirm) {
-            if let deleteWarning = ExportWarningCatalog.warning(id: "delete-local-data-warning") {
-                DeleteAssignmentConfirmationSheet(
-                    warning: deleteWarning,
-                    assignmentTitle: assignment.title,
-                    onCancel: { showingDeleteConfirm = false },
-                    onConfirm: {
-                        showingDeleteConfirm = false
-                        viewModel.selectAssignment(assignmentID)
-                        viewModel.deleteCurrentAssignment()
-                    }
-                )
-            }
-        }
-    }
-
-    private func refreshPastedTextDraft() {
-        guard let current = assignment else {
-            pastedStudentText = ""
-            return
-        }
-        if current.sourceInputs.isEmpty || current.sourceInputs.allSatisfy({ $0.sourceType == .pastedText }) {
-            pastedStudentText = current.reviewedStudentText
-        } else {
-            pastedStudentText = ""
-        }
-    }
-
-    private var clearWarningTitle: String {
-        ExportWarningCatalog.clearStudentWorkWarning.title.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var clearWarningBody: String {
-        ExportWarningCatalog.clearStudentWorkWarning.body.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var clearWarningPrimaryButton: String {
-        ExportWarningCatalog.clearStudentWorkWarning.primaryButton.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var clearWarningSecondaryButton: String {
-        ExportWarningCatalog.clearStudentWorkWarning.secondaryButton.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
+#if DEBUG
+#Preview("Light") {
+    ScreenPreview { app in RouteDestination(route: .submission(PreviewFixtures.scannedSubmissionID), app: app) }
 }
+
+#Preview("Dark") {
+    ScreenPreview { app in RouteDestination(route: .submission(PreviewFixtures.noWorkSubmissionID), app: app) }
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Accessibility XXXL") {
+    ScreenPreview { app in RouteDestination(route: .submission(PreviewFixtures.approvedSubmissionID), app: app) }
+        .environment(\.dynamicTypeSize, .accessibility5)
+}
+#endif

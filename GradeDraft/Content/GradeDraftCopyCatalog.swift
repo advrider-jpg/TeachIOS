@@ -4,12 +4,6 @@ import Foundation
 
 /// Copy and label rules generated from the grading content source of truth.
 enum GradeDraftCopyCatalog {
-    enum ProductIdentity {
-        static let appName = "MarkForMe"
-        static let shortDescription = "Teacher marking help that uses reviewed student work, rubrics and teacher notes to draft feedback."
-        static let teacherPositioning = "MarkForMe drafts suggestions. Nothing is final until the teacher approves it."
-    }
-
     enum Labels {
         static let safe = [
             #"""
@@ -74,35 +68,10 @@ One-click grade
     ]
     }
 
-    enum Readiness {
-        static let ready = "Ready for draft feedback"
-        static let missingStudentText = "Add or review student work before generating draft feedback."
-        static let missingStandard = "Add a rubric, answer key, or exemplar before generating draft feedback."
-        static let ocrReviewRequired = "Check scanned text before draft feedback."
-        static let finalReviewRequired = "Teacher review is required before a final grade is recorded."
-    }
-
-    enum ReviewWorkflow {
-        static let draftGenerated = "Draft feedback generated. Review evidence before finalizing."
-        static let staleDraft = "Inputs changed after this draft was generated. Generate a new draft or complete a fresh teacher review."
-        static let finalApproved = "Teacher-approved final grade."
-        static let notFinal = "Not a final grade until teacher-approved."
-    }
-
     enum Privacy {
         static let localFirst = "Student work and grading records are stored locally on this device unless the teacher explicitly exports or shares them."
         static let backupClarification = "Device backups and teacher-created exports may copy local files outside the app."
         static let notSecurityCertification = "Local fingerprints are used for app-state tracking and are not a security certification."
-    }
-
-    enum LocalAI {
-        static let noCloudFallback = "Draft feedback is not available on this device. MarkForMe does not send student work away for marking."
-        static let unavailable = "Draft feedback is not available on this device."
-    }
-
-    enum Australia {
-        static let noOfficialImport = "No official curriculum import is enabled. Teacher-entered curriculum references are for local planning and review."
-        static let notEndorsed = "Do not describe the app as officially endorsed by ACARA, NESA, VCAA, QCAA, SACE, TASC, SCSA, ACT BSSS, or NT authorities unless a real integration and permission exist."
     }
 
     enum OCRReview {

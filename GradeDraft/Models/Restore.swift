@@ -14,7 +14,6 @@ struct BackupSnapshot: Codable, Equatable, Sendable {
     var assignmentAuditEvents: [AuditEvent]
     /// Exports that belong to no single submission (class-level exports and full backups).
     var unattachedExports: [ExportRecord]
-    var importedCurriculumItems: [ImportedCurriculumItem]
 
     init(
         classGroups: [ClassGroup] = [],
@@ -23,8 +22,7 @@ struct BackupSnapshot: Codable, Equatable, Sendable {
         assignments: [AssignmentSetup] = [],
         submissions: [SubmissionGraph] = [],
         assignmentAuditEvents: [AuditEvent] = [],
-        unattachedExports: [ExportRecord] = [],
-        importedCurriculumItems: [ImportedCurriculumItem] = []
+        unattachedExports: [ExportRecord] = []
     ) {
         self.classGroups = classGroups
         self.students = students
@@ -33,7 +31,6 @@ struct BackupSnapshot: Codable, Equatable, Sendable {
         self.submissions = submissions
         self.assignmentAuditEvents = assignmentAuditEvents
         self.unattachedExports = unattachedExports
-        self.importedCurriculumItems = importedCurriculumItems
     }
 
     /// True when any record ID appears twice (a crafted or damaged backup).
@@ -44,7 +41,6 @@ struct BackupSnapshot: Codable, Equatable, Sendable {
         for item in classGroups where !isNew("classGroup", item.id.uuidString) { return true }
         for item in students where !isNew("student", item.id.uuidString) { return true }
         for item in enrollments where !isNew("enrollment", "\(item.classGroupID.uuidString)/\(item.studentID.uuidString)") { return true }
-        for item in importedCurriculumItems where !isNew("importedCurriculumItem", item.id) { return true }
         for setup in assignments {
             if !isNew("assignment", setup.assignment.id.uuidString) { return true }
             for item in setup.appliedTemplates where !isNew("appliedTemplate", item.id.uuidString) { return true }

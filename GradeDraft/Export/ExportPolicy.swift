@@ -267,10 +267,13 @@ extension ExportKind {
 
 /// The single rule for student-facing output: only an approved final review whose inputs have
 /// not changed since approval. Stale or in-progress results never reach a student report.
+/// When staleness cannot be determined (the setup cannot be encoded), the answer is the blocking one:
+/// no student report, and the export is treated as containing draft state.
 enum ExportPolicy {
     static func allowsStudentReport(setup: AssignmentSetup, submission: SubmissionGraph) -> Bool {
-        guard let review = submission.finalReview else { return false }
-        return review.status == .approved && !submission.finalReviewIsStale(setup: setup)
+        guard let review = submission.finalReview, review.status == .approved else { return false }
+        guard let isStale = try? submission.finalReviewIsStale(setup: setup) else { return false }
+        return !isStale
     }
 
     /// True when the submission holds a draft or an unapproved or stale review: material that is
@@ -278,14 +281,18 @@ enum ExportPolicy {
     static func containsDraftGradingContent(setup: AssignmentSetup, submission: SubmissionGraph) -> Bool {
         submission.draft != nil
             || (submission.finalReview.map { $0.status != .approved } ?? false)
-            || submission.finalReviewIsStale(setup: setup)
+            || finalReviewIsStaleOrUnknown(setup: setup, submission: submission)
     }
 
     /// Same question for the gradebook CSV, which shows the draft total when there is no final review.
     static func gradebookContainsDraftState(setup: AssignmentSetup, submission: SubmissionGraph) -> Bool {
         if submission.finalReview == nil, submission.draft != nil { return true }
         if let review = submission.finalReview, review.status != .approved { return true }
-        return submission.finalReviewIsStale(setup: setup)
+        return finalReviewIsStaleOrUnknown(setup: setup, submission: submission)
+    }
+
+    private static func finalReviewIsStaleOrUnknown(setup: AssignmentSetup, submission: SubmissionGraph) -> Bool {
+        (try? submission.finalReviewIsStale(setup: setup)) ?? true
     }
 }
 

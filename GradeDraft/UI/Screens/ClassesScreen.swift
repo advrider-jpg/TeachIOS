@@ -1,116 +1,159 @@
 import SwiftUI
 
 struct ClassesScreen: View {
-    @ObservedObject var viewModel: GradeDraftViewModel
-    @State private var newClassName = ""
+    @Environment(AppModel.self) private var appModel
+    @State private var showingAddClass = false
+    @State private var pendingDeletion: ClassGroup?
 
     var body: some View {
         List {
-            StationeryPageHeader(
-                eyebrow: "Classes",
-                title: "Classes",
-                subtitle: "Local class folders for rosters, assignments, and teacher-approved progress."
-            )
-
-            ClassesStationeryCard(title: "Add Class", tapeLabel: "New folder", showsPaperclip: true) {
-                VStack(alignment: .leading, spacing: 12) {
-                    TextField("Class name", text: $newClassName)
-                        .submitLabel(.done)
-                        .onSubmit(addClass)
-                    Button(action: addClass) {
-                        Label("Add Class", systemImage: "plus")
-                            .frame(minHeight: GradeDraftLayout.minimumTapTarget)
+            ForEach(appModel.classGroups) { group in
+                NavigationLink(value: Route.classDetail(group.id)) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(group.name)
+                            .font(.headline)
+                        Text(detail(for: group))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(trimmedClassName.isEmpty)
-                    HandwrittenAnnotation("Class records stay on this device.", status: .teacherOnly)
+                    .accessibilityElement(children: .combine)
                 }
-            }
-
-            ClassesStationeryCard(title: "Classes", tapeLabel: "Roster stack") {
-                let summaries = viewModel.classSummaries
-                if summaries.isEmpty {
-                    ContentUnavailableView(
-                        "No classes yet",
-                        systemImage: "person.2",
-                        description: Text("Add a class to group students and assignments.")
-                    )
-                } else {
-                    LazyVStack(spacing: 12) {
-                        ForEach(summaries) { summary in
-                            NavigationLink {
-                                ClassDetailRosterScreen(viewModel: viewModel, classSummary: summary)
-                            } label: {
-                                ClassRow(
-                                    name: summary.name,
-                                    subject: summary.subject,
-                                    studentCount: summary.studentCount,
-                                    assignmentCount: summary.assignmentCount,
-                                    status: summary.studentCount == 0 ? .notStarted : .onTrack
-                                )
-                                .background(Color.white.opacity(0.34), in: RoundedRectangle(cornerRadius: GradeDraftLayout.rowCornerRadius, style: .continuous))
-                            }
-                            .buttonStyle(.plain)
-                        }
+                .accessibilityIdentifier("classes.row.\(group.id.uuidString)")
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        pendingDeletion = group
+                    } label: {
+                        Label("Delete", systemImage: "trash")
                     }
+                    .accessibilityIdentifier("classes.delete")
                 }
             }
         }
-        .gradeDraftNativeGroupedList()
+        .overlay {
+            if appModel.listsLoaded && appModel.classGroups.isEmpty {
+                ContentUnavailableView {
+                    Label("No classes yet", systemImage: "person.2")
+                } description: {
+                    Text("Add a class to group students and assignments.")
+                } actions: {
+                    Button("Add Class") { showingAddClass = true }
+                        .accessibilityIdentifier("classes.emptyAdd")
+                }
+            }
+        }
         .navigationTitle("Classes")
-    }
-
-    private var trimmedClassName: String {
-        newClassName.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func addClass() {
-        guard !trimmedClassName.isEmpty else { return }
-        if viewModel.classSummaries.contains(where: { $0.name.caseInsensitiveCompare(trimmedClassName) == .orderedSame }) {
-            viewModel.errorMessage = "A class with this name already exists locally."
-            return
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingAddClass = true
+                } label: {
+                    Label("Add Class", systemImage: "plus")
+                }
+                .accessibilityIdentifier("classes.add")
+            }
         }
-        viewModel.saveClassGroup(ClassGroupRecord(name: trimmedClassName))
-        newClassName = ""
+        .sheet(isPresented: $showingAddClass) {
+            AddClassSheet()
+        }
+        .confirmationDialog(
+            "Delete this class?",
+            isPresented: Binding(get: { pendingDeletion != nil }, set: { if !$0 { pendingDeletion = nil } }),
+            titleVisibility: .visible,
+            presenting: pendingDeletion
+        ) { group in
+            Button("Delete \(group.name)", role: .destructive) {
+                Task { await appModel.deleteClass(id: group.id) }
+            }
+        } message: { _ in
+            Text("This deletes the class, its assignments, their submissions and the saved files on this device. It can't be undone.")
+        }
+    }
+
+    private func detail(for group: ClassGroup) -> String {
+        let count = appModel.assignmentSummaries.filter { $0.assignment.classGroupID == group.id }.count
+        let assignments = count == 1 ? "1 assignment" : "\(count) assignments"
+        return [group.subject, assignments, group.isArchived ? "Archived" : ""]
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
     }
 }
 
-private struct ClassesStationeryCard<Content: View>: View {
-    var title: String?
-    var tapeLabel: String?
-    var showsPaperclip: Bool
-    private let content: Content
+private struct AddClassSheet: View {
+    @Environment(AppModel.self) private var appModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var isSaving = false
 
-    init(title: String? = nil, tapeLabel: String? = nil, showsPaperclip: Bool = false, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.tapeLabel = tapeLabel
-        self.showsPaperclip = showsPaperclip
-        self.content = content()
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var body: some View {
-        NotebookCard(showsPerforation: true) {
-            if title != nil || tapeLabel != nil || showsPaperclip {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .top, spacing: 10) {
-                        if let tapeLabel {
-                            TapeLabel(tapeLabel)
-                        }
-                        Spacer(minLength: 8)
-                        if showsPaperclip {
-                            PaperclipDecoration()
-                                .frame(width: 32, height: 44)
-                        }
-                    }
-                    if let title {
-                        Text(title)
-                            .font(.system(.title3, design: .serif).weight(.semibold))
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+        @Bindable var appModel = appModel
+        NavigationStack {
+            Form {
+                TextField("Class name", text: $name)
+                    .submitLabel(.done)
+                    .onSubmit(add)
+                    .accessibilityIdentifier("classes.addSheet.name")
+            }
+            .navigationTitle("Add Class")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel) { dismiss() }
+                        .accessibilityIdentifier("classes.addSheet.cancel")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add", action: add)
+                        .disabled(trimmedName.isEmpty || isSaving)
+                        .accessibilityIdentifier("classes.addSheet.add")
                 }
             }
-            content
+            .alertMessage($appModel.alert)
+        }
+    }
+
+    private func add() {
+        guard !trimmedName.isEmpty, !isSaving else { return }
+        if appModel.classGroups.contains(where: { $0.name.caseInsensitiveCompare(trimmedName) == .orderedSame }) {
+            appModel.alert = AlertMessage(title: "Class not added", message: "A class with this name already exists locally.")
+            return
+        }
+        isSaving = true
+        Task {
+            let id = await appModel.addClass(name: trimmedName)
+            isSaving = false
+            if id != nil { dismiss() }
         }
     }
 }
+
+#if DEBUG
+private struct ClassesScreenPreview: View {
+    @State private var model = PreviewFixtures.makeAppModel()
+
+    var body: some View {
+        NavigationStack {
+            ClassesScreen()
+                .navigationDestination(for: Route.self) { RouteDestination(route: $0, app: model) }
+        }
+        .environment(model)
+        .task { await model.observeLists() }
+    }
+}
+
+#Preview("Light") {
+    ClassesScreenPreview()
+}
+
+#Preview("Dark") {
+    ClassesScreenPreview()
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Largest text") {
+    ClassesScreenPreview()
+        .dynamicTypeSize(.accessibility3)
+}
+#endif

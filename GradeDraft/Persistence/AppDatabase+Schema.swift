@@ -223,18 +223,6 @@ extension AppDatabase {
                 t.column("actor", .text).notNull()
                 t.column("detail", .text).notNull()
             }
-            try db.create(table: "importedCurriculumItem") { t in
-                t.primaryKey("id", .text)
-                t.column("code", .text).notNull()
-                t.column("title", .text).notNull()
-                t.column("shortDescription", .text).notNull().defaults(to: "")
-                t.column("learningArea", .text).notNull().defaults(to: "")
-                t.column("subject", .text).notNull().defaults(to: "")
-                t.column("yearLevel", .text).notNull().defaults(to: "")
-                t.column("strand", .text).notNull().defaults(to: "")
-                t.column("sourceName", .text).notNull()
-                t.column("importedAt", .datetime).notNull()
-            }
         }
         return migrator
     }

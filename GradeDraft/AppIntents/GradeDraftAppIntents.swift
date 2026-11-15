@@ -1,435 +1,236 @@
+import AppIntents
 import Foundation
 
-import AppIntents
+// Three Shortcuts, delivered in-process: Open Assignment routes the open window to a submission;
+// Add Pasted Student Work writes through the app's `AppDatabase` and Create Assignment through the `AppModel`
+// (both registered with `AppDependencyManager` at launch); each then opens what it changed.
+// No Shortcut drafts, grades, approves or exports.
 
-enum GradeDraftIntentDestination: String, AppEnum {
-    case assignments
-    case review
-    case aiReadiness
+enum SubmissionDestination: String, AppEnum {
+    case overview
+    case aiDraft
     case finalReview
-    case latestDraft
-    case packetPreview
-    case ocrReview
-    case curriculum
-    case studentWork
+    case aiReadiness
 
-    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "MarkForMe Destination")
-    static let caseDisplayRepresentations: [GradeDraftIntentDestination: DisplayRepresentation] = [
-        .assignments: "Assignments",
-        .review: "Review",
-        .aiReadiness: "AI Readiness",
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "MarkForMe Screen")
+    static let caseDisplayRepresentations: [SubmissionDestination: DisplayRepresentation] = [
+        .overview: "Student Work",
+        .aiDraft: "AI Draft",
         .finalReview: "Final Review",
-        .latestDraft: "Latest Draft",
-        .packetPreview: "AI Packet Preview",
-        .ocrReview: "Check Scanned Text",
-        .curriculum: "Curriculum",
-        .studentWork: "Student Work"
+        .aiReadiness: "AI Readiness"
     ]
-
-    var launchDestination: AppLaunchDestination {
-        switch self {
-        case .assignments:
-            return .assignments
-        case .review:
-            return .review
-        case .aiReadiness:
-            return .aiReadiness
-        case .finalReview:
-            return .finalReview
-        case .latestDraft:
-            return .latestDraft
-        case .packetPreview:
-            return .packetPreview
-        case .ocrReview:
-            return .ocrReview
-        case .curriculum:
-            return .curriculum
-        case .studentWork:
-            return .studentWork
-        }
-    }
 }
 
-struct AssignmentEntity: AppEntity, Identifiable {
+// MARK: - Entities
+
+/// One student's submission under an assignment. Its title is the assignment title only: student and class
+/// names are kept out of Shortcuts and Siri suggestions, as before.
+struct SubmissionEntity: AppEntity, Identifiable {
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Assignment")
-    static let defaultQuery = AssignmentEntityQuery()
+    static let defaultQuery = SubmissionEntityQuery()
 
     let id: UUID
     let title: String
-
-    init(id: UUID, title: String) {
-        self.id = id
-        self.title = title
-    }
-
-    init(record: AssignmentRecord) {
-        self.id = record.id
-        self.title = AssignmentEntity.safeDisplayTitle(for: record)
-    }
 
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(title)")
     }
 
-    static func safeDisplayTitle(for record: AssignmentRecord) -> String {
-        var displayTitle = record.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if displayTitle.isEmpty {
-            displayTitle = "Untitled assignment"
-        }
-        for sensitiveValue in [record.studentDisplayName, record.studentID?.uuidString, record.className] {
-            guard let sensitiveValue else { continue }
-            let trimmed = sensitiveValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// The assignment title with the student's and class's names removed.
+    static func safeTitle(assignmentTitle: String, studentName: String, className: String) -> String {
+        var title = assignmentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if title.isEmpty { title = "Untitled assignment" }
+        for sensitive in [studentName, className] {
+            let trimmed = sensitive.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            displayTitle = displayTitle.replacingOccurrences(
-                of: trimmed,
-                with: "[redacted identity]",
-                options: [.caseInsensitive]
-            )
+            title = title.replacingOccurrences(of: trimmed, with: "[redacted identity]", options: [.caseInsensitive])
         }
-        return displayTitle
+        return title
     }
 }
 
-struct AssignmentEntityQuery: EntityQuery, EntityStringQuery {
-    func entities(for identifiers: [AssignmentEntity.ID]) async throws -> [AssignmentEntity] {
+/// Reads submission titles with one query (no graphs are loaded).
+struct SubmissionEntityQuery: EntityQuery, EntityStringQuery {
+    @Dependency private var database: AppDatabase
+
+    private static let limit = 10
+
+    func entities(for identifiers: [SubmissionEntity.ID]) async throws -> [SubmissionEntity] {
         let requested = Set(identifiers)
-        return try AssignmentIntentResolver.loadAssignments()
-            .filter { requested.contains($0.id) }
-            .map(AssignmentEntity.init(record:))
+        return try await titles().filter { requested.contains($0.id) }
     }
 
-    func suggestedEntities() async throws -> [AssignmentEntity] {
-        return try AssignmentIntentResolver.loadAssignments()
-            .sorted { $0.updatedAt > $1.updatedAt }
-            .prefix(10)
-            .map(AssignmentEntity.init(record:))
+    func suggestedEntities() async throws -> [SubmissionEntity] {
+        Array(try await titles().prefix(Self.limit))
     }
 
-    func entities(matching string: String) async throws -> [AssignmentEntity] {
+    func entities(matching string: String) async throws -> [SubmissionEntity] {
         let query = string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return [] }
-        return try AssignmentIntentResolver.loadAssignments()
-            .filter { $0.title.localizedCaseInsensitiveContains(query) }
-            .sorted { $0.updatedAt > $1.updatedAt }
-            .prefix(10)
-            .map(AssignmentEntity.init(record:))
-    }
-}
-
-enum AssignmentIntentResolver {
-    static func assignmentID(entity: AssignmentEntity?, idText: String?) -> UUID? {
-        entity?.id ?? idText.flatMap(UUID.init(uuidString:))
+        return Array(try await titles().filter { $0.title.localizedCaseInsensitiveContains(query) }.prefix(Self.limit))
     }
 
-    static func loadAssignments() throws -> [AssignmentRecord] {
-        let store: AssignmentStoring
-        if let dbStore = try? GRDBAssignmentStore() {
-            store = dbStore
-        } else {
-            store = LocalJSONStore()
+    /// Most recently changed first.
+    private func titles() async throws -> [SubmissionEntity] {
+        try await database.submissionTitles().map { row in
+            SubmissionEntity(
+                id: row.id,
+                title: SubmissionEntity.safeTitle(assignmentTitle: row.assignmentTitle, studentName: row.studentName, className: row.className)
+            )
         }
-        return try store.loadAssignments()
     }
 }
 
-struct OpenGradeDraftDestinationIntent: AppIntent {
-    static let title: LocalizedStringResource = "Open MarkForMe"
-    static let description = IntentDescription("Opens a safe MarkForMe workflow. AI drafts, final approval, and exports still require in-app teacher action.")
-    static let openAppWhenRun: Bool = true
+struct ClassEntity: AppEntity, Identifiable {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Class")
+    static let defaultQuery = ClassEntityQuery()
 
-    @Parameter(title: "Destination")
-    var destination: GradeDraftIntentDestination?
+    let id: UUID
+    let name: String
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(name)")
+    }
+}
+
+struct ClassEntityQuery: EntityQuery {
+    @Dependency private var database: AppDatabase
+
+    func entities(for identifiers: [ClassEntity.ID]) async throws -> [ClassEntity] {
+        let requested = Set(identifiers)
+        return try await database.classGroups()
+            .filter { requested.contains($0.id) }
+            .map { ClassEntity(id: $0.id, name: $0.name) }
+    }
+
+    func suggestedEntities() async throws -> [ClassEntity] {
+        try await database.classGroups()
+            .filter { !$0.isArchived }
+            .map { ClassEntity(id: $0.id, name: $0.name) }
+    }
+}
+
+// MARK: - Intents
+
+/// Opens MarkForMe at one student's submission. The open window handles it with `.onAppIntentExecution`.
+struct OpenSubmissionIntent: OpenIntent, TargetContentProvidingIntent {
+    static let title: LocalizedStringResource = "Open Assignment"
+    static let description = IntentDescription("Opens a student's work in MarkForMe. Drafting, final approval and exports stay with the teacher in the app.")
 
     @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity?
+    var target: SubmissionEntity
 
-    @Parameter(title: "Assignment ID")
-    var assignmentIDText: String?
+    @Parameter(title: "Screen", default: .overview)
+    var destination: SubmissionDestination
 
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        let resolvedDestination = destination ?? .review
-        let assignmentID = AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText)
-        let action: AppLaunchAction = (resolvedDestination == .packetPreview || resolvedDestination == .aiReadiness) ? .preparePacketPreview : .none
-        AppLaunchRequestStore.save(
-            AppLaunchRequest(
-                destination: resolvedDestination.launchDestination,
-                assignmentID: assignmentID,
-                action: action
-            )
-        )
-        return .result(dialog: "Opening MarkForMe. Teacher review stays in the app.")
+    init() {}
+
+    init(target: SubmissionEntity, destination: SubmissionDestination) {
+        self.target = target
+        self.destination = destination
+    }
+
+    var contentIdentifier: String { target.id.uuidString }
+
+    func perform() async throws -> some IntentResult {
+        .result()
     }
 }
 
-struct OpenAIReadinessIntent: AppIntent {
-    static let title: LocalizedStringResource = "Open AI Readiness"
-    static let description = IntentDescription("Opens MarkForMe to the deterministic local AI readiness center for teacher review. It does not generate a draft.")
-    static let openAppWhenRun: Bool = true
-
-    @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity?
-
-    @Parameter(title: "Assignment ID")
-    var assignmentIDText: String?
-
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        AppLaunchRequestStore.save(
-            AppLaunchRequest(
-                destination: .aiReadiness,
-                assignmentID: AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText),
-                action: .preparePacketPreview
-            )
-        )
-        return .result(dialog: "Opening AI readiness in MarkForMe. No grade is generated.")
-    }
-}
-
-struct OpenLatestDraftIntent: AppIntent {
-    static let title: LocalizedStringResource = "Open Latest Draft"
-    static let description = IntentDescription("Opens MarkForMe to the latest local draft or final-review workflow. It does not generate or approve a grade.")
-    static let openAppWhenRun: Bool = true
-
-    @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity?
-
-    @Parameter(title: "Assignment ID")
-    var assignmentIDText: String?
-
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        AppLaunchRequestStore.save(
-            AppLaunchRequest(
-                destination: .latestDraft,
-                assignmentID: AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText)
-            )
-        )
-        return .result(dialog: "Opening the latest local draft in MarkForMe. Teacher approval stays in the app.")
-    }
-}
-
-struct PrepareLocalAIPacketPreviewIntent: AppIntent {
-    static let title: LocalizedStringResource = "Prepare AI Packet Preview"
-    static let description = IntentDescription("Opens MarkForMe and prepares the local AI packet preview for teacher review. It does not generate a draft or approve a grade.")
-    static let openAppWhenRun: Bool = true
-
-    @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity?
-
-    @Parameter(title: "Assignment ID")
-    var assignmentIDText: String?
-
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        AppLaunchRequestStore.save(
-            AppLaunchRequest(
-                destination: .packetPreview,
-                assignmentID: AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText),
-                action: .preparePacketPreview
-            )
-        )
-        return .result(dialog: "Preparing the packet preview in MarkForMe. No draft or final grade is created by this shortcut.")
-    }
-}
-
-struct CreateGradeDraftAssignmentShellIntent: AppIntent {
-    static let title: LocalizedStringResource = "Create Assignment Shell"
-    static let description = IntentDescription("Opens MarkForMe and creates a local blank assignment record. Student work, grading, and export still require teacher action in the app.")
-    static let openAppWhenRun: Bool = true
-
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        AppLaunchRequestStore.save(
-            AppLaunchRequest(destination: .assignments, action: .createAssignmentShell)
-        )
-        return .result(dialog: "Creating a local assignment shell in MarkForMe.")
-    }
-}
-
-struct StartManualFinalReviewIntent: AppIntent {
-    static let title: LocalizedStringResource = "Start Manual Final Review"
-    static let description = IntentDescription("Opens MarkForMe and starts a teacher-only manual final review when the assignment already has reviewed student work and a grading standard.")
-    static let openAppWhenRun: Bool = true
-
-    @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity?
-
-    @Parameter(title: "Assignment ID")
-    var assignmentIDText: String?
-
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        AppLaunchRequestStore.save(
-            AppLaunchRequest(
-                destination: .finalReview,
-                assignmentID: AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText),
-                action: .startManualFinalReview
-            )
-        )
-        return .result(dialog: "Opening MarkForMe to start manual final review if the assignment is ready.")
-    }
-}
-
-struct ApplyRecommendedAIConstraintsIntent: AppIntent {
-    static let title: LocalizedStringResource = "Apply Recommended AI Constraints"
-    static let description = IntentDescription("Opens MarkForMe and applies the app's recommended local-AI constraint templates to the selected assignment. Sensitive templates remain manual-only.")
-    static let openAppWhenRun: Bool = true
-
-    @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity?
-
-    @Parameter(title: "Assignment ID")
-    var assignmentIDText: String?
-
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        AppLaunchRequestStore.save(
-            AppLaunchRequest(
-                destination: .packetPreview,
-                assignmentID: AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText),
-                action: .applyRecommendedAIConstraints
-            )
-        )
-        return .result(dialog: "Opening MarkForMe to apply recommended local AI constraints.")
-    }
-}
-
+/// Saves pasted text as a submission's teacher-reviewed work (replacing earlier work), then opens it.
 struct AddPastedStudentWorkIntent: AppIntent {
     static let title: LocalizedStringResource = "Add Pasted Student Work"
-    static let description = IntentDescription("Opens MarkForMe and saves pasted student work as teacher-reviewed local input. Existing reviewed text for the selected assignment is replaced.")
-    static let openAppWhenRun: Bool = true
+    static let description = IntentDescription("Saves pasted student work for one student in MarkForMe, replacing their earlier work. No grade is generated.")
 
     @Parameter(title: "Student Work Text")
     var studentWorkText: String
 
     @Parameter(title: "Assignment")
-    var assignment: AssignmentEntity?
+    var target: SubmissionEntity
 
-    @Parameter(title: "Assignment ID")
-    var assignmentIDText: String?
+    @Dependency private var database: AppDatabase
 
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        let trimmed = studentWorkText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return .result(dialog: "Paste non-empty student work text before running this shortcut.")
+    func perform() async throws -> some IntentResult & ProvidesDialog & OpensIntent {
+        let text = studentWorkText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            throw IntentFailure(message: "Paste non-empty student work text before running this shortcut. No student work was changed.")
         }
-        guard let assignmentID = AssignmentIntentResolver.assignmentID(entity: assignment, idText: assignmentIDText) else {
-            return .result(dialog: "Choose an assignment before saving pasted student work. MarkForMe did not change any student work.")
+        guard let graph = try await database.submission(id: target.id) else {
+            throw AppDatabaseError.notFound(target.id)
         }
-        let saved = AppLaunchRequestStore.save(
-            AppLaunchRequest(
-                destination: .studentWork,
-                assignmentID: assignmentID,
-                action: .applyPastedStudentText,
-                payloadText: trimmed
-            )
+        let replaced = try await database.replaceInput(submissionID: target.id, kind: .pasted, pastedText: text, sources: [], ocr: nil)
+        try await database.appendAudit(AuditEvent(
+            assignmentID: graph.submission.assignmentID, submissionID: target.id, eventType: .inputChanged,
+            detail: "Pasted student text saved from Shortcuts as teacher-reviewed work."
+        ))
+        let failed = SourceFileCleanup.delete(replaced, storageRoot: try AppDatabase.storageDirectory())
+        if !failed.isEmpty {
+            try await database.appendAudit(AuditEvent(
+                assignmentID: graph.submission.assignmentID, submissionID: target.id, eventType: .localFileCleanupFailed,
+                detail: SourceFileCleanup.failureMessage(failed)
+            ))
+        }
+        return .result(
+            opensIntent: OpenSubmissionIntent(target: target, destination: .overview),
+            dialog: "Student work saved in MarkForMe. No grade was generated."
         )
-        guard saved else {
-            return .result(dialog: "MarkForMe could not stage the pasted student work locally. No student work was changed.")
-        }
-        return .result(dialog: "Opening MarkForMe to save pasted student work locally. No grade is generated.")
     }
 }
 
-struct SearchLocalGradeDraftAssignmentsIntent: AppIntent {
-    static let title: LocalizedStringResource = "Search Local Assignments"
-    static let description = IntentDescription("Searches local assignment titles on this device. It does not inspect roster records, generate grades, or export reports.")
-    static let openAppWhenRun: Bool = false
+/// Creates a class-level assignment (one submission per enrolled student) and opens it.
+struct CreateAssignmentIntent: AppIntent {
+    static let openAppWhenRun = true
 
-    @Parameter(title: "Search Text")
-    var searchText: String
+    static let title: LocalizedStringResource = "Create Assignment"
+    static let description = IntentDescription("Creates an assignment for a class in MarkForMe. Rubrics, student work and grading stay with the teacher in the app.")
 
+    @Parameter(title: "Title")
+    var assignmentTitle: String
+
+    @Parameter(title: "Class")
+    var classGroup: ClassEntity
+
+    @Dependency private var appModel: AppModel
+
+    @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else {
-            return .result(dialog: "Enter search text to search local assignment titles.")
+        let title = assignmentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else {
+            throw IntentFailure(message: "Enter an assignment title. No assignment was created.")
         }
-        let assignments: [AssignmentRecord]
-        do {
-            assignments = try AssignmentIntentResolver.loadAssignments()
-        } catch {
-            return .result(dialog: "MarkForMe could not read local assignments. No records were searched or changed.")
-        }
-        let matches = assignments
-            .filter { $0.title.localizedCaseInsensitiveContains(query) }
-            .prefix(5)
-            .map(AssignmentEntity.safeDisplayTitle(for:))
-        let message = matches.isEmpty
-            ? "No local assignment titles matched \(query)."
-            : "Matched local assignment titles: \(matches.joined(separator: "; ")). Use the Assignment parameter in shortcuts to select one."
-        return .result(dialog: IntentDialog(stringLiteral: message))
+        let assignmentID = try await appModel.createAssignment(
+            title: title, classGroupID: classGroup.id, auditDetail: "Assignment created from Shortcuts."
+        )
+        appModel.openAssignment(assignmentID)
+        return .result(dialog: "Created \(title) for \(classGroup.name) in MarkForMe.")
     }
+}
+
+/// A Shortcut failure with the message the teacher sees.
+struct IntentFailure: LocalizedError {
+    var message: String
+    var errorDescription: String? { message }
 }
 
 struct GradeDraftShortcutsProvider: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
-            intent: OpenGradeDraftDestinationIntent(),
-            phrases: [
-                "Open \(.applicationName)",
-                "Open review in \(.applicationName)"
-            ],
-            shortTitle: "Open Review",
-            systemImageName: "checklist"
-        )
-        AppShortcut(
-            intent: OpenAIReadinessIntent(),
-            phrases: [
-                "Open AI readiness in \(.applicationName)"
-            ],
-            shortTitle: "AI Readiness",
-            systemImageName: "checkmark.shield"
-        )
-        AppShortcut(
-            intent: PrepareLocalAIPacketPreviewIntent(),
-            phrases: [
-                "Prepare packet preview in \(.applicationName)",
-                "Preview local AI packet in \(.applicationName)"
-            ],
-            shortTitle: "Packet Preview",
-            systemImageName: "doc.text.magnifyingglass"
-        )
-        AppShortcut(
-            intent: OpenLatestDraftIntent(),
-            phrases: [
-                "Open latest draft in \(.applicationName)"
-            ],
-            shortTitle: "Latest Draft",
-            systemImageName: "doc.text.magnifyingglass"
-        )
-        AppShortcut(
-            intent: StartManualFinalReviewIntent(),
-            phrases: [
-                "Start manual final review in \(.applicationName)"
-            ],
-            shortTitle: "Manual Review",
-            systemImageName: "pencil.and.list.clipboard"
-        )
-        AppShortcut(
-            intent: ApplyRecommendedAIConstraintsIntent(),
-            phrases: [
-                "Apply AI constraints in \(.applicationName)"
-            ],
-            shortTitle: "AI Constraints",
-            systemImageName: "checklist.checked"
+            intent: OpenSubmissionIntent(),
+            phrases: ["Open an assignment in \(.applicationName)"],
+            shortTitle: "Open Assignment",
+            systemImageName: "doc.text"
         )
         AppShortcut(
             intent: AddPastedStudentWorkIntent(),
-            phrases: [
-                "Add pasted student work in \(.applicationName)"
-            ],
+            phrases: ["Add pasted student work in \(.applicationName)"],
             shortTitle: "Paste Work",
             systemImageName: "text.badge.plus"
         )
         AppShortcut(
-            intent: CreateGradeDraftAssignmentShellIntent(),
-            phrases: [
-                "Create assignment in \(.applicationName)"
-            ],
+            intent: CreateAssignmentIntent(),
+            phrases: ["Create assignment in \(.applicationName)"],
             shortTitle: "New Assignment",
             systemImageName: "doc.badge.plus"
-        )
-        AppShortcut(
-            intent: SearchLocalGradeDraftAssignmentsIntent(),
-            phrases: [
-                "Search assignments in \(.applicationName)"
-            ],
-            shortTitle: "Search",
-            systemImageName: "magnifyingglass"
         )
     }
 }

@@ -59,7 +59,8 @@ enum CSVExportService {
 
     private static func status(of submission: SubmissionGraph, setup: AssignmentSetup) -> String {
         guard let review = submission.finalReview else { return "pending_final_review" }
-        if submission.finalReviewIsStale(setup: setup) { return "stale_review" }
+        // A review whose staleness cannot be determined is treated as stale.
+        if (try? submission.finalReviewIsStale(setup: setup)) ?? true { return "stale_review" }
         return review.status == .approved ? "approved" : "in_progress"
     }
 }

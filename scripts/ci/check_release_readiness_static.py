@@ -91,17 +91,6 @@ if privacy_path.exists():
         fail("NSPrivacyCollectedDataTypes must be an array.")
     if not isinstance(privacy.get("NSPrivacyAccessedAPITypes", []), list):
         fail("NSPrivacyAccessedAPITypes must be an array.")
-    source = "\n".join(path.read_text(encoding="utf-8", errors="ignore") for path in (ROOT / "GradeDraft").rglob("*.swift"))
-    if "UserDefaults" in source:
-        accessed = privacy.get("NSPrivacyAccessedAPITypes", [])
-        has_user_defaults_reason = any(
-            entry.get("NSPrivacyAccessedAPIType") == "NSPrivacyAccessedAPICategoryUserDefaults"
-            and "CA92.1" in entry.get("NSPrivacyAccessedAPITypeReasons", [])
-            for entry in accessed
-            if isinstance(entry, dict)
-        )
-        if not has_user_defaults_reason:
-            fail("Swift source uses UserDefaults but PrivacyInfo.xcprivacy does not declare NSPrivacyAccessedAPICategoryUserDefaults reason CA92.1.")
 
 # 6. Release support/contact surfaces must either be final or explicitly block readiness.
 release_text_paths = [

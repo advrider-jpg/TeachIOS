@@ -19,7 +19,7 @@ struct CurriculumSourceInfo: Equatable, Sendable {
 }
 
 /// Searches the bundled Australian Curriculum SQLite file on demand. The file is opened read-only on first use;
-/// nothing is decoded at launch. Teacher-imported items live in the app database and are searched separately.
+/// nothing is decoded at launch.
 actor CurriculumCatalogService {
     static let resourceName = "curriculum_acara_v9"
     static let searchLimit = 50
@@ -123,30 +123,6 @@ actor CurriculumCatalogService {
             return Dictionary(uniqueKeysWithValues: rows.map(Self.curriculumItem(from:)).map { ($0.id, $0) })
         }
         return ids.compactMap { found[$0] }
-    }
-
-    // MARK: Teacher-imported items
-
-    func searchImported(_ text: String, in database: AppDatabase) async throws -> [ImportedCurriculumItem] {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
-        let escaped = trimmed
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "%", with: "\\%")
-            .replacingOccurrences(of: "_", with: "\\_")
-        let pattern = "%\(escaped)%"
-        return try await database.writer.read { db in
-            try ImportedCurriculumItem.fetchAll(
-                db,
-                sql: """
-                SELECT * FROM importedCurriculumItem
-                WHERE code LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\'
-                ORDER BY code, title
-                LIMIT ?
-                """,
-                arguments: [pattern, pattern, Self.searchLimit]
-            )
-        }
     }
 
     // MARK: Display text

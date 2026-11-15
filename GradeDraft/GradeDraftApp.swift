@@ -1,87 +1,44 @@
+import AppIntents
 import SwiftUI
 
 @main
 struct GradeDraftApp: App {
+    @State private var appModel: AppModel
+
+    init() {
+        ExportFileStore.purgeAll()
+        let model = Self.makeAppModel()
+        _appModel = State(initialValue: model)
+        Self.registerDependencies(of: model)
+    }
+
     var body: some Scene {
         WindowGroup {
-            #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("--ui-core-lane-test") {
-                ContentView(viewModel: GradeDraftViewModel(
-                    assignments: Self.uiCoreLaneAssignments(),
-                    gradingService: UnavailableLocalGradingService()
-                ))
-            } else if ProcessInfo.processInfo.arguments.contains("--ui-smoke-test") {
-                ContentView(viewModel: GradeDraftViewModel(
-                    assignments: Self.uiSmokeAssignments(),
-                    gradingService: UnavailableLocalGradingService()
-                ))
-            } else {
-                ContentView()
-            }
-            #else
-            ContentView()
-            #endif
+            RootView(retryStorage: retryStorage)
+                .environment(appModel)
         }
     }
 
-    #if DEBUG
-    private static func uiSmokeAssignments() -> [AssignmentRecord] {
-        [
-            AssignmentRecord(
-                title: "UI Smoke Assignment",
-                subject: "English",
-                gradeLevel: "Year 6",
-                className: "UI Smoke",
-                studentDisplayName: "Test Student",
-                rubricText: "Claim: 0-4 points",
-                reviewedStudentText: "This local UI smoke fixture has reviewed text but no final approval or export artifact."
-            )
-        ]
+    private func retryStorage() {
+        appModel.openStorage()
+        Self.registerDependencies(of: appModel)
     }
 
-    private static func uiCoreLaneAssignments() -> [AssignmentRecord] {
-        var assignment = AssignmentRecord(
-            title: "UI Core Lane Assignment",
-            subject: "English",
-            gradeLevel: "Year 6",
-            className: "UI Core Lane",
-            studentDisplayName: "Core Lane Student",
-            rubricText: "Claim: 0-4 points",
-            reviewedStudentText: "The student makes a clear claim and supports it with relevant evidence.",
-            ocrReviewStatus: .notNeeded
-        )
-        assignment.sourceInputs = [
-            SourceInputRef(
-                sourceType: .pastedText,
-                fileName: "Pasted student work",
-                teacherIncludedInExport: false
-            )
-        ]
-        assignment.finalReview = FinalGradeReview(
-            packetFingerprint: assignment.gradingPacketFingerprint,
-            status: .inProgress,
-            criteria: [
-                FinalCriterionScore(
-                    criterionID: "claim",
-                    criterion: "Claim",
-                    rating: "Proficient",
-                    proposedPoints: 3,
-                    finalPoints: 3,
-                    maxPoints: 4,
-                    evidence: ["clear claim"],
-                    explanation: "The reviewed text includes a clear claim supported by evidence.",
-                    teacherApproved: true
-                )
-            ],
-            totalScore: 3,
-            maxScore: 4,
-            studentFeedback: "Your claim is clear and supported. Add one more specific detail to strengthen the response.",
-            privateTeacherNotes: "UI test fixture note for teacher-only audit surfaces.",
-            teacherEdited: true
-        )
-        assignment.appendAuditEvent(.sourceCaptured, detail: "UI test fixture uses pasted student work already saved as reviewed local input.")
-        assignment.appendAuditEvent(.finalReviewStarted, detail: "UI test fixture starts with an in-progress teacher review so the app-driving test can approve and export.")
-        return [assignment]
+    /// Shortcuts write through the same store the app uses. Registered once storage is open.
+    @MainActor
+    private static func registerDependencies(of model: AppModel) {
+        AppModel.registerDependencies(model)
     }
-    #endif
+
+    @MainActor
+    private static func makeAppModel() -> AppModel {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-core-lane-test") || arguments.contains("--ui-smoke-test") {
+            // UI tests run against the shared fixture in an in-memory store; nothing on disk is touched.
+            return PreviewFixtures.makeAppModel()
+        }
+        #endif
+        return AppModel()
+    }
 }

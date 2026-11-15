@@ -213,6 +213,48 @@ final class AppDatabase: Sendable {
         }
     }
 
+    /// nil = enrolments in every class.
+    func enrollments(inClass classGroupID: UUID?) async throws -> [Enrollment] {
+        try await read { db in
+            guard let classGroupID else {
+                return try Self.fetch(Enrollment.self, db, sql: "SELECT * FROM enrollment ORDER BY classGroupID, sortOrder")
+            }
+            return try Self.fetch(
+                Enrollment.self, db,
+                sql: "SELECT * FROM enrollment WHERE classGroupID = ? ORDER BY sortOrder",
+                arguments: [classGroupID]
+            )
+        }
+    }
+
+    /// Every submission of the assignment, fully loaded, in creation order.
+    func submissionGraphs(assignmentID: UUID) async throws -> [SubmissionGraph] {
+        try await read { db in try Self.fetchGraphs(db, scope: .assignment(assignmentID)) }
+    }
+
+    /// One query, no graphs: what Shortcuts needs to list submissions. Most recently changed first.
+    func submissionTitles() async throws -> [SubmissionTitle] {
+        try await read { db in
+            try Row.fetchAll(
+                db,
+                sql: """
+                SELECT submission.id AS id, assignment.id AS assignmentID, assignment.title AS assignmentTitle,
+                       student.displayName AS studentName, classGroup.name AS className
+                FROM submission
+                JOIN assignment ON assignment.id = submission.assignmentID
+                JOIN student ON student.id = submission.studentID
+                JOIN classGroup ON classGroup.id = assignment.classGroupID
+                ORDER BY submission.updatedAt DESC
+                """
+            ).map { row in
+                SubmissionTitle(
+                    id: row["id"], assignmentTitle: row["assignmentTitle"], assignmentID: row["assignmentID"],
+                    studentName: row["studentName"], className: row["className"]
+                )
+            }
+        }
+    }
+
     // MARK: - Observation
 
     func observeSubmission(id: UUID) -> AsyncValueObservation<SubmissionGraph?> {
@@ -282,6 +324,32 @@ final class AppDatabase: Sendable {
         try await write { db in
             let paths = try Self.sourcePaths(db, whereSubmission: "submission.studentID = ?", arguments: [id])
             guard try Student.deleteOne(db, id: id) else { throw AppDatabaseError.notFound(id) }
+            return paths
+        }
+    }
+
+    /// Removes the student from the class and deletes their submissions for that class's assignments
+    /// only. The student record and their other classes stay. Returns the source paths of the deleted
+    /// submissions, for the caller to delete.
+    func removeEnrollment(studentID: UUID, classGroupID: UUID) async throws -> [String] {
+        try await write { db in
+            try db.execute(
+                sql: "DELETE FROM enrollment WHERE studentID = ? AND classGroupID = ?",
+                arguments: [studentID, classGroupID]
+            )
+            guard db.changesCount > 0 else { throw AppDatabaseError.notFound(studentID) }
+            let inClass = """
+                submission.studentID = ?
+                AND submission.assignmentID IN (SELECT id FROM assignment WHERE classGroupID = ?)
+                """
+            let paths = try Self.sourcePaths(db, whereSubmission: inClass, arguments: [studentID, classGroupID])
+            try db.execute(
+                sql: """
+                DELETE FROM submission
+                WHERE studentID = ? AND assignmentID IN (SELECT id FROM assignment WHERE classGroupID = ?)
+                """,
+                arguments: [studentID, classGroupID]
+            )
             return paths
         }
     }
@@ -533,12 +601,6 @@ final class AppDatabase: Sendable {
         }
     }
 
-    func saveImportedCurriculumItems(_ items: [ImportedCurriculumItem]) async throws {
-        try await write { db in
-            for item in items { try item.save(db) }
-        }
-    }
-
     // MARK: - Backup and restore
 
     func backupSnapshot() async throws -> BackupSnapshot {
@@ -554,13 +616,12 @@ final class AppDatabase: Sendable {
                 ),
                 unattachedExports: try Self.fetch(
                     ExportRecord.self, db, sql: "SELECT * FROM exportRecord WHERE submissionID IS NULL ORDER BY createdAt"
-                ),
-                importedCurriculumItems: try Self.fetch(ImportedCurriculumItem.self, db, sql: "SELECT * FROM importedCurriculumItem ORDER BY id")
+                )
             )
         }
     }
 
-    /// Restores a backup in one transaction. Classes, students and imported curriculum items are matched by
+    /// Restores a backup in one transaction. Classes and students are matched by
     /// ID (an existing local row is kept). Each assignment that also exists locally follows its resolution;
     /// a missing resolution fails the restore. `failBeforeCommit` is a test hook that rolls everything back.
     func restore(
@@ -587,10 +648,6 @@ final class AppDatabase: Sendable {
             let localEnrollments = Set(try Self.fetch(Enrollment.self, db, sql: "SELECT * FROM enrollment").map(\.id))
             for enrollment in snapshot.enrollments where !localEnrollments.contains(enrollment.id) {
                 try enrollment.insert(db)
-            }
-            let localCurriculumIDs = Set(try String.fetchAll(db, sql: "SELECT id FROM importedCurriculumItem"))
-            for item in snapshot.importedCurriculumItems where !localCurriculumIDs.contains(item.id) {
-                try item.insert(db)
             }
 
             let graphsByAssignment = Dictionary(grouping: snapshot.submissions, by: \.submission.assignmentID)
@@ -720,6 +777,15 @@ extension AppDatabase {
             }
         }
     }
+}
+
+/// A submission's assignment title, with the names Shortcuts must keep out of the title.
+struct SubmissionTitle: Sendable {
+    let id: UUID
+    let assignmentTitle: String
+    let assignmentID: UUID
+    let studentName: String
+    let className: String
 }
 
 private struct SubmissionCountRow: Decodable, FetchableRecord {

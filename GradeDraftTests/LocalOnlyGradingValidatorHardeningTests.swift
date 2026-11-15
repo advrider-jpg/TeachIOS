@@ -145,7 +145,7 @@ final class AllFeaturesCompletionV3Tests: XCTestCase {
         XCTAssertTrue(audit.contains(item.code))
         XCTAssertTrue(audit.contains("Curriculum references"))
         XCTAssertTrue(assignment.gradingPacketFingerprint.contains("fnv1a64-"))
-        XCTAssertTrue(PromptBuilder.gradingInstructionsText(input: assignment.gradingInput) + "\n" + PromptBuilder.fullPacketPromptText(input: assignment.gradingInput, mode: .full).contains(item.code))
+        XCTAssertTrue((PromptBuilder.gradingInstructionsText(input: assignment.gradingInput) + "\n" + PromptBuilder.fullPacketPromptText(input: assignment.gradingInput, mode: .full)).contains(item.code))
     }
 
     func testRosterCSVPreviewDuplicateDetectionRejectedRowsAndGradebookCSV() {

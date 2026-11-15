@@ -59,9 +59,9 @@ enum ReportBuilder {
             readiness.append("Scanned text review status: \(ocr.reviewStatus.displayName)")
         }
         readiness.append("Source inputs: \(submission.sources.count)")
-        readiness.append("Current grading packet fingerprint: \(submission.packetFingerprint(setup: setup))")
-        readiness.append("Draft stale: " + (submission.draft == nil ? "No draft" : yesNo(submission.draftIsStale(setup: setup))))
-        readiness.append("Final review stale: " + (submission.finalReview == nil ? "No final review" : yesNo(submission.finalReviewIsStale(setup: setup))))
+        readiness.append("Current grading packet fingerprint: \((try? submission.packetFingerprint(setup: setup)) ?? "Unknown")")
+        readiness.append("Draft stale: " + (submission.draft == nil ? "No draft" : (try? submission.draftIsStale(setup: setup)).map(yesNo) ?? "Unknown"))
+        readiness.append("Final review stale: " + (submission.finalReview == nil ? "No final review" : (try? submission.finalReviewIsStale(setup: setup)).map(yesNo) ?? "Unknown"))
         blocks.append(.heading(level: 2, text: "Readiness and source state"))
         blocks.append(.bulletList(readiness))
 

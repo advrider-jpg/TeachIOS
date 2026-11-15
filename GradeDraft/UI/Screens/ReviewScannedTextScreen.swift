@@ -1,485 +1,367 @@
+import ImageIO
 import SwiftUI
 
+/// The teacher checks each recognised line against the page image before the scanned text is used for
+/// grading. Every line action saves at once.
 struct ReviewScannedTextScreen: View {
-    @ObservedObject var viewModel: GradeDraftViewModel
-    var assignmentID: UUID
+    @Bindable var session: SubmissionSession
+
     @State private var selectedPageID: UUID?
     @State private var selectedLineID: UUID?
-    @State private var selectedEvidenceCriterionID: UUID?
+    @State private var correcting: OCRLine?
     @State private var showingReviewConfirm = false
-    @State private var pendingOCRCorrections: [UUID: OCRLineCorrection] = [:]
 
     var body: some View {
         Group {
-            if let assignment = viewModel.assignment(for: assignmentID) {
-                if let document = assignment.ocrDocument, !document.pages.isEmpty {
-                    let pages = document.pages.sorted { $0.pageIndex < $1.pageIndex }
-                    let page = selectedPage(from: pages)
-                    List {
-                    Section {
-                        ScannedTextPaperHeader(
-                            assignmentTitle: assignment.title,
-                            status: assignment.ocrReviewStatus.v6Status,
-                            pageCount: pages.count,
-                            unresolvedLineCount: document.unresolvedLineCount
-                        )
-                    }
-                    .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 8, trailing: 16))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-
-                    Section {
-                        ScannedTextPaperCard(status: assignment.ocrReviewStatus.v6Status, tape: "review gate") {
-                            ReviewGateBanner(
-                                title: GradeDraftUIStatus.reviewScannedText.rawValue,
-                                message: reviewSubtitle(for: assignment),
-                                status: assignment.ocrReviewStatus.v6Status
-                            )
-                        }
-                    } header: {
-                        ScannedTextTapeSectionHeader(title: "Text Review Needed")
-                    } footer: {
-                        Text("Check the scanned text before marking.")
-                    }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-
-                    Section {
-                        ScannedTextPaperCard(status: page?.v6PageStatus ?? assignment.ocrReviewStatus.v6Status, tape: "work preview") {
-                            if pages.count > 1 {
-                                ScannedTextPageSelector(pages: pages, selectedPageID: $selectedPageID)
-                            }
-                            if let page {
-                                let source = page.sourceInputID.flatMap { sourceID in
-                                    assignment.sourceInputs.first(where: { $0.id == sourceID })
-                                }
-                                let image = source.flatMap { viewModel.sourceImage(for: $0) }
-                                ScannedTextDocumentPreview(
-                                    image: image,
-                                    page: page,
-                                    selectedLineID: selectedLineID
-                                )
-                            }
-                        }
-                    } header: {
-                        ScannedTextTapeSectionHeader(title: "Work Preview")
-                    } footer: {
-                        Text(workPreviewFooter(for: page, assignment: assignment))
-                    }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-
-                    if let page {
-                        Section {
-                            if let finalReview = assignment.finalReview, !finalReview.criteria.isEmpty {
-                                Picker("Link evidence to criterion", selection: $selectedEvidenceCriterionID) {
-                                    Text("First final-review criterion").tag(Optional<UUID>.none)
-                                    ForEach(finalReview.criteria) { criterion in
-                                        Text(criterion.criterion).tag(Optional(criterion.id))
-                                    }
-                                }
-                            }
-                            Button(action: selectNextLine) {
-                                Label("Next Line", systemImage: "arrow.down.circle")
-                            }
-                            .disabled(nextUnreviewedLineTarget == nil)
-                            Button {
-                                savePendingOCRCorrections(pageID: page.id)
-                            } label: {
-                                Label("Save Page Corrections", systemImage: "tray.and.arrow.down")
-                            }
-                            .disabled(pendingCorrectionCount(pageID: page.id) == 0)
-                            Button {
-                                viewModel.selectAssignment(assignmentID)
-                                savePendingOCRCorrections(pageID: page.id)
-                                viewModel.markOCRPageReviewed(pageID: page.id)
-                            } label: {
-                                Label("Mark Page Reviewed", systemImage: "checkmark.rectangle")
-                            }
-                            .disabled(page.unresolvedLineCount > 0 || assignment.ocrReviewStatus == .reviewed)
-                            ForEach(page.lines) { line in
-                                TextLineEditorCard(
-                                    pageID: page.id,
-                                    line: line,
-                                    stagedText: pendingOCRCorrections[line.id]?.correctedText,
-                                    isSelected: selectedLineID == line.id,
-                                    onSelect: {
-                                        selectedPageID = page.id
-                                        selectedLineID = line.id
-                                    },
-                                    onTextChanged: { text in
-                                        stageOCRCorrection(pageID: page.id, line: line, correctedText: text)
-                                    },
-                                    onTextCommit: { text in
-                                        viewModel.selectAssignment(assignmentID)
-                                        savePendingOCRCorrections(lineID: line.id, fallback: OCRLineCorrection(pageID: page.id, lineID: line.id, correctedText: text))
-                                    },
-                                    onConfirm: {
-                                        selectedPageID = page.id
-                                        selectedLineID = line.id
-                                        viewModel.selectAssignment(assignmentID)
-                                        viewModel.confirmOCRLine(pageID: page.id, lineID: line.id)
-                                    },
-                                    onReject: {
-                                        selectedPageID = page.id
-                                        selectedLineID = line.id
-                                        viewModel.selectAssignment(assignmentID)
-                                        viewModel.rejectOCRLine(pageID: page.id, lineID: line.id)
-                                    },
-                                    onAddEvidence: {
-                                        selectedPageID = page.id
-                                        selectedLineID = line.id
-                                        viewModel.selectAssignment(assignmentID)
-                                        viewModel.addOCRLineEvidenceToFinalReview(pageID: page.id, lineID: line.id, criterionID: selectedEvidenceCriterionID)
-                                    },
-                                    evidenceEnabled: assignment.finalReview != nil && !line.reviewedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                )
-                            }
-                        } header: {
-                            ScannedTextTapeSectionHeader(title: "Text Lines")
-                        } footer: {
-                            Text(document.qualitySummary.displaySummary)
-                        }
-                        .listRowBackground(ScannedTextPaperStyle.paper)
-                    }
-
-                    Section {
-                        Button {
-                            showingReviewConfirm = true
-                        } label: {
-                            Label("Mark Text Reviewed", systemImage: "checkmark.seal")
-                        }
-                        .disabled(!canMarkDocumentReviewed(document: document, assignment: assignment))
-                    } header: {
-                        ScannedTextTapeSectionHeader(title: "Review Actions")
-                    } footer: {
-                        Text(reviewActionFooter(document: document, assignment: assignment))
-                    }
-                    .listRowBackground(ScannedTextPaperStyle.paper)
-
-                    if !assignment.evidenceReferences.isEmpty {
-                        Section {
-                            ScannedTextPaperCard(status: .teacherOnly, tape: "linked evidence") {
-                                EvidenceSourcePreview(evidence: assignment.evidenceReferences)
-                            }
-                        } header: {
-                            ScannedTextTapeSectionHeader(title: "Evidence")
-                        }
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    }
-                    }
-                    .gradeDraftNativeGroupedList()
-                    .scrollContentBackground(.hidden)
-                    .background(ScannedTextPaperStyle.background.ignoresSafeArea())
-                } else {
-                    ScannedTextUnavailablePaper()
-                }
+            if let graph = session.graph, let ocr = graph.ocr, !ocr.pages.isEmpty {
+                content(graph: graph, ocr: ocr)
             } else {
-                MissingAssignmentRouteView(assignmentID: assignmentID, actionName: "Scanned text review")
+                ContentUnavailableView(
+                    "No scanned text",
+                    systemImage: "text.viewfinder",
+                    description: Text("Use Student Work to scan, choose photos or import a PDF. Scanned and imported text appears here for review.")
+                )
             }
         }
-        .navigationTitle(GradeDraftWorkflowLanguage.reviewScannedTextScreenTitle)
+        .navigationTitle("Review Scanned Text")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
-        .onAppear {
-            if let assignment = viewModel.assignment(for: assignmentID) {
-                viewModel.selectAssignment(assignmentID)
-                if selectedPageID == nil {
-                    selectedPageID = assignment.ocrDocument?.pages.sorted { $0.pageIndex < $1.pageIndex }.first?.id
-                }
-            }
+        .alertMessage($session.alert)
+        .sheet(item: $correcting) { line in
+            CorrectLineSheet(session: session, line: line)
         }
-        .confirmationDialog(GradeDraftWorkflowLanguage.reviewScannedTextScreenTitle, isPresented: $showingReviewConfirm, titleVisibility: .visible) {
+        .confirmationDialog("Mark Scanned Text Reviewed", isPresented: $showingReviewConfirm, titleVisibility: .visible) {
             Button("Mark Reviewed") {
-                viewModel.selectAssignment(assignmentID)
-                savePendingOCRCorrections()
-                viewModel.markOCRReviewed()
+                Task { await session.markScannedTextReviewed() }
             }
+            .accessibilityIdentifier("scannedText.markReviewedConfirm")
             Button("Keep Reviewing", role: .cancel) {}
         } message: {
-            Text("Only continue if the text shown here accurately reflects the student work you want MarkForMe to use. The app will draft feedback from this reviewed text, not from the original image.")
-        }
-        .onDisappear {
-            savePendingOCRCorrections()
+            Text("Only continue if the text shown here accurately reflects the student work you want MarkForMe to use. Feedback is drafted from this reviewed text, not from the original image.")
         }
     }
 
-    private func selectedPage(from pages: [OCRPage]) -> OCRPage? {
-        pages.first(where: { $0.id == selectedPageID }) ?? pages.first
-    }
-
-    private func selectNextLine() {
-        viewModel.selectAssignment(assignmentID)
-        if let target = nextUnreviewedLineTarget {
-            selectedPageID = target.pageID
-            selectedLineID = target.lineID
+    private func content(graph: SubmissionGraph, ocr: OCRDocument) -> some View {
+        let pages = ocr.pages.sorted { $0.pageIndex < $1.pageIndex }
+        let page = pages.first { $0.id == selectedPageID } ?? pages[0]
+        let source = graph.sources.first { $0.id == page.sourceInputID }
+        let imageURL = source.flatMap { source in
+            session.app.storageRoot.flatMap {
+                SourcePathSafety.resolvedLocalSourceURL(source.localRelativePath, applicationSupportDirectory: $0)
+            }
         }
-    }
-
-    private var nextUnreviewedLineTarget: (pageID: UUID, lineID: UUID)? {
-        viewModel.nextUnreviewedLine(after: selectedLineID)
-    }
-
-    private func stageOCRCorrection(pageID: UUID, line: OCRLine, correctedText: String) {
-        if correctedText == line.reviewedText {
-            pendingOCRCorrections[line.id] = nil
-        } else {
-            pendingOCRCorrections[line.id] = OCRLineCorrection(
-                pageID: pageID,
-                lineID: line.id,
-                correctedText: correctedText
-            )
-        }
-    }
-
-    private func pendingCorrectionCount(pageID: UUID) -> Int {
-        pendingOCRCorrections.values.filter { $0.pageID == pageID }.count
-    }
-
-    private func savePendingOCRCorrections(pageID: UUID? = nil, lineID: UUID? = nil, fallback: OCRLineCorrection? = nil) {
-        var corrections = pendingOCRCorrections.values.filter { correction in
-            (pageID == nil || correction.pageID == pageID) &&
-            (lineID == nil || correction.lineID == lineID)
-        }
-        if corrections.isEmpty, let fallback {
-            corrections = [fallback]
-        }
-        guard !corrections.isEmpty else { return }
-        guard viewModel.assignment(for: assignmentID) != nil else { return }
-        viewModel.selectAssignment(assignmentID)
-        let saved = viewModel.updateOCRLines(corrections.sorted { lhs, rhs in
-            lhs.lineID.uuidString < rhs.lineID.uuidString
-        })
-        guard saved else { return }
-        for correction in corrections {
-            pendingOCRCorrections[correction.lineID] = nil
-        }
-    }
-
-    private func workPreviewFooter(for page: OCRPage?, assignment: AssignmentRecord) -> String {
-        guard let page else {
-            return "No page is selected."
-        }
-        let source = page.sourceInputID.flatMap { sourceID in
-            assignment.sourceInputs.first(where: { $0.id == sourceID })
-        }
-        if source.flatMap({ viewModel.sourceImage(for: $0) }) == nil {
-            return "No page image is available. Review the extracted text lines below before grading."
-        }
-        return "Selected line is outlined in blue. Lines needing review are outlined in orange."
-    }
-
-    private func canMarkDocumentReviewed(document: OCRDocument, assignment: AssignmentRecord) -> Bool {
-        document.unresolvedLineCount == 0 && assignment.ocrReviewStatus != .reviewed
-    }
-
-    private func reviewActionFooter(document: OCRDocument, assignment: AssignmentRecord) -> String {
-        if assignment.ocrReviewStatus == .reviewed {
-            return "This scanned text has already been marked reviewed."
-        }
-        if document.unresolvedLineCount > 0 {
-            return "Confirm or reject every text line before marking the scanned text reviewed."
-        }
-        return "Only continue if the text shown here accurately reflects the student work you want MarkForMe to use."
-    }
-
-    private func reviewSubtitle(for assignment: AssignmentRecord) -> String {
-        let unresolved = assignment.ocrDocument?.unresolvedLineCount ?? 0
-        if assignment.ocrReviewStatus == .reviewed { return "All text lines have been checked." }
-        if unresolved == 1 { return "1 text line needs checking." }
-        return "\(unresolved) text lines need checking."
-    }
-}
-
-private enum ScannedTextPaperStyle {
-    static let background = Color(red: 0.98, green: 0.95, blue: 0.88)
-    static let paper = Color(red: 1.0, green: 0.985, blue: 0.94)
-    static let ink = Color(red: 0.24, green: 0.18, blue: 0.13)
-    static let rule = Color(red: 0.74, green: 0.52, blue: 0.30)
-    static let tape = Color(red: 0.96, green: 0.84, blue: 0.55)
-    static let shadow = Color.black.opacity(0.08)
-}
-
-private struct ScannedTextPaperHeader: View {
-    var assignmentTitle: String
-    var status: GradeDraftUIStatus
-    var pageCount: Int
-    var unresolvedLineCount: Int
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(GradeDraftWorkflowLanguage.reviewScannedTextScreenTitle)
-                        .font(.system(.title, design: .serif).weight(.semibold))
-                        .foregroundStyle(ScannedTextPaperStyle.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(assignmentTitle.isEmpty ? "Teacher text review" : assignmentTitle)
-                        .font(.system(.subheadline, design: .serif).italic())
+        return ScrollViewReader { proxy in
+            List {
+                Section {
+                    StatusLabel(ocr.reviewStatus.uiStatus, subject: "Scanned text status")
+                    LabeledContent("Pages", value: "\(pages.count)")
+                    LabeledContent("Lines needing your action", value: "\(ocr.unresolvedLineCount)")
+                    Text(ocr.qualitySummary.displaySummary)
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                } footer: {
+                    Text("Highlighted lines need you to confirm, correct or reject them. Typed PDF text always needs your check.")
                 }
-                Spacer(minLength: 8)
-                StatusChip(status, compact: true)
+
+                Section {
+                    if pages.count > 1 {
+                        Picker("Page", selection: Binding(get: { page.id }, set: { selectedPageID = $0 })) {
+                            ForEach(pages) { page in
+                                Text("Page \(page.pageIndex + 1)").tag(page.id)
+                            }
+                        }
+                        .accessibilityIdentifier("scannedText.pagePicker")
+                    }
+                    PageImageView(page: page, imageURL: imageURL, selectedLineID: selectedLineID)
+                } header: {
+                    Text("Page \(page.pageIndex + 1)")
+                } footer: {
+                    Text("Pinch to zoom. The selected line is outlined in the accent colour; lines needing review in orange.")
+                }
+
+                Section("Text Lines") {
+                    Button {
+                        selectNextLine(after: selectedLineID, pages: pages, proxy: proxy)
+                    } label: {
+                        Label("Next Line Needing Action", systemImage: "arrow.down.circle")
+                    }
+                    .disabled(ocr.unresolvedLineCount == 0)
+                    .accessibilityIdentifier("scannedText.nextLine")
+                    ForEach(Array(page.lines.enumerated()), id: \.element.id) { index, line in
+                        lineRow(line, index: index)
+                            .id(line.id)
+                    }
+                }
+
+                Section {
+                    Button {
+                        Task { await session.confirmAllConfidentLines() }
+                    } label: {
+                        Label("Confirm All Confident Lines", systemImage: "checkmark.circle")
+                    }
+                    .disabled(ocr.reviewStatus == .reviewed)
+                    .accessibilityIdentifier("scannedText.confirmAll")
+                    Button {
+                        showingReviewConfirm = true
+                    } label: {
+                        Label("Mark Scanned Text Reviewed", systemImage: "checkmark.seal")
+                    }
+                    .disabled(ocr.unresolvedLineCount > 0 || ocr.reviewStatus == .reviewed)
+                    .accessibilityIdentifier("scannedText.markReviewed")
+                } header: {
+                    Text("Review Actions")
+                } footer: {
+                    if ocr.reviewStatus == .reviewed {
+                        Text("This scanned text has been marked reviewed.")
+                    } else {
+                        Text(((session.readiness?.scannedTextIssues ?? []).map(\.message)
+                            + ["Confirm all accepts only lines read with high confidence; low-confidence and typed PDF lines still need your action."])
+                            .joined(separator: " "))
+                    }
+                }
             }
-            HStack(spacing: 8) {
-                ScannedTextMetricPill(label: "Pages", value: "\(pageCount)", status: status)
-                ScannedTextMetricPill(label: "Open lines", value: "\(unresolvedLineCount)", status: unresolvedLineCount == 0 ? .onTrack : .reviewScannedText)
-            }
         }
-        .padding(18)
-        .background(ScannedTextPaperStyle.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(alignment: .topLeading) {
-            ScannedTextTapeLabel(text: "ocr notes")
-                .offset(x: 18, y: -11)
-        }
-        .overlay(alignment: .topTrailing) {
-            Image(systemName: "paperclip")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(ScannedTextPaperStyle.rule)
-                .rotationEffect(.degrees(11))
-                .padding(.top, 10)
-                .padding(.trailing, 16)
-                .accessibilityHidden(true)
-        }
-        .overlay(alignment: .leading) {
-            ScannedTextPerforation()
-                .offset(x: 7)
-        }
-        .shadow(color: ScannedTextPaperStyle.shadow, radius: 12, x: 0, y: 6)
     }
-}
 
-private struct ScannedTextMetricPill: View {
-    var label: String
-    var value: String
-    var status: GradeDraftUIStatus
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .font(.caption.monospacedDigit().weight(.bold))
-                .foregroundStyle(status.color)
-            Text(label)
-                .font(.caption2.weight(.semibold))
+    private func lineRow(_ line: OCRLine, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                selectedLineID = line.id
+            } label: {
+                if line.isRejected {
+                    Text(line.rawText)
+                        .strikethrough()
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(line.reviewedText)
+                        .foregroundStyle(.primary)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("scannedText.lineSelect.\(index)")
+            if let corrected = line.correctedText, !corrected.isWhitespaceOnly, !line.isRejected {
+                Text("Recognised as: \(line.rawText)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            StatusLabel(line.reviewUIStatus, subject: "Line status")
+            switch line.origin {
+            case .pdfTextLayer:
+                Label("From PDF text layer", systemImage: "doc.text")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .visionOCR:
+                Label(
+                    line.confidence.map { "Confidence \(Int((min(max($0, 0), 1) * 100).rounded()))%" } ?? "No confidence score",
+                    systemImage: "text.viewfinder"
+                )
+                .font(.caption)
                 .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 7)
-        .background(status.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(status.color.opacity(0.20), lineWidth: 1)
-        )
-    }
-}
-
-private struct ScannedTextPaperCard<Content: View>: View {
-    var status: GradeDraftUIStatus
-    var tape: String
-    let content: Content
-
-    init(status: GradeDraftUIStatus, tape: String, @ViewBuilder content: () -> Content) {
-        self.status = status
-        self.tape = tape
-        self.content = content()
-    }
-
-    var body: some View {
-        content
-            .padding(2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(ScannedTextPaperStyle.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(status.color.opacity(0.25), lineWidth: 1)
-            )
-            .overlay(alignment: .topLeading) {
-                ScannedTextTapeLabel(text: tape)
-                    .offset(x: 14, y: -10)
             }
-            .overlay(alignment: .leading) {
-                ScannedTextPerforation()
-                    .offset(x: 7)
+            HStack {
+                Button("Confirm") {
+                    selectedLineID = line.id
+                    Task { await session.confirmLine(line.id) }
+                }
+                .accessibilityIdentifier("scannedText.lineConfirm.\(index)")
+                Button("Correct") {
+                    selectedLineID = line.id
+                    correcting = line
+                }
+                .accessibilityIdentifier("scannedText.lineCorrect.\(index)")
+                Button("Reject", role: .destructive) {
+                    selectedLineID = line.id
+                    Task { await session.rejectLine(line.id) }
+                }
+                .accessibilityIdentifier("scannedText.lineReject.\(index)")
             }
-            .shadow(color: ScannedTextPaperStyle.shadow, radius: 8, x: 0, y: 4)
+            .buttonStyle(.bordered)
+        }
+        .listRowBackground(line.id == selectedLineID ? Color.accentColor.opacity(0.12) : nil)
+    }
+
+    private func selectNextLine(after lineID: UUID?, pages: [OCRPage], proxy: ScrollViewProxy) {
+        let ordered = pages.flatMap { page in page.lines.map { (pageID: page.id, line: $0) } }
+        let start = lineID.flatMap { id in ordered.firstIndex { $0.line.id == id } }.map { $0 + 1 } ?? 0
+        let candidates = ordered[min(start, ordered.count)...] + ordered[..<min(start, ordered.count)]
+        guard let next = candidates.first(where: { $0.line.needsReview }) else { return }
+        selectedPageID = next.pageID
+        selectedLineID = next.line.id
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            withAnimation { proxy.scrollTo(next.line.id, anchor: .center) }
+        }
     }
 }
 
-private struct ScannedTextTapeSectionHeader: View {
-    var title: String
+/// The page image, read once per page (and again only if the displayed width changes), scaled down off
+/// the main actor to the size it is shown at, with the line highlights drawn over it.
+private struct PageImageView: View {
+    var page: OCRPage
+    var imageURL: URL?
+    var selectedLineID: UUID?
 
-    var body: some View {
-        Text(title.uppercased())
-            .font(.caption.weight(.bold))
-            .foregroundStyle(ScannedTextPaperStyle.ink)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-            .background(ScannedTextPaperStyle.tape.opacity(0.92), in: Capsule())
-            .overlay(Capsule().stroke(ScannedTextPaperStyle.rule.opacity(0.22), lineWidth: 1))
-            .padding(.top, 6)
-            .textCase(nil)
+    @Environment(\.displayScale) private var displayScale
+    @State private var image: CGImage?
+    @State private var loadedPageID: UUID?
+    @State private var loadFailed = false
+    @State private var width: CGFloat = 0
+    @State private var zoom: CGFloat = 1
+    @State private var settledZoom: CGFloat = 1
+
+    private struct LoadKey: Equatable {
+        var pageID: UUID
+        var pixelWidth: Int
     }
-}
-
-private struct ScannedTextTapeLabel: View {
-    var text: String
 
     var body: some View {
-        Text(text.uppercased())
-            .font(.caption2.weight(.bold))
-            .foregroundStyle(ScannedTextPaperStyle.ink.opacity(0.78))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(ScannedTextPaperStyle.tape.opacity(0.92), in: Capsule())
-            .rotationEffect(.degrees(-2))
-            .accessibilityHidden(true)
-    }
-}
-
-private struct ScannedTextPerforation: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            ForEach(0..<7, id: \.self) { _ in
-                Circle()
-                    .fill(ScannedTextPaperStyle.background)
-                    .frame(width: 5, height: 5)
-                    .overlay(Circle().stroke(ScannedTextPaperStyle.rule.opacity(0.18), lineWidth: 0.5))
+        Group {
+            if let image, loadedPageID == page.id {
+                Image(decorative: image, scale: displayScale)
+                    .resizable()
+                    .scaledToFit()
+                    .overlay {
+                        TextLineHighlightOverlay(
+                            page: page,
+                            imageSize: CGSize(width: image.width, height: image.height),
+                            selectedLineID: selectedLineID
+                        )
+                    }
+                    .scaleEffect(zoom)
+                    .clipped()
+                    .contentShape(Rectangle())
+                    .gesture(
+                        MagnifyGesture()
+                            .onChanged { value in zoom = min(max(settledZoom * value.magnification, 1), 4) }
+                            .onEnded { _ in settledZoom = zoom }
+                    )
+                    .onTapGesture(count: 2) {
+                        zoom = 1
+                        settledZoom = 1
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("Page \(page.pageIndex + 1) image")
+            } else if imageURL == nil || loadFailed {
+                Label("No page image is available. Review the text lines below.", systemImage: "photo.badge.exclamationmark")
+                    .foregroundStyle(.secondary)
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
             }
         }
-        .padding(.vertical, 8)
-        .accessibilityHidden(true)
-    }
-}
-
-private struct ScannedTextUnavailablePaper: View {
-    var body: some View {
-        VStack {
-            ContentUnavailableView(
-                "No scanned text",
-                systemImage: "text.viewfinder",
-                description: Text("Use Student Work to scan, import a photo or PDF, or save pasted text. Scanned, photo, and PDF text appears here only when local text review is required.")
-            )
-            .padding(20)
-            .background(ScannedTextPaperStyle.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(ScannedTextPaperStyle.rule.opacity(0.20), lineWidth: 1)
-            )
-            .padding()
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { newWidth in
+            width = newWidth
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ScannedTextPaperStyle.background.ignoresSafeArea())
+        .task(id: LoadKey(pageID: page.id, pixelWidth: Int((width * displayScale).rounded()))) {
+            await load(pixelWidth: Int((width * displayScale).rounded()))
+        }
+    }
+
+    private func load(pixelWidth: Int) async {
+        if loadedPageID != page.id {
+            image = nil
+            loadFailed = false
+            zoom = 1
+            settledZoom = 1
+        }
+        guard pixelWidth > 0, let imageURL else { return }
+        // The thumbnail size limits the longer side; a portrait page is taller than it is wide.
+        let aspect: Double
+        if let pixelWidthOfPage = page.pixelWidth, let pixelHeightOfPage = page.pixelHeight, pixelWidthOfPage > 0 {
+            aspect = max(1, Double(pixelHeightOfPage) / Double(pixelWidthOfPage))
+        } else {
+            aspect = 1.5
+        }
+        let maxPixelSize = Int((Double(pixelWidth) * aspect).rounded())
+        let loaded = await Task.detached(priority: .userInitiated) {
+            PageImageLoader.downsample(imageURL, maxPixelSize: maxPixelSize)
+        }.value
+        guard !Task.isCancelled else { return }
+        image = loaded
+        loadedPageID = page.id
+        loadFailed = loaded == nil
     }
 }
 
-private extension OCRPage {
-    var v6PageStatus: GradeDraftUIStatus {
-        unresolvedLineCount == 0 ? .onTrack : .reviewScannedText
+private enum PageImageLoader {
+    /// Decodes the image file straight to the requested size without loading the full-resolution bitmap.
+    static func downsample(_ url: URL, maxPixelSize: Int) -> CGImage? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else { return nil }
+        let options = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ] as [CFString: Any] as CFDictionary
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options)
     }
 }
+
+/// Corrects one line's text. Saving confirms the line.
+private struct CorrectLineSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Bindable var session: SubmissionSession
+    var line: OCRLine
+    @State private var text: String
+    @State private var isSaving = false
+
+    init(session: SubmissionSession, line: OCRLine) {
+        self.session = session
+        self.line = line
+        _text = State(initialValue: line.reviewedText.isWhitespaceOnly ? line.rawText : line.reviewedText)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Recognised Text") {
+                    Text(line.rawText)
+                        .foregroundStyle(.secondary)
+                }
+                Section("Corrected Text") {
+                    TextField("Corrected text", text: $text, axis: .vertical)
+                        .accessibilityIdentifier("correctLine.text")
+                }
+            }
+            .navigationTitle("Correct Line")
+            .navigationBarTitleDisplayMode(.inline)
+            .alertMessage($session.alert)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .accessibilityIdentifier("correctLine.cancel")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        isSaving = true
+                        Task {
+                            await session.correctLine(line.id, text: text)
+                            isSaving = false
+                            if session.alert == nil { dismiss() }
+                        }
+                    }
+                    .disabled(text.isWhitespaceOnly || isSaving)
+                    .accessibilityIdentifier("correctLine.save")
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+#if DEBUG
+#Preview("Light") {
+    ScreenPreview { app in RouteDestination(route: .scannedText(PreviewFixtures.scannedSubmissionID), app: app) }
+}
+
+#Preview("Dark") {
+    ScreenPreview { app in RouteDestination(route: .scannedText(PreviewFixtures.scannedSubmissionID), app: app) }
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Accessibility XXXL") {
+    ScreenPreview { app in RouteDestination(route: .scannedText(PreviewFixtures.scannedSubmissionID), app: app) }
+        .environment(\.dynamicTypeSize, .accessibility5)
+}
+#endif
