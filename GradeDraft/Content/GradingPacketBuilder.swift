@@ -564,50 +564,56 @@ struct CustomInstructionLintIssue: Codable, Equatable, Identifiable, Sendable {
 }
 
 enum CustomInstructionLinter {
+    private struct LintRule {
+        let category: CustomInstructionLintCategory
+        let patterns: [String]
+        let message: String
+    }
+
     static func lint(_ instructions: String) -> [CustomInstructionLintIssue] {
         let text = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return [] }
-        let rules: [(CustomInstructionLintCategory, [String], String)] = [
-            (
-                .ignoreRubric,
-                [#"ignore (the )?rubric"#, #"rubric no longer matters"#],
-                "Custom instructions appear to override the rubric; teacher review is required."
+        let rules: [LintRule] = [
+            LintRule(
+                category: .ignoreRubric,
+                patterns: [#"ignore (the )?rubric"#, #"rubric no longer matters"#],
+                message: "Custom instructions appear to override the rubric; teacher review is required."
             ),
-            (
-                .fullMarks,
-                [#"always (give|award) full (marks|credit)"#, #"give full (marks|credit)"#, #"award full (marks|credit)"#],
-                "Custom instructions appear to require full marks regardless of evidence; teacher review is required."
+            LintRule(
+                category: .fullMarks,
+                patterns: [#"always (give|award) full (marks|credit)"#, #"give full (marks|credit)"#, #"award full (marks|credit)"#],
+                message: "Custom instructions appear to require full marks regardless of evidence; teacher review is required."
             ),
-            (
-                .effortInference,
-                [#"grade based on effort"#, #"assume (the )?student tried hard"#, #"tried hard"#],
-                "Custom instructions refer to effort or intent, which the local model must not infer."
+            LintRule(
+                category: .effortInference,
+                patterns: [#"grade based on effort"#, #"assume (the )?student tried hard"#, #"tried hard"#],
+                message: "Custom instructions refer to effort or intent, which the local model must not infer."
             ),
-            (
-                .handwritingPenalty,
-                [#"penali[sz]e handwriting"#, #"mark down handwriting"#],
-                "Custom instructions appear to penalize handwriting even though this grading lane is text-evidence only."
+            LintRule(
+                category: .handwritingPenalty,
+                patterns: [#"penali[sz]e handwriting"#, #"mark down handwriting"#],
+                message: "Custom instructions appear to penalize handwriting even though this grading lane is text-evidence only."
             ),
-            (
-                .studentBackground,
-                [#"use (the )?student'?s background"#, #"consider (the )?student'?s background"#, #"language background"#],
-                "Custom instructions refer to student background; protected or demographic context must not be inferred."
+            LintRule(
+                category: .studentBackground,
+                patterns: [#"use (the )?student'?s background"#, #"consider (the )?student'?s background"#, #"language background"#],
+                message: "Custom instructions refer to student background; protected or demographic context must not be inferred."
             ),
-            (
-                .noEvidence,
-                [#"do not require evidence"#, #"no evidence required"#, #"ignore evidence"#],
-                "Custom instructions appear to remove the evidence requirement; teacher review is required."
+            LintRule(
+                category: .noEvidence,
+                patterns: [#"do not require evidence"#, #"no evidence required"#, #"ignore evidence"#],
+                message: "Custom instructions appear to remove the evidence requirement; teacher review is required."
             ),
-            (
-                .finalGrade,
-                [#"make (the )?grade final"#, #"final grade"#, #"approve (the )?grade"#],
-                "Custom instructions appear to ask for final-grade behavior; the teacher must approve final grades in app."
+            LintRule(
+                category: .finalGrade,
+                patterns: [#"make (the )?grade final"#, #"final grade"#, #"approve (the )?grade"#],
+                message: "Custom instructions appear to ask for final-grade behavior; the teacher must approve final grades in app."
             )
         ]
-        return rules.compactMap { category, patterns, message in
-            patterns.contains { pattern in
+        return rules.compactMap { rule in
+            rule.patterns.contains { pattern in
                 text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
-            } ? CustomInstructionLintIssue(category: category, message: message) : nil
+            } ? CustomInstructionLintIssue(category: rule.category, message: rule.message) : nil
         }
     }
 }

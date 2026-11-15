@@ -48,9 +48,9 @@ enum BackupArchiveService {
     private static let archiveSourcesPrefix = "sources/"
     private static let localSourcesPrefix = "Sources/"
 
-    private static let fieldType = ArchiveHeader.FieldKey("TYP")
-    private static let fieldPath = ArchiveHeader.FieldKey("PAT")
-    private static let fieldData = ArchiveHeader.FieldKey("DAT")
+    private static var fieldType: ArchiveHeader.FieldKey { ArchiveHeader.FieldKey("TYP") }
+    private static var fieldPath: ArchiveHeader.FieldKey { ArchiveHeader.FieldKey("PAT") }
+    private static var fieldData: ArchiveHeader.FieldKey { ArchiveHeader.FieldKey("DAT") }
 
     // MARK: - Full backup
 
@@ -202,54 +202,98 @@ enum BackupArchiveService {
         defer { try? decoder.close() }
 
         try LocalDataProtection.prepareSensitiveDirectory(staging, fileManager: fileManager)
+        var entries = RestoreEntries()
+        while let header = try decoder.readHeader() {
+            try readEntry(header, from: decoder, into: &entries, staging: staging, fileManager: fileManager)
+        }
+
+        let (manifest, snapshot) = try decodeRestoredContents(entries)
+        try verifySourceReferences(of: snapshot, stagedDigests: entries.stagedDigests)
+        return (manifest, snapshot)
+    }
+
+    /// What `readAndStage` has collected so far from the archive's entries.
+    private struct RestoreEntries {
         var manifestData: Data?
         var snapshotData: Data?
         var stagedDigests: [String: String] = [:]
+    }
 
-        while let header = try decoder.readHeader() {
-            guard case .string(_, let path)? = header.field(forKey: fieldPath) else {
-                throw BackupArchiveError.unreadable("an entry has no name.")
-            }
-            guard case .uint(_, let typeValue)? = header.field(forKey: fieldType) else {
-                throw BackupArchiveError.unreadable("\(path) has no entry type.")
-            }
-            let entryType = UInt32(truncatingIfNeeded: typeValue)
+    private static func readEntry(
+        _ header: ArchiveHeader,
+        from decoder: ArchiveStream,
+        into entries: inout RestoreEntries,
+        staging: URL,
+        fileManager: FileManager
+    ) throws {
+        guard case .string(_, let path)? = header.field(forKey: fieldPath) else {
+            throw BackupArchiveError.unreadable("an entry has no name.")
+        }
+        guard case .uint(_, let typeValue)? = header.field(forKey: fieldType) else {
+            throw BackupArchiveError.unreadable("\(path) has no entry type.")
+        }
+        let entryType = UInt32(truncatingIfNeeded: typeValue)
 
-            if entryType == ArchiveHeader.EntryType.directory.rawValue {
-                guard path == "sources" || path.hasPrefix(archiveSourcesPrefix) else {
-                    throw BackupArchiveError.unreadable("unexpected folder \(path).")
-                }
-                if path != "sources" {
-                    _ = try localPath(forArchivePath: path)
-                }
-                continue
-            }
-            guard entryType == ArchiveHeader.EntryType.regularFile.rawValue else {
-                throw BackupArchiveError.unreadable("\(path) is not a regular file.")
-            }
-
-            switch path {
-            case manifestPath, snapshotPath:
-                guard (path == manifestPath ? manifestData : snapshotData) == nil else {
-                    throw BackupArchiveError.unreadable("\(path) appears twice.")
-                }
-                let data = try readData(of: header, path: path, limit: maxRestoreJSONEntryBytes, from: decoder)
-                if path == manifestPath { manifestData = data } else { snapshotData = data }
-            default:
-                let local = try localPath(forArchivePath: path)
-                guard stagedDigests[path] == nil else {
-                    throw BackupArchiveError.unreadable("\(path) appears twice.")
-                }
-                let data = try readData(of: header, path: path, limit: maxRestoreSourceEntryBytes, from: decoder)
-                let stagedURL = staging.appendingPathComponent(local, isDirectory: false)
-                try LocalDataProtection.prepareSensitiveDirectory(stagedURL.deletingLastPathComponent(), fileManager: fileManager)
-                try data.write(to: stagedURL, options: [.withoutOverwriting, .completeFileProtection])
-                LocalDataProtection.protectSensitiveFile(stagedURL, fileManager: fileManager)
-                stagedDigests[path] = ContentDigest.sha256Hex(data)
-            }
+        if entryType == ArchiveHeader.EntryType.directory.rawValue {
+            try validateDirectoryEntry(path)
+            return
+        }
+        guard entryType == ArchiveHeader.EntryType.regularFile.rawValue else {
+            throw BackupArchiveError.unreadable("\(path) is not a regular file.")
         }
 
-        guard let manifestData, let snapshotData else {
+        switch path {
+        case manifestPath, snapshotPath:
+            try readJSONEntry(header, path: path, from: decoder, into: &entries)
+        default:
+            try stageSourceEntry(header, path: path, from: decoder, into: &entries, staging: staging, fileManager: fileManager)
+        }
+    }
+
+    private static func validateDirectoryEntry(_ path: String) throws {
+        guard path == "sources" || path.hasPrefix(archiveSourcesPrefix) else {
+            throw BackupArchiveError.unreadable("unexpected folder \(path).")
+        }
+        if path != "sources" {
+            _ = try localPath(forArchivePath: path)
+        }
+    }
+
+    private static func readJSONEntry(
+        _ header: ArchiveHeader,
+        path: String,
+        from decoder: ArchiveStream,
+        into entries: inout RestoreEntries
+    ) throws {
+        guard (path == manifestPath ? entries.manifestData : entries.snapshotData) == nil else {
+            throw BackupArchiveError.unreadable("\(path) appears twice.")
+        }
+        let data = try readData(of: header, path: path, limit: maxRestoreJSONEntryBytes, from: decoder)
+        if path == manifestPath { entries.manifestData = data } else { entries.snapshotData = data }
+    }
+
+    private static func stageSourceEntry(
+        _ header: ArchiveHeader,
+        path: String,
+        from decoder: ArchiveStream,
+        into entries: inout RestoreEntries,
+        staging: URL,
+        fileManager: FileManager
+    ) throws {
+        let local = try localPath(forArchivePath: path)
+        guard entries.stagedDigests[path] == nil else {
+            throw BackupArchiveError.unreadable("\(path) appears twice.")
+        }
+        let data = try readData(of: header, path: path, limit: maxRestoreSourceEntryBytes, from: decoder)
+        let stagedURL = staging.appendingPathComponent(local, isDirectory: false)
+        try LocalDataProtection.prepareSensitiveDirectory(stagedURL.deletingLastPathComponent(), fileManager: fileManager)
+        try data.write(to: stagedURL, options: [.withoutOverwriting, .completeFileProtection])
+        LocalDataProtection.protectSensitiveFile(stagedURL, fileManager: fileManager)
+        entries.stagedDigests[path] = ContentDigest.sha256Hex(data)
+    }
+
+    private static func decodeRestoredContents(_ entries: RestoreEntries) throws -> (BackupManifest, BackupSnapshot) {
+        guard let manifestData = entries.manifestData, let snapshotData = entries.snapshotData else {
             throw BackupArchiveError.unreadable("the backup is incomplete.")
         }
         let manifest: BackupManifest
@@ -263,11 +307,14 @@ enum BackupArchiveService {
         guard manifest.formatVersion == BackupManifest.currentFormatVersion else {
             throw BackupArchiveError.unreadable("backup format \(manifest.formatVersion) is not supported.")
         }
-        guard manifest.sourceSHA256 == stagedDigests else {
+        guard manifest.sourceSHA256 == entries.stagedDigests else {
             throw BackupArchiveError.unreadable("its original files don't match the backup's contents list.")
         }
         guard !snapshot.containsDuplicateIDs else { throw BackupArchiveError.duplicateRecords }
+        return (manifest, snapshot)
+    }
 
+    private static func verifySourceReferences(of snapshot: BackupSnapshot, stagedDigests: [String: String]) throws {
         for graph in snapshot.submissions {
             let folder = localSourcesPrefix + graph.submission.id.uuidString + "/"
             for source in graph.sources {
@@ -280,7 +327,6 @@ enum BackupArchiveService {
                 }
             }
         }
-        return (manifest, snapshot)
     }
 
     private static func readData(of header: ArchiveHeader, path: String, limit: UInt64, from decoder: ArchiveStream) throws -> Data {

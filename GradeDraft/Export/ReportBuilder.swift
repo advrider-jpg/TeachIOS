@@ -46,14 +46,33 @@ enum ReportBuilder {
     // MARK: - Teacher Record
 
     static func teacherRecord(setup: AssignmentSetup, submission: SubmissionGraph, generatedAt: Date) -> ReportDocument {
-        let assignment = setup.assignment
         let title = "MarkForMe Teacher Record"
         var blocks = header(setup: setup, submission: submission, updated: submission.submission.updatedAt)
         blocks.append(.paragraph("This teacher record may include private notes, reviewed text, scanned text warnings, source fingerprints, and grading-state metadata. Treat it as sensitive student data."))
         blocks.append(.paragraph("Generated from local app state. MarkForMe does not upload this report."))
         blocks.append(.keyValue(label: "Report generated", value: dateText(generatedAt)))
 
-        // Readiness and source state
+        appendTeacherReadiness(setup: setup, submission: submission, to: &blocks)
+        appendTeacherSourceInputs(submission, to: &blocks)
+        appendTeacherScannedTextSummary(submission, to: &blocks)
+        appendTeacherReviewedText(submission, to: &blocks)
+        appendTeacherMaterials(setup: setup, to: &blocks)
+        if let draft = submission.draft {
+            appendTeacherModelDraft(draft, setup: setup, submission: submission, to: &blocks)
+        }
+        if let review = submission.finalReview {
+            appendTeacherFinalReview(review, setup: setup, submission: submission, to: &blocks)
+        }
+        appendTeacherEvidence(submission, to: &blocks)
+        appendTeacherExportRecords(submission, to: &blocks)
+        appendTeacherAuditEvents(submission, to: &blocks)
+
+        return ReportDocument(title: title, blocks: blocks)
+    }
+
+    // MARK: - Teacher Record sections
+
+    private static func appendTeacherReadiness(setup: AssignmentSetup, submission: SubmissionGraph, to blocks: inout [ReportBlock]) {
         var readiness: [String] = []
         if let ocr = submission.ocr {
             readiness.append("Scanned text review status: \(ocr.reviewStatus.displayName)")
@@ -64,8 +83,9 @@ enum ReportBuilder {
         readiness.append("Final review stale: " + (submission.finalReview == nil ? "No final review" : (try? submission.finalReviewIsStale(setup: setup)).map(yesNo) ?? "Unknown"))
         blocks.append(.heading(level: 2, text: "Readiness and source state"))
         blocks.append(.bulletList(readiness))
+    }
 
-        // Source inputs
+    private static func appendTeacherSourceInputs(_ submission: SubmissionGraph, to blocks: inout [ReportBlock]) {
         blocks.append(.heading(level: 2, text: "Source inputs"))
         if submission.sources.isEmpty {
             blocks.append(.paragraph("No source files recorded."))
@@ -76,8 +96,9 @@ enum ReportBuilder {
                 return "\(source.sourceType.displayName), \(page): \(name) [SHA-256: \(source.sha256 ?? "none")]"
             }))
         }
+    }
 
-        // Scanned text summary
+    private static func appendTeacherScannedTextSummary(_ submission: SubmissionGraph, to blocks: inout [ReportBlock]) {
         if let ocr = submission.ocr {
             blocks.append(.heading(level: 2, text: "Scanned text summary"))
             blocks.append(.bulletList([
@@ -87,8 +108,9 @@ enum ReportBuilder {
                 "Reviewed at: " + (ocr.reviewedAt.map(dateText) ?? "Not reviewed")
             ]))
         }
+    }
 
-        // Reviewed student text
+    private static func appendTeacherReviewedText(_ submission: SubmissionGraph, to blocks: inout [ReportBlock]) {
         blocks.append(.heading(level: 2, text: "Reviewed student text"))
         let reviewedText = submission.reviewedText
         if reviewedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -96,8 +118,10 @@ enum ReportBuilder {
         } else {
             blocks.append(.studentText(reviewedText))
         }
+    }
 
-        // Rubric and grading materials
+    private static func appendTeacherMaterials(setup: AssignmentSetup, to blocks: inout [ReportBlock]) {
+        let assignment = setup.assignment
         blocks.append(.heading(level: 2, text: "Rubric and grading materials"))
         appendMaterial("Rubric", assignment.rubricText, empty: "No rubric saved.", to: &blocks)
         appendMaterial("Custom teacher instructions", GradeDraftTemplateApplication.withoutTemplateMarkers(assignment.customInstructions), empty: "No custom teacher instructions saved.", to: &blocks)
@@ -115,6 +139,11 @@ enum ReportBuilder {
             blocks.append(.heading(level: 3, text: "AI constraint templates selected by the teacher"))
             blocks.append(.bulletList(constraintTemplates.map { "\($0.title): \($0.text)" }))
         }
+        appendTeacherCurriculumReferences(setup: setup, to: &blocks)
+    }
+
+    private static func appendTeacherCurriculumReferences(setup: AssignmentSetup, to blocks: inout [ReportBlock]) {
+        let assignment = setup.assignment
         if !assignment.curriculumReference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !setup.curriculumMappings.isEmpty {
             blocks.append(.heading(level: 3, text: "Curriculum references"))
             if !assignment.curriculumReference.isEmpty {
@@ -124,75 +153,82 @@ enum ReportBuilder {
                 blocks.append(.bulletList(setup.curriculumMappings.map { "\($0.curriculumItemID) (\($0.mappingKind))" }))
             }
         }
+    }
 
-        // Model draft
-        if let draft = submission.draft {
-            blocks.append(.heading(level: 2, text: "Model draft"))
-            blocks.append(.bulletList([
-                "Draft status: " + ((try? submission.draftIsStale(setup: setup)).map { $0 ? "Needs recheck" : "Ready for teacher review" } ?? "Unknown"),
-                "Score: " + scoreText(total: draft.totalScore, max: maxScore(of: draft.criteria.map(\.criterionID), setup: setup)),
-                "Packet fingerprint: \(draft.packetFingerprint)"
-            ]))
-            blocks.append(.heading(level: 3, text: "Draft student feedback"))
-            blocks.append(.paragraph(nonEmpty(draft.studentFeedback, "No draft student feedback provided.")))
-            blocks.append(.heading(level: 3, text: "Draft criteria"))
-            for criterion in draft.criteria {
-                blocks.append(.heading(level: 4, text: criterionTitle(criterion.criterionID, setup: setup)))
-                var items = [
-                    "Score: " + scoreText(total: criterion.proposedPoints, max: criterionMax(criterion.criterionID, setup: setup)),
-                    "Rating: " + nonEmpty(criterion.rating, "Not specified"),
-                    "Explanation: " + nonEmpty(criterion.explanation, "None provided.")
-                ]
-                for quote in criterion.evidenceQuotes { items.append("Evidence: \(quote)") }
-                if criterion.teacherReviewRequired { items.append("Teacher review required: yes") }
-                blocks.append(.bulletList(items))
-            }
-            if !draft.uncertaintyFlags.isEmpty {
-                blocks.append(.heading(level: 3, text: "Uncertainty flags"))
-                blocks.append(.bulletList(draft.uncertaintyFlags))
-            }
-            if !draft.complianceFlags.isEmpty {
-                blocks.append(.heading(level: 3, text: "Compliance flags"))
-                blocks.append(.bulletList(draft.complianceFlags))
-            }
-            if !draft.teacherNotes.isEmpty {
-                blocks.append(.heading(level: 3, text: "Private model/teacher notes"))
-                blocks.append(.paragraph(draft.teacherNotes))
-            }
+    private static func appendTeacherModelDraft(_ draft: GradeDraftResult, setup: AssignmentSetup, submission: SubmissionGraph, to blocks: inout [ReportBlock]) {
+        blocks.append(.heading(level: 2, text: "Model draft"))
+        blocks.append(.bulletList([
+            "Draft status: " + ((try? submission.draftIsStale(setup: setup)).map { $0 ? "Needs recheck" : "Ready for teacher review" } ?? "Unknown"),
+            "Score: " + scoreText(total: draft.totalScore, max: maxScore(of: draft.criteria.map(\.criterionID), setup: setup)),
+            "Packet fingerprint: \(draft.packetFingerprint)"
+        ]))
+        blocks.append(.heading(level: 3, text: "Draft student feedback"))
+        blocks.append(.paragraph(nonEmpty(draft.studentFeedback, "No draft student feedback provided.")))
+        blocks.append(.heading(level: 3, text: "Draft criteria"))
+        appendTeacherDraftCriteria(draft, setup: setup, to: &blocks)
+        if !draft.uncertaintyFlags.isEmpty {
+            blocks.append(.heading(level: 3, text: "Uncertainty flags"))
+            blocks.append(.bulletList(draft.uncertaintyFlags))
         }
-
-        // Final teacher review
-        if let review = submission.finalReview {
-            blocks.append(.heading(level: 2, text: "Final teacher review"))
-            blocks.append(.bulletList([
-                "Status: " + (review.status == .approved ? "Approved" : "Review final grade"),
-                "Score: " + scoreText(total: review.totalScore, max: maxScore(of: review.criteria.map(\.criterionID), setup: setup)),
-                "Packet fingerprint: \(review.packetFingerprint)",
-                "Finalized at: " + (review.finalizedAt.map(dateText) ?? "Not finalized")
-            ]))
-            blocks.append(.heading(level: 3, text: "Student feedback"))
-            blocks.append(.paragraph(nonEmpty(review.studentFeedback, "No feedback provided.")))
-            blocks.append(.heading(level: 3, text: "Final criteria"))
-            for criterion in review.criteria {
-                blocks.append(.heading(level: 4, text: criterionTitle(criterion.criterionID, setup: setup)))
-                let max = criterionMax(criterion.criterionID, setup: setup)
-                var items = [
-                    "Final score: " + scoreText(total: criterion.finalPoints, max: max),
-                    "Suggestion score: " + scoreText(total: criterion.proposedPoints, max: max),
-                    "Rating: " + nonEmpty(criterion.rating, "Not specified"),
-                    "Explanation: " + nonEmpty(criterion.explanation, "None provided.")
-                ]
-                for quote in evidenceQuotes(criterion.evidenceIDs, in: submission) { items.append("Evidence: \(quote)") }
-                if !criterion.teacherRationale.isEmpty { items.append("Teacher rationale: \(criterion.teacherRationale)") }
-                blocks.append(.bulletList(items))
-            }
-            if !review.privateTeacherNotes.isEmpty {
-                blocks.append(.heading(level: 3, text: "Private teacher notes"))
-                blocks.append(.paragraph(review.privateTeacherNotes))
-            }
+        if !draft.complianceFlags.isEmpty {
+            blocks.append(.heading(level: 3, text: "Compliance flags"))
+            blocks.append(.bulletList(draft.complianceFlags))
         }
+        if !draft.teacherNotes.isEmpty {
+            blocks.append(.heading(level: 3, text: "Private model/teacher notes"))
+            blocks.append(.paragraph(draft.teacherNotes))
+        }
+    }
 
-        // Evidence, export records, audit events
+    private static func appendTeacherDraftCriteria(_ draft: GradeDraftResult, setup: AssignmentSetup, to blocks: inout [ReportBlock]) {
+        for criterion in draft.criteria {
+            blocks.append(.heading(level: 4, text: criterionTitle(criterion.criterionID, setup: setup)))
+            var items = [
+                "Score: " + scoreText(total: criterion.proposedPoints, max: criterionMax(criterion.criterionID, setup: setup)),
+                "Rating: " + nonEmpty(criterion.rating, "Not specified"),
+                "Explanation: " + nonEmpty(criterion.explanation, "None provided.")
+            ]
+            for quote in criterion.evidenceQuotes { items.append("Evidence: \(quote)") }
+            if criterion.teacherReviewRequired { items.append("Teacher review required: yes") }
+            blocks.append(.bulletList(items))
+        }
+    }
+
+    private static func appendTeacherFinalReview(_ review: FinalGradeReview, setup: AssignmentSetup, submission: SubmissionGraph, to blocks: inout [ReportBlock]) {
+        blocks.append(.heading(level: 2, text: "Final teacher review"))
+        blocks.append(.bulletList([
+            "Status: " + (review.status == .approved ? "Approved" : "Review final grade"),
+            "Score: " + scoreText(total: review.totalScore, max: maxScore(of: review.criteria.map(\.criterionID), setup: setup)),
+            "Packet fingerprint: \(review.packetFingerprint)",
+            "Finalized at: " + (review.finalizedAt.map(dateText) ?? "Not finalized")
+        ]))
+        blocks.append(.heading(level: 3, text: "Student feedback"))
+        blocks.append(.paragraph(nonEmpty(review.studentFeedback, "No feedback provided.")))
+        blocks.append(.heading(level: 3, text: "Final criteria"))
+        appendTeacherFinalCriteria(review, setup: setup, submission: submission, to: &blocks)
+        if !review.privateTeacherNotes.isEmpty {
+            blocks.append(.heading(level: 3, text: "Private teacher notes"))
+            blocks.append(.paragraph(review.privateTeacherNotes))
+        }
+    }
+
+    private static func appendTeacherFinalCriteria(_ review: FinalGradeReview, setup: AssignmentSetup, submission: SubmissionGraph, to blocks: inout [ReportBlock]) {
+        for criterion in review.criteria {
+            blocks.append(.heading(level: 4, text: criterionTitle(criterion.criterionID, setup: setup)))
+            let max = criterionMax(criterion.criterionID, setup: setup)
+            var items = [
+                "Final score: " + scoreText(total: criterion.finalPoints, max: max),
+                "Suggestion score: " + scoreText(total: criterion.proposedPoints, max: max),
+                "Rating: " + nonEmpty(criterion.rating, "Not specified"),
+                "Explanation: " + nonEmpty(criterion.explanation, "None provided.")
+            ]
+            for quote in evidenceQuotes(criterion.evidenceIDs, in: submission) { items.append("Evidence: \(quote)") }
+            if !criterion.teacherRationale.isEmpty { items.append("Teacher rationale: \(criterion.teacherRationale)") }
+            blocks.append(.bulletList(items))
+        }
+    }
+
+    private static func appendTeacherEvidence(_ submission: SubmissionGraph, to blocks: inout [ReportBlock]) {
         if !submission.evidence.isEmpty {
             blocks.append(.heading(level: 2, text: "Evidence"))
             blocks.append(.bulletList(submission.evidence.map { reference in
@@ -203,7 +239,9 @@ enum ReportBuilder {
                 return line
             }))
         }
+    }
 
+    private static func appendTeacherExportRecords(_ submission: SubmissionGraph, to blocks: inout [ReportBlock]) {
         blocks.append(.heading(level: 2, text: "Export records"))
         if submission.exports.isEmpty {
             blocks.append(.paragraph("No exports recorded."))
@@ -212,7 +250,9 @@ enum ReportBuilder {
                 "\(dateText($0.createdAt)): \($0.kind.displayName); private notes included: \($0.includesPrivateTeacherNotes ? "yes" : "no"); original files included: \($0.includesOriginalSources ? "yes" : "no"); SHA-256: \($0.contentSHA256)"
             }))
         }
+    }
 
+    private static func appendTeacherAuditEvents(_ submission: SubmissionGraph, to blocks: inout [ReportBlock]) {
         blocks.append(.heading(level: 2, text: "Audit events"))
         if submission.audit.isEmpty {
             blocks.append(.paragraph("No audit events recorded."))
@@ -221,8 +261,6 @@ enum ReportBuilder {
                 "\(dateText($0.timestamp)): \($0.eventType.rawValue), \($0.detail)"
             }))
         }
-
-        return ReportDocument(title: title, blocks: blocks)
     }
 
     // MARK: - Shared pieces
